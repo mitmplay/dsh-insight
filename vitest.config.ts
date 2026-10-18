@@ -143,6 +143,14 @@ export default defineConfig({
 				// empirically 2026-09-18). Every real arm IS covered by
 				// tests/unit/workspace-file-tabs.test.ts.
 				'src/lib/components/panels/WorkspaceFileTabs.svelte',
+			// GoalSheet: same compiler `?? ''` fallback arms on the
+			// {goal.phase} and {goal.roundsStarted}/{goal.maxGoalRounds}
+			// interpolations — provably unreachable: all three are required
+			// fields of GoalResultGoal and the only mount site (GoalBar) gates
+			// nulls (verified 2026-10-19). Every reachable arm IS covered by
+			// the direct-mount tests in
+			// tests/unit/components/anchor/goal/goal-sheet.test.ts.
+			'src/lib/components/anchor/goal/GoalSheet.svelte',
 				// Generated Paraglide output (compiled catalogs + repo junk like
 				// README.md/.gitignore) is not product code — and the junk files
 				// crash coverage-v8's remapper with fatal PARSE_ERRORs, aborting

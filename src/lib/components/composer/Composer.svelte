@@ -140,7 +140,7 @@ import { DraftPersistence } from '$lib/services/chat/draft-persistence.svelte';
 		onrows?: (rows: SuggestedPrompt[]) => void;
 		/** Slash Menu (ADR "The Slash Menu", 2026-08-30): the session's
 		 *  cached host catalog + lifecycle, bridged from the panel — the
-		 *  component never fetches (props-only, the MacroRunSheet rule);
+		 *  component never fetches (props-only, the MacroBar rule);
 		 *  null/absent renders the menu's loading row until the bridge
 		 *  lands the first read. */
 		slashCatalog?: SlashDirectory | null;

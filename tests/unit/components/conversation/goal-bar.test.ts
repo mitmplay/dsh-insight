@@ -11,7 +11,7 @@
  */
 import { mount, unmount, flushSync } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import GoalBar from '$lib/components/conversation/GoalBar.svelte';
+import GoalBar from '$lib/components/anchor/goal/GoalBar.svelte';
 import type { GoalResultGoal } from '$lib/utils/goals';
 
 function goal(partial: Partial<GoalResultGoal> = {}): GoalResultGoal {

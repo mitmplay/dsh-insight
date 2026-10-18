@@ -48,8 +48,8 @@
 	import { SubmitLadder } from './submit-ladder.svelte';
 	import { Popups } from './popups.svelte';
 	import { Paging } from './paging.svelte';
-	import MacroRunSheet from '$lib/components/conversation/MacroRunSheet.svelte';
-	import GoalBar from '$lib/components/conversation/GoalBar.svelte';
+	import MacroBar from '$lib/components/anchor/macro/MacroBar.svelte';
+	import GoalBar from '$lib/components/anchor/goal/GoalBar.svelte';
 	import type { DsiPermission } from '$lib/services/conversation/permission-state';
 	import type { DshRawEvent } from '$lib/services/conversation/dsh-events';
 	import { contextWindowOf } from '$lib/utils/context-window';
@@ -691,7 +691,7 @@
 	     (store.running, pending cards) and the ✓/▶ derivation baseline are
 	     THIS panel's own store — no spine fetch, no new plumbing. -->
 		{#if macroOurs}
-			<MacroRunSheet
+			<MacroBar
 				run={macroRun}
 				landedTurns={macroLanded}
 				running={store.isStreaming}

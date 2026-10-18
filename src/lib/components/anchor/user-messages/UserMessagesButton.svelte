@@ -2,7 +2,7 @@
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import { MessageSquareText } from '@lucide/svelte';
-	import UserMessageJumper from '$lib/components/common/layout/UserMessageJumper.svelte';
+	import UserMessageJumper from './UserMessageJumper.svelte';
 	import { groupTurns } from '$lib/utils/turn-grouping';
 
 	/**

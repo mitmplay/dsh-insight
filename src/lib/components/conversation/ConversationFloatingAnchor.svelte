@@ -9,7 +9,7 @@
 	 * arrive as props.
 	 */
 	import FloatingAnchor from '$lib/components/common/containers/FloatingAnchor.svelte';
-	import UserMessagesButton from '$lib/components/common/buttons/UserMessagesButton.svelte';
+	import UserMessagesButton from '$lib/components/anchor/user-messages/UserMessagesButton.svelte';
 	import BackToTheEdgeButton from '$lib/components/common/buttons/BackToTheEdgeButton.svelte';
 	import PlanButton from '$lib/components/anchor/plan/PlanButton.svelte';
 	import JobsButton from '$lib/components/anchor/job/JobsButton.svelte';

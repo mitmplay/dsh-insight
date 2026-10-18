@@ -68,7 +68,7 @@
 	 * the submit ladder's own priority order) — filtered as the operator
 	 * types the `/` draft.
 	 *
-	 * Presentational (the MacroRunSheet rule): rows + filter query +
+	 * Presentational (the MacroBar rule): rows + filter query +
 	 * lifecycle state in; kind-aware pick events out. No fetch, no store
 	 * import — the HOST (Composer) owns the draft, the trigger, the
 	 * catalog state, and the keyboard lifecycle. This component renders;

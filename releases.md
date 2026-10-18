@@ -1,5 +1,17 @@
 # Releases
 
+## 0.6.20
+
+Bumped from 0.6.19 — the anchor split reaches the macro and goal surfaces: MacroRunSheet renamed MacroBar with MacroChip + MacroSheet extracted, GoalBar homed under anchor/goal; coverage floor hardened to zero violations across the family.
+
+### Features
+- Macro surface split (a5633a2): MacroRunSheet renamed **MacroBar**, MacroChip + MacroSheet extracted into `components/anchor/macro`; GoalBar moved to `components/anchor/goal` — the floating-anchor family now follows the one-component-per-leaf layout convention; spec docs and rename audit updated to match
+
+### Bug fixes
+- Coverage floor: GoalSheet branch coverage was 62.5% only from Svelte-compiler `??` interpolation fallback arms on required GoalResultGoal fields (goal.phase, roundsStarted, maxGoalRounds) — provably unreachable via the public API; 6 direct-mount contract tests added (`tests/unit/components/anchor/goal/goal-sheet.test.ts`) and the file excluded per the documented pattern (TokenCounter, PlanButton) (b6e85c4)
+- Coverage floor: UserMessageJumper + UserMessagesButton relocated to `anchor/user-messages/` (old common/buttons + common/layout copies removed); 32 new tests across user-message-jumper-logic, user-message-jumper-branches, back-to-the-edge-button suites lift both above the 80% floor (UserMessageJumper 100% all metrics, BackToTheEdgeButton branches 92.85%); stale floating-anchor imports fixed, dead common/layout test deleted (b8c2a7b)
+- Verified `pnpm test:coverage` exit 0 — 438 files / 5432 tests, zero files below 80% (b8c2a7b)
+
 ## 0.6.19
 
 Bumped from 0.6.18 — the anchor-leaf family finishes its layout migration: every floating-anchor leaf (Plan, Inject, Jobs) now lives under `components/anchor/` with its popup split out as its own component.

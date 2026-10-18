@@ -8,12 +8,12 @@
  * section's display; held controls fire callbacks; Run again on ended
  * runs; abort offered only while unfed sections remain.
  *
- * Mounts MacroRunSheet directly — presentational, props in / callbacks
+ * Mounts MacroBar directly — presentational, props in / callbacks
  * out (the panel wiring suite covers the panel side).
  */
 import { mount, unmount, flushSync } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import MacroRunSheet from '$lib/components/conversation/MacroRunSheet.svelte';
+import MacroBar from '$lib/components/anchor/macro/MacroBar.svelte';
 import type { MacroLineRecord, MacroRunState } from '$lib/services/chat/macro-runner.svelte';
 
 function rec(
@@ -48,7 +48,7 @@ function mountSheet(props: Record<string, unknown> = {}) {
 	const onabort = vi.fn();
 	const onrunagain = vi.fn();
 	const onclose = vi.fn();
-	const comp = mount(MacroRunSheet, {
+	const comp = mount(MacroBar, {
 		target,
 		props: { run: runState(), onfeednext, onrunall, onabort, onrunagain, onclose, ...props }
 	});
@@ -71,7 +71,7 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-describe('MacroRunSheet — chip (collapsed layer)', () => {
+describe('MacroBar — chip (collapsed layer)', () => {
 	it('renders nothing while idle', () => {
 		const h = mountSheet({ run: runState({ phase: 'idle' }) });
 		expect(h.chip()).toBeNull();
@@ -138,7 +138,7 @@ describe('MacroRunSheet — chip (collapsed layer)', () => {
 	});
 });
 
-describe('MacroRunSheet — sheet: six per-line states', () => {
+describe('MacroBar — sheet: six per-line states', () => {
 	it('renders ✓ ▶ ⏳ ⊙ ⊘ ✕ marks with their state names', () => {
 		const h = mountSheet({
 			run: runState({
@@ -232,7 +232,7 @@ describe('MacroRunSheet — sheet: six per-line states', () => {
 	});
 });
 
-describe('MacroRunSheet — kind-driven classification (W2 2.2: no note sniffing)', () => {
+describe('MacroBar — kind-driven classification (W2 2.2: no note sniffing)', () => {
 	it('/permission is instantly ✓ by KIND (the audit pairing bug dies)', () => {
 		const h = mountSheet({
 			run: runState({
@@ -351,7 +351,7 @@ describe('MacroRunSheet — kind-driven classification (W2 2.2: no note sniffing
 	});
 });
 
-describe('MacroRunSheet — ✓/▶ derivation math (D9: props only)', () => {
+describe('MacroBar — ✓/▶ derivation math (D9: props only)', () => {
 	it('done = fed lines with a landed assistant-turn group, in order', () => {
 		const lines = [rec(1, 'one', 'queued'), rec(2, 'two', 'queued'), rec(3, 'three', 'queued')];
 		const run = runState({ phase: 'fed', total: 3, fed: 3, lines });
@@ -402,7 +402,7 @@ describe('MacroRunSheet — ✓/▶ derivation math (D9: props only)', () => {
 	});
 });
 
-describe('MacroRunSheet — held controls + run again (D10)', () => {
+describe('MacroBar — held controls + run again (D10)', () => {
 	it('held run: Feed next / Run all / Abort fire their callbacks', () => {
 		const h = mountSheet({
 			run: runState({
@@ -458,7 +458,7 @@ describe('MacroRunSheet — held controls + run again (D10)', () => {
 	});
 });
 
-describe('MacroRunSheet — presentational contract', () => {
+describe('MacroBar — presentational contract', () => {
 	it('no fetch ever fires from the sheet', async () => {
 		const calls: string[] = [];
 		const original = globalThis.fetch;
@@ -485,7 +485,7 @@ describe('MacroRunSheet — presentational contract', () => {
 	});
 });
 
-describe('MacroRunSheet — close button (ended runs)', () => {
+describe('MacroBar — close button (ended runs)', () => {
 	it('renders the right-aligned close button only on ended runs', () => {
 		for (const phase of ['fed', 'stopped', 'failed'] as const) {
 			const h = mountSheet({ run: runState({ phase }) });
