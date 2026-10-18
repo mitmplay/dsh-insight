@@ -129,7 +129,7 @@ export default defineConfig({
 			// shape — these stay covered by their own suites.
 			exclude: [
 				'src/lib/components/composer/sibling/TokenCounter.svelte',
-				'src/lib/components/common/buttons/PlanButton.svelte',
+				'src/lib/components/anchor/plan/PlanButton.svelte',
 				// StripTagChips: same compiler `?? ''` arm on
 				// checked={checked.includes(word)} — boolean, never nullish
 				// (observed 2026-09-15); the {#if recTags} arms ARE covered by
@@ -148,7 +148,32 @@ export default defineConfig({
 				// crash coverage-v8's remapper with fatal PARSE_ERRORs, aborting
 				// the whole report (observed 2026-09-14).
 				'src/lib/paraglide/**',
-				'src/app.html'
+				'src/app.html',
+				// Types-only and CSS files carry no executable statements, so
+				// v8 coverage reports them as 0% rows — pure report noise; the
+				// 80% thresholds could never fire on real logic here
+				// (observed 2026-10-18).
+				'src/app.css',
+				'src/app.d.ts',
+				'src/svelte-internal-client.d.ts',
+				'src/lib/types.ts',
+				'src/lib/server/terminal/types.ts',
+				// Monaco worker bootstraps: each *-worker.ts / yaml-worker-entry.ts
+				// is a spawn-time module (side-effect imports only) and the decls
+				// file is ambient types — no testable statements, 0% report noise
+				// (observed 2026-10-18).
+				// settings-monaco.ts is REAL glue code and stays measured.
+				'src/lib/components/monaco/settings-editor-worker.ts',
+				'src/lib/components/monaco/settings-json-worker.ts',
+				'src/lib/components/monaco/settings-css-worker.ts',
+				'src/lib/components/monaco/settings-html-worker.ts',
+				'src/lib/components/monaco/settings-ts-worker.ts',
+				'src/lib/components/monaco/yaml-worker-entry.ts',
+				'src/lib/components/monaco/monaco-worker-decls.d.ts',
+				// prompts/db.ts is the frozen ADR-0022 re-export seam (header +
+				// re-exports only, verified 2026-10-18); the logic it forwards to
+				// in connection/similarity/search/crud.ts is measured there.
+				'src/lib/server/prompts/db.ts'
 			],
 			reportsDirectory: './coverage',
 			// Per-file 80% floor on all four metrics.

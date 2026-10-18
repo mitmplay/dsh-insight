@@ -2,7 +2,7 @@
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import { ListChecks } from '@lucide/svelte';
-	import PlanPopup from '$lib/components/common/layout/PlanPopup.svelte';
+	import PlanPopup from './PlanPopup.svelte';
 	import type { TodoItem } from '$lib/utils/todo-lists';
 
 	/**

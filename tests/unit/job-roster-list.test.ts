@@ -116,7 +116,7 @@ describe('JobRosterList — status icon branches', () => {
 
 describe('JobRosterList — kill arm/confirm flow', () => {
 	it('first click arms (shows confirm), second click kills and refreshes', async () => {
-		const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+		const fetchMock = vi.fn(async (..._args: Parameters<typeof fetch>) => new Response(JSON.stringify({ ok: true }), { status: 200 }));
 		vi.stubGlobal('fetch', fetchMock);
 		const refreshSpy = vi.spyOn(jobsRoster, 'refresh').mockResolvedValue(undefined);
 		const target = mountList({ jobs: [job({ id: 'k1' })] });
@@ -134,7 +134,8 @@ describe('JobRosterList — kill arm/confirm flow', () => {
 		await Promise.resolve();
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(fetchMock.mock.calls[0][0]).toBe('/api/dsh/jobs');
-		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+		const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+		expect(JSON.parse(String(init.body))).toEqual({
 			sessionId: 'session-a',
 			jobId: 'k1'
 		});
@@ -146,7 +147,7 @@ describe('JobRosterList — kill arm/confirm flow', () => {
 
 	it('a rejected kill fetch STILL calls jobsRoster.refresh (finally branch)', async () => {
 		// the host refuses the kill (500) — refresh STILL runs via finally
-		const fetchMock = vi.fn(async () => new Response('nope', { status: 500 }));
+		const fetchMock = vi.fn(async (..._args: Parameters<typeof fetch>) => new Response('nope', { status: 500 }));
 		vi.stubGlobal('fetch', fetchMock);
 		const refreshSpy = vi.spyOn(jobsRoster, 'refresh').mockResolvedValue(undefined);
 		const target = mountList({ jobs: [job({ id: 'k2' })] });
@@ -182,7 +183,7 @@ describe('JobRosterList — kill arm/confirm flow', () => {
 
 	it('arm expires after KILL_ARM_MS — the next click re-arms instead of killing', async () => {
 		vi.useFakeTimers();
-		const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
+		const fetchMock = vi.fn(async (..._args: Parameters<typeof fetch>) => new Response('{}', { status: 200 }));
 		vi.stubGlobal('fetch', fetchMock);
 		vi.spyOn(jobsRoster, 'refresh').mockResolvedValue(undefined);
 		const target = mountList({ jobs: [job({ id: 'k3' })] });

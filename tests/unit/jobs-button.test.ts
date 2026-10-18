@@ -7,7 +7,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import JobsButton from '../../src/lib/components/common/buttons/JobsButton.svelte';
+import JobsButton from '../../src/lib/components/anchor/job/JobsButton.svelte';
 
 const job = (id: string, status: string) => ({
 	id,

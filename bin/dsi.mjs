@@ -383,6 +383,19 @@ function portInUse(port) {
 	});
 }
 
+/** Poll until something LISTENS on 127.0.0.1:port — the same net probe as
+ *  portInUse, inverted. The browser-open gate (bug 2026-10-17): the page
+ *  used to open on a fixed 2s timer, landing on a host that had not bound
+ *  yet (boot variance, or a first-run pin still downloading). Returns
+ *  false on budget exhaustion; the caller opens anyway, best-effort. */
+async function waitPortListening(port, budgetMs) {
+	for (let waited = 0; waited < budgetMs; waited += 500) {
+		if (await portInUse(port)) return true;
+		await new Promise((resolve) => setTimeout(resolve, 500));
+	}
+	return portInUse(port);
+}
+
 /** The dsh host hard-fails on a busy 3080 with a long Cordis stack; catch
  *  it before the pair spawns. First sweep the known orphan shapes
  *  (pkill -f — same BSD/procps flag set on macOS and Linux), wait for the
@@ -448,7 +461,7 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = []) {
 	// pointless — the plugin boots the host on 3080 AFTER vite is up, and
 	// a stale 3080 from a foreign floor is that floor's business (the
 	// embedded boot fails loud in the plugin, killing nothing).
-	warnIfFirstRunDownload();
+	const firstRun = warnIfFirstRunDownload();
 	// IN-PROCESS: the plugin reads its port from DSH_HOST_PORT (default 3080)
 	// — the UI half MUST dial the same port, so DSH_HOST_PORT participates in
 	// the dshBase derivation exactly like a forwarded --port flag. (Smoke
@@ -471,8 +484,15 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = []) {
 	});
 	const ui = mode === 'build' ? startDsiServer(uiPort, dshBase) : startDsiDevServer(uiPort, dshBase, mode, execArgv);
 	// The browser follows the UI: the built page (5174) — or, in --dev mode,
-	// the dev server (5175).
-	openBrowser(`http://localhost:${uiPort}/`);
+	// the dev server (5175). Gated on the HOST actually listening (bug
+	// 2026-10-17): the fixed 2s timer lost every race the host booted slower
+	// than — a first-run pin still downloading worst of all. Budget: 30s for a
+	// cached pin, 5 minutes while a new pin downloads. On exhaustion it still
+	// opens (best-effort, the old behavior) and says so.
+	void waitPortListening(hostPort, firstRun ? 300000 : 30000).then((up) => {
+		if (!up) console.log(`dsi dsh: host port ${hostPort} not listening after the wait — opening the page anyway; refresh once the host prints its URL`);
+		openBrowser(`http://localhost:${uiPort}/`, 0);
+	});
 	for (const signal of ['SIGINT', 'SIGTERM']) {
 		process.on(signal, () => {
 			if (host) host.kill(signal); // in-process: no host child — vite close hook stops it
@@ -803,13 +823,16 @@ function dshPackageCached(version) {
  *  npm exec suppresses its download progress entirely, so a FIRST run of a
  *  new pinned dsh installs for minutes with zero output while the DSI half
  *  is already serving a floor whose every /api call fails. This heads-up
- *  fires before the host spawns, only when the pin is NOT yet cached. */
+ *  fires before the host spawns, only when the pin is NOT yet cached.
+ *  Returns true when the pin needs downloading — the readiness gate below
+ *  spends a longer budget waiting for the host in that case. */
 function warnIfFirstRunDownload() {
-	if (process.env.DSH_WEB_CMD !== undefined) return;
+	if (process.env.DSH_WEB_CMD !== undefined) return false;
 	// The env override (same one dsh-web-synced.sh honors) wins over the pin.
 	const version = process.env.DSH_WEB_VERSION ?? dshWebVersion();
-	if (dshPackageCached(version)) return;
-	console.log(`dsi dsh: fetching @deepseek-ai/dsh@${version} — first run for this pin, the download can take a few minutes; the DSI page may open before the host answers, just refresh once it prints its URL`);
+	if (dshPackageCached(version)) return false;
+	console.log(`dsi dsh: fetching @deepseek-ai/dsh@${version} — first run for this pin, the download can take a few minutes; the browser opens once the host answers`);
+	return true;
 }
 
 /** The host port a forwarded --port <n> (or --port=<n>) names, else null.

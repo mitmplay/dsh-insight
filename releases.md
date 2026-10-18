@@ -1,5 +1,18 @@
 # Releases
 
+## 0.6.19
+
+Bumped from 0.6.18 — the anchor-leaf family finishes its layout migration: every floating-anchor leaf (Plan, Inject, Jobs) now lives under `components/anchor/` with its popup split out as its own component.
+
+### Features
+- Anchor layout migration: PlanButton/PlanPopup moved to `components/anchor/plan` (4e811ad); InjectedShelfPopup extracted from InjectedShelfButton (af5348d); JobsButton moved to `components/anchor/job` with JobsPopup extracted as its own component hosting the shared JobRosterList in the Popup Shell (19d92e0)
+
+### Bug fixes
+- svelte-check: fetchMock typed via `Parameters<typeof fetch>` clearing the remaining type errors (b7025c3)
+- Launcher: browser open gated on the host actually listening — no more tab racing the port (129c0be)
+- Coverage thresholds: types-only files (app.d.ts, types.ts), CSS, Monaco worker bootstraps, and the frozen ADR-0022 prompts/db.ts re-export seam excluded as 0%-report noise — the 80% floor now measures only real logic (19d92e0)
+- `dsh webVersion` pinned to 0.2.1-alpha.5 with release KB note (96e803e)
+
 ## 0.6.18
 
 Bumped from 0.6.17 — Job Badge feature completion (ADR-0026) hardened: svelte-check at zero errors, BC-7 page-owned roster cadence, and coverage over the 80% per-file floor.

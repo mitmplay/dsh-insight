@@ -11,7 +11,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { describe, expect, it } from 'vitest';
-import PlanButton from '$lib/components/common/buttons/PlanButton.svelte';
+import PlanButton from '$lib/components/anchor/plan/PlanButton.svelte';
 import type { TodoItem } from '$lib/utils/todo-lists';
 
 function mountButton(todos: TodoItem[] | null | undefined) {

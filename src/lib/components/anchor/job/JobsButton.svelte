@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { jobsRoster, isLiveJob } from '$lib/services/jobs/roster-store.svelte';
-	import JobRosterList from '$lib/components/jobs/JobRosterList.svelte';
-	import FloatingAnchorContainerPopup from '$lib/components/common/containers/FloatingAnchorContainerPopup.svelte';
+	import JobsPopup from './JobsPopup.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 
@@ -50,9 +49,7 @@
 		>
 			<span class="dot"></span>{liveCount}
 		</button>
-		<FloatingAnchorContainerPopup bind:open {triggerEl} popupTestId="jobs-button-popup">
-			<JobRosterList {jobs} {sessionId} />
-		</FloatingAnchorContainerPopup>
+		<JobsPopup bind:open {triggerEl} {jobs} {sessionId} />
 	</div>
 {/if}
 
