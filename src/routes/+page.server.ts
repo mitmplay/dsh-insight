@@ -15,6 +15,7 @@ import { eventsToEntries, historyToEvents } from '$lib/services/conversation/dsh
 import { filterKnobEvents, permissionFromProjection, type DsiPermission } from '$lib/services/conversation/permission-state';
 import type { DshRawEvent } from '$lib/services/conversation/dsh-events';
 import { imageLimitsFromProjection, type DsiImageLimits } from '$lib/services/conversation/image-limits';
+import { deliverablesFromEvents, type PresentedDelivery } from '$lib/services/conversation/deliverables';
 import type { DsiEntry } from '$lib/types';
 import type { PageServerLoad } from './$types';
 
@@ -42,6 +43,8 @@ export const load: PageServerLoad = async ({ url }) => {
 	 *  0.1.2 page carries none; the live baseline below is the seed). */
 	let tailProjections: Record<string, unknown> = {};
 	let knobEvents: DshRawEvent[] = [];
+	/** The session's presented-file inventory (ADR-0027f D1 cold seed). */
+	let deliverables: PresentedDelivery[] = [];
 	try {
 		const historyPage = await getDshConnection().history(sessionId);
 		historyEvents = historyPage.events;
@@ -58,6 +61,10 @@ export const load: PageServerLoad = async ({ url }) => {
 		// absent (older host) → the service's documented defaults.
 		imageLimits = imageLimitsFromProjection(historyPage.projections?.values?.['imageLimits']);
 		knobEvents = filterKnobEvents(historyToEvents(historyPage.events));
+		// ADR-0027f D1: the presented-file inventory derived from the RAW
+		// ledger events (the entries lane drops the silent type) — the
+		// DeliverablesButton's cold seed.
+		deliverables = deliverablesFromEvents(historyToEvents(historyPage.events));
 	} catch (err) {
 		if (err instanceof DshRpcError && err.code === 'session/not-found') {
 			error(404, { message: `Session ${sessionId} not found on the DSH host.` });
@@ -125,6 +132,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		permission,
 		imageLimits,
 		knobEvents,
+		deliverables,
 		entries,
 		lastSeq: Math.max(lastLedgerSeq, -1),
 		running,

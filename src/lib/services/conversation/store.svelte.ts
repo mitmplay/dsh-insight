@@ -18,6 +18,7 @@ import type { DsiImageLimits } from '$lib/services/conversation/image-limits';
 import type { TodoItem } from '$lib/utils/todo-lists';
 import type { DsiPlanProjection } from '$lib/services/conversation/plan-projection';
 import type { GoalResultGoal } from '$lib/utils/goals';
+import type { PresentedDelivery } from '$lib/services/conversation/deliverables';
 import {
 	EMPTY_KNOBS,
 	applyKnobEvent,
@@ -276,6 +277,12 @@ export function createConversationStore(sessionId: string) {
 	 *  composed); the panel keeps its partial fold then. */
 	let ledgerStats = $state<DsiLedgerStats | null>(null);
 
+	/** The session's presented-file inventory (ADR-0027f D1): raw-lane
+	 * deliveries, cold-seeded/resync-replaced wholesale, delta-appended by
+	 * callId (idempotent — at-least-once polls never duplicate). Empty =
+	 * no presents yet (the anchor button's render gate). */
+	let deliverables = $state<PresentedDelivery[]>([]);
+
 	/**
 	 * Cold/resync seed (authoritative replace, the entries semantics): the
 	 * projections baseline (null = the host ships none) and the window's
@@ -435,6 +442,10 @@ export function createConversationStore(sessionId: string) {
 		 *  not delivered (keep current); null = the host pair is absent —
 		 *  clears so the panel degrades to its partial fold. */
 		ledgerStats?: DsiLedgerStats | null;
+		/** ADR-0027f D1: this delta's raw-lane deliverables events (the
+		 *  entries lane drops the silent type). undefined = none in this
+		 *  delta (keep current); appends are callId-idempotent. */
+		deliverables?: PresentedDelivery[];
 	}): void {
 		appendMany(poll.entries);
 		applyStatus(poll.running, poll.lastSeq);
@@ -450,6 +461,28 @@ export function createConversationStore(sessionId: string) {
 		if (poll.plan !== undefined) planMode = poll.plan;
 		if (poll.goal !== undefined) goal = poll.goal;
 		if (poll.ledgerStats !== undefined) ledgerStats = poll.ledgerStats;
+		// ADR-0027f D1: the delta's raw-lane deliveries append idempotently.
+		if (poll.deliverables !== undefined) applyDeliverables(poll.deliverables);
+	}
+
+	/**
+	 * Fold raw-lane deliveries in (ADR-0027f D1): append by callId — an
+	 * already-known callId is a re-delivered poll delta, skipped whole.
+	 */
+	function applyDeliverables(delta: readonly PresentedDelivery[]): void {
+		if (delta.length === 0) return;
+		const known = new Set(deliverables.map((d) => d.callId));
+		const fresh = delta.filter((d) => !known.has(d.callId));
+		if (fresh.length === 0) return;
+		deliverables = [...deliverables, ...fresh];
+	}
+
+	/**
+	 * Seed the inventory (cold load + resync — authoritative replace, the
+	 * ledger's append-only truth re-read whole; ADR-0027f D1).
+	 */
+	function seedDeliverables(next: readonly PresentedDelivery[]): void {
+		deliverables = [...next];
 	}
 
 	/**
@@ -514,7 +547,8 @@ export function createConversationStore(sessionId: string) {
 		lastSeq: number,
 		running: boolean,
 		permissionSeed?: { permission?: DsiPermission | null; knobEvents?: DshRawEvent[] },
-		answers?: { pendingAnswers?: PendingAnswer[]; settledAnswers?: AnsweredSettlement[] }
+		answers?: { pendingAnswers?: PendingAnswer[]; settledAnswers?: AnsweredSettlement[] },
+		deliverablesSeed?: readonly PresentedDelivery[]
 	): void {
 		// Keep still-unmatched optimistic bubbles across the replace: an
 		// in-flight submit must never visually revert during a resync.
@@ -531,6 +565,9 @@ export function createConversationStore(sessionId: string) {
 		if (permissionSeed !== undefined) {
 			seedPermission(permissionSeed.permission, permissionSeed.knobEvents);
 		}
+		// ADR-0027f D1: the ledger tail is authoritative for the inventory
+		// too — replace wholesale (the resync caller passes the raw lane).
+		if (deliverablesSeed !== undefined) seedDeliverables(deliverablesSeed);
 		applyAnswers(answers?.pendingAnswers, answers?.settledAnswers);
 	}
 
@@ -644,7 +681,13 @@ export function createConversationStore(sessionId: string) {
 		get ledgerStats() {
 			return ledgerStats;
 		},
+		/** The session's presented-file inventory (ADR-0027f); empty =
+		 *  no presents (the DeliverablesButton gate). */
+		get deliverables() {
+			return deliverables;
+		},
 		seedImageLimits,
+		seedDeliverables,
 		seedTodos,
 		seedPlanMode,
 		seedGoal,

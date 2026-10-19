@@ -10,7 +10,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import InjectedShelfButton from '$lib/components/anchor/inject/InjectedShelfButton.svelte';
+import InjectedShelfButton from '$lib/components/anchor/inject-anchor/InjectedShelfButton.svelte';
 import {
 	addPanelFromSidebar,
 	registerAddPanel,
@@ -127,7 +127,7 @@ describe('InjectedShelfButton (Loadinjected W4 4.4-T)', () => {
 
 	it('SOURCE CONTRACT — the button imports the executor, never the registry write (D6)', () => {
 		const src = readFileSync(
-			join(process.cwd(), 'src/lib/components/anchor/inject/InjectedShelfButton.svelte'),
+			join(process.cwd(), 'src/lib/components/anchor/inject-anchor/InjectedShelfButton.svelte'),
 			'utf-8'
 		);
 		expect(src).toContain("from '$lib/services/chat/command-executor'");
@@ -138,7 +138,7 @@ describe('InjectedShelfButton (Loadinjected W4 4.4-T)', () => {
 
 	it('SOURCE CONTRACT — pick composes via the constructor, never the retired typed string (ADR D3, 2026-09-17)', () => {
 		const src = readFileSync(
-			join(process.cwd(), 'src/lib/components/anchor/inject/InjectedShelfButton.svelte'),
+			join(process.cwd(), 'src/lib/components/anchor/inject-anchor/InjectedShelfButton.svelte'),
 			'utf-8'
 		);
 		expect(src).toContain('loadinjectedCommand(');

@@ -26,6 +26,7 @@
 		title = undefined,
 		titleTestId = undefined,
 		popupTestId = 'floating-anchor-popup',
+		fitWidth = false,
 		children
 	}: {
 		/** Popup open state — bindable, the leaf owns the toggle button. */
@@ -41,6 +42,9 @@
 		 *  user-message-jumper, injected-shelf-popup); default is the
 		 *  container's own id for leaf-less hosts. */
 		popupTestId?: string | undefined;
+		/** Shrink the box to its content instead of the fixed w-96 one-liner
+		 *  inventory leaves (ADR-0027f, 2026-10-19) — the 80vw cap stays. */
+		fitWidth?: boolean;
 		/** The leaf's item list. */
 		children: Snippet;
 	} = $props();
@@ -82,7 +86,9 @@
 	<div
 		bind:this={popupEl}
 		tabindex="-1"
-		class="pointer-events-auto absolute right-full top-1/2 z-50 mr-2 max-h-[60vh] w-96 max-w-[80vw] -translate-y-1/2 overflow-y-auto rounded-lg border border-surface-border bg-surface-elevated py-1 shadow-xl outline-none focus:outline-none"
+		class="pointer-events-auto absolute right-full top-1/2 z-50 mr-2 max-h-[60vh] max-w-[80vw] -translate-y-1/2 overflow-y-auto rounded-lg border border-surface-border bg-surface-elevated py-1 shadow-xl outline-none focus:outline-none {fitWidth
+			? 'w-fit'
+			: 'w-96'}"
 		data-testid={popupTestId}
 	>
 		{#if title !== undefined}

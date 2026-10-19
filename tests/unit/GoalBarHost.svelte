@@ -1,5 +1,5 @@
 <script lang="ts">
-	import GoalBar from '$lib/components/anchor/goal/GoalBar.svelte';
+	import GoalBar from '$lib/components/bar/goal-bar/GoalBar.svelte';
 	import type { GoalResultGoal } from '$lib/utils/goals';
 
 	let { goal = undefined as GoalResultGoal | null | undefined } = $props();

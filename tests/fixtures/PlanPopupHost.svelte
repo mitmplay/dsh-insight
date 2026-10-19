@@ -6,7 +6,7 @@
 	 * initial values, which never exercises the template's update
 	 * closures — header totals, glyphs, status classes).
 	 */
-	import PlanPopup from '$lib/components/anchor/plan/PlanPopup.svelte';
+	import PlanPopup from '$lib/components/anchor/plan-anchor/PlanPopup.svelte';
 	import type { TodoItem } from '$lib/utils/todo-lists';
 
 	let {

@@ -33,6 +33,8 @@
 	"previousMonth": "Previous month",
 	"nextMonth": "Next month",
 	"datePicker": "Date picker",
+	"deliverablesTitle": "Deliverables (",
+	"deliverablesFiles": " files)",
 	"currentPlan": "Current Plan (",
 	"donePart": " done)",
 	"userMessages": "User Messages (",

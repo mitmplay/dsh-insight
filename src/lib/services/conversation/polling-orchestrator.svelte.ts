@@ -77,6 +77,7 @@ export function createPollingOrchestrator(store: ConversationStore, deps: Orches
 					plan?: import('$lib/services/conversation/plan-projection').DsiPlanProjection | null;
 					goal?: import('$lib/utils/goals').GoalResultGoal | null;
 					ledgerStats?: import('$lib/types').DsiLedgerStats | null;
+					deliverables?: import('$lib/services/conversation/deliverables').PresentedDelivery[];
 					liveStream?: import('$lib/types').DsiLiveStreamTail | null;
 				};
 				if (!body.ok) {
@@ -143,6 +144,7 @@ export function createPollingOrchestrator(store: ConversationStore, deps: Orches
 				plan?: import('$lib/services/conversation/plan-projection').DsiPlanProjection | null;
 				goal?: import('$lib/utils/goals').GoalResultGoal | null;
 				ledgerStats?: import('$lib/types').DsiLedgerStats | null;
+				deliverables?: import('$lib/services/conversation/deliverables').PresentedDelivery[];
 				knobEvents?: DshRawEvent[];
 				liveStream?: import('$lib/types').DsiLiveStreamTail | null;
 			};
@@ -157,7 +159,9 @@ export function createPollingOrchestrator(store: ConversationStore, deps: Orches
 					},
 					// BC-E: answerer state rides the resync payload like every
 					// poll — a gap-resync page must still render its cards.
-					{ pendingAnswers: body.pendingAnswers, settledAnswers: body.settledAnswers }
+					{ pendingAnswers: body.pendingAnswers, settledAnswers: body.settledAnswers },
+					// ADR-0027f D1: the ledger tail's whole inventory replaces.
+					body.deliverables ?? []
 				);
 				// 0.1.3-alpha.1: the resync replaced the whole list — re-fold
 				// the in-flight attempt's live tail (null clears a stale id).

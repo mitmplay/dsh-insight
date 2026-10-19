@@ -48,6 +48,7 @@
 <FloatingAnchorContainerPopup
 	bind:open
 	{triggerEl}
+	fitWidth
 	title={t(() => m.injectedFiles({ n: members.length }))}
 	titleTestId="injected-shelf-popup-header"
 	popupTestId="injected-shelf-popup"

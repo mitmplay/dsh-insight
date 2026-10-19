@@ -48,8 +48,8 @@
 	import { SubmitLadder } from './submit-ladder.svelte';
 	import { Popups } from './popups.svelte';
 	import { Paging } from './paging.svelte';
-	import MacroBar from '$lib/components/anchor/macro/MacroBar.svelte';
-	import GoalBar from '$lib/components/anchor/goal/GoalBar.svelte';
+	import MacroBar from '$lib/components/bar/macro-bar/MacroBar.svelte';
+	import GoalBar from '$lib/components/bar/goal-bar/GoalBar.svelte';
 	import type { DsiPermission } from '$lib/services/conversation/permission-state';
 	import type { DshRawEvent } from '$lib/services/conversation/dsh-events';
 	import { contextWindowOf } from '$lib/utils/context-window';
@@ -77,6 +77,7 @@
 		permission = null,
 		imageLimits = undefined,
 		knobEvents = undefined,
+		deliverables = undefined,
 		a2aRows = [],
 		a2aTitles = {},
 		onNeedCold = undefined,
@@ -146,6 +147,10 @@
 		/** Raw knob events from the cold window (ADR-0007) — the store's
 		 *  delta-application base (folded once at seed). */
 		knobEvents?: DshRawEvent[];
+		/** The cold load's presented-file inventory (ADR-0027f D1) — the
+		 *  store's wholesale seed; absent (runtime panel pre-cold) keeps
+		 *  the store's empty list until the resync path delivers one. */
+		deliverables?: import('$lib/services/conversation/deliverables').PresentedDelivery[];
 		/** This panel's delegation-ledger rows (W4 4.2) — the sender-side a2a
 		 *  chip join, fed by the page's EXISTING spine-cadence poll of
 		 * GET /api/a2a?from=<sessionId>. Read-only; the panel owns no fetch,
@@ -220,6 +225,11 @@
 	// capture: the cold window's permission facts are load-time constants.
 	// svelte-ignore state_referenced_locally
 	store.seedPermission(permission, knobEvents);
+	// ADR-0027f D1: the cold inventory seeds once (wholesale replace).
+	if (deliverables !== undefined) {
+		// svelte-ignore state_referenced_locally
+		store.seedDeliverables(deliverables);
+	}
 
 	/** Chip popup state (2026-08-22, OCI pattern): ONE open chip at a time —
 	 * the id of the expanded entry; detail renders AFTER the chip row.
@@ -630,6 +640,8 @@
 		{groups}
 		container={viewport}
 		todos={store.todos ?? null}
+		deliverables={store.deliverables}
+		onfileopen={onFileOpen}
 		jobsessionid={sessionId}
 		onloadall={() => paging.loadAllOlder()}
 		onleavebottom={() => onStickToggle(false)}

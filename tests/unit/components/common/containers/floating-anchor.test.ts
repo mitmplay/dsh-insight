@@ -7,8 +7,8 @@
 import { mount, unmount, flushSync, createRawSnippet } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import FloatingAnchor from '$lib/components/common/containers/FloatingAnchor.svelte';
-import UserMessagesButton from '$lib/components/anchor/user-messages/UserMessagesButton.svelte';
-import UserMessageJumper from '$lib/components/anchor/user-messages/UserMessageJumper.svelte';
+import UserMessagesButton from '$lib/components/anchor/user-msg-anchor/UserMessagesButton.svelte';
+import UserMessageJumper from '$lib/components/anchor/user-msg-anchor/UserMessageJumper.svelte';
 import BackToTheEdgeButton from '$lib/components/common/buttons/BackToTheEdgeButton.svelte';
 import BackToTheEdgeRaceHost from '../../../../fixtures/BackToTheEdgeRaceHost.svelte';
 import EmbeddedAnchorHost from '../../../EmbeddedAnchorHost.svelte';

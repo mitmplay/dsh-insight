@@ -9,11 +9,12 @@
 	 * arrive as props.
 	 */
 	import FloatingAnchor from '$lib/components/common/containers/FloatingAnchor.svelte';
-	import UserMessagesButton from '$lib/components/anchor/user-messages/UserMessagesButton.svelte';
+	import UserMessagesButton from '$lib/components/anchor/user-msg-anchor/UserMessagesButton.svelte';
 	import BackToTheEdgeButton from '$lib/components/common/buttons/BackToTheEdgeButton.svelte';
-	import PlanButton from '$lib/components/anchor/plan/PlanButton.svelte';
-	import JobsButton from '$lib/components/anchor/job/JobsButton.svelte';
-	import InjectedShelfButton from '$lib/components/anchor/inject/InjectedShelfButton.svelte';
+	import PlanButton from '$lib/components/anchor/plan-anchor/PlanButton.svelte';
+	import DeliverablesButton from '$lib/components/anchor/deliverables-anchor/DeliverablesButton.svelte';
+	import JobsButton from '$lib/components/anchor/job-anchor/JobsButton.svelte';
+	import InjectedShelfButton from '$lib/components/anchor/inject-anchor/InjectedShelfButton.svelte';
 	import { groupTurns } from '$lib/utils/turn-grouping';
 	import type { TodoItem } from '$lib/utils/todo-lists';
 	import type { DsiEntry } from '$lib/types';
@@ -24,6 +25,8 @@
 		onloadall,
 		onleavebottom,
 		todos = null,
+		deliverables = null,
+		onfileopen = undefined,
 		jobsessionid = '',
 		shelfentries = undefined,
 		shelfsessionid = '',
@@ -44,6 +47,13 @@
 		/** The host's live todos projection — the Current Plan button's
 		 *  readout; null/undefined renders nothing (no current plan). */
 		todos?: TodoItem[] | null;
+		/** The session's presented-file inventory (ADR-0027f D1) — the
+		 *  DeliverablesButton's readout; null/undefined/empty renders
+		 *  nothing (no present ever landed). */
+		deliverables?: import('$lib/services/conversation/deliverables').PresentedDelivery[] | null;
+		/** The page's file-open seat (ADR-0013 D5) — the deliverables
+		 *  popup's row clicks jump through it. */
+		onfileopen?: (path: string) => void;
 		/** The conversation's sessionId — the JobsButton's roster key;
 		 *  '' renders no jobs button (hosts outside a conversation). */
 		jobsessionid?: string;
@@ -66,6 +76,7 @@
 {#if container !== undefined}
 	<FloatingAnchor>
 		<PlanButton todos={todos ?? []} />
+		<DeliverablesButton deliveries={deliverables} onfileopen={onfileopen} />
 		<JobsButton sessionId={jobsessionid} />
 		{#if shelfentries !== undefined}
 			<InjectedShelfButton

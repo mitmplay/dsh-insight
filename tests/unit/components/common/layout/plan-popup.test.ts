@@ -14,7 +14,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
-import PlanPopup from '$lib/components/anchor/plan/PlanPopup.svelte';
+import PlanPopup from '$lib/components/anchor/plan-anchor/PlanPopup.svelte';
 import PlanPopupHost from '../../../../fixtures/PlanPopupHost.svelte';
 import type { TodoItem } from '$lib/utils/todo-lists';
 

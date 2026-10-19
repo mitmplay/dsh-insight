@@ -1,5 +1,16 @@
 # Releases
 
+## 0.6.21
+
+Bumped from 0.6.20 — the Deliverables Anchor lands (ADR-0027f): deliverables attached to messages surface as an anchor leaf with a one-line popup readout, and the header agent chip gains its Bot icon.
+
+### Features
+- Deliverables Anchor (ADR-0027f): deliverables reducer, payload lane and store key (f692fef); DeliverablesButton leaf mounted on the floating anchor with the SILENT_TYPES hand-off (a8bc4c3); popup rows collapse to one line — bare filename, hover title + CopyButton for the full path, description label in active fg (618d694, 47e7e2b); popup shrinks to content via fitWidth opt-in on the shared container, InjectedShelfPopup opts in too (d1be661, 01d4db1)
+- Header: agent chip gets a Bot icon; copy-id action moves outside the chip (bb44a8a)
+
+### Bug fixes
+- Coverage: GoalSheet 80% gate fixed — 4 new direct-mount suites pin the branch matrix (7 tests) and the stale vitest exclude path corrected from anchor/goal/GoalSheet.svelte to bar/goal-bar/ after the bar/ move (e017418); DeliverablesPopup leaf tests lift branch coverage 66.7% → 83.3% across 5 suites / 18 tests (b9a4e07)
+
 ## 0.6.20
 
 Bumped from 0.6.19 — the anchor split reaches the macro and goal surfaces: MacroRunSheet renamed MacroBar with MacroChip + MacroSheet extracted, GoalBar homed under anchor/goal; coverage floor hardened to zero violations across the family.

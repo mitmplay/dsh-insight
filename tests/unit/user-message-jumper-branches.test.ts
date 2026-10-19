@@ -1,7 +1,7 @@
 /**
  * UserMessageJumper TEMPLATE branch tests (SA-2): both sides of every
  * conditional reachable from rendering the anchor-path component
- * (src/lib/components/anchor/user-messages/UserMessageJumper.svelte).
+ * (src/lib/components/anchor/user-msg-anchor/UserMessageJumper.svelte).
  *
  * Branches exercised:
  *  - prompts filter predicate: g.kind === 'prompt' TRUE (rows rendered)
@@ -16,7 +16,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import UserMessageJumper from '$lib/components/anchor/user-messages/UserMessageJumper.svelte';
+import UserMessageJumper from '$lib/components/anchor/user-msg-anchor/UserMessageJumper.svelte';
 import type { TurnGroup } from '$lib/utils/turn-grouping';
 
 const prompt = (id: string, text: string): TurnGroup =>

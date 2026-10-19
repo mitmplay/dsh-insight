@@ -5,7 +5,7 @@ function cold(overrides: Partial<ColdLoad> = {}): ColdLoad {
 	return {
 		title: 't', workspace: 'w', agentPreset: null, entries: [], lastSeq: 0,
 		running: false, hasMore: false, pendingAnswers: [], settledAnswers: [],
-		permission: null, imageLimits: null, knobEvents: [], ...overrides
+		permission: null, imageLimits: null, knobEvents: [], deliverables: [], ...overrides
 	};
 }
 

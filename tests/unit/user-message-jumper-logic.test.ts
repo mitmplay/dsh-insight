@@ -6,7 +6,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import UserMessageJumper from '$lib/components/anchor/user-messages/UserMessageJumper.svelte';
+import UserMessageJumper from '$lib/components/anchor/user-msg-anchor/UserMessageJumper.svelte';
 import type { TurnGroup } from '$lib/utils/turn-grouping';
 
 const prompt = (id: string, text: string, time = 1_000): TurnGroup => ({

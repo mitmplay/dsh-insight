@@ -36,6 +36,12 @@ const SILENT_TYPES: ReadonlySet<string> = new Set([
 	'approval/asked', // interactive answering is out of scope (PRD §6) — chip would be dead UI
 	'command/done', // a slash-command finished — you'll see what it DID, not the paperwork
 	'command/run', // a slash-command started — same paperwork rule
+	// ADR-0027f (2026-10-19): the present tool's durable receipt — one per
+	// successful present; the files are session-wide truth. silent · hand-off:
+	// the DeliverablesButton's popup on the FloatingAnchor stack renders the
+	// inventory (the raw events lane feeds it; the entries lane drops this
+	// type by design).
+	'deliverables/presented',
 	'compaction/end', // the harness finished squeezing old history into a summary — invisible maintenance
 	'compaction/prune', // old trimmed history was dropped for real — invisible maintenance
 	'compaction/start', // the harness started squeezing old history — invisible maintenance
@@ -437,8 +443,9 @@ export function entryForEvent(event: DshRawEvent): DsiEntry | null {
 			// Unknown type — the harness recorded something this build does not
 			// know. Render it as a chip rather than dropping it (forward-compat).
 			// The payload rides verbatim so the popup renders it (the
-			// 2026-09-18 empty-popup fix: workspace/changes ·
-			// deliverables/presented opened nothing).
+			// 2026-09-18 empty-popup fix: workspace/changes opened
+			// nothing; deliverables/presented since moved to its anchor
+			// surface, ADR-0027f).
 			return { kind: 'unknown-event', id: `ev:${event.seq}`, seq: event.seq, time: event.time, eventType: event.type, payload: data };
 	}
 }

@@ -19,7 +19,7 @@
 	 * canvas-copy-button, plus the prefix agent-chip-copy-id) — page/panel
 	 * tests and e2e pin them.
 	 */
-	import { Check, Copy } from '@lucide/svelte';
+	import { Bot, Check, Copy } from '@lucide/svelte';
 	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
 	import ForkButton from '$lib/components/conversation/ForkButton.svelte';
 	import OpenParentButton from '$lib/components/conversation/OpenParentButton.svelte';
@@ -74,31 +74,34 @@
 	     before the agent chip — and parks gray+disabled while the parent
 	     already holds a panel. Hidden on roots (no parent, no jump). -->
 	<OpenParentButton {parentSessionId} />
+	<!-- Copy-agent-id (2s ✓ feedback) sits OUTSIDE the chip, before it —
+	     a standalone icon button (CanvasCopyButton styling parity). -->
+	{#if agentId}
+		<button
+			type="button"
+			class="shrink-0 rounded-md p-1 text-text-muted hover:bg-surface-alt hover:text-text-secondary"
+			data-testid="agent-chip-copy-id"
+			aria-label={t(m.copyAgentPresetId)}
+			title={agentId}
+			onclick={() => void copyWithFeedback(agentId, (v) => (idCopied = v))}
+		>
+			{#if idCopied}
+				<!-- ✓ keeps its feedback green: state, not identity. -->
+				<Check size={12} class="text-status-pass" aria-hidden="true" />
+			{:else}
+				<Copy size={12} aria-hidden="true" />
+			{/if}
+		</button>
+	{/if}
 	{#if agent}
 		<span
 			class="agent-chip"
 			data-testid="agent-chip"
 			title={agentId ? `agent preset — ${agentId}` : undefined}
 		>
-			{#if agentId}
-				<button
-					type="button"
-					class="shrink-0"
-					data-testid="agent-chip-copy-id"
-					aria-label={t(m.copyAgentPresetId)}
-					title={agentId}
-					onclick={() => void copyWithFeedback(agentId, (v) => (idCopied = v))}
-				>
-					{#if idCopied}
-						<!-- ✓ keeps its feedback green: state, not identity. -->
-						<Check size={10} class="text-status-pass" aria-hidden="true" />
-					{:else}
-						<!-- The Copy inherits the chip color (the filter chip's kind
-					     grammar: icon = dimension color, here the agent purple). -->
-						<Copy size={10} aria-hidden="true" />
-					{/if}
-				</button>
-			{/if}
+			<!-- Bot leads the label (SessionFilterHeader .chip.agent parity —
+		     the icon is the agent dimension's identity across surfaces). -->
+			<Bot size={12} class="shrink-0" aria-hidden="true" />
 			{agent}
 		</span>
 	{/if}

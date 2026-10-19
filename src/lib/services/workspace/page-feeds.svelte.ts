@@ -37,6 +37,8 @@ export interface ColdLoad {
 	/** Host admission numbers (imageLimits projection; null → defaults). */
 	imageLimits: import('$lib/services/conversation/image-limits').DsiImageLimits | null;
 	knobEvents: import('$lib/services/conversation/dsh-events').DshRawEvent[];
+	/** ADR-0027f D1: the presented-file inventory (raw lane over full=1). */
+	deliverables: import('$lib/services/conversation/deliverables').PresentedDelivery[];
 }
 
 class PageFeeds {

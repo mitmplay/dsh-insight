@@ -33,6 +33,8 @@
 	"previousMonth": "Mes anterior",
 	"nextMonth": "Mes siguiente",
 	"datePicker": "Selector de fecha",
+	"deliverablesTitle": "Entregables (",
+	"deliverablesFiles": " archivos)",
 	"currentPlan": "Plan actual (",
 	"donePart": " completado)",
 	"userMessages": "Mensajes del usuario (",

@@ -425,6 +425,7 @@
 				permission={cold.permission}
 				imageLimits={cold.imageLimits ?? undefined}
 				knobEvents={cold.knobEvents}
+				deliverables={cold.deliverables}
 				a2aRows={a2aRowsFor(p.sessionId)}
 				a2aTitles={spineTitles}
 				onOpenExplorer={floorApi.openWorkspaceExplorer}

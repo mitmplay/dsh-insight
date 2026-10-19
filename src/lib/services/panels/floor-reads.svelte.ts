@@ -160,6 +160,7 @@ export function seedColdOf(data: unknown): ColdLoad | undefined {
 				permission?: ColdLoad['permission'];
 				imageLimits?: ColdLoad['imageLimits'];
 				knobEvents?: ColdLoad['knobEvents'];
+				deliverables?: ColdLoad['deliverables'];
 		  }
 		| undefined;
 	return d && typeof d.sessionId === 'string' && Array.isArray(d.entries)
@@ -175,7 +176,8 @@ export function seedColdOf(data: unknown): ColdLoad | undefined {
 				settledAnswers: d.settledAnswers ?? [],
 				permission: d.permission ?? null,
 				imageLimits: d.imageLimits ?? null,
-				knobEvents: d.knobEvents ?? []
+				knobEvents: d.knobEvents ?? [],
+				deliverables: d.deliverables ?? []
 		  }
 		: undefined;
 }

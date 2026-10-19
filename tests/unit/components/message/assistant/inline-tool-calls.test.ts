@@ -250,12 +250,12 @@ describe('InlineToolCalls — open-chip detail popup', () => {
 
 	it('an open unknown-event WITHOUT a payload shows the honest no-payload note, never a blank popup', () => {
 		const entries = [
-			{ kind: 'unknown-event', id: 'u2', seq: 10, time: T, eventType: 'deliverables/presented' }
+			{ kind: 'unknown-event', id: 'u2', seq: 10, time: T, eventType: 'plugin/frobnicated' }
 		] as unknown as AssistantSideEntry[];
 		const { target, unmount } = render({ entries, openChipId: 'u2' });
 		const body = target.querySelector('[data-testid="unknown-event-body"]');
 		expect(body).not.toBeNull();
-		expect(body?.textContent).toContain('deliverables/presented');
+		expect(body?.textContent).toContain('plugin/frobnicated');
 		expect(body?.textContent).not.toBe('');
 		unmount();
 	});

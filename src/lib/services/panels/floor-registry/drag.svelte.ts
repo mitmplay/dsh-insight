@@ -156,6 +156,7 @@ export async function fetchColdFromWire(sessionId: string): Promise<ColdLoad | n
 		permission?: ColdLoad['permission'];
 		imageLimits?: ColdLoad['imageLimits'];
 		knobEvents?: ColdLoad['knobEvents'];
+		deliverables?: ColdLoad['deliverables'];
 		error?: { code: string; message: string };
 	};
 	if (!events.ok) return null;
@@ -188,6 +189,7 @@ export async function fetchColdFromWire(sessionId: string): Promise<ColdLoad | n
 		settledAnswers: events.settledAnswers ?? [],
 		permission: events.permission ?? null,
 		imageLimits: events.imageLimits ?? null,
-		knobEvents: events.knobEvents ?? []
+		knobEvents: events.knobEvents ?? [],
+		deliverables: events.deliverables ?? []
 	};
 }

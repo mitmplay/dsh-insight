@@ -6,7 +6,7 @@
  */
 import { mount, unmount, flushSync } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import GoalSheet from '$lib/components/anchor/goal/GoalSheet.svelte';
+import GoalSheet from '$lib/components/bar/goal-bar/GoalSheet.svelte';
 import type { GoalResultGoal } from '$lib/utils/goals';
 
 function goal(partial: Partial<GoalResultGoal> = {}): GoalResultGoal {

@@ -33,6 +33,8 @@
 	"previousMonth": "上个月",
 	"nextMonth": "下个月",
 	"datePicker": "日期选择器",
+	"deliverablesTitle": "交付文件（",
+	"deliverablesFiles": " 个文件）",
 	"currentPlan": "当前计划 (",
 	"donePart": " 完成)",
 	"userMessages": "用户消息 (",

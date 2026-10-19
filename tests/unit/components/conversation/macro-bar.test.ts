@@ -13,7 +13,7 @@
  */
 import { mount, unmount, flushSync } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import MacroBar from '$lib/components/anchor/macro/MacroBar.svelte';
+import MacroBar from '$lib/components/bar/macro-bar/MacroBar.svelte';
 import type { MacroLineRecord, MacroRunState } from '$lib/services/chat/macro-runner.svelte';
 
 function rec(

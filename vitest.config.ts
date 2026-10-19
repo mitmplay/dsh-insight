@@ -149,8 +149,13 @@ export default defineConfig({
 			// fields of GoalResultGoal and the only mount site (GoalBar) gates
 			// nulls (verified 2026-10-19). Every reachable arm IS covered by
 			// the direct-mount tests in
-			// tests/unit/components/anchor/goal/goal-sheet.test.ts.
-			'src/lib/components/anchor/goal/GoalSheet.svelte',
+			// tests/unit/components/conversation/goal-sheet-{phase,edit-only,clear-only,controls}.test.ts
+			// (branch matrix observed pinned at 62.5% before AND after those
+			// suites — the 3 remaining arms are the compiler fallbacks).
+			// NOTE: component lives at bar/goal-bar/, NOT anchor/goal/ — the
+			// stale anchor/ path (from a pre-move commit) silently un-excluded
+			// the real file and tripped the 80% gate (observed 2026-10-19).
+			'src/lib/components/bar/goal-bar/GoalSheet.svelte',
 				// Generated Paraglide output (compiled catalogs + repo junk like
 				// README.md/.gitignore) is not product code — and the junk files
 				// crash coverage-v8's remapper with fatal PARSE_ERRORs, aborting

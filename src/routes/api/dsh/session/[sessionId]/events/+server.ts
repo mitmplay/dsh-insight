@@ -19,6 +19,7 @@ import { todosFromProjection } from '$lib/services/conversation/todo-projection'
 import { planFromProjection } from '$lib/services/conversation/plan-projection';
 import { goalFromProjection } from '$lib/services/conversation/goal-projection';
 import { ledgerStatsFromProjections } from '$lib/services/conversation/ledger-stats';
+import { deliverablesFromEvents } from '$lib/services/conversation/deliverables';
 import type { DsiEntry } from '$lib/types';
 
 import type { RequestHandler } from './$types';
@@ -78,7 +79,11 @@ export const GET: RequestHandler = async ({ params, url, setHeaders }) => {
 					conn.projectionValue(sessionId, 'sessionStats'),
 					conn.projectionValue(sessionId, 'tokenUsage')
 				),
-				knobEvents: filterKnobEvents(ledgerEvents)
+				knobEvents: filterKnobEvents(ledgerEvents),
+				// ADR-0027f D1: the full presented-file inventory rides the
+				// resync beside todos — derived from RAW events because the
+				// entries lane drops the (silent) type server-side.
+				deliverables: deliverablesFromEvents(ledgerEvents)
 			});
 		}
 
@@ -108,6 +113,10 @@ export const GET: RequestHandler = async ({ params, url, setHeaders }) => {
 			conn.projectionValue(sessionId, 'sessionStats'),
 			conn.projectionValue(sessionId, 'tokenUsage')
 		);
+		// ADR-0027f D1: the DELTA's deliverables events ride beside the
+		// mapped entries (the type is silent in the stream; the raw lane is
+		// the only carrier). The client store appends by callId.
+		const deliverables = deliverablesFromEvents(events);
 		return json({
 			ok: true,
 			entries,
@@ -123,6 +132,7 @@ export const GET: RequestHandler = async ({ params, url, setHeaders }) => {
 			...(plan === null ? {} : { plan }),
 			...(goal === undefined ? {} : { goal }),
 			...(ledgerStats === null ? {} : { ledgerStats }),
+			...(deliverables.length === 0 ? {} : { deliverables }),
 			knobEvents: filterKnobEvents(events)
 		});
 	} catch (err) {
