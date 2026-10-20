@@ -50,9 +50,10 @@ export function parseDevArg(rest) {
  * the bounce chain's boolean probe; DSI_DEV_MODE is the D6 mode enum.
  */
 /** @param {string} mode
+ * @param {{ playwrightMcp?: boolean }} [opts]
  * @returns {Record<string, string>}
  */
-export function devModeEnv(mode) {
+export function devModeEnv(mode, opts = {}) {
 	if (mode === 'build') return {};
 	/** @type {Record<string, string>} */
 	const env = { DSI_DEV: '1', DSI_DEV_MODE: mode };
@@ -66,6 +67,9 @@ export function devModeEnv(mode) {
 		// that carries the handle, so in-process floors default to it.
 		env.DSH_HOST_INTROSPECT = '1';
 	}
+	// ADR-0029 D7: the glass browser's MCP brain runs in-process (opt-in,
+	// dev floor only — the tandem/production floors keep the stdio child)
+	if (opts.playwrightMcp) env.DSI_MCP_IN_PROCESS = '1';
 	return env;
 }
 

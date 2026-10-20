@@ -590,6 +590,7 @@ export interface DsiModelDirectory {
 export type DsiPanelEntry =
 	| DsiConversationPanel
 	| DsiTerminalPanel
+	| DsiBrowserPanel
 	| DsiPromptManagerPanel
 	| DsiSettingsPanel
 	| DsiInjectedDocPanel
@@ -678,6 +679,21 @@ export interface DsiTerminalPanel {
 	/** The desk's structure mirror (Wave 3); absent on legacy entries and
 	 *  when the desk has nothing to remember. */
 	desk?: TerminalDeskMirror;
+}
+
+/** The browser branch (The Glass Browser spec, 2026-10-19; ADR-0029 D4) —
+ *  hosts BrowserPanel: the CDP screencast glass over DSI's headed Chromium.
+ *  Session-only: the registry session id is deliberately NOT persisted (a
+ *  dead id after a server restart is junk; the sanitizer strips it and a
+ *  remount opens a fresh session). Singleton via openBrowserPanel(). */
+export interface DsiBrowserPanel {
+	/** Stable panel identity — selection and close target this. */
+	id: string;
+	kind: 'browser';
+	/** Panel width in px, always within panel-prefs clamp bounds. */
+	width: number;
+	/** The browser-session registry id (Wire 1); undefined = open on mount. */
+	browserSessionId?: string;
 }
 
 /** The prompt-manager branch (ADR D6/D8) — hosts PromptManagerPanel; no

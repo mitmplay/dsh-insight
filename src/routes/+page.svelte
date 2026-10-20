@@ -13,6 +13,8 @@
 	import ConversationPanel from '$lib/components/conversation/ConversationPanel.svelte';
 	import PromptManagerPanel from '$lib/components/prompt-manager/PromptManagerPanel.svelte';
 	import TerminalDesk from '$lib/components/terminal/TerminalDesk.svelte';
+	import BrowserPanel from '$lib/components/browser/BrowserPanel.svelte';
+	import { persistPanelIndex, readPersistedId, readPersistedIndex } from '$lib/services/panels/browser-session-resolver.js';
 	import SettingsSkillsPanel from '$lib/components/settings-skills/SettingsSkillsPanel.svelte';
 	import PluginManagerPanel from '$lib/components/settings-plugins/PluginManagerPanel.svelte';
 	import SettingsEditorPanel from '$lib/components/panels/SettingsEditorPanel.svelte';
@@ -94,6 +96,27 @@
 		pageFeeds.primeSeed(seedSessionId()!, seedCold); // full cold props on paint one
 	}
 
+	// The Sticky Glass (ADR-0030 D1): the session survives the reload — the
+	// PANEL must too. The floor blob does not persist the browser species
+	// (sanitizePanels folds it into conversation), so a bare arrival
+	// restores it ONLY when the persisted session is still live on the
+	// server. No live id → no auto-open: a browser must never come back to
+	// life uninvited (least-surprise, ADR-0029 D8's rejection stands); the
+	// chip remains the way to summon a fresh one.
+	void (async () => {
+		try {
+			const persisted = readPersistedId();
+			if (!persisted) return;
+			if (floorApi.floor.panels.some((panel) => panel.kind === 'browser')) return;
+			const res = await fetch('/api/browser');
+			if (!res.ok) return;
+			const body = (await res.json()) as { sessions?: Array<{ id: string }> };
+			if (body.sessions?.some((s) => s.id === persisted)) floorApi.openBrowserPanel(readPersistedIndex() ?? undefined, true);
+		} catch {
+			/* a boot-time probe must never break the floor */
+		}
+	})();
+
 	// ── Derived reads (template names unchanged) ────────────────────────
 	const panels = $derived(floorApi.floor.panels as DsiPanelEntry[]);
 	const selectedPanelId = $derived(floorApi.floor.selectedPanelId);
@@ -119,6 +142,15 @@
 	}
 
 	// ── Persistence (R2: one effect, every change) + seed strip (R1) ────
+	// The browser panel's floor slot rides localStorage (the blob does not
+	// persist the browser species) — the boot auto-restore pins to it.
+	$effect(() => {
+		const bIdx = panels.findIndex((panel) => panel.kind === 'browser');
+		// A boot-time tick sees NO browser panel (the auto-restore is still
+		// async) — a -1 must never wipe the saved slot the restore is about
+		// to read. persistPanelIndex treats negatives as no-ops.
+		if (bIdx >= 0) persistPanelIndex(bIdx);
+	});
 	$effect(() => {
 		savePanelPrefs(
 			{
@@ -271,6 +303,16 @@
 				restored={panel.desk ?? null}
 				onMirror={(m) => (terminalDeskMirrors[panel.id] = m)}
 				onShellExit={() => floorApi.removePanel(panel.id)}
+			/>
+		</div>
+	{:else if panel.kind === 'browser'}
+		<!-- Browser branch (The Glass Browser spec W2, ADR-0029 D4): the
+		     glass owns its session lifecycle — panel-close / unmount both
+		     release it (D8); the floor just removes the slot. -->
+		<div class="panel-manager-body" data-testid="panel-browser-slot">
+			<BrowserPanel
+				browserSessionId={'browserSessionId' in panel ? panel.browserSessionId : undefined}
+				onclose={() => floorApi.removePanel(panel.id)}
 			/>
 		</div>
 	{:else if panel.kind === 'prompt-manager'}
@@ -429,6 +471,7 @@
 				a2aRows={a2aRowsFor(p.sessionId)}
 				a2aTitles={spineTitles}
 				onOpenExplorer={floorApi.openWorkspaceExplorer}
+				onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel())}
 				focusComposer={p.id === focusComposerId}
 				oncomposerfocus={() => floorApi.clearFocusComposer()}
 				focused={p.id === selectedPanelId}
@@ -455,6 +498,7 @@
 					a2aTitles={spineTitles}
 					onNeedCold={(sid) => void ensureCold(sid)}
 					onOpenExplorer={floorApi.openWorkspaceExplorer}
+				onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel())}
 				focusComposer={p.id === focusComposerId}
 					oncomposerfocus={() => floorApi.clearFocusComposer()}
 					focused={p.id === selectedPanelId}

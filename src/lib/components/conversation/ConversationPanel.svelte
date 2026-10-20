@@ -86,6 +86,7 @@
 		oncomposerfocus = undefined,
 		focused = false,
 		onOpenExplorer = undefined,
+		onOpenBrowser = undefined,
 		/** File Link Intent (ADR 2026-09-25 D1/D2): transcript file links become
 		 *  explorer intents — the route supplies the gated handler. */
 		onFileLink = undefined,
@@ -181,6 +182,10 @@
 		/** Workspace-chip click intent (Workspace Explorer W3 task 3.2,
 		 *  ADR D4) — pass-through to the header's identity cluster. */
 		onOpenExplorer?: (sessionId: string, workspace: string) => void;
+		/** Browser-chip intent (The Glass Browser spec W2, ADR-0029 D4) —
+		 *  the singleton browser panel's opener; absent = no chip (the
+		 *  subagent read-only mount never receives it). */
+		onOpenBrowser?: () => void;
 		onFileLink?: (href: string) => void;
 		/** Page-owned file-open seat for the markdown cards (ADR-0013 D5). */
 		onFileOpen?: (path: string) => void;
@@ -605,6 +610,7 @@
 		{parentSessionId}
 		{focused}
 		{onOpenExplorer}
+		{onOpenBrowser}
 	/>
 
 	<ConversationError error={topError} />

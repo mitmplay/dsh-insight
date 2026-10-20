@@ -455,5 +455,15 @@
 	"killJob": "Terminar",
 	"confirmKill": "Confirmar terminación",
 	"jobsLiveTitle_one": "{n} trabajo en curso",
-	"jobsLiveTitle_other": "{n} trabajos en curso"
+	"jobsLiveTitle_other": "{n} trabajos en curso",
+	"browserPanelTitle": "Navegador",
+	"browserSessionFailed": "la sesión del navegador falló {reason} — cierra y reabre el panel",
+	"browserLaunching": "iniciando navegador…",
+	"browserWaitingFrames": "esperando fotogramas…",
+	"browserOpenTitle": "Abrir el navegador de cristal",
+	"browserChipLabel": "⌖ Navegador",
+	"browserUrlPlaceholder": "Buscar o escribir una URL",
+	"browserReload": "Recargar",
+	"browserBack": "Atrás",
+	"browserForward": "Adelante"
 }

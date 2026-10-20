@@ -217,3 +217,15 @@
             name: '@deepseek-ai/dsh-agent-tool-presentation'
             config:
               mode: ptc
+- insert:
+  # ── The Glass Browser (ADR-0029 W3): the agent's browser hands ───────────
+  # MCP client against DSI's in-process glass-browser brain (stable listener
+  # :9515; the brain lives while a browser panel is open — the client's
+  # reconnect policy covers the down windows). Tools surface as
+  # mcp__glass-browser__browser_* (navigate, click, snapshot, …).
+  - id: preset-app-dev-glass-browser-mcp
+    name: '@deepseek-ai/dsh-mcp-client'
+    config:
+      transport: streamable-http
+      serverName: glass-browser
+      url: http://127.0.0.1:9515/sse

@@ -455,5 +455,15 @@
 	"killJob": "Hentikan",
 	"confirmKill": "Konfirmasi hentikan",
 	"jobsLiveTitle_one": "{n} pekerjaan aktif",
-	"jobsLiveTitle_other": "{n} pekerjaan aktif"
+	"jobsLiveTitle_other": "{n} pekerjaan aktif",
+	"browserPanelTitle": "Peramban",
+	"browserSessionFailed": "sesi peramban gagal {reason} — tutup dan buka kembali panel",
+	"browserLaunching": "meluncurkan peramban…",
+	"browserWaitingFrames": "menunggu frame…",
+	"browserOpenTitle": "Buka peramban kaca",
+	"browserChipLabel": "⌖ Peramban",
+	"browserUrlPlaceholder": "Cari atau ketik URL",
+	"browserReload": "Muat ulang",
+	"browserBack": "Kembali",
+	"browserForward": "Maju"
 }

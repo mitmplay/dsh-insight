@@ -455,5 +455,15 @@
 	"killJob": "Kill",
 	"confirmKill": "Confirm kill",
 	"jobsLiveTitle_one": "{n} live job",
-	"jobsLiveTitle_other": "{n} live jobs"
+	"jobsLiveTitle_other": "{n} live jobs",
+	"browserPanelTitle": "Browser",
+	"browserSessionFailed": "browser session failed {reason} — close and reopen the panel",
+	"browserLaunching": "launching browser…",
+	"browserWaitingFrames": "waiting for frames…",
+	"browserOpenTitle": "Open the glass browser",
+	"browserChipLabel": "⌖ Browser",
+	"browserUrlPlaceholder": "Search or type a URL",
+	"browserReload": "Reload",
+	"browserBack": "Back",
+	"browserForward": "Forward"
 }

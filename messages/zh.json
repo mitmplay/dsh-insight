@@ -455,5 +455,15 @@
 	"killJob": "终止",
 	"confirmKill": "确认终止",
 	"jobsLiveTitle_one": "{n} 个进行中的任务",
-	"jobsLiveTitle_other": "{n} 个进行中的任务"
+	"jobsLiveTitle_other": "{n} 个进行中的任务",
+	"browserPanelTitle": "浏览器",
+	"browserSessionFailed": "浏览器会话失败{reason} — 请关闭并重新打开面板",
+	"browserLaunching": "正在启动浏览器…",
+	"browserWaitingFrames": "等待画面帧…",
+	"browserOpenTitle": "打开玻璃浏览器",
+	"browserChipLabel": "⌖ 浏览器",
+	"browserUrlPlaceholder": "搜索或输入网址",
+	"browserReload": "重新加载",
+	"browserBack": "后退",
+	"browserForward": "前进"
 }

@@ -25,7 +25,7 @@ function goal(partial: Partial<GoalResultGoal> = {}): GoalResultGoal {
 	};
 }
 
-function mountSheet(props: Record<string, unknown> = {}) {
+function mountSheet(props: { goal: GoalResultGoal; blockedTitle?: string }) {
 	const target = document.createElement('div');
 	document.body.appendChild(target);
 	const comp = mount(GoalSheet, { target, props });

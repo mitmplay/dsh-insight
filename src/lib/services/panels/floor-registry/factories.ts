@@ -37,6 +37,10 @@ export function makeTerminalPanel(): DsiPanelEntry {
 	return { id: nextPanelId(), kind: 'terminal', width: clampPanelWidth(d().getPanelWidth()) };
 }
 
+export function makeBrowserPanel(): DsiPanelEntry {
+	return { id: nextPanelId(), kind: 'browser', width: clampPanelWidth(d().getPanelWidth()) };
+}
+
 export function makeManagerPanel(): DsiPanelEntry {
 	return { id: nextPanelId(), kind: 'prompt-manager', width: clampPanelWidth(d().getPanelWidth()) };
 }

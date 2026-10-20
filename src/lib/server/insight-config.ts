@@ -510,3 +510,60 @@ export function readTerminalConfig(configPath?: string): TerminalConfig {
 		maxSessions: intWithin(section.maxSessions, 1, 32, DEFAULT_TERMINAL_CONFIG.maxSessions)
 	};
 }
+
+// ── browser (Glass Browser, spec 2026-10-20 The Sticky Glass; ADR-0030 D3) ──
+
+/** The glass browser's operator tunables — the `browser` section of
+ *  settings.yaml. `headless` defaults TRUE (operator decision 2026-10-20:
+ *  the agent's hands usually run without a desktop window);
+ *  `browser.headless: false` is the explicit switch that turns the headed
+ *  glass back on. Absent section ⇒ defaults — present behavior, unchanged. */
+export interface BrowserConfig {
+	enabled: boolean;
+	headless: boolean;
+	/** The in-process brain's stable listener port (9515 base; scan +60). */
+	brainPort: number;
+	/** The @playwright/mcp version pin — never float it (ADR-0029 D7 ledger). */
+	mcpPin: string;
+	/** Root for per-session isolated profiles (--user-data-dir). */
+	profileRoot: string;
+	maxSessions: number;
+	/** Idle-reaper grace: no stream subscribers AND no MCP traffic for this
+	 *  long → the session is closed. Safety net, never the owner (D2). */
+	idleMs: number;
+	/** Screencast JPEG quality 10..100 (amendment 3: captcha legibility).
+	 *  No hardware encoder exists in the CDP path — this trades bytes only. */
+	screencastQuality: number;
+}
+
+export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
+	enabled: true,
+	headless: true,
+	brainPort: 9515,
+	mcpPin: '0.0.83',
+	profileRoot: join(homedir(), '.dsi', 'browser-profiles'),
+	maxSessions: 4,
+	idleMs: 600_000,
+	screencastQuality: 90
+};
+
+function strOr(v: unknown, fallback: string): string {
+	return typeof v === 'string' && v.length > 0 ? v : fallback;
+}
+
+/** Read the `browser` section. Not cached — runtime edits apply, same
+ *  contract as every other section reader (ADR-0030 D3: per-create read). */
+export function readBrowserConfig(configPath?: string): BrowserConfig {
+	const rec = parseConfig(configPath)?.browser;
+	const section = isConfigRecord(rec) ? rec : {};
+	return {
+		enabled: boolOr(section.enabled, DEFAULT_BROWSER_CONFIG.enabled),
+		headless: boolOr(section.headless, DEFAULT_BROWSER_CONFIG.headless),
+		brainPort: intWithin(section.brainPort, 1024, 65_535, DEFAULT_BROWSER_CONFIG.brainPort),
+		mcpPin: strOr(section.mcpPin, DEFAULT_BROWSER_CONFIG.mcpPin),
+		profileRoot: strOr(section.profileRoot, DEFAULT_BROWSER_CONFIG.profileRoot),
+		maxSessions: intWithin(section.maxSessions, 1, 32, DEFAULT_BROWSER_CONFIG.maxSessions),
+		idleMs: intWithin(section.idleMs, 10_000, 86_400_000, DEFAULT_BROWSER_CONFIG.idleMs),
+		screencastQuality: intWithin(section.screencastQuality, 10, 100, DEFAULT_BROWSER_CONFIG.screencastQuality)
+	};
+}

@@ -38,7 +38,11 @@ describe('dsi.mjs inspector wiring (source pins)', () => {
 
   it('the vite child argv LEADS with the inspector flags (node consumes options before the script)', () => {
     expect(src.includes("[...execArgv, viteBin, 'dev'")).toBe(true);
-    expect(src.includes("startDsiDevServer(uiPort, dshBase, mode, execArgv)")).toBe(true);
+    // VERDICT (2026-10-20): source is authoritative. 0bc5949 (Wave 3) appended
+    // the opts param to startDsiDevServer so playwrightMcp rides through; the
+    // argv-leads-with-inspector-flags contract ([...execArgv, viteBin, 'dev')
+    // is unchanged and still pinned above.
+    expect(src.includes("startDsiDevServer(uiPort, dshBase, mode, execArgv, opts)")).toBe(true);
   });
 
   it('inspector flags are extracted BEFORE the host spawn args', () => {

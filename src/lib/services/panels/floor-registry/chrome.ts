@@ -31,7 +31,9 @@ import {
 	clearLoupeIfGone,
 	selectedIndex_,
 	insertPanel,
-	makeWorkspaceExplorerPanel
+	insertionSlot,
+	makeWorkspaceExplorerPanel,
+	makeBrowserPanel
 } from '$lib/services/panels/floor-registry.svelte';
 
 const d = floorSeam;
@@ -89,6 +91,37 @@ export function openWorkspaceExplorer(sessionId: string, workspace: string): voi
 		makeWorkspaceExplorerPanel(sessionId, workspace),
 		workspaceExplorerSlot(st.panels, selectedIndex_(), d().getMoveFacts())
 	);
+}
+
+/** Chip click action (The Glass Browser spec W2, ADR-0029 D4): ONE live
+ *  browser panel across the floor — the terminal singleton rule (Terminal
+ *  Desk ADR D2). A click on an open browser FOCUSES it; a miss inserts at
+ *  the focused slot. */
+export function openBrowserPanel(index?: number, keepSelection = false): void {
+	const open = st.panels.find((p) => p.kind === 'browser');
+	if (open) {
+		st.selectedPanelId = open.id;
+		return;
+	}
+	// The Sticky Glass: the boot auto-restore pins the panel at its PERSISTED
+	// floor slot — the focused-slot fallback would drift every reload (what
+	// is selected at boot decides the position). Chip clicks (index absent)
+	// keep the focused-slot behavior.
+	// keepSelection: insertPanel selects the newcomer — right for a chip
+	// click, wrong for a restore (the operator's focus must survive the
+	// reload too). The exception: the browser panel ITSELF was focused
+	// before the reload — then the restore legitimately refocuses it.
+	const prevSelected = st.selectedPanelId;
+	insertPanel(
+		makeBrowserPanel(),
+		index === undefined ? insertionSlot() : Math.max(0, Math.min(index, st.panels.length))
+	);
+	if (keepSelection && prevSelected !== null && prevSelected !== undefined) {
+		// The previous selection is a blob-restored panel (the browser was
+		// never on the floor before this insert) — put focus back exactly
+		// where the reload left it.
+		if (st.panels.some((p) => p.id === prevSelected)) st.selectedPanelId = prevSelected;
+	}
 }
 
 /** The open explorer for a session's workspace (The Shared Tree D1):

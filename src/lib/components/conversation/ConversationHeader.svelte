@@ -11,6 +11,7 @@
 	 */
 	import SessionIdAndName from './SessionIdAndName.svelte';
 	import ToolsAndStatusHeader from './ToolsAndStatusHeader.svelte';
+	import * as m from '$lib/paraglide/messages';
 
 	let {
 		sessionId,
@@ -28,7 +29,8 @@
 		plan = null,
 		parentSessionId = null,
 		focused = false,
-		onOpenExplorer = undefined
+		onOpenExplorer = undefined,
+		onOpenBrowser = undefined
 	}: {
 		sessionId: string;
 		/** Live title — page-owned state; rename writes report upward. */
@@ -69,6 +71,9 @@
 		/** Workspace-chip click intent (Workspace Explorer ADR D4) —
 		 *  pass-through to SessionIdAndName's cluster. */
 		onOpenExplorer?: (sessionId: string, workspace: string) => void;
+		/** Browser-chip click intent (The Glass Browser spec W2) — the
+		 *  singleton browser panel's opener; absent renders no chip. */
+		onOpenBrowser?: () => void;
 	} = $props();
 </script>
 
@@ -90,6 +95,14 @@
 		{subagent}
 		{onOpenExplorer}
 	/>
+		{#if onOpenBrowser}
+			<button
+				class="rounded border border-surface-border px-1.5 py-0.5 text-xs hover:bg-surface-active"
+				data-testid="open-browser"
+				title={m.browserOpenTitle()}
+				onclick={onOpenBrowser}
+			>{m.browserChipLabel()}</button>
+		{/if}
 	<!-- Right cluster (2026-08-24): agent chip + running/idle pill +
 	     session fork (2026-09-01) + conversation capture (2026-08-25). -->
 	<ToolsAndStatusHeader {agent} {agentId} {isStreaming} {transcript} {plan} {sessionId} {title} {parentSessionId} {subagent} />

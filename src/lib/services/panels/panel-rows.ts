@@ -81,6 +81,7 @@ export function workspaceFileTitle(path: string): string {
  */
 export function panelHeaderLabel(panel: DsiPanelEntry): string | undefined {
 	if (panel.kind === 'terminal') return 'Terminal';
+	if (panel.kind === 'browser') return 'Browser';
 	if (panel.kind === 'prompt-manager') return MANAGER_ROW_TITLE;
 	if (panel.kind === 'skill-shelf') return 'Skill Shelf';
 	if (panel.kind === 'plugin-rack') return 'Plugin Rack';
@@ -141,7 +142,7 @@ export function panelRowsFor(input: PanelRowsInput): PanelRow[] {
 	const { panels, spineRows, coldCache, deadSessions, edgeCache, lineageFacts, moveFacts } = input;
 	const openSessionIds = openSessionIdsOf(panels);
 	return panels.map<PanelRow>((p, index) => {
-		if (p.kind === 'terminal' || p.kind === 'prompt-manager' || p.kind === 'settings-editor' || p.kind === 'skill-shelf' || p.kind === 'plugin-rack') {
+		if (p.kind === 'terminal' || p.kind === 'browser' || p.kind === 'prompt-manager' || p.kind === 'settings-editor' || p.kind === 'skill-shelf' || p.kind === 'plugin-rack') {
 			// Kind-honest non-session facts (ADR §8 required case; the
 			// settings-editor branch rides the same rule — Settings Panel
 			// ADR D3): never running/dead, depth 0, no lineage keys; move
@@ -149,13 +150,17 @@ export function panelRowsFor(input: PanelRowsInput): PanelRow[] {
 			const title =
 				p.kind === 'terminal'
 					? 'Terminal'
-					: p.kind === 'prompt-manager'
+					: p.kind === 'browser'
+						? 'Browser'
+						: p.kind === 'prompt-manager'
 					? MANAGER_ROW_TITLE
 					: p.kind === 'skill-shelf'
 						? 'Skill Shelf'
 						: p.kind === 'plugin-rack'
 						? 'Plugin Rack'
-						: SETTINGS_ROW_TITLE[p.target];
+						: p.kind === 'settings-editor'
+							? SETTINGS_ROW_TITLE[p.target]
+							: '';
 			return {
 				panel: p,
 				title,

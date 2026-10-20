@@ -72,7 +72,11 @@ describe('dsi.mjs bounce wiring (source pins)', () => {
   });
 
   it('the bounce re-serves the resolved mode + inspect argv, not a boolean', () => {
-    expect(src.includes('runSyncedPair([], mode, bounceExecArgv)')).toBe(true);
+    // VERDICT (2026-10-20): source is authoritative. Commit 0bc5949 (Wave 3)
+    // threaded --playwright-mcp through runSyncedPair as an opts arg; the bounce
+    // call site passes { playwrightMcp: false } — the bounce never invents the
+    // brain. Pin updated to the W3 call shape; the boolean-era pin is stale.
+    expect(src.includes('runSyncedPair([], mode, bounceExecArgv, { playwrightMcp: false })')).toBe(true);
     expect(src.includes('runSyncedPair([], dev)')).toBe(false);
   });
 

@@ -90,14 +90,20 @@ describe('dsi.mjs source contract (wiring pins)', () => {
     expect(src.includes("await preflightPort(uiPort, 'DSI page')")).toBe(true);
   });
 
-  it('dev server env carries devModeEnv(mode)', () => {
-    expect(src).toContain('...devModeEnv(mode)');
+  it('dev server env carries devModeEnv(mode) with the playwrightMcp opt', () => {
+    // VERDICT (2026-10-20): source is authoritative. 0bc5949 (Wave 3) moved the
+    // playwrightMcp decision into runSyncedPair's opts; startDsiDevServer now
+    // normalizes via opts.playwrightMcp === true. Pin updated to the W3 shape.
+    expect(src).toContain('...devModeEnv(mode, { playwrightMcp: opts.playwrightMcp === true })');
   });
 
-  it('the --sync path parses the mode via parseDevArg, then strips inspector flags (W3.6)', () => {
-    expect(src.includes('const { mode, rest: hostArgs0 } = parseDevArg(rest)')).toBe(true);
+  it('the --sync path parses the mode via parseDevArg on the mcp-stripped rest, then strips inspector flags (W3.6)', () => {
+    expect(src.includes('const { mode, rest: hostArgs0 } = parseDevArg(restNoMcp)')).toBe(true);
     expect(src.includes('extractInspectArgs(hostArgs0)')).toBe(true);
-    expect(src.includes('runSyncedPair(hostArgs, mode, inspectExecArgv)')).toBe(true);
+    // VERDICT (2026-10-20): source is authoritative — 0bc5949 (Wave 3) threads
+    // the --playwright-mcp flag into runSyncedPair as opts; W3.6 inspector-strip
+    // contract (extractInspectArgs on the mcp-stripped rest) is unchanged.
+    expect(src.includes('runSyncedPair(hostArgs, mode, inspectExecArgv, { playwrightMcp: withPlaywrightMcp })')).toBe(true);
   });
 
   it('teardown tolerates a null host (in-process: vite close hook owns the host)', () => {

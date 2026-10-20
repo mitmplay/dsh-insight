@@ -1,5 +1,24 @@
 # Releases
 
+## 0.7.0
+
+Bumped from 0.6.21 — the Glass era: the browser comes to the floor. Three feature waves — Glass Browser (ADR-0029), Sticky Glass session persistence (ADR-0030) and the Glass Proxies header/panel split (ADR-0031) — plus a minor-bump's worth of coverage floors.
+
+### Features
+- **Glass Browser (ADR-0029, waves 1–4)**: browser session manager + CDP relay with /api/browser routes (20c4d64); BrowserPanel glass — CDP screencast mirror with scaled rAF-coalesced input, floor species + opener chip, navigate/page routes (e0760b8); MCP wiring via pinned @playwright/mcp child with health tracking, stable brain port 9515 + scan-range fallback (d01ee86, be2ff53, 6e7bfd3); letterbox-aware containedRect cursor mapping (2251fb1); ADR-0029 Accepted with amendments F1–F5 (5b63b03, 4388bfc)
+- **Sticky Glass session persistence (ADR-0030, waves 1–3)**: browser: section in settings.yaml (headless default true, brainPort/mcpPin/profileRoot/maxSessions/idleMs) with per-create registry config and idle reaper (1e1543f); re-bind-or-open resolver — persisted session id in localStorage, BrowserPanel detach-only onDestroy + re-bind remount (490469b); floor boot auto-restores a live browser panel across hard reload, with reload-resilience e2e and the D8 port-freed gate (eb5fa57, 3e1c3d1, bcbb087, a827771)
+- **Glass Proxies (ADR-0031, the Header Speaks, the Panel Acts)**: BrowserHeader and BrowserContent extracted from BrowserPanel (f4b6b0a); header proxy controls (e0c380b); address-bar header order + panel-following viewport route /api/browser/[id]/viewport (9495be3); config knobs for screencast quality, headless sound and tab-strip header (e9807a7); ADR-0031 Accepted with amendments 1–6
+
+### Bug fixes
+- YouTube playback hardening: --enable-automation dropped, navigator.webdriver masked, channel chrome with bundled-chromium fallback for full codecs/Widevine (db1ecec)
+- Brain speaks streamable-http (SDK 1.25 handleRequest — the handlePost/Get/DeleteRequest trio doesn't exist and threw → empty 200s); listen(server, port) arg fix; mcpError surfaced (6e7bfd3)
+- Playwright default --mute-audio dropped — the real headless sound fix, after the playback-probe verdict + player-error witness (07ecce4, ec20ad4)
+- Captcha-legible screencast + profile cleanup (c9a5008)
+- Wave 3 boot crash: --playwright-mcp flag lived in the --sync branch scope; startDsiDevServer read an undefined var (0bc5949)
+- SSE identity-encoding vs preview gzip buffering, occlusion/offscreen compositor flags, guaranteed first paint (e0760b8)
+- Reload restore no longer steals floor focus — openBrowserPanel grows keepSelection (bcbb087)
+- Coverage floors: 8 Glass Browser files lifted over the 80% gate, test:coverage exit 0 (796a5ff); BrowserPanel branch coverage to 98.6% via five addendum suites A–E (bded743); 9 stale test pins realigned to post-W3/ADR-0030/31 contracts — full test:coverage green (8befb39); ~2.6k lines of new browser-panel/proxy/viewport/session-resolver suites (5599f02)
+
 ## 0.6.21
 
 Bumped from 0.6.20 — the Deliverables Anchor lands (ADR-0027f): deliverables attached to messages surface as an anchor leaf with a one-line popup readout, and the header agent chip gains its Bot icon.

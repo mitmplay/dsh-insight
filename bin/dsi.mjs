@@ -59,6 +59,8 @@ const USAGE = [
 	'      --dev    serve the Vite dev server instead of the built page (takes',
 	'               port 5175; needs a full checkout: pnpm install). Optional',
 	'               value: --dev in-process boots the DSH host INSIDE the dev',
+	'               server process; --playwright-mcp (with --dev) embeds the',
+	'               glass browser\'s MCP brain in-process too (ADR-0029 D7).',
 	'               server process (one process, one Ctrl-C; host still on',
 	'               port 3080; token via in-process intercept). Bare --dev',
 	'               keeps the two-port pair; --dev pair is the same spelled out.',
@@ -201,15 +203,21 @@ if (command === 'dsh') {
 		const rest = process.argv.slice(4);
 		const withZai = rest.includes('--zai');
 		const withOv = rest.includes('--ov');
+		// The Glass Browser (ADR-0029 D7): --playwright-mcp opts the DEV floor
+		// into the in-process MCP brain — a dsi-side flag, stripped before the
+		// host spawn (dsh web would refuse it) and carried to vite as an env
+		// marker, the exact idiom of DSI_DEV_IN_PROCESS.
+		const withPlaywrightMcp = rest.includes('--playwright-mcp');
+		const restNoMcp = withPlaywrightMcp ? rest.filter((a) => a !== '--playwright-mcp') : rest;
 		if (withZai) addZaiProvider();
 		if (withOv) runOvPlugin();
 		runSkillsMirror();
 		// --dev parse (D4): 'in-process' | 'pair' consumed as a value; bare
 		// --dev stays 'pair'. dsi-side flags stripped before the host spawn.
-		const { mode, rest: hostArgs0 } = parseDevArg(rest);
+		const { mode, rest: hostArgs0 } = parseDevArg(restNoMcp);
 		// D7: inspector flags ride the vite child's execArgv, never the host.
 		const { rest: hostArgs, execArgv: inspectExecArgv } = extractInspectArgs(hostArgs0);
-		runSyncedPair(hostArgs, mode, inspectExecArgv);
+		runSyncedPair(hostArgs, mode, inspectExecArgv, { playwrightMcp: withPlaywrightMcp });
 	} else if (flag === '--plugin' || flag === '--plugin-restart') {
 		// The Plugin Rack ADR (2026-09-27, D3/D5): the dsh CLI is the writer,
 		// dsi owns the bounce. Install/remove delegates to the launcher rule
@@ -276,7 +284,7 @@ if (command === 'dsh') {
 			// Restore the SAME UI mode the floor was serving. The bounce's
 			// boolean signal normalizes to 'pair'/'build' inside runSyncedPair;
 			// 3.5 teaches the bounce the full enum via DSI_DEV_MODE.
-			runSyncedPair([], mode, bounceExecArgv);
+			runSyncedPair([], mode, bounceExecArgv, { playwrightMcp: false }); // the bounce never invents the brain (restores mode only)
 		};
 		const bounceVerdict = await hostBounceDecision({
 			mode,
@@ -436,7 +444,7 @@ function openBrowser(url, delayMs = 2000) {
  *  the Vite dev server (`pnpm dev`'s surface) — as the UI. The pair shares
  *  one lifecycle — a signal or one child's exit tears down the other, so no
  *  orphan survives a Ctrl-C or a crash. */
-async function runSyncedPair(extraArgs, dev = 'build', execArgv = []) {
+async function runSyncedPair(extraArgs, dev = 'build', execArgv = [], opts = {}) {
 	// dev accepts the D4 mode enum ('build' | 'pair' | 'in-process'); the
 	// legacy boolean true is normalized so older call sites keep working.
 	const mode = typeof dev === 'boolean' ? modeFromBoolean(dev) : dev;
@@ -482,7 +490,7 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = []) {
 		stdio: 'inherit',
 		env: { ...process.env, DSH_WEB_VERSION: dshWebVersion() }
 	});
-	const ui = mode === 'build' ? startDsiServer(uiPort, dshBase) : startDsiDevServer(uiPort, dshBase, mode, execArgv);
+	const ui = mode === 'build' ? startDsiServer(uiPort, dshBase) : startDsiDevServer(uiPort, dshBase, mode, execArgv, opts);
 	// The browser follows the UI: the built page (5174) — or, in --dev mode,
 	// the dev server (5175). Gated on the HOST actually listening (bug
 	// 2026-10-17): the fixed 2s timer lost every race the host booted slower
@@ -745,7 +753,7 @@ function runSkillsMirror() {
  *  sources and devDependencies exist — a published tarball (bin + build)
  *  refuses loudly instead of half-booting. The --port CLI flag overrides the
  *  config's server.port while strictPort keeps the fail-loud contract. */
-function startDsiDevServer(defaultPort = '5175', dshBase = undefined, mode = 'pair', execArgv = []) {
+function startDsiDevServer(defaultPort = '5175', dshBase = undefined, mode = 'pair', execArgv = [], opts = {}) {
 	const viteBin = path.join(packageRoot, 'node_modules', 'vite', 'bin', 'vite.js');
 	if (!existsSync(viteBin)) {
 		console.error(`dsi dsh --dev: no vite at ${viteBin} — --dev needs a full DSI checkout (pnpm install); use the built server instead`);
@@ -771,7 +779,7 @@ function startDsiDevServer(defaultPort = '5175', dshBase = undefined, mode = 'pa
 			// stale build. Nothing else may set it.
 			DSI_DEV: '1',
 			// D4/D6: the mode rides as env, never past the CLI to the host.
-			...devModeEnv(mode),
+			...devModeEnv(mode, { playwrightMcp: opts.playwrightMcp === true }),
 			// The Faithful Bounce (ADR 2026-10-13, D1): the inspector flags are
 			// part of the launch record — stamped so every restorer (the bounce
 			// boot via ps -E, the delayed re-serve via inherited env) can put
