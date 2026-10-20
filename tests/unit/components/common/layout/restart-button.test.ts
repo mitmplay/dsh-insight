@@ -115,6 +115,139 @@ describe('RestartButton', () => {
   });
 });
 
+// Coverage-gap matrix (2026-10-21): the network-REJECT catch arms (the mode
+// fetch dying mid-flight, the restart POST dying with the server, the poll
+// hitting a dead floor) plus the class-passthrough prop were the only
+// uncovered branches — each gets a direct-mount test here.
+describe('RestartButton coverage gaps (reject arms + passthrough class)', () => {
+  it('a mode fetch that REJECTS (floor unreachable) keeps the trigger hidden', async () => {
+    devFloor = false;
+    vi.stubGlobal('fetch', (async () => {
+      throw new TypeError('fetch failed');
+    }) as typeof fetch);
+    const h = await mountButton();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(h.btn).toBeNull();
+    h.cleanup();
+  });
+
+  it('a rejecting restart POST falls through to the poll and still reloads', async () => {
+    vi.useFakeTimers();
+    devFloor = true;
+    let polls = 0;
+    vi.stubGlobal('fetch', (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push({ url });
+      if (url === '/api/floor/mode') {
+        return new Response(JSON.stringify({ dev: true }), { status: 200 });
+      }
+      if (url === '/api/floor/restart') {
+        throw new TypeError('server died before answering');
+      }
+      // snapshot poll: down once, then up
+      polls += 1;
+      const up = polls >= 2;
+      return new Response(JSON.stringify({ ok: up }), { status: up ? 200 : 503 });
+    }) as typeof fetch);
+    vi.stubGlobal('location', { reload: reloadMock });
+    const h = await mountButton();
+    h.btn.click();
+    flushSync();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(reloadMock).toHaveBeenCalled();
+    expect(polls).toBeGreaterThanOrEqual(2);
+    vi.useRealTimers();
+    h.cleanup();
+  });
+
+  it('a rejecting snapshot poll keeps polling until the floor answers', async () => {
+    vi.useFakeTimers();
+    devFloor = true;
+    let polls = 0;
+    vi.stubGlobal('fetch', (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push({ url });
+      if (url === '/api/floor/mode') {
+        return new Response(JSON.stringify({ dev: true }), { status: 200 });
+      }
+      if (url === '/api/floor/restart') {
+        return new Response('{}', { status: 200 });
+      }
+      polls += 1;
+      if (polls === 1) throw new TypeError('floor still down');
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as typeof fetch);
+    vi.stubGlobal('location', { reload: reloadMock });
+    const h = await mountButton();
+    h.btn.click();
+    flushSync();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(reloadMock).toHaveBeenCalled();
+    expect(polls).toBe(2);
+    vi.useRealTimers();
+    h.cleanup();
+  });
+
+  it('a second click while restarting is a no-op (the guard true-arm)', async () => {
+    // Never-resolving fetch keeps the restarting flag pinned at true across
+    // both clicks, so the guard's TRUE arm fires and the second click is
+    // swallowed before any second POST can be issued.
+    devFloor = true;
+    vi.stubGlobal('fetch', (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push({ url });
+      if (url === '/api/floor/mode') {
+        return new Response(JSON.stringify({ dev: true }), { status: 200 });
+      }
+      // restart POST + snapshot poll: hang forever
+      return new Promise(() => {}) as unknown as Response;
+    }) as typeof fetch);
+    vi.stubGlobal('location', { reload: reloadMock });
+    const h = await mountButton();
+    // calls is module-level and shared across tests — count only THIS test's
+    // clicks.
+    // This stub records only the URL (no init), so count restart hits by URL.
+    const restartPosts = () => calls.filter((c) => c.url === '/api/floor/restart').length;
+    const postsBefore = restartPosts();
+    h.btn.click();
+    flushSync();
+    // The disabled attribute blocks the DOM-level click, but it is only a
+    // derived VIEW of the restarting flag — removing it does not reset the
+    // state. Strip it so the second click actually dispatches and the
+    // handler runs, reads restarting=true, and returns early (guard TRUE arm).
+    expect(h.btn.disabled).toBe(true);
+    h.btn.removeAttribute('disabled');
+    h.btn.click(); // handler runs, guard sees restarting=true → early return
+    flushSync();
+    expect(restartPosts() - postsBefore).toBe(1);
+    // NOTE: no disabled re-assertion here — Svelte only rewrites the derived
+    // attribute when the restarting flag CHANGES, and we manually stripped it,
+    // so the DOM stays stale by design. The one-POST delta IS the proof the
+    // guard swallowed the second click.
+    h.cleanup();
+  });
+
+  it('a host class passthrough lands on the trigger button', async () => {
+    devFloor = true;
+    installFetch(['up']);
+    const target = document.createElement('div');
+    document.body.appendChild(target);
+    const comp = mount(RestartButton, { target, props: { class: 'rail-collapsed-label' } });
+    flushSync();
+    for (let k = 0; k < 50; k += 1) {
+      await new Promise((r) => setTimeout(r, 1));
+      flushSync();
+      if (target.querySelector('[data-testid="sidebar-restart-trigger"]')) break;
+    }
+    const btn = target.querySelector('[data-testid="sidebar-restart-trigger"]') as HTMLButtonElement;
+    expect(btn).toBeTruthy();
+    expect(btn.className).toContain('restart-trigger');
+    expect(btn.className).toContain('rail-collapsed-label');
+    unmount(comp);
+    target.remove();
+  });
+});
+
 // AppSidebarHeader placement pin (operator-added, 2026-10-12): the restart
 // trigger leads the header row, BEFORE the About trigger — both surfaces
 // (expanded header + collapsed stub) carry the button.

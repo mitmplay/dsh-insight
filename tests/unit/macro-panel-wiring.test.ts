@@ -16,7 +16,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import ConversationPanel from '../../src/lib/components/conversation/ConversationPanel.svelte';
+import ConversationPanel from '../../src/lib/components/conversation/panel/ConversationPanel.svelte';
 import { macroRunner, macroRunState } from '$lib/services/chat/macro-runner.svelte';
 import { registerReplacePanel } from '$lib/services/panels/panel-registry';
 

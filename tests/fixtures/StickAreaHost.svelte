@@ -5,7 +5,7 @@
 	 * after mount, so the outside-in mirror effect (prop write → setStick
 	 * jump) can be driven the way the composer toggle drives it.
 	 */
-	import ConversationScrollArea from '../../src/lib/components/conversation/ConversationScrollArea.svelte';
+	import ConversationScrollArea from '../../src/lib/components/conversation/panel/ConversationScrollArea.svelte';
 	import { groupTurns } from '../../src/lib/utils/turn-grouping';
 	import type { DsiEntry } from '../../src/lib/types';
 

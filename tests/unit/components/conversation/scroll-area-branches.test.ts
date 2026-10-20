@@ -17,7 +17,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import ConversationScrollArea from '$lib/components/conversation/ConversationScrollArea.svelte';
+import ConversationScrollArea from '$lib/components/conversation/panel/ConversationScrollArea.svelte';
 import { groupTurns } from '$lib/utils/turn-grouping';
 import { registerAddPanel, resetPanelRegistryForTests } from '$lib/services/panels/panel-registry';
 import type { DsiEntry } from '$lib/types';

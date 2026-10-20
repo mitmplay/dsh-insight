@@ -8,7 +8,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import ConversationFooter from '$lib/components/conversation/ConversationFooter.svelte';
+import ConversationFooter from '$lib/components/conversation/footer/ConversationFooter.svelte';
 import { resetPromptSyncForTests, setSyncChecked } from '$lib/services/chat/prompt-sync.svelte';
 
 const SID = 'c1a0a2b3-4d5e-4f6a-8b7c-9d0e1f2a3b4c';

@@ -6,7 +6,7 @@
 	 * tests drive the prop through this host the same way the page does
 	 * (title={panelTitleFor(...)} re-renders on every spine tick).
 	 */
-	import ConversationPanel from '../../src/lib/components/conversation/ConversationPanel.svelte';
+	import ConversationPanel from '../../src/lib/components/conversation/panel/ConversationPanel.svelte';
 	import type { DsiEntry } from '$lib/types';
 
 	let {

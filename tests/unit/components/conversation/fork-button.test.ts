@@ -13,7 +13,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import ForkButton from '$lib/components/conversation/ForkButton.svelte';
+import ForkButton from '$lib/components/conversation/header/ForkButton.svelte';
 import LensForkButtonHost from '../../LensForkButtonHost.svelte';
 import {
 	registerAddPanel,

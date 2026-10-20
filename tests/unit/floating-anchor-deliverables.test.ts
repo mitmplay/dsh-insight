@@ -6,7 +6,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
-import ConversationFloatingAnchor from '../../src/lib/components/conversation/ConversationFloatingAnchor.svelte';
+import ConversationFloatingAnchor from '../../src/lib/components/conversation/panel/ConversationFloatingAnchor.svelte';
 
 const DELIVERIES = [
 	{ turn: 1, callId: 'c1', files: [{ path: '/tmp/report.md', description: 'the report' }] }

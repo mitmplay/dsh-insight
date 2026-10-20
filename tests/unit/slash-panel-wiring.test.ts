@@ -22,7 +22,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Static on purpose: the panel must bind to the SAME svelte runtime as
 // mount/flushSync below (second-instance binding → effect_orphan).
-import ConversationPanel from '../../src/lib/components/conversation/ConversationPanel.svelte';
+import ConversationPanel from '../../src/lib/components/conversation/panel/ConversationPanel.svelte';
 import { invalidateAll } from '../../src/lib/services/chat/slash-directory.svelte';
 import { registerAddPanel } from '../../src/lib/services/panels/panel-registry';
 

@@ -6,7 +6,7 @@
 	 * the live-update test drives the prop through this host the same way
 	 * the page does (a2aRows={a2aRowsFor(...)} re-renders each tick).
 	 */
-	import ConversationPanel from '../../src/lib/components/conversation/ConversationPanel.svelte';
+	import ConversationPanel from '../../src/lib/components/conversation/panel/ConversationPanel.svelte';
 	import type { DsiA2aExchangeView } from '$lib/types';
 
 	let {

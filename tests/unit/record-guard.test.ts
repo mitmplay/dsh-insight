@@ -10,7 +10,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import ConversationPanel from '../../src/lib/components/conversation/ConversationPanel.svelte';
+import ConversationPanel from '../../src/lib/components/conversation/panel/ConversationPanel.svelte';
 
 function coldProps(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {

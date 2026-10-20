@@ -8,7 +8,7 @@
 	 * template conditionals can be driven through BOTH states after a
 	 * single mount (the ControlBarHarness pattern).
 	 */
-	import ConversationScrollArea from '../../src/lib/components/conversation/ConversationScrollArea.svelte';
+	import ConversationScrollArea from '../../src/lib/components/conversation/panel/ConversationScrollArea.svelte';
 	import { groupTurns } from '../../src/lib/utils/turn-grouping';
 	import type { DsiEntry } from '../../src/lib/types';
 	import type { AnswerView } from '../../src/lib/services/conversation/store.svelte';

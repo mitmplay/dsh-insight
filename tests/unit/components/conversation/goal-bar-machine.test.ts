@@ -6,7 +6,7 @@
  * submit contract of submitGoalEditor (ADR Goal Editor D3).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GoalBarMachine } from '$lib/components/conversation/goal-bar.svelte';
+import { GoalBarMachine } from '$lib/components/conversation/panel/goal-bar.svelte';
 import type { GoalResultGoal } from '$lib/utils/goals';
 
 function goal(partial: Partial<GoalResultGoal> = {}): GoalResultGoal {

@@ -7,7 +7,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import ConversationFloatingAnchor from '../../src/lib/components/conversation/ConversationFloatingAnchor.svelte';
+import ConversationFloatingAnchor from '../../src/lib/components/conversation/panel/ConversationFloatingAnchor.svelte';
 
 const job = (id: string, status: string) => ({
 	id,

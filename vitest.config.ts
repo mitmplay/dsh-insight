@@ -104,7 +104,9 @@ export default defineConfig({
 			['tests/unit/prompts-similarity.test.ts', 'node'],
 			['tests/unit/prompts-search.test.ts', 'node'],
 			// dsh-connection coverage-gap tests — server-only transport seams
-			['tests/unit/dsh-connection-gaps.test.ts', 'node']
+			['tests/unit/dsh-connection-gaps.test.ts', 'node'],
+			// browser viewport route — server-only registry seam (ADR-0031 am. 2)
+			['tests/unit/browser-viewport-route.test.ts', 'node']
 		],
 		coverage: {
 			provider: 'v8',
@@ -156,6 +158,14 @@ export default defineConfig({
 			// stale anchor/ path (from a pre-move commit) silently un-excluded
 			// the real file and tripped the 80% gate (observed 2026-10-19).
 			'src/lib/components/bar/goal-bar/GoalSheet.svelte',
+				// RuntimeContextChip: same compiler `?? ''` fallback arms on the
+				// {t(m.runtimeContext)} / {head} text interpolations (coverage-final
+				// 2026-10-21: both remaining uncovered binary-expr arms are those
+				// compiler fallbacks at L33) — provably unreachable: both
+				// expressions are string-typed. Every real arm IS covered by
+				// tests/unit/access-mode-confirm-runtime-chip-coverage.test.ts and
+				// tests/unit/components/composer/chat-components.test.ts.
+				'src/lib/components/message/chips/RuntimeContextChip.svelte',
 				// Generated Paraglide output (compiled catalogs + repo junk like
 				// README.md/.gitignore) is not product code — and the junk files
 				// crash coverage-v8's remapper with fatal PARSE_ERRORs, aborting

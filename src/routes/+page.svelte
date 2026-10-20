@@ -10,7 +10,7 @@
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import AppSidebar from '$lib/components/common/layout/AppSidebar.svelte';
-	import ConversationPanel from '$lib/components/conversation/ConversationPanel.svelte';
+	import ConversationPanel from '$lib/components/conversation/panel/ConversationPanel.svelte';
 	import PromptManagerPanel from '$lib/components/prompt-manager/PromptManagerPanel.svelte';
 	import TerminalDesk from '$lib/components/terminal/TerminalDesk.svelte';
 	import BrowserPanel from '$lib/components/browser/BrowserPanel.svelte';

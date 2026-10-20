@@ -5,7 +5,7 @@
  */
 import { mount, unmount } from 'svelte';
 import { describe, expect, it } from 'vitest';
-import ConversationStatsBar from '$lib/components/conversation/ConversationStatsBar.svelte';
+import ConversationStatsBar from '$lib/components/conversation/panel/ConversationStatsBar.svelte';
 import { statsFromLedger, type SessionStats } from '../../../../src/lib/services/conversation/session-stats';
 import type { DsiLedgerStats } from '$lib/types';
 

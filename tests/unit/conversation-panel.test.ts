@@ -24,7 +24,7 @@ import { mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Static on purpose: the panel must bind to the SAME svelte runtime as
 // mount/flushSync below (second-instance binding → effect_orphan).
-import ConversationPanel from '../../src/lib/components/conversation/ConversationPanel.svelte';
+import ConversationPanel from '../../src/lib/components/conversation/panel/ConversationPanel.svelte';
 import { registerAddPanel, registerReplacePanel,
 	type PanelAddRequest
 } from '../../src/lib/services/panels/panel-registry';

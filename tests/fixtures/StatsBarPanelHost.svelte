@@ -6,7 +6,7 @@
 	 * panels, bottom in-flow row on sub-agent panels (ADR "The Stats
 	 * Bar" D4). Same pattern as A2aRowsHost.
 	 */
-	import ConversationPanel from '../../src/lib/components/conversation/ConversationPanel.svelte';
+	import ConversationPanel from '../../src/lib/components/conversation/panel/ConversationPanel.svelte';
 	import type { DsiEntry } from '../../src/lib/types';
 
 	let { entries = [], subagent = false }: { entries?: DsiEntry[]; subagent?: boolean } = $props();

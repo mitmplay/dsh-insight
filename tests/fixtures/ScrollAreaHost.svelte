@@ -6,7 +6,7 @@
 	 * answerer cards after mount (the ControlBarHarness pattern — bind
 	 * targets and callbacks need a writable host the test can read).
 	 */
-	import ConversationScrollArea from '../../src/lib/components/conversation/ConversationScrollArea.svelte';
+	import ConversationScrollArea from '../../src/lib/components/conversation/panel/ConversationScrollArea.svelte';
 	import { groupTurns } from '../../src/lib/utils/turn-grouping';
 	import type { DsiEntry } from '../../src/lib/types';
 	import type { AnswerView } from '../../src/lib/services/conversation/store.svelte';

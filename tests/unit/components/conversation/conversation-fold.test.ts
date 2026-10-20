@@ -10,7 +10,7 @@
  */
 import { mount, unmount, flushSync } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import ConversationScrollArea from '$lib/components/conversation/ConversationScrollArea.svelte';
+import ConversationScrollArea from '$lib/components/conversation/panel/ConversationScrollArea.svelte';
 import { groupTurns } from '$lib/utils/turn-grouping';
 import type { DsiEntry } from '$lib/types';
 

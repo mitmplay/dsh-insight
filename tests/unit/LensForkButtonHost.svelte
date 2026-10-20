@@ -6,7 +6,7 @@
 	 * initializes inside a lens tree.
 	 */
 	import { setLensMode } from '$lib/services/conversation/lens-context.svelte';
-	import ForkButton from '$lib/components/conversation/ForkButton.svelte';
+	import ForkButton from '$lib/components/conversation/header/ForkButton.svelte';
 
 	let {
 		lens = true,
