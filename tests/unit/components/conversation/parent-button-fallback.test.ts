@@ -7,7 +7,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import OpenParentButton from '$lib/components/conversation/OpenParentButton.svelte';
+import OpenParentButton from '$lib/components/conversation/header/OpenParentButton.svelte';
 import {
 	registerAddPanel,
 	resetPanelRegistryForTests

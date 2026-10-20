@@ -33,7 +33,7 @@
 	import StickToBottomToggle from '$lib/components/composer/sibling/StickToBottomToggle.svelte';
 	import StreamingIndicator from '$lib/components/composer/sibling/StreamingIndicator.svelte';
 	import ConversationFooter from '$lib/components/conversation/ConversationFooter.svelte';
-	import ConversationHeader from '$lib/components/conversation/ConversationHeader.svelte';
+	import ConversationHeader from '$lib/components/conversation/header/ConversationHeader.svelte';
 	import ConversationScrollArea from '$lib/components/conversation/ConversationScrollArea.svelte';
 	import ConversationFloatingAnchor from '$lib/components/conversation/ConversationFloatingAnchor.svelte';
 	import A2aChipStack from '$lib/components/conversation/A2aChipStack.svelte';

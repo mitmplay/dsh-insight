@@ -11,8 +11,8 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import DisplayWorkspace from '$lib/components/conversation/DisplayWorkspace.svelte';
-import SessionIdAndName from '$lib/components/conversation/SessionIdAndName.svelte';
+import DisplayWorkspace from '$lib/components/conversation/header/DisplayWorkspace.svelte';
+import SessionIdAndName from '$lib/components/conversation/header/SessionIdAndName.svelte';
 import { findWorkspaceExplorerPanel, findWorkspaceFilePanel, workspaceFileSlot } from '$lib/services/panels/panel-placement';
 import type { DsiPanelEntry, DsiWorkspaceSummary } from '$lib/types';
 

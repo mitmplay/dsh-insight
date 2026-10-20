@@ -8,7 +8,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { describe, expect, it } from 'vitest';
-import PlanModeChip from '../../src/lib/components/conversation/PlanModeChip.svelte';
+import PlanModeChip from '../../src/lib/components/conversation/header/PlanModeChip.svelte';
 
 function mountChip(props: Record<string, unknown>) {
 	const target = document.createElement('div');

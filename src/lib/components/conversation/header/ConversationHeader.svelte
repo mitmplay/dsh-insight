@@ -11,6 +11,7 @@
 	 */
 	import SessionIdAndName from './SessionIdAndName.svelte';
 	import ToolsAndStatusHeader from './ToolsAndStatusHeader.svelte';
+	import OpenBrowserButton from './OpenBrowserButton.svelte';
 	import * as m from '$lib/paraglide/messages';
 
 	let {
@@ -96,12 +97,7 @@
 		{onOpenExplorer}
 	/>
 		{#if onOpenBrowser}
-			<button
-				class="rounded border border-surface-border px-1.5 py-0.5 text-xs hover:bg-surface-active"
-				data-testid="open-browser"
-				title={m.browserOpenTitle()}
-				onclick={onOpenBrowser}
-			>{m.browserChipLabel()}</button>
+			<OpenBrowserButton {onOpenBrowser} />
 		{/if}
 	<!-- Right cluster (2026-08-24): agent chip + running/idle pill +
 	     session fork (2026-09-01) + conversation capture (2026-08-25). -->

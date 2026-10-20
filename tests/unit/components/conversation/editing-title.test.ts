@@ -10,7 +10,7 @@
  */
 import { mount, unmount, flushSync } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import EditingTitle from '$lib/components/conversation/EditingTitle.svelte';
+import EditingTitle from '$lib/components/conversation/header/EditingTitle.svelte';
 
 afterEach(() => {
 	vi.unstubAllGlobals();

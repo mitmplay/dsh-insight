@@ -1,7 +1,7 @@
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import ConversationHeader from '$lib/components/conversation/ConversationHeader.svelte';
+import ConversationHeader from '$lib/components/conversation/header/ConversationHeader.svelte';
 import {
 	configureFloorRegistry,
 	resetFloorState,
