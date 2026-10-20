@@ -9,7 +9,7 @@
 		initialTerminalPanelState,
 		reduceTerminalFrame,
 		type TerminalPanelState
-	} from '$lib/components/terminal/frame-state.js';
+	} from './frame-state.js';
 
 	let {
 		/** Fired once after the shell exits (a settled frame with reason

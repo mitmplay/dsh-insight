@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { ensureDsiHome, migrateLegacyDsiConfig, parseYamlSettings } from '$lib/server/settings-document.js';
+import { ensureDsiHome, migrateLegacyDsiConfig, parseYamlSettings } from './settings-document.js';
 
 import { isValidTagWord } from '$lib/server/prompts/tags.js';
 import { DEFAULT_PROMPT_TAGS } from '$lib/config';
@@ -62,7 +62,7 @@ import {
 	type SidebarPlacement
 } from '$lib/config';
 
-import { settingsHomeDir } from '$lib/server/settings-home.js';
+import { settingsHomeDir } from './settings-home.js';
 
 /** `~/.dsi/settings.yaml` — DSI's config home (DSH naming parity). */
 export const DSI_CONFIG_PATH = join(homedir(), '.dsi', 'settings.yaml');

@@ -20,8 +20,8 @@
  * legacy `dsi-blank-mode` fallback stays GLOBAL (it predates profiles).
  */
 
-import { DEFAULT_SESSION_FILTER, isBlankMode, type SessionFilterState } from '$lib/utils/session-filters';
-import { dsiKey } from '$lib/utils/storage-profile';
+import { DEFAULT_SESSION_FILTER, isBlankMode, type SessionFilterState } from './session-filters';
+import { dsiKey } from './storage-profile';
 
 /** localStorage key — one JSON blob `{workspace, preset, blankMode}`. */
 const STORAGE_KEY = 'dsi-session-filter';

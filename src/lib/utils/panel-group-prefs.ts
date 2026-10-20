@@ -17,7 +17,7 @@
  * across reloads). Absent entry = folded (the 2026-08-28 default); the
  * field's absence in a stored blob IS the old format (loads `[]`).
  */
-import { dsiKey } from '$lib/utils/storage-profile';
+import { dsiKey } from './storage-profile';
 
 /** localStorage base key — one JSON blob `{collapsed, unfoldedSessionIds}`. */
 const STORAGE_KEY = 'dsi-panel-group';

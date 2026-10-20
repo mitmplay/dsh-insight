@@ -12,7 +12,7 @@
  */
 
 import { dshBaseUrl } from '$lib/config';
-import { readDshAuthConfig } from '$lib/server/insight-config';
+import { readDshAuthConfig } from './insight-config';
 
 /**
  * Wire endpoints this app calls (0.1.2-alpha.1 wire: slash paths, args

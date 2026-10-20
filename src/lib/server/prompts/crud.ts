@@ -9,7 +9,7 @@
  * by line range.
  */
 import type { DatabaseSync } from 'node:sqlite';
-import { joinTagWords, parseTagWords } from '$lib/server/prompts/tags.js';
+import { joinTagWords, parseTagWords } from './tags.js';
 import { MAX_ROWS, openPromptsDb, SELECT_COLS, warn, type PromptRecord } from './connection.js';
 import { escLike } from './search.js';
 

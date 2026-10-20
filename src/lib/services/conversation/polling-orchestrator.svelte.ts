@@ -71,13 +71,13 @@ export function createPollingOrchestrator(store: ConversationStore, deps: Orches
 					pendingAnswers?: PendingAnswer[];
 					settledAnswers?: AnsweredSettlement[];
 					knobEvents?: DshRawEvent[];
-					permission?: import('$lib/services/conversation/permission-state').DsiPermission | null;
-					imageLimits?: import('$lib/services/conversation/image-limits').DsiImageLimits | null;
+					permission?: import('./permission-state').DsiPermission | null;
+					imageLimits?: import('./image-limits').DsiImageLimits | null;
 					todos?: import('$lib/utils/todo-lists').TodoItem[] | null;
-					plan?: import('$lib/services/conversation/plan-projection').DsiPlanProjection | null;
+					plan?: import('./plan-projection').DsiPlanProjection | null;
 					goal?: import('$lib/utils/goals').GoalResultGoal | null;
 					ledgerStats?: import('$lib/types').DsiLedgerStats | null;
-					deliverables?: import('$lib/services/conversation/deliverables').PresentedDelivery[];
+					deliverables?: import('./deliverables').PresentedDelivery[];
 					liveStream?: import('$lib/types').DsiLiveStreamTail | null;
 				};
 				if (!body.ok) {
@@ -139,12 +139,12 @@ export function createPollingOrchestrator(store: ConversationStore, deps: Orches
 				pendingAnswers?: PendingAnswer[];
 				settledAnswers?: AnsweredSettlement[];
 				permission?: DsiPermission | null;
-				imageLimits?: import('$lib/services/conversation/image-limits').DsiImageLimits | null;
+				imageLimits?: import('./image-limits').DsiImageLimits | null;
 				todos?: import('$lib/utils/todo-lists').TodoItem[] | null;
-				plan?: import('$lib/services/conversation/plan-projection').DsiPlanProjection | null;
+				plan?: import('./plan-projection').DsiPlanProjection | null;
 				goal?: import('$lib/utils/goals').GoalResultGoal | null;
 				ledgerStats?: import('$lib/types').DsiLedgerStats | null;
-				deliverables?: import('$lib/services/conversation/deliverables').PresentedDelivery[];
+				deliverables?: import('./deliverables').PresentedDelivery[];
 				knobEvents?: DshRawEvent[];
 				liveStream?: import('$lib/types').DsiLiveStreamTail | null;
 			};

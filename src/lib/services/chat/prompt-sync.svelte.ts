@@ -34,7 +34,7 @@
 
 import { SvelteSet } from 'svelte/reactivity';
 import type { DsiCommandRow, DsiGestureRow, DsiSkillRow } from '$lib/types';
-import type { SuggestedPrompt, TriggerMode } from '$lib/services/chat/prompt-trigger.js';
+import type { SuggestedPrompt, TriggerMode } from './prompt-trigger.js';
 
 /** One member's live strip view — the rows its own fetch produced, the
  *  borrowed highlight index, and the query/mode that shaped them. The

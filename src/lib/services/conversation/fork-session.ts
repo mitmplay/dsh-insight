@@ -15,7 +15,7 @@
  */
 import { addPanelFromSidebar } from '$lib/services/panels/panel-registry';
 import { conversationSeedUrl } from '$lib/utils/seed-url';
-import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
+import { getWorkspaceState } from './workspace-context.svelte';
 
 export type ForkRequest = {
 	/** The source session — the fork's cut source. */

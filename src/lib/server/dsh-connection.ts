@@ -18,8 +18,8 @@
  */
 
 import { dshBaseUrl } from '$lib/config';
-import { readDshAuthConfig, readDshPresetEnglishConfig, readServerConfig } from '$lib/server/insight-config';
-import type { DshAttachmentValue, DshCommandReceipt, DshCommandRow, DshHistoryEntry, DshPromptContent, DshSkillList, DshWorkspaceDirectoryListing, DshWorkspaceFileBytes, DshWorkspaceFileText } from '$lib/server/dsh-rpc';
+import { readDshAuthConfig, readDshPresetEnglishConfig, readServerConfig } from './insight-config';
+import type { DshAttachmentValue, DshCommandReceipt, DshCommandRow, DshHistoryEntry, DshPromptContent, DshSkillList, DshWorkspaceDirectoryListing, DshWorkspaceFileBytes, DshWorkspaceFileText } from './dsh-rpc';
 import {
 	DSH_ARGS,
 	DSH_METHODS,
@@ -35,7 +35,7 @@ import {
 	respondUrl,
 	rpcUrl,
 	type RespondReceipt
-} from '$lib/server/dsh-rpc';
+} from './dsh-rpc';
 
 /** Ring buffer capacity per session (entries kept for delta polls).
  *  Config-tunable (2026-08-25): ~/.dsi/settings.yaml `server.ringCapacity`

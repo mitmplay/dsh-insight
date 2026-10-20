@@ -12,7 +12,7 @@
  */
 
 import type { DsiReadLine, DsiReadView } from '$lib/types';
-import { isKnownCodeLang } from '$lib/utils/highlight-code';
+import { isKnownCodeLang } from './highlight-code';
 
 /** Renderer family one dispatch renders as (keyed by the harness-written
  * tool name — ADR D3: the same families the native chips use). */

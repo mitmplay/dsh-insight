@@ -18,7 +18,7 @@
 	 * coarse pointers (touch has no hover).
 	 */
 	import type { AttachmentDraft } from '$lib/services/chat/attachment-service.svelte';
-	import ImageLightbox from '$lib/components/composer/attachment/ImageLightbox.svelte';
+	import ImageLightbox from './ImageLightbox.svelte';
 
 	let {
 		drafts = [],

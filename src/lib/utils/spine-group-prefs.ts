@@ -12,7 +12,7 @@
  * the sidebar's primary content — the Panels group's collapsed default is
  * intentionally not copied).
  */
-import { dsiKey } from '$lib/utils/storage-profile';
+import { dsiKey } from './storage-profile';
 
 /** localStorage base key — one JSON blob `{collapsed, nameFilter, subagentsHidden}`. */
 const STORAGE_KEY = 'dsi-spine-group';

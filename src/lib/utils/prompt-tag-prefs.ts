@@ -13,7 +13,7 @@
  * grammar-validated on LOAD (the client mirror) so junk persisted by hand
  * or by an older build can never reach the LIKE predicate.
  */
-import { dsiKey } from '$lib/utils/storage-profile';
+import { dsiKey } from './storage-profile';
 import { isValidTagWord } from '$lib/services/chat/prompt-trigger';
 
 /**

@@ -31,7 +31,7 @@
  * stands, where DSH's host-side fold knows its composition defaults.
  */
 
-import type { DshRawEvent } from '$lib/services/conversation/dsh-events';
+import type { DshRawEvent } from './dsh-events';
 
 /** One menu option the chip renders (host wire shape, labels sugared). */
 export interface DsiPresetOption {

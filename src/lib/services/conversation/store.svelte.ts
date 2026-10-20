@@ -12,13 +12,13 @@
  */
 
 import type { DsiEntry, DsiLedgerStats, DsiLiveStreamTail, PendingAnswer, AnsweredSettlement } from '$lib/types';
-import { collapseSystemPromptEntries, mergeEntries } from '$lib/services/conversation/dsh-events';
-import type { DshRawEvent } from '$lib/services/conversation/dsh-events';
-import type { DsiImageLimits } from '$lib/services/conversation/image-limits';
+import { collapseSystemPromptEntries, mergeEntries } from './dsh-events';
+import type { DshRawEvent } from './dsh-events';
+import type { DsiImageLimits } from './image-limits';
 import type { TodoItem } from '$lib/utils/todo-lists';
-import type { DsiPlanProjection } from '$lib/services/conversation/plan-projection';
+import type { DsiPlanProjection } from './plan-projection';
 import type { GoalResultGoal } from '$lib/utils/goals';
-import type { PresentedDelivery } from '$lib/services/conversation/deliverables';
+import type { PresentedDelivery } from './deliverables';
 import {
 	EMPTY_KNOBS,
 	applyKnobEvent,
@@ -27,7 +27,7 @@ import {
 	type DsiPermission,
 	type DsiPresetOption,
 	type KnobState
-} from '$lib/services/conversation/permission-state';
+} from './permission-state';
 
 /** An optimistic user bubble: durable user-message shape + local marker.
  *  R-3: imageCount records an image-carrying submit (dedupe matching stays

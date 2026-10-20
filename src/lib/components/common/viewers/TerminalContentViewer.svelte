@@ -19,7 +19,7 @@
 	 */
 	import { planStepTitle } from '$lib/utils/code-programs';
 	import CopyButton from '$lib/components/common/buttons/CopyButton.svelte';
-	import RawPreviewToggle from '$lib/components/common/viewers/RawPreviewToggle.svelte';
+	import RawPreviewToggle from './RawPreviewToggle.svelte';
 
 	let {
 		toolName,

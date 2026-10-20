@@ -23,7 +23,7 @@
 	import ToolCallChip from '$lib/components/message/chips/ToolCallChip.svelte';
 	import ToolCallDetail from '$lib/components/message/ToolCallDetail.svelte';
 	import TurnErrorChip from '$lib/components/message/chips/TurnErrorChip.svelte';
-	import ChipPopup from '$lib/components/message/assistant/ChipPopup.svelte';
+	import ChipPopup from './ChipPopup.svelte';
 	import ContextInjection from '$lib/components/message/chips/ContextInjectionChip.svelte';
 	import ContextSnapshotBody from '$lib/components/message/ContextSnapshotBody.svelte';
 	import WorkflowRunCard from '$lib/components/message/cards/WorkflowRunCard.svelte';

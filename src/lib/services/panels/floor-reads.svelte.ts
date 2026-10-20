@@ -13,8 +13,8 @@
 import { SvelteMap } from 'svelte/reactivity';
 import { spineFeed } from '$lib/services/conversation/spine-feed.svelte';
 import { pageFeeds, type ColdLoad } from '$lib/services/workspace/page-feeds.svelte';
-import { floor } from '$lib/services/panels/floor-registry.svelte';
-import { sessionWorkspaceExplorer } from '$lib/services/panels/floor-registry.svelte';
+import { floor } from './floor-registry.svelte';
+import { sessionWorkspaceExplorer } from './floor-registry.svelte';
 import { deriveLineage } from '$lib/services/lineage/lineage';
 import { moveFactsFrom } from '$lib/services/lineage/lineage-move';
 import {
@@ -23,7 +23,7 @@ import {
 	panelRowsFor,
 	rowFactsByPanelId as rowFactsOf,
 	type PanelRowsCold
-} from '$lib/services/panels/panel-rows';
+} from './panel-rows';
 import type { DsiA2aExchangeView, DsiConversationPanel, DsiEntry } from '$lib/types';
 
 /** The read views, one getter each — the route's $derived wrappers

@@ -15,8 +15,8 @@
  * undefined and the caller keeps the raw view. Never throws.
  */
 
-import { toolTitle } from '$lib/utils/tool-titles';
-import { truncate } from '$lib/utils/truncate';
+import { toolTitle } from './tool-titles';
+import { truncate } from './truncate';
 
 /** One scanned tool call of the program, in source order. */
 export interface CodeToolStep {

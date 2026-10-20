@@ -24,7 +24,7 @@
 	// Three Tongues W2 (ADR 2026-09-12): the locale row rides the dsi
 	// document through the same /api/settings seam — no side-channel write.
 	import LocaleSettingsRow from '$lib/components/language-menu/LocaleSettingsRow.svelte';
-	import ThemeSettingsRow from '$lib/components/panels/ThemeSettingsRow.svelte';
+	import ThemeSettingsRow from './ThemeSettingsRow.svelte';
 	import type { YamlEditorHandle } from '../monaco/settings-monaco';
 
 	let {

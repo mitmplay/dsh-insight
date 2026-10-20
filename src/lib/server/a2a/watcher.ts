@@ -49,7 +49,7 @@
 import { getDshConnection, type DshHistoryPage } from '$lib/server/dsh-connection.js';
 import { readA2aConfig } from '$lib/server/insight-config.js';
 import { entryForEvent, historyToEvents } from '$lib/services/conversation/dsh-events.js';
-import { classifyReply } from '$lib/server/a2a/matcher.js';
+import { classifyReply } from './matcher.js';
 import {
 	insertWaiting,
 	listWaiting,
@@ -58,7 +58,7 @@ import {
 	settleRow,
 	type A2aExchangeRow,
 	type A2aInsertWaiting
-} from '$lib/server/a2a/db.js';
+} from './db.js';
 
 // ── Timing (server defaults; W4 wires these to the a2a.* config section) ──
 

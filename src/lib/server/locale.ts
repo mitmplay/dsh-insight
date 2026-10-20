@@ -16,7 +16,7 @@
  */
 
 import { resolveUiLocale, type UiLocale } from '$lib/config';
-import { readSettingsDocument } from '$lib/server/settings-document';
+import { readSettingsDocument } from './settings-document';
 import { parse } from 'yaml';
 
 export interface LocaleInputs {

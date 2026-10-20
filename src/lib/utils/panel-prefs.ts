@@ -15,9 +15,9 @@
  * dropped, and a non-array `panels` value means the whole blob is junk.
  */
 import type { DsiPanelEntry, TerminalDeskMirror } from '$lib/types';
-import type { ReloadFeedback } from '$lib/utils/skill-shelf-reload-machine';
+import type { ReloadFeedback } from './skill-shelf-reload-machine';
 import { appConfig } from '$lib/services/config/app-config.svelte';
-import { dsiKey } from '$lib/utils/storage-profile';
+import { dsiKey } from './storage-profile';
 
 /** localStorage base key — one JSON blob `{ panels, selectedPanelId, panelWidth, zoom }`.
  *  A workspace profile (`?profile=…` on the URL) suffixes EVERY dsi-* key

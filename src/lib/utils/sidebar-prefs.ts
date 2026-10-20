@@ -11,7 +11,7 @@
  * to `dsi-sidebar_widi` — each desk remembers its own rail layout.
  */
 import { appConfig } from '$lib/services/config/app-config.svelte';
-import { dsiKey } from '$lib/utils/storage-profile';
+import { dsiKey } from './storage-profile';
 
 /** localStorage base key — one JSON blob `{ collapsed, width }`. */
 const STORAGE_KEY = 'dsi-sidebar';
