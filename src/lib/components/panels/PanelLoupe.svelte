@@ -30,8 +30,8 @@
 	 * the header's move/close render visible-disabled (the floor verbs).
 	 * Openness is the route's session-local state — never persisted (D5).
 	 */
-	import PanelHeader from './PanelHeader.svelte';
 	import { setLensMode } from '$lib/services/conversation/lens-context.svelte';
+	import PanelHeader from './PanelHeader.svelte';
 
 	let {
 		panelId,

@@ -12,11 +12,11 @@
 	 * commit; `captureContainer` flows down to TrayButtons (page-owned
 	 * floor element — the route passes it through ControlBar).
 	 */
+	import { PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_ZOOM } from '$lib/utils/panel-prefs';
 	import AddPanel from './AddPanel.svelte';
 	import SliderWidth from './SliderWidth.svelte';
 	import SliderZoom from './SliderZoom.svelte';
 	import TrayButtons from './TrayButtons.svelte';
-	import { PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_ZOOM } from '$lib/utils/panel-prefs';
 
 	let {
 		panelWidth = $bindable(PANEL_DEFAULT_WIDTH),

@@ -13,13 +13,20 @@
 	 * SidebarSessions (the owner); this component receives resolved state
 	 * and reports writes upward.
 	 */
+	import type { SpineGroupPrefs } from '$lib/utils/spine-group-prefs';
+	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
+	import type { FilterOption, SessionFilterState } from '$lib/utils/session-filters';
 	import SidebarOpenPanels from './SidebarOpenPanels.svelte';
 	import SessionFilterRow from './SessionFilterRow.svelte';
 	import SidebarSessionContainer from './SidebarSessionContainer.svelte';
 	import SidebarFooter from './SidebarFooter.svelte';
-	import type { SpineGroupPrefs } from '$lib/utils/spine-group-prefs';
-	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
-	import type { FilterOption, SessionFilterState } from '$lib/utils/session-filters';
+	import { heartbeatScope } from '$lib/services/jobs/heartbeat-scope.svelte';
+
+	// ADR-0034 D2 — the heartbeat's ALWAYS set: paneled sessions plus the
+	// current conversation, watched in every mode regardless of viewport.
+	$effect(() => {
+		heartbeatScope.setAlways([...paneledSessionIds, ...(current ? [current.sessionId] : [])]);
+	});
 
 	let {
 		phase,
@@ -79,6 +86,10 @@
 	{:else}
 		<SidebarOpenPanels {workspaces} />
 		<SessionFilterRow workspaces={wsPills} {presets} {filter} onchange={onfilterchange} {oncreated} registry={workspaces} />
+
+		<!-- ADR-0034 D2 — the ALWAYS set (panels + current) is fed to the
+		     heartbeat scope from the script effect below, not from markup. -->
+
 
 		<SidebarSessionContainer
 			{current}

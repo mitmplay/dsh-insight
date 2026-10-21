@@ -668,6 +668,10 @@ export interface DsiConversationPanel {
 export interface TerminalDeskMirror {
 	tabs: Array<{ sessionIds: string[] }>;
 	selectedTab: number;
+	/** Job Follower Tab amendment (2026-10-21, supersedes the original D5):
+	 *  remembered -J tabs survive reload — the rebuild re-opens each follow.
+	 *  Absent on legacy mirrors. */
+	jobs?: Array<{ owner: string; jobId: string }>;
 }
 
 export interface DsiTerminalPanel {
@@ -923,6 +927,22 @@ export interface DsiJobListFrame {
 	jobs: DsiJobView[];
 }
 
+/**
+ * Job Follower Tab (ADR-0035): a job tab is a READ-ONLY view over one job's
+ * output ring, relayed from the host's job.follow stream. Never a shell
+ * lease — no token, no input, no mirror persistence (D5).
+ */
+export interface DsiJobFollowChunk {
+	/** Plain decoded text of the chunk (the relay decodes bytes). */
+	text: string;
+}
+
+/** One follower frame as the browser sees it (server relay → SSE). */
+export type DsiJobFollowEvent =
+	| { type: 'opened'; job: DsiJobView; from: number }
+	| { type: 'output'; text: string; next: number; lossy?: true }
+	| { type: 'status'; job: DsiJobView }
+	| { type: 'error'; code?: string; message?: string };
 /** Receipt after the registry accepted the human kill request. */
 export interface DsiJobKillResult {
 	outcome: 'requested' | 'already-finished';

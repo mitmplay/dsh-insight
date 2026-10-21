@@ -7,9 +7,10 @@
  * Spec: dev/specs/2026-10/2026-10-16 - Job Badge.
  */
 import { flushSync, mount, unmount } from 'svelte';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import RowSessionItemHost from '../fixtures/RowSessionItemHost.svelte';
 import RowJobBadge from '../../src/lib/components/sessions/RowJobBadge.svelte';
+import { heartbeatScope } from '../../src/lib/services/jobs/heartbeat-scope.svelte';
 import type { DsiSessionSummary, DsiWorkspaceSummary } from '../../src/lib/types';
 
 const session: DsiSessionSummary = {
@@ -49,7 +50,19 @@ beforeEach(() => {
 			if (init?.method === 'POST') {
 				return { ok: true, json: async () => ({ ok: true, outcome: 'requested' }) };
 			}
-			const sid = new URL(String(url), 'http://localhost').searchParams.get('sessionId');
+			const params = new URL(String(url), 'http://localhost').searchParams;
+			// ADR-0032 D5 — the scope arms via the BATCH dialect (armMany →
+			// refreshBatch, which expects a rosters map); the singular form
+			// stays for direct watches. Both answer the fixture's jobs.
+			const batchIds = params.get('sessionIds');
+			if (batchIds !== null) {
+				const rosters: Record<string, unknown> = {};
+				for (const id of batchIds.split(',').filter(Boolean)) {
+					rosters[id] = id === 'conv-1' ? { jobs } : { jobs: [] };
+				}
+				return { ok: true, json: async () => ({ ok: true, rosters }) };
+			}
+			const sid = params.get('sessionId');
 			return {
 				ok: true,
 				json: async () => ({ ok: true, sessionId: sid, jobs: sid === 'conv-1' ? jobs : [] })
@@ -85,8 +98,12 @@ async function mountRow(sid = 'conv-1') {
 		target,
 		props: { session: { ...session, sessionId: sid }, workspaces }
 	});
+	// ADR-0034 D2 — the badge is a pure reader; the SCOPE arms the watch
+	// (same technique as 2.1-T's row-job-badge.test.ts). The real-timer
+	// settle covers the scope's arm debounce + batch fetch.
+	heartbeatScope.setViewport([sid]);
 	flushSync();
-	await settleUntil(() => Boolean(target.querySelector('[data-testid="job-badge"]')));
+	await settleUntil(() => Boolean(target.querySelector('[data-testid="job-badge"]')), 60);
 	return { component, target };
 }
 
@@ -116,6 +133,13 @@ beforeAll(async () => {
 	target.remove();
 	vi.unstubAllGlobals();
 	vi.useRealTimers();
+});
+
+afterEach(() => {
+	heartbeatScope.reset(); // the scope singleton owns cross-test watch state
+});
+afterAll(() => {
+	heartbeatScope.reset();
 });
 
 describe('RowSessionItem job badge', () => {

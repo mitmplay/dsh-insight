@@ -19,11 +19,11 @@
 	 */
 	import { onMount } from 'svelte';
 	import { type SuggestedPrompt } from '$lib/services/chat/prompt-trigger.js';
+	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
+	import { loadTagFilter, saveTagFilter } from '$lib/utils/prompt-tag-prefs';
 	import StripChip from './StripChip.svelte';
 	import SuggestLine from './SuggestLine.svelte';
 	import StripTagChips from './StripTagChips.svelte';
-	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
-	import { loadTagFilter, saveTagFilter } from '$lib/utils/prompt-tag-prefs';
 
 	/** Strip mode (Prompt Macro ADR D1): 'find' — accept inserts the row's
 	 *  text (the `?` contract, byte-identical); 'run' — accept RUNS the row

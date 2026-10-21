@@ -1,7 +1,7 @@
 import { parseCommand } from '$lib/services/chat/command-parser';
 import { MENU_GESTURES } from '$lib/services/chat/command-help';
-import { slashMenuMatches } from '../menu/SlashMenu.svelte';
 import type { SlashDirectory } from '$lib/services/chat/slash-directory.svelte';
+import { slashMenuMatches } from '../menu/SlashMenu.svelte';
 
 /** One matched row over the composite index — gestures first, then
  *  commands, then skills (ADR "The Slash Menu" §1.1 layers A→B→C). */

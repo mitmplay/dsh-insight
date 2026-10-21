@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { jobsRoster, isLiveJob } from '$lib/services/jobs/roster-store.svelte';
-	import JobsPopup from './JobsPopup.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
+	import JobsPopup from './JobsPopup.svelte';
 
 	/**
 	 * JobsButton — the live-jobs leaf of the floating anchor stack (Job
@@ -26,6 +26,10 @@
 
 	// Refcounted watch: mount opens the poll, unmount closes it — the store
 	// entry dies with the button, so a poll never outlives its conversation.
+	// ADR-0033 D1 — UNLIKE the sidebar badge, this component's sessionId is
+	// a plain string prop (from $state, never a per-tick rebuilt array), so
+	// a TRACKED read is safe here: the effect re-runs only when the id
+	// genuinely changes (equal values never invalidate), and re-watches then.
 	$effect(() => {
 		jobsRoster.watch(sessionId);
 		return () => jobsRoster.unwatch(sessionId);
@@ -37,17 +41,17 @@
 	const liveCount = $derived(jobs.filter(isLiveJob).length);
 </script>
 
-{#if liveCount > 0}
+{#if jobs.length > 0}
 	<div class="relative" bind:this={triggerEl} data-testid="jobs-button">
 		<button
 			type="button"
-			class="floating-anchor-btn tone-amber"
+			class="floating-anchor-btn {liveCount > 0 ? 'tone-amber' : 'tone-idle'}"
 			class:active={open}
 			title={t(() => (liveCount === 1 ? m.jobsLiveTitle_one({ n: liveCount }) : m.jobsLiveTitle_other({ n: liveCount })))}
 			data-testid="jobs-button-trigger"
 			onclick={() => (open = !open)}
 		>
-			<span class="dot"></span>{liveCount}
+			{#if liveCount > 0}<span class="dot"></span>{/if}{liveCount > 0 ? liveCount : jobs.length}
 		</button>
 		<JobsPopup bind:open {triggerEl} {jobs} {sessionId} />
 	</div>
@@ -89,6 +93,18 @@
 		background: #f59e0b;
 		color: #fff;
 		border-color: #f59e0b;
+	}
+
+	/* idle tone — jobs exist but none live (autoClose:false roster view) */
+	.tone-idle {
+		border: 1px solid var(--color-border, #dee2e6);
+		background: color-mix(in srgb, var(--color-text-muted, #adb5bd) 12%, transparent);
+		color: var(--color-text-muted, #adb5bd);
+	}
+
+	.tone-idle:hover,
+	.tone-idle.active {
+		color: var(--color-text-primary, #212529);
 	}
 
 	.dot {

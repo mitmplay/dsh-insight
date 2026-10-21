@@ -11,6 +11,7 @@ import {
 	REMOTE_EVENT_RESULT_ENDPOINT,
 	DshRpcError,
 } from '$lib/server/dsh-rpc';
+import { JobFollowRelay, type FollowSink } from '$lib/server/jobs/follow-relay';
 import type {
 	DshAttachmentValue,
 	DshCommandReceipt,
@@ -830,6 +831,47 @@ export class RpcRelay {
 	 */
 	dispatchJobRoster(sessionId: string, jobs: readonly DsiJobView[]): void {
 		for (const listener of this.jobRosterListeners) listener(sessionId, jobs);
+	}
+
+	// ── Jobs — the Follow Relay (ADR-0035 D4) ────────────────────────────
+
+	/** Lazy singleton: one relay over the downlink job/follow transport. */
+	private jobFollowRelay: JobFollowRelay | null = null;
+
+	private ensureJobFollowRelay(): JobFollowRelay {
+		if (this.jobFollowRelay === null) {
+			const downlinks = this.conn.downlinks;
+			this.jobFollowRelay = new JobFollowRelay({
+				open: (owner, jobId) => downlinks.openJobFollowStream(owner, jobId),
+				close: (owner, jobId) => downlinks.closeJobFollowStream(owner, jobId)
+			});
+		}
+		return this.jobFollowRelay;
+	}
+
+	/** Subscribe one browser sink to a job's follow stream (SSE route). */
+	subscribeJobFollow(owner: string, jobId: string, sink: FollowSink): () => void {
+		return this.ensureJobFollowRelay().subscribe(owner, jobId, sink);
+	}
+
+	/** The owners with at least one live follow (mux generation reopen). */
+	jobFollowOwners(): string[] {
+		return this.jobFollowRelay === null ? [] : this.jobFollowRelay.owners();
+	}
+
+	/** The job ids one owner follows live (mux generation reopen). */
+	jobFollowJobsOf(owner: string): string[] {
+		return this.jobFollowRelay === null ? [] : this.jobFollowRelay.jobsOf(owner);
+	}
+
+	/** Mux demux path: one jobfollow item to the relay's sinks. */
+	onJobFollowItem(owner: string, jobId: string, value: unknown): void {
+		this.jobFollowRelay?.onFrame(owner, jobId, value);
+	}
+
+	/** Mux demux path: one jobfollow stream error to the relay's sinks. */
+	onJobFollowStreamError(owner: string, jobId: string, code?: string, message?: string): void {
+		this.jobFollowRelay?.onError(owner, jobId, code, message);
 	}
 
 	// ── Jobs — the Roster Mirror (ADR 2026-10-17 D1–D3) ──────────────────

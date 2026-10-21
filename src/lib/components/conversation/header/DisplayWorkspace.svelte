@@ -11,9 +11,9 @@
 	 * when the session has no workspace.
 	 */
 
-	import WorkspaceChip from '../../common/WorkspaceChip.svelte';
 	import { workspaceDisplayLabel, isRegisteredWorkspace } from '$lib/utils/session-filters';
 	import type { DsiWorkspaceSummary } from '$lib/types';
+	import WorkspaceChip from '../../common/WorkspaceChip.svelte';
 
 	let {
 		workspace = null,

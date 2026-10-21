@@ -17,6 +17,7 @@ import {
 	readChatConfig,
 	readConversationConfig,
 	readHomeConfig,
+	readJobsConfig,
 	readPanelConfig,
 	readPromptsConfig,
 	readSidebarConfig,
@@ -58,6 +59,7 @@ export const GET: RequestHandler = async () => {
 		// The Settings Tree (ADR 2026-09-18 D2): the verbatim settings home
 		// roots, so /dsi-settings · /dsh-settings mint explorers with the
 		// server's own homedir truth. Read-only facts, never tuned.
+		jobs: readJobsConfig(),
 		settingsHomes: readSettingsHomes()
 	});
 };

@@ -1,8 +1,8 @@
 <script lang="ts">
+	import type { GoalResultGoal } from '$lib/utils/goals';
 	import GoalChip from './GoalChip.svelte';
 	import GoalEditor from './GoalEditor.svelte';
 	import GoalSheet from './GoalSheet.svelte';
-	import type { GoalResultGoal } from '$lib/utils/goals';
 
 	/**
 	 * GoalBar — the session goal's status surface (ADR "The Goal Bar",

@@ -390,6 +390,7 @@
 	"terminalSessionCap": "Límite de sesiones alcanzado — cierra una terminal para abrir otra.",
 	"terminalDisabled": "Terminal deshabilitado — actívalo en ajustes (terminal.enabled).",
 	"terminalOpening": "Abriendo terminal…",
+	"jobTailWaiting": "esperando salida…",
 	"terminalClosed": "Terminal cerrada",
 	"terminalSettleStdinRead": "esperando entrada",
 	"terminalSettleInferredIdle": "salida inactiva",

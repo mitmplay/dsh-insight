@@ -35,9 +35,9 @@
 	 * the row, OCI placement). Assistant responses live in AssistantTurn —
 	 * this bubble is user-side only.
 	 */
+	import type { DsiImageRef } from '$lib/types';
 	import MessageBubble from './MessageBubble.svelte';
 	import MessageImages from './MessageImages.svelte';
-	import type { DsiImageRef } from '$lib/types';
 
 	let {
 		text,

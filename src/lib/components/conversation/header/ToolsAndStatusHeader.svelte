@@ -21,11 +21,11 @@
 	 */
 	import { Bot, Check, Copy } from '@lucide/svelte';
 	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	import { copyWithFeedback } from '$lib/utils/clipboard';
+	import type { DsiPlanProjection } from '$lib/services/conversation/plan-projection';
 	import ForkButton from './ForkButton.svelte';
 	import OpenParentButton from './OpenParentButton.svelte';
 	import PlanModeChip from './PlanModeChip.svelte';
-	import { copyWithFeedback } from '$lib/utils/clipboard';
-	import type { DsiPlanProjection } from '$lib/services/conversation/plan-projection';
 
 	let {
 		agent,

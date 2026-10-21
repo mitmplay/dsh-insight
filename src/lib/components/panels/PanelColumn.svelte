@@ -15,10 +15,10 @@
 	 * below the header's controls, pointer-transparent — the route owns
 	 * the membership rule (changed-from-snapshot) and the fade timer.
 	 */
-	import PanelHeader from './PanelHeader.svelte';
 	import { panelHeaderLabel } from '$lib/services/panels/panel-rows';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 import * as m from '$lib/paraglide/messages';
+	import PanelHeader from './PanelHeader.svelte';
 	import ResizeGutter from './ResizeGutter.svelte';
 
 	let {

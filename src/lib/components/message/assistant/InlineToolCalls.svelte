@@ -23,7 +23,6 @@
 	import ToolCallChip from '$lib/components/message/chips/ToolCallChip.svelte';
 	import ToolCallDetail from '$lib/components/message/ToolCallDetail.svelte';
 	import TurnErrorChip from '$lib/components/message/chips/TurnErrorChip.svelte';
-	import ChipPopup from './ChipPopup.svelte';
 	import ContextInjection from '$lib/components/message/chips/ContextInjectionChip.svelte';
 	import ContextSnapshotBody from '$lib/components/message/ContextSnapshotBody.svelte';
 	import WorkflowRunCard from '$lib/components/message/cards/WorkflowRunCard.svelte';
@@ -46,6 +45,7 @@
 	import { codeProgramPreview, isRunCodeTool } from '$lib/utils/code-programs';
 	import { isTodoTool, todoListPreview } from '$lib/utils/todo-lists';
 	import { createStickToBottom } from '$lib/utils/stick-to-bottom.svelte';
+	import ChipPopup from './ChipPopup.svelte';
 
 	/** JSON.parse that returns undefined on junk — the popup renders the
 	 *  raw view when args are unparseable, never throws. */

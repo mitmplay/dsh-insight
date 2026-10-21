@@ -136,7 +136,8 @@ describe('readConversationConfig — BC-7 poll cadence', () => {
 			pollIdleMs: 5000,
 			statsBar: 'full-ledger',
 			collapsable: false,
-			progressiveFold: false
+			progressiveFold: false,
+			heartbeatType: 'viewport-cap'
 		});
 	});
 
@@ -147,7 +148,8 @@ describe('readConversationConfig — BC-7 poll cadence', () => {
 			pollIdleMs: 2000,
 			statsBar: 'full-ledger',
 			collapsable: true,
-			progressiveFold: false
+			progressiveFold: false,
+			heartbeatType: 'viewport-cap'
 		});
 		const both = readConversationConfig(writeConfig({ conversation: { collapsable: true, progressiveFold: true } }));
 		expect(both.collapsable).toBe(true);
@@ -172,6 +174,26 @@ describe('readConversationConfig — BC-7 poll cadence', () => {
 			const cfg = readConversationConfig(writeConfig({ conversation: { pollRunningMs: ms, pollIdleMs: ms } }));
 			expect(cfg).toEqual(DEFAULT_CONVERSATION_CONFIG);
 		}
+	});
+});
+
+describe('readConversationConfig — heartbeatType (ADR-0034 D4)', () => {
+	it('defaults to viewport-cap on missing file / section / key', () => {
+		expect(readConversationConfig(join(dir, 'nope.json')).heartbeatType).toBe('viewport-cap');
+		expect(readConversationConfig(writeConfig({})).heartbeatType).toBe('viewport-cap');
+		expect(readConversationConfig(writeConfig({ conversation: {} })).heartbeatType).toBe(
+			'viewport-cap'
+		);
+	});
+
+	it('passes both fleet values through', () => {
+		expect(readConversationConfig(writeConfig({ conversation: { heartbeatType: 'ticker-cap' } })).heartbeatType).toBe('ticker-cap');
+		expect(readConversationConfig(writeConfig({ conversation: { heartbeatType: 'viewport-cap' } })).heartbeatType).toBe('viewport-cap');
+	});
+
+	it('falls back to viewport-cap on a foreign value', () => {
+		expect(readConversationConfig(writeConfig({ conversation: { heartbeatType: 'turbo' } })).heartbeatType).toBe('viewport-cap');
+		expect(readConversationConfig(writeConfig({ conversation: { heartbeatType: 42 } })).heartbeatType).toBe('viewport-cap');
 	});
 });
 

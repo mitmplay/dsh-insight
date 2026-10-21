@@ -17,10 +17,9 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { ensureDsiHome, migrateLegacyDsiConfig, parseYamlSettings } from './settings-document.js';
-
 import { isValidTagWord } from '$lib/server/prompts/tags.js';
-import { DEFAULT_PROMPT_TAGS } from '$lib/config';
+import { DEFAULT_JOBS_AUTOCLOSE, DEFAULT_PROMPT_TAGS } from '$lib/config';
+import { ensureDsiHome, migrateLegacyDsiConfig, parseYamlSettings } from './settings-document.js';
 
 import {
 	DEFAULT_A2A_FAST_POLL_MS,
@@ -54,7 +53,10 @@ import {
 	isConfigRecord,
 	resolveA2aConfig,
 	resolveConversationFlags,
+	resolveHeartbeatType,
+	DEFAULT_HEARTBEAT_TYPE,
 	resolveStatsBarMode,
+	type HeartbeatType,
 	type StatsBarMode,
 	resolveSidebarPlacement,
 	resolveWidthBounds,
@@ -149,6 +151,8 @@ export interface ConversationConfig {
 	collapsable: boolean;
 	/** Fold a turn while it is still streaming, not only after its answer (ADR-0010 A1). */
 	progressiveFold: boolean;
+	/** Which sessions the jobs heartbeat polls (ADR-0034 D1/D4). */
+	heartbeatType: HeartbeatType;
 }
 
 export const DEFAULT_CONVERSATION_CONFIG: ConversationConfig = {
@@ -156,7 +160,8 @@ export const DEFAULT_CONVERSATION_CONFIG: ConversationConfig = {
 	pollIdleMs: DEFAULT_POLL_IDLE_MS,
 	statsBar: DEFAULT_STATS_BAR_MODE,
 	collapsable: DEFAULT_CONVERSATION_COLLAPSABLE,
-	progressiveFold: DEFAULT_CONVERSATION_PROGRESSIVE_FOLD
+	progressiveFold: DEFAULT_CONVERSATION_PROGRESSIVE_FOLD,
+	heartbeatType: DEFAULT_HEARTBEAT_TYPE
 };
 
 /** Read the `conversation` section (`pollRunningMs`, `pollIdleMs`). */
@@ -494,6 +499,25 @@ export const DEFAULT_TERMINAL_CONFIG: TerminalConfig = {
 function boolOr(v: unknown, fallback: boolean): boolean {
 	return typeof v === 'boolean' ? v : fallback;
 }
+// ── jobs (Job Follower Tab, ADR-0035; operator spec 2026-10-21) ─────────────
+
+/** The `jobs` section — follower-tab lifecycle. */
+export interface JobsConfig {
+	/** true → a settled -J tab auto-closes after the grace timer.
+	 *  false (default) → it stays until the roster row's clear button or
+	 *  an empty roster removes it. */
+	autoClose: boolean;
+}
+
+export const DEFAULT_JOBS_CONFIG: JobsConfig = { autoClose: DEFAULT_JOBS_AUTOCLOSE };
+
+/** Read the `jobs` section. Not cached — runtime edits apply. */
+export function readJobsConfig(configPath?: string): JobsConfig {
+	const rec = parseConfig(configPath)?.jobs;
+	const section = isConfigRecord(rec) ? rec : {};
+	return { autoClose: boolOr(section.autoClose, DEFAULT_JOBS_CONFIG.autoClose) };
+}
+
 
 /** Read the `terminal` section. Not cached — runtime edits apply, same
  *  contract as every other section reader. */

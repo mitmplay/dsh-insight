@@ -113,4 +113,70 @@ describe('jobs roster store', () => {
 		await vi.advanceTimersByTimeAsync(0);
 		expect(intervals).not.toHaveBeenCalled();
 	});
+
+	it('ADR-0032 D3 — one batch fetch per tick for N watched sessions', async () => {
+		const { jobsRoster } = await fresh();
+		jobsRoster.watch('conv-1');
+		jobsRoster.watch('conv-2');
+		jobsRoster.watch('conv-3');
+		await vi.advanceTimersByTimeAsync(0); // first loads (singular refresh)
+		const before = fetchMock.mock.calls.length;
+		fetchMock.mockImplementation(async (url: string | URL | Request) => {
+			const u = new URL(String(url), 'http://localhost');
+			const ids = (u.searchParams.get('sessionIds') ?? '').split(',').filter(Boolean);
+			const rosters: Record<string, unknown> = {};
+			for (const id of ids) {
+				rosters[id] = id === 'conv-2' ? { jobs: [job('bash-2', 'running')] } : { jobs: [], pending: true };
+			}
+			return { ok: true, json: async () => ({ ok: true, rosters }) };
+		});
+		jobsRoster.refreshWatched();
+		await vi.advanceTimersByTimeAsync(0);
+		// ONE request for all three ids (not three)
+		expect(fetchMock.mock.calls.length - before).toBe(1);
+		const calledUrl = String(fetchMock.mock.calls[before][0]);
+		expect(calledUrl).toContain('sessionIds=');
+		// batch-fed badge counts
+		expect(jobsRoster.liveCount('conv-2')).toBe(1);
+		// a batch pending frame is honest darkness: conv-1's first-load set survives
+		expect(jobsRoster.jobs('conv-1')).toEqual([job('bash-1', 'running')]);
+	});
+
+	it('ADR-0032 D3 — chunks at 50: 51 watched sessions cost 2 requests per tick', async () => {
+		const { jobsRoster } = await fresh();
+		const ids = Array.from({ length: 51 }, (_, i) => 's' + i);
+		for (const id of ids) jobsRoster.watch(id);
+		await vi.advanceTimersByTimeAsync(0);
+		fetchMock.mockImplementation(async () => ({
+			ok: true,
+			json: async () => ({ ok: true, rosters: {} })
+		}));
+		const before = fetchMock.mock.calls.length;
+		jobsRoster.refreshWatched();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(fetchMock.mock.calls.length - before).toBe(2);
+	});
+
+	it('ADR-0032 — a batch frame for an empty roster never resurrects a dropped set', async () => {
+		const { jobsRoster } = await fresh();
+		jobsRoster.watch('conv-1');
+		await vi.advanceTimersByTimeAsync(0);
+		expect(jobsRoster.jobs('conv-1')).toHaveLength(1);
+		// the envelope says ok but carries a pending frame — last known set survives
+		fetchMock.mockImplementation(async () => ({
+			ok: true,
+			json: async () => ({ ok: true, rosters: { 'conv-1': { jobs: [], pending: true } } })
+		}));
+		jobsRoster.refreshWatched();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(jobsRoster.jobs('conv-1')).toHaveLength(1);
+		// an ok non-pending empty frame REPLACES (whole-set contract)
+		fetchMock.mockImplementation(async () => ({
+			ok: true,
+			json: async () => ({ ok: true, rosters: { 'conv-1': { jobs: [] } } })
+		}));
+		jobsRoster.refreshWatched();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(jobsRoster.jobs('conv-1')).toEqual([]);
+	});
 });

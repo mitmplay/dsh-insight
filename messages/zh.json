@@ -390,6 +390,7 @@
 	"terminalSessionCap": "已达会话上限 — 请先关闭一个终端。",
 	"terminalDisabled": "终端已禁用 — 请在设置中启用（terminal.enabled）。",
 	"terminalOpening": "正在打开终端…",
+	"jobTailWaiting": "等待输出…",
 	"terminalClosed": "终端已关闭",
 	"terminalSettleStdinRead": "等待输入",
 	"terminalSettleInferredIdle": "输出空闲",

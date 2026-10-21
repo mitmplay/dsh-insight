@@ -26,10 +26,10 @@
  * `/` or an `@token ?` tail.
  */
 
-import { parseCommand } from './command-parser';
 import { t } from '$lib/services/locale/locale-state.svelte';
 import * as m from '$lib/paraglide/messages';
 import type { DsiCommandRow, DsiGestureRow, DsiSkillRow } from '$lib/types';
+import { parseCommand } from './command-parser';
 
 /** One help topic — the command the `?` line asks about. */
 export type CommandHelpTopic =

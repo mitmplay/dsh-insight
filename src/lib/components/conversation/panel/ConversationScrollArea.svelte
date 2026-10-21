@@ -27,7 +27,7 @@
 	import ChipPopup from '$lib/components/message/assistant/ChipPopup.svelte';
 	import AssistantTurn from '$lib/components/message/assistant/AssistantTurn.svelte';
 	import MarkdownContent from '$lib/components/common/viewers/MarkdownContent.svelte';
-	import InlineToolCalls from '$lib/components/message/assistant/InlineToolCalls.svelte';
+	import InlineToolRunRow from '$lib/components/message/assistant/InlineToolRunRow.svelte';
 	import TurnProcessDisclosure from '$lib/components/message/assistant/TurnProcessDisclosure.svelte';
 	import ApprovalCard from '$lib/components/card/ApprovalCard.svelte';
 	import QuestionCard from '$lib/components/card/QuestionCard.svelte';
@@ -352,6 +352,18 @@
 					     narrates. Both flags off (the default) takes the original
 					     flat path below, byte-for-byte. -->
 					{@const fold = foldOf(group.entries, i === groups.length - 1)}
+					<!-- ADR-0033: the session wiring every tool-run row shares, built
+					     once per turn — rows state only what makes them different. -->
+					{@const turnRun = {
+						openChipId,
+						peekOpenRunKey,
+						allEntries: entries,
+						ontogglechip,
+						ontogglepeek,
+						autoThinkId,
+						autoPlanId,
+						onFileOpen
+					}}
 					{#if fold?.folds}
 						<TurnProcessDisclosure
 								toolCallCount={fold.toolCallCount}
@@ -368,34 +380,11 @@
 							     empties when it opens (the chips then replay at their
 							     wire positions in the body). -->
 							{@const escInjKey = 'esc-inj:' + group.key}
-							<InlineToolCalls
-								entries={fold.escapedInjections}
-								runKey={escInjKey}
-								{openChipId}
-								peekOpen={peekOpenRunKey === escInjKey}
-								allEntries={entries}
-								ontoggleChip={ontogglechip}
-								ontogglePeek={() => ontogglepeek(escInjKey)}
-								{autoThinkId}
-								{autoPlanId}
-								{onFileOpen}
-								peekIcon="context"
-							/>
+							<InlineToolRunRow run={turnRun} entries={fold.escapedInjections} runKey={escInjKey} peekIcon="context" />
 						{/if}
 						{#if fold.escapedReasoning.length > 0 && !openTurns.has(group.key)}
 							{@const escKey = 'esc:' + group.key}
-							<InlineToolCalls
-								entries={fold.escapedReasoning}
-								runKey={escKey}
-								{openChipId}
-								peekOpen={peekOpenRunKey === escKey}
-								allEntries={entries}
-								ontoggleChip={ontogglechip}
-								ontogglePeek={() => ontogglepeek(escKey)}
-								{autoThinkId}
-								{autoPlanId}
-								{onFileOpen}
-							/>
+							<InlineToolRunRow run={turnRun} entries={fold.escapedReasoning} runKey={escKey} />
 						{/if}
 						{#if openTurns.has(group.key)}
 							<!-- ADR-0022 I3 (operator call, 2026-10-13): the expanded
@@ -406,19 +395,7 @@
 							     a duplicate. -->
 							{#if fold.escapedInjections.length > 0}
 								{@const escInjOpenKey = 'esc-inj-open:' + group.key}
-								<InlineToolCalls
-									entries={fold.escapedInjections}
-									runKey={escInjOpenKey}
-									{openChipId}
-									peekOpen={peekOpenRunKey === escInjOpenKey}
-									allEntries={entries}
-									ontoggleChip={ontogglechip}
-									ontogglePeek={() => ontogglepeek(escInjOpenKey)}
-									{autoThinkId}
-									{autoPlanId}
-									{onFileOpen}
-									peekIcon="context"
-								/>
+								<InlineToolRunRow run={turnRun} entries={fold.escapedInjections} runKey={escInjOpenKey} peekIcon="context" />
 							{/if}
 							{#each fold.folded as run (run.key)}
 								{@const workEntries = run.kind === 'chips'
@@ -429,18 +406,7 @@
 								{#if run.kind === 'text'}
 									<MarkdownContent content={run.entry.text} hideToggle {onFileLink} />
 								{:else if workEntries.length > 0}
-									<InlineToolCalls
-										entries={workEntries}
-										runKey={run.key}
-										{openChipId}
-										peekOpen={peekOpenRunKey === run.key}
-										allEntries={entries}
-										ontoggleChip={ontogglechip}
-										ontogglePeek={() => ontogglepeek(run.key)}
-										{autoThinkId}
-										{autoPlanId}
-										{onFileOpen}
-									/>
+									<InlineToolRunRow run={turnRun} entries={workEntries} runKey={run.key} />
 								{/if}
 							{/each}
 						{/if}
@@ -448,18 +414,7 @@
 							{#if run.kind === 'text'}
 								<MarkdownContent content={run.entry.text} hideToggle {onFileLink} />
 							{:else}
-								<InlineToolCalls
-									entries={run.entries}
-									runKey={run.key}
-									{openChipId}
-									peekOpen={peekOpenRunKey === run.key}
-									allEntries={entries}
-									ontoggleChip={ontogglechip}
-									ontogglePeek={() => ontogglepeek(run.key)}
-									{autoThinkId}
-									{autoPlanId}
-									{onFileOpen}
-								/>
+								<InlineToolRunRow run={turnRun} entries={run.entries} runKey={run.key} />
 							{/if}
 						{/each}
 					{:else}
@@ -472,18 +427,7 @@
 								     2026-08-24) — one indicator, in the input. -->
 								<MarkdownContent content={run.entry.text} hideToggle {onFileLink} />
 							{:else}
-								<InlineToolCalls
-									entries={run.entries}
-									runKey={run.key}
-									{openChipId}
-									peekOpen={peekOpenRunKey === run.key}
-									allEntries={entries}
-									ontoggleChip={ontogglechip}
-									ontogglePeek={() => ontogglepeek(run.key)}
-									{autoThinkId}
-									{autoPlanId}
-									{onFileOpen}
-								/>
+								<InlineToolRunRow run={turnRun} entries={run.entries} runKey={run.key} />
 							{/if}
 						{/each}
 					{/if}

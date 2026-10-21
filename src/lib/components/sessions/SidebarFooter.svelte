@@ -20,10 +20,10 @@
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import NewChatButton from '$lib/components/composer/NewChatButton.svelte';
-	import SidebarPromptSync from './SidebarPromptSync.svelte';
 	import LanguageMenu from '$lib/components/language-menu/LanguageMenu.svelte';
 	import ThemeToggle from '$lib/components/common/buttons/ThemeToggle.svelte';
 	import { APP_VERSION, DSH_VERSION } from '$lib/version';
+	import SidebarPromptSync from './SidebarPromptSync.svelte';
 
 	/** The NewChatButton's missing-selection alert, HOSTED here: rendered
 		 *  as footer-create's FIRST child so it spans the full row (version +

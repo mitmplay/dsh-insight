@@ -9,10 +9,10 @@
 	 * — title state and the streaming flag arrive as props; writes report
 	 * upward.
 	 */
+	import * as m from '$lib/paraglide/messages';
 	import SessionIdAndName from './SessionIdAndName.svelte';
 	import ToolsAndStatusHeader from './ToolsAndStatusHeader.svelte';
 	import OpenBrowserButton from './OpenBrowserButton.svelte';
-	import * as m from '$lib/paraglide/messages';
 
 	let {
 		sessionId,

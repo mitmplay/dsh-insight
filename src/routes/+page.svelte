@@ -13,6 +13,7 @@
 	import ConversationPanel from '$lib/components/conversation/panel/ConversationPanel.svelte';
 	import PromptManagerPanel from '$lib/components/prompt-manager/PromptManagerPanel.svelte';
 	import TerminalDesk from '$lib/components/terminal/TerminalDesk.svelte';
+	import { registerJobTabLauncher } from '$lib/services/jobs/follow-client.svelte';
 	import BrowserPanel from '$lib/components/browser/BrowserPanel.svelte';
 	import { persistPanelIndex, readPersistedId, readPersistedIndex } from '$lib/services/panels/browser-session-resolver.js';
 	import SettingsSkillsPanel from '$lib/components/settings-skills/SettingsSkillsPanel.svelte';
@@ -92,6 +93,12 @@
 		seededInitially ? null : initialPrefs.selectedPanelId
 	);
 	if (seededInitially) floorApi.selectPanel(floorApi.floor.panels[0]?.id ?? null);
+
+	// Job Follower Tab (ADR-0035): a roster click with NO terminal panel on
+	// the floor LAUNCHES one (the one-live-terminal add grammar) — the desk
+	// then registers as the opener and replays the queued request. Without
+	// this launcher the click was a silent no-op (RCA 2026-10-21).
+	registerJobTabLauncher(() => floorApi.doAdd({ kind: 'terminal' }));
 	if (seededInitially && seedCold !== undefined) {
 		pageFeeds.primeSeed(seedSessionId()!, seedCold); // full cold props on paint one
 	}
@@ -315,6 +322,20 @@
 				onclose={() => floorApi.removePanel(panel.id)}
 			/>
 		</div>
+	{:else if panel.kind === 'injected-doc'}
+		<!-- Injected-doc branch (Loadinjected ADR D1/D2): the kind's SINGLE
+		     floor content — extension-routed Markdown / Monaco readOnly over
+		     the LOGGED payload, resolved from this conversation's transcript
+		     snapshot (the floor's cold seed; no fetch). Root-scoped Escape +
+		     onclose per the manager/settings embedding rule. -->
+		<div class="panel-manager-body">
+			<InjectedDocPanel
+				sourceSessionId={panel.sourceSessionId}
+				displayPath={panel.displayPath}
+				entries={pageFeeds.coldCache[panel.sourceSessionId]?.entries ?? []}
+				onclose={hostClose ?? (() => floorApi.removePanel(panel.id))}
+			/>
+		</div>
 	{:else if panel.kind === 'prompt-manager'}
 		<!-- Manager branch (ADR D6/D8) — KIND SWITCHES BEFORE THE SESSION
 		     PATH: a manager slot has no session, so the dead/cold ladder
@@ -369,20 +390,6 @@
 		<div class="panel-manager-body" data-testid="panel-settings">
 			<SettingsEditorPanel target={panel.target} onclose={hostClose ?? (() => floorApi.removePanel(panel.id))} />
 		</div>
-	{:else if panel.kind === 'injected-doc'}
-		<!-- Injected-doc branch (Loadinjected ADR D1/D2): the kind's SINGLE
-		     floor content — extension-routed Markdown / Monaco readOnly over
-		     the LOGGED payload, resolved from this conversation's transcript
-		     snapshot (the floor's cold seed; no fetch). Root-scoped Escape +
-		     onclose per the manager/settings embedding rule. -->
-		<div class="panel-manager-body">
-			<InjectedDocPanel
-				sourceSessionId={panel.sourceSessionId}
-				displayPath={panel.displayPath}
-				entries={pageFeeds.coldCache[panel.sourceSessionId]?.entries ?? []}
-				onclose={hostClose ?? (() => floorApi.removePanel(panel.id))}
-			/>
-		</div>
 	{:else if panel.kind === 'workspace-explorer'}
 		<!-- Explorer branch (Workspace Explorer ADR D2): the LIVE tree —
 		     the panel fetches its own levels over the HTTP route and owns
@@ -430,52 +437,52 @@
 			onclose={() => floorApi.removePanel(panel.id)}
 		/>
 	{:else if panel.kind === 'conversation'}
-	{@const p = panel}
-	{#key p.sessionId}
-		{#if pageFeeds.deadSessions[p.sessionId]}
-			<div class="panel-error" data-testid="panel-error" role="alert">
-				<p>{pageFeeds.deadSessions[p.sessionId]}</p>
-				<button
-					type="button"
-					data-testid="panel-error-close"
-					onclick={() => floorApi.removePanel(p.id)}
-				>
-					Close
-				</button>
-			</div>
+		{@const p = panel}
+		{#key p.sessionId}
+			{#if pageFeeds.deadSessions[p.sessionId]}
+				<div class="panel-error" data-testid="panel-error" role="alert">
+					<p>{pageFeeds.deadSessions[p.sessionId]}</p>
+					<button
+						type="button"
+						data-testid="panel-error-close"
+						onclick={() => floorApi.removePanel(p.id)}
+					>
+						Close
+					</button>
+				</div>
 			{:else if pageFeeds.coldCache[p.sessionId]}
-			{@const cold = pageFeeds.coldCache[p.sessionId]!}
-			<ConversationPanel
-				panelId={floorPanelId}
-				sessionId={p.sessionId}
-				onFileLink={(href) => void floorApi.openFileLinkFromMarkdown(p.sessionId, href)}
-				onFileOpen={(path) => void floorApi.openFileLinkFromMarkdown(p.sessionId, path)}
-				title={panelTitleFor(p.sessionId)}
-				workspace={panelWorkspaceFor(p.sessionId)}
-				workspaces={spineWorkspaces}
-				agent={agentFor(p)}
-				agentDisplay={agentLabelFor(p)}
-				subagent={lineageFacts.subagentIds.has(p.sessionId)}
-				depth={lineageFacts.depthById.get(p.sessionId) ?? 0}
-				parentSessionId={panelParentFor(p.sessionId)}
-				entries={cold.entries}
-				lastSeq={cold.lastSeq}
-				running={cold.running}
-				hasMore={cold.hasMore}
-				pendingAnswers={cold.pendingAnswers}
-				settledAnswers={cold.settledAnswers}
-				permission={cold.permission}
-				imageLimits={cold.imageLimits ?? undefined}
-				knobEvents={cold.knobEvents}
-				deliverables={cold.deliverables}
-				a2aRows={a2aRowsFor(p.sessionId)}
-				a2aTitles={spineTitles}
-				onOpenExplorer={floorApi.openWorkspaceExplorer}
-				onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel())}
-				focusComposer={p.id === focusComposerId}
-				oncomposerfocus={() => floorApi.clearFocusComposer()}
-				focused={p.id === selectedPanelId}
-			/>
+				{@const cold = pageFeeds.coldCache[p.sessionId]!}
+				<ConversationPanel
+					panelId={floorPanelId}
+					sessionId={p.sessionId}
+					onFileLink={(href) => void floorApi.openFileLinkFromMarkdown(p.sessionId, href)}
+					onFileOpen={(path) => void floorApi.openFileLinkFromMarkdown(p.sessionId, path)}
+					title={panelTitleFor(p.sessionId)}
+					workspace={panelWorkspaceFor(p.sessionId)}
+					workspaces={spineWorkspaces}
+					agent={agentFor(p)}
+					agentDisplay={agentLabelFor(p)}
+					subagent={lineageFacts.subagentIds.has(p.sessionId)}
+					depth={lineageFacts.depthById.get(p.sessionId) ?? 0}
+					parentSessionId={panelParentFor(p.sessionId)}
+					entries={cold.entries}
+					lastSeq={cold.lastSeq}
+					running={cold.running}
+					hasMore={cold.hasMore}
+					pendingAnswers={cold.pendingAnswers}
+					settledAnswers={cold.settledAnswers}
+					permission={cold.permission}
+					imageLimits={cold.imageLimits ?? undefined}
+					knobEvents={cold.knobEvents}
+					deliverables={cold.deliverables}
+					a2aRows={a2aRowsFor(p.sessionId)}
+					a2aTitles={spineTitles}
+					onOpenExplorer={floorApi.openWorkspaceExplorer}
+					onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel())}
+					focusComposer={p.id === focusComposerId}
+					oncomposerfocus={() => floorApi.clearFocusComposer()}
+					focused={p.id === selectedPanelId}
+				/>
 			{:else if pageFeeds.coldInFlight.has(p.sessionId)}
 				<div class="panel-loading" data-testid="panel-loading">Loading…</div>
 			{:else}
@@ -483,7 +490,7 @@
 					panelId={floorPanelId}
 					sessionId={p.sessionId}
 					onFileLink={(href) => void floorApi.openFileLinkFromMarkdown(p.sessionId, href)}
-				onFileOpen={(path) => void floorApi.openFileLinkFromMarkdown(p.sessionId, path)}
+					onFileOpen={(path) => void floorApi.openFileLinkFromMarkdown(p.sessionId, path)}
 					title={panelTitleFor(p.sessionId)}
 					workspace={panelWorkspaceFor(p.sessionId)}
 					workspaces={spineWorkspaces}
@@ -498,13 +505,13 @@
 					a2aTitles={spineTitles}
 					onNeedCold={(sid) => void ensureCold(sid)}
 					onOpenExplorer={floorApi.openWorkspaceExplorer}
-				onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel())}
-				focusComposer={p.id === focusComposerId}
+					onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel())}
+					focusComposer={p.id === focusComposerId}
 					oncomposerfocus={() => floorApi.clearFocusComposer()}
 					focused={p.id === selectedPanelId}
 				/>
 			{/if}
-	{/key}
+		{/key}
 	{/if}
 {/snippet}
 

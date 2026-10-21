@@ -14,9 +14,9 @@
 	 * directly; the dynamic import keeps the lazy chunk (monaco-lazy-chunk
 	 * build gate). Language is guessed from the file extension.
 	 */
+	import { appConfig } from '$lib/services/config/app-config.svelte';
 	import type { YamlEditorHandle } from '../monaco/settings-monaco';
 	import SettingsHomeToolbar from './SettingsHomeToolbar.svelte';
-	import { appConfig } from '$lib/services/config/app-config.svelte';
 
 	let { home, path }: { home: 'dsi' | 'dsh'; path: string } = $props();
 

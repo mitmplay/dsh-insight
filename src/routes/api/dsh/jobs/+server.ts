@@ -20,7 +20,44 @@ import { mapRpcFailure, statusFor } from '$lib/server/dsh-rpc';
 
 import type { RequestHandler } from './$types';
 
+/** ADR-0032 D3 — the URL-length guard: one batch per tick for ≤50 watched sessions. */
+const JOBS_BATCH_LIMIT = 50;
+
 export const GET: RequestHandler = async ({ url }) => {
+	// ADR-0032 D1/D5 — batch form: GET /api/dsh/jobs?sessionIds=a,b,c answers
+	// one envelope of per-session rosters so a spine tick costs ONE request.
+	// The singular sessionId path below is byte-identical to its pre-batch
+	// shape (D5) — the two forms are gated by which query param was sent.
+	const batchParam = url.searchParams.get('sessionIds');
+	if (batchParam !== null) {
+		const ids = [...new Set(batchParam.split(',').map((s) => s.trim()).filter(Boolean))];
+		if (ids.length === 0 || ids.length > JOBS_BATCH_LIMIT) {
+			return json(
+				{
+					ok: false,
+					error: {
+						code: 'bad-session',
+						message: `sessionIds must list 1-${JOBS_BATCH_LIMIT} comma-separated session ids`
+					}
+				},
+				{ status: 400 }
+			);
+		}
+		const rosters: Record<string, { jobs: import('$lib/types').DsiJobView[]; pending?: boolean }> = {};
+		const relay = getDshConnection().relay;
+		for (const id of ids) {
+			try {
+				relay.touchJobRoster(id);
+				const frame = relay.jobRosterSnapshot(id);
+				rosters[id] = frame.pending ? { jobs: frame.jobs, pending: true } : { jobs: frame.jobs };
+			} catch {
+				// Per-id degradation (ADR-0032 §7): one poisoned session must not
+				// 500 the whole chunk — it answers honest pending instead.
+				rosters[id] = { jobs: [], pending: true };
+			}
+		}
+		return json({ ok: true, rosters });
+	}
 	const sessionId = url.searchParams.get('sessionId');
 	if (!sessionId) {
 		return json(

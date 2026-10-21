@@ -21,9 +21,9 @@
 	 * column, over the pills); the body column itself never scrolls as
 	 * one, so a combined scrollbar still cannot exist.
 	 */
-	import SidebarSessionsList from './SidebarSessionsList.svelte';
 	import type { SpineGroupPrefs } from '$lib/utils/spine-group-prefs';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
+	import SidebarSessionsList from './SidebarSessionsList.svelte';
 
 	let {
 		/** Pinned current session — rendered first, never filtered away. */

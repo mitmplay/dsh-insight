@@ -24,11 +24,11 @@
 	 * workspace or one preset in the data shows no pills for it (an "All"
 	 * filter over a single value is decoration).
 	 */
+	import type { FilterOption, SessionFilterState } from '$lib/utils/session-filters';
+	import type { DsiWorkspaceSummary } from '$lib/types';
 	import SessionFilterHeader from './SessionFilterHeader.svelte';
 	import Agents from '../common/layout/Agents.svelte';
 	import Workspaces from '../common/layout/Workspaces.svelte';
-	import type { FilterOption, SessionFilterState } from '$lib/utils/session-filters';
-	import type { DsiWorkspaceSummary } from '$lib/types';
 
 	let {
 		workspaces,

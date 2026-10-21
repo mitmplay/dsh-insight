@@ -6,12 +6,15 @@
 		index,
 		selected,
 		label,
+		title,
 		onSelect,
 		onClose
 	}: {
 		index: number;
 		selected: boolean;
 		label: string;
+		/** Hover tooltip (job tabs carry the full command here). */
+		title?: string;
 		onSelect: () => void;
 		onClose: () => void;
 	} = $props();
@@ -22,6 +25,7 @@
      verb cascades downward — the desk runs the ladder, not this button). -->
 <div
 	role="tab"
+	title={title ?? label}
 	aria-selected={selected}
 	tabindex="0"
 	class="flex cursor-pointer items-center gap-1 rounded px-2 py-0.5 text-[10px] {selected

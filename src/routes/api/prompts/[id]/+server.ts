@@ -14,8 +14,8 @@
  */
 
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types.js';
 import { renamePromptLabel, deletePrompt, updatePrompt } from '$lib/server/prompts/db.js';
+import type { RequestHandler } from './$types.js';
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
 	const id = Number(params.id);

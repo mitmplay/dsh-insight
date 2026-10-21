@@ -390,6 +390,7 @@
 	"terminalSessionCap": "Batas sesi tercapai — tutup satu terminal untuk membuka yang lain.",
 	"terminalDisabled": "Terminal dinonaktifkan — aktifkan di pengaturan (terminal.enabled).",
 	"terminalOpening": "Membuka terminal…",
+	"jobTailWaiting": "menunggu output…",
 	"terminalClosed": "Terminal ditutup",
 	"terminalSettleStdinRead": "menunggu masukan",
 	"terminalSettleInferredIdle": "keluaran senggang",

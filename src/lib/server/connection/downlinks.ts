@@ -50,6 +50,8 @@ export class DownlinkManager {
 	 */
 	private jobRosterStreams = new Set<string>();
 	private jobRosterWatched = new Set<string>();
+	/** ADR-0035 — live job.follow logical streams by relay key (owner|jobId). */
+	private jobFollowStreams = new Set<string>();
 	private pendingJobRoster = new Set<string>();
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Wave 4.2 — consecutive failed generations; drives the backoff ladder. */
@@ -106,6 +108,7 @@ export class DownlinkManager {
 		this.openStateStream(socket, `workspaces-${String(this.streamSeq)}`, 'workspace/follow');
 		this.openStateStream(socket, `control-${String(this.streamSeq)}`, 'session/control');
 		for (const sessionId of this.jobRosterWatched) this.openJobRosterStream(sessionId);
+		for (const owner of this.conn.relay.jobFollowOwners()) this.openJobFollowStreamsOf(owner);
 		this.pendingJobRoster.clear();
 	}
 
@@ -171,11 +174,58 @@ export class DownlinkManager {
 		}
 	}
 
+	/**
+	 * ADR-0035 — open (or ensure) the job/follow logical stream for one
+	 * (owner, jobId). Idempotent per generation; parked when the carrier is
+	 * still CONNECTING (the next onMuxOpen reopens tracked follows).
+	 */
+	openJobFollowStream(owner: string, jobId: string): void {
+		this.ensureDownlinks();
+		const socket = this.wsMux;
+		const key = owner + '|' + jobId;
+		if (socket === undefined || this.opened === false) return; // next generation reopens via openJobFollowStream retry
+		if (this.jobFollowStreams.has(key)) return;
+		this.sendStreamOpen(
+			socket,
+			`jobfollow-${owner}.${jobId}.${String(this.streamSeq)}`, // '.' — ids carry dashes
+			'job/follow',
+			{ args: { request: owner ? { sessionId: owner, jobId } : { jobId } } }
+		);
+		this.jobFollowStreams.add(key);
+	}
+
+	/** ADR-0035 — the last-unwatch close (follow-relay calls this). */
+	closeJobFollowStream(owner: string, jobId: string): void {
+		const key = owner + '|' + jobId;
+		this.jobFollowStreams.delete(key);
+		for (const streamId of [...this.streamSockets.keys()]) {
+			if (!streamId.startsWith(`jobfollow-${owner}.${jobId}.`)) continue;
+			this.streamSockets.delete(streamId);
+			try {
+				this.wsMux?.send?.(JSON.stringify({ type: 'close', streamId }));
+			} catch {
+				// best-effort — the carrier rebuild reopens only tracked follows
+			}
+		}
+	}
+
 	/** Extract the sessionId from a jobs-<sessionId>-<seq> stream id. */
 	private jobRosterSessionIdOf(streamId: string): string | null {
 		const rest = streamId.slice('jobs-'.length);
 		const cut = rest.lastIndexOf('-');
 		return cut > 0 ? rest.slice(0, cut) : null;
+	}
+
+	/** Reopen every tracked job follow owned by one owner (generation). */
+	private openJobFollowStreamsOf(owner: string): void {
+		for (const jobId of this.conn.relay.jobFollowJobsOf(owner)) this.openJobFollowStream(owner, jobId);
+	}
+
+	/** jobfollow item: relay to the follow-relay's sinks. */
+	private onJobFollowItem(streamId: string, value: Record<string, unknown>): void {
+		// jobfollow-<owner>.<jobId>.<seq> — '.' separates; ids carry dashes
+		const parts = streamId.slice('jobfollow-'.length).split('.');
+		if (parts.length >= 3) this.conn.relay.onJobFollowItem(parts[0], parts[1], value);
 	}
 
 	private openEventStream(socket: WebSocketLike): void {
@@ -268,6 +318,8 @@ export class DownlinkManager {
 				this.onWorkspaceItem(value);
 			} else if (frame.streamId.startsWith('control-')) {
 				this.onControlItem(value);
+			} else if (frame.streamId.startsWith('jobfollow-')) {
+				this.onJobFollowItem(frame.streamId, value);
 			} else if (frame.streamId.startsWith('jobs-')) {
 				const sessionId = this.jobRosterSessionIdOf(frame.streamId);
 				if (sessionId !== null) this.conn.relay.onJobRosterItem(sessionId, value);
@@ -275,7 +327,13 @@ export class DownlinkManager {
 			return;
 		}
 		if (frame.type === 'error') {
-			if (frame.streamId.startsWith('jobs-')) {
+			if (frame.streamId.startsWith('jobfollow-')) {
+				const parts = frame.streamId.slice('jobfollow-'.length).split('.');
+				if (parts.length >= 3) {
+					this.conn.relay.onJobFollowStreamError(parts[0], parts[1], frame.error?.code, frame.error?.message);
+					this.jobFollowStreams.delete(parts[0] + '|' + parts[1]);
+				}
+			} else if (frame.streamId.startsWith('jobs-')) {
 				const sessionId = this.jobRosterSessionIdOf(frame.streamId);
 				if (sessionId !== null) {
 					this.conn.relay.onJobRosterStreamError(sessionId, frame.error?.code, frame.error?.message);

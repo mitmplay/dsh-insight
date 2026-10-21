@@ -18,9 +18,9 @@
  */
 
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
 import { listRecent } from '$lib/server/a2a/db.js';
 import { ensureStarted } from '$lib/server/a2a/watcher.js';
+import type { RequestHandler } from './$types';
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 20;

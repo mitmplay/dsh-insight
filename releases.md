@@ -1,5 +1,24 @@
 # Releases
 
+## 0.8.0
+
+Bumped from 0.7.0 — the Job Follower Tab (ADR-0035): click a live job in the roster and watch its output in a -J terminal tab on the TerminalDesk, with reload persistence and an operator-controlled autoClose roster.
+
+### Features
+- **Job Follower Tab (ADR-0035)**: roster click opens a terminal tab named T<n> (continuing the shell-tab increment) with the job's command as tooltip, rendering the command as code lines (72237aa, a11e1ec); roster click with no terminal panel launches the desk, then replays the tab (03c417c)
+- Settled job tabs linger 25s before auto-close — operator grace period (740883c); unowned job tabs close at settle, tabs suffixed -J (e0e552e)
+- `jobs.autoClose` in ~/.dsi/settings.yaml (default false) — with it off, the desk never auto-closes a -J tab (clear button only, cancel pending closes when the condition un-applies, D3 final); roster rows gain a right-aligned clear button, all rows clickable (4945d90, 495cc5e); JobsButton renders the idle roster count when jobs exist but none live (aa7ee55)
+- **-J tabs survive hard reload (D5)**: they ride the desk mirror — clamp keeps job-only mirrors, rebuild re-opens follows (18f3c06)
+- `&&` chains render one command per line with the required bash continuation backslash (4efe44f)
+- Headed Playwright driver: new session, prompt, click last roster job, -J tab, hard reload, stream recovery (7f987e9)
+
+### Bug fixes
+- Dot-separated jobfollow stream ids — dashes in session/job ids broke frame routing, tabs never settled (live RCA) (d86ab62)
+- Command block rendered via join expression — Svelte text showed a literal backslash-n between lines (8b7a676); command labels carry literal backslash-n escapes, normalized before line-splitting (f55f03f)
+- Settled job tab closes when the roster has no active jobs (ADR-0035 D3 amendment) (485459f)
+- Unknown-job wording corrected — the registry drops records on owner-scope disposal (evidenced, not purge) (d6e347c)
+- Docs: ADR/PRD/Tasks/Karpathy amended to as-built (1d2b689); KB note on the Jobs-to-Terminal click-to-open lifecycle, every field scenario, specs verified (55ecbb1); registry contract cited for settled retention — 16KB ring trim, stays listed (0e471f6)
+
 ## 0.7.0
 
 Bumped from 0.6.21 — the Glass era: the browser comes to the floor. Three feature waves — Glass Browser (ADR-0029), Sticky Glass session persistence (ADR-0030) and the Glass Proxies header/panel split (ADR-0031) — plus a minor-bump's worth of coverage floors.

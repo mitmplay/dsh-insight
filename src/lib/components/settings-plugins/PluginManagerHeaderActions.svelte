@@ -7,10 +7,10 @@
 	 * Presentational: every verb and all state are owned by
 	 * PluginManagerPanel.
 	 */
-	import PluginManagerReloadButton from './PluginManagerReloadButton.svelte';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { ChevronsDownUp, ChevronsUpDown } from '@lucide/svelte';
+	import PluginManagerReloadButton from './PluginManagerReloadButton.svelte';
 
 	interface Props {
 		loading: boolean;

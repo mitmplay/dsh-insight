@@ -35,6 +35,7 @@ import {
 	DEFAULT_PANEL_WIDTH,
 	DEFAULT_POLL_IDLE_MS,
 	DEFAULT_POLL_RUNNING_MS,
+	DEFAULT_HEARTBEAT_TYPE,
 	DEFAULT_STATS_BAR_MODE,
 	DEFAULT_SIDEBAR_MAX_WIDTH,
 	DEFAULT_SIDEBAR_MIN_WIDTH,
@@ -43,6 +44,8 @@ import {
 	intWithin,
 	isConfigRecord,
 	resolveConversationFlags,
+	resolveHeartbeatType,
+	type HeartbeatType,
 	resolveStatsBarMode,
 	type StatsBarMode,
 	resolveA2aConfig,
@@ -81,6 +84,8 @@ export interface AppConfig {
 		collapsable: boolean;
 		/** Fold a turn while it is still streaming (ADR-0010 A1). */
 		progressiveFold: boolean;
+		/** Which sessions the jobs heartbeat polls (ADR-0034 D1/D4). */
+		heartbeatType: HeartbeatType;
 	};
 	home: {
 		/** Home list + spine refresh cadence. */
@@ -117,6 +122,12 @@ export interface AppConfig {
 		 *  manager toolbar's label. '' when the server sends none. */
 		dbPath: string;
 	};
+	jobs: {
+		/** Job Follower Tab lifecycle (ADR-0035): true → settled -J tabs
+		 *  auto-close after the grace timer; false (default) → manual clear
+		 *  from the roster row or an empty roster. */
+		autoClose: boolean;
+	};
 	settingsHomes: {
 		/** The verbatim settings home roots (The Settings Tree ADR,
 		 *  2026-09-18, D2) — the server's homedir truth; tilde fallbacks
@@ -138,7 +149,8 @@ function freshDefault(): AppConfig {
 			pollIdleMs: DEFAULT_POLL_IDLE_MS,
 			statsBar: DEFAULT_STATS_BAR_MODE,
 			collapsable: DEFAULT_CONVERSATION_COLLAPSABLE,
-			progressiveFold: DEFAULT_CONVERSATION_PROGRESSIVE_FOLD
+			progressiveFold: DEFAULT_CONVERSATION_PROGRESSIVE_FOLD,
+			heartbeatType: DEFAULT_HEARTBEAT_TYPE
 		},
 		home: { refreshMs: DEFAULT_HOME_REFRESH_MS },
 		a2a: {
@@ -160,6 +172,7 @@ function freshDefault(): AppConfig {
 			placement: DEFAULT_SIDEBAR_PLACEMENT
 		},
 		prompts: { tags: [...DEFAULT_PROMPT_TAGS], dbPath: '' },
+		jobs: { autoClose: false },
 		settingsHomes: { dsi: '~/.dsi', dsh: '~/.dsh' }
 	};
 }
@@ -296,6 +309,10 @@ function applyConfig(body: Record<string, unknown>): void {
 	if (typeof prompts.dbPath === 'string' && prompts.dbPath.length > 0) {
 		config.prompts.dbPath = prompts.dbPath;
 	}
+
+	// jobs (Job Follower Tab): autoClose is a strict boolean
+	const jobs = isConfigRecord(body.jobs) ? body.jobs : {};
+	config.jobs.autoClose = typeof jobs.autoClose === 'boolean' ? jobs.autoClose : config.jobs.autoClose;
 
 	// settingsHomes (The Settings Tree ADR 2026-09-18 D2): accept only the
 	// server's two strings; junk keeps the tilde fallbacks.

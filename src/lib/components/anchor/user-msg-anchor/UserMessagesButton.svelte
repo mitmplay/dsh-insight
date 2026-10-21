@@ -2,8 +2,8 @@
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import { MessageSquareText } from '@lucide/svelte';
-	import UserMessageJumper from './UserMessageJumper.svelte';
 	import { groupTurns } from '$lib/utils/turn-grouping';
+	import UserMessageJumper from './UserMessageJumper.svelte';
 
 	/**
 	 * UserMessagesButton — the User Messages leaf of the floating anchor

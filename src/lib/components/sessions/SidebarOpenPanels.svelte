@@ -69,9 +69,6 @@
 	 * must show its result.
 	 */
 	import { ChevronDown, ChevronRight } from '@lucide/svelte';
-	import SidebarOpenPanelHeader from './SidebarOpenPanelHeader.svelte';
-	import SidebarOpenPanelRows from './SidebarOpenPanelRows.svelte';
-	import SidebarOpenPanelTree from './SidebarOpenPanelTree.svelte';
 	import { loadPanelGroupPrefs, savePanelGroupPrefs } from '$lib/utils/panel-group-prefs';
 	import {
 		addPanelFromSidebar,
@@ -82,6 +79,9 @@
 	import { familyRenderOrder } from '$lib/services/lineage/lineage';
 	import type { DsiWorkspaceSummary } from '$lib/types';
 	import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
+	import SidebarOpenPanelHeader from './SidebarOpenPanelHeader.svelte';
+	import SidebarOpenPanelRows from './SidebarOpenPanelRows.svelte';
+	import SidebarOpenPanelTree from './SidebarOpenPanelTree.svelte';
 
 	let {
 		workspaces

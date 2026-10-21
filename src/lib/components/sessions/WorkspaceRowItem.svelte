@@ -35,10 +35,10 @@
 	 * --si-chip, --si-chip-bg, --si-chip-ghost, --si-chip-ghost-bg)
 	 * remain the extension point for fields this file does not know.
 	 */
-	import SessionStatus from './SessionStatus.svelte';
-	import WorkspaceChip from '../common/WorkspaceChip.svelte';
 	import { isRegisteredWorkspace, workspaceDisplayLabel } from '$lib/utils/session-filters';
 	import type { DsiWorkspaceSummary } from '$lib/types';
+	import SessionStatus from './SessionStatus.svelte';
+	import WorkspaceChip from '../common/WorkspaceChip.svelte';
 
 	let {
 		running,

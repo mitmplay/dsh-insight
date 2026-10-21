@@ -82,6 +82,7 @@
 	class:child={depth > 0}
 	href={conversationHref()}
 	data-testid="sidebar-session-card"
+	data-session-id={session.sessionId}
 	data-depth={depth}
 	title={rowTitle()}
 	onclick={onRowClick}

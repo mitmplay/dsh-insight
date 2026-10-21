@@ -10,6 +10,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import RowJobBadge from '../../src/lib/components/sessions/RowJobBadge.svelte';
 import { jobsRoster } from '../../src/lib/services/jobs/roster-store.svelte';
+import { heartbeatScope } from '../../src/lib/services/jobs/heartbeat-scope.svelte';
 
 const job = (id: string, status: string) => ({
 	id,
@@ -28,12 +29,24 @@ beforeEach(() => {
 	jobs = [job('bash-1', 'running')];
 	fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
 		if (init?.method === 'POST') return { ok: true, json: async () => ({ ok: true, outcome: 'requested' }) };
-		const sessionId = new URL(String(url), 'http://localhost').searchParams.get('sessionId');
+		const params = new URL(String(url), 'http://localhost').searchParams;
+		// ADR-0032 D5 — the tick now rides the batch dialect; the first load
+		// still uses the singular form. Both must answer the fixture's jobs.
+		const batchIds = params.get('sessionIds');
+		if (batchIds !== null) {
+			const rosters: Record<string, unknown> = {};
+			for (const id of batchIds.split(',').filter(Boolean)) {
+				rosters[id] = id === 'conv-1' ? { jobs } : { jobs: [], pending: true };
+			}
+			return { ok: true, json: async () => ({ ok: true, rosters }) };
+		}
+		const sessionId = params.get('sessionId');
 		return { ok: true, json: async () => ({ ok: true, sessionId, jobs: sessionId === 'conv-1' ? jobs : [] }) };
 	});
 	vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
+	heartbeatScope.reset(); // the scope singleton owns cross-test watch state
 	vi.useRealTimers();
 	vi.unstubAllGlobals();
 });
@@ -48,9 +61,14 @@ async function mountBadge(sessionId = 'conv-1') {
 	const target = host();
 	// bind:props pattern — mount with props, keep the accessor for unmount
 	const component = mount(RowJobBadge, { target, props: { sessionId } });
-	flushSync(); // run the mount effect → watch() fires
-	await vi.advanceTimersByTimeAsync(0); // settle the snapshot fetch chain
+	// ADR-0034 D2 — the badge is a pure reader; the SCOPE arms the watch
+	heartbeatScope.setViewport([sessionId]);
+	await vi.advanceTimersByTimeAsync(250); // arm debounce + batch fetch
+	console.log('[probe] urls:', fetchMock.mock.calls.map(c => String(c[0]).replace('http://localhost', '')), '| store:', JSON.stringify(jobsRoster.jobs(sessionId)).slice(0, 60));
 	flushSync();
+	await vi.advanceTimersByTimeAsync(0);
+	flushSync();
+	console.log('[probe] html:', target.innerHTML.slice(0, 100) || '(empty)');
 	return { component, target };
 }
 
@@ -190,7 +208,7 @@ describe('RowJobBadge', () => {
 		expect(target.querySelector('[data-testid="job-badge-popover"]')).not.toBeNull();
 		jobs = [job('bash-1', 'completed')]; // every job settles while reading
 		jobsRoster.refreshWatched(); // the spine tick's hook — the page owns the cadence
-		await vi.advanceTimersByTimeAsync(0); // the refresh replaces the set
+		await vi.advanceTimersByTimeAsync(250); // the batch refresh replaces the set
 		flushSync();
 		// liveCount === 0, yet open — badge must still render (render gate)
 		expect(target.querySelector('[data-testid="job-badge"]')).not.toBeNull();

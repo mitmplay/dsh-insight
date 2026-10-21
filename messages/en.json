@@ -390,6 +390,7 @@
 	"terminalSessionCap": "Session cap reached — close a terminal to open another.",
 	"terminalDisabled": "Terminal is disabled — enable it in settings (terminal.enabled).",
 	"terminalOpening": "Opening terminal…",
+	"jobTailWaiting": "waiting for output…",
 	"terminalClosed": "Terminal closed",
 	"terminalSettleStdinRead": "waiting for input",
 	"terminalSettleInferredIdle": "output idle",

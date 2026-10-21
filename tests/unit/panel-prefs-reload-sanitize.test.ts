@@ -124,9 +124,11 @@ describe('terminal desk mirror sanitize (Terminal Desk ADR D3, Wave 3 — task 3
 	});
 
 	it('selectedTab clamps into range; junk sessionIds members drop', () => {
+		// D5 amendment: maxIndex = tabs.length + jobs.length — a stored index may
+		// point at the rebuilt follow tab, so 9 clamps to 2 on a 2-tab mirror.
 		expect(
 			storedDesk({ tabs: [{ sessionIds: ['a'] }, { sessionIds: ['b'] }], selectedTab: 9 })
-		).toEqual({ tabs: [{ sessionIds: ['a'] }, { sessionIds: ['b'] }], selectedTab: 1 });
+		).toEqual({ tabs: [{ sessionIds: ['a'] }, { sessionIds: ['b'] }], selectedTab: 2 });
 		expect(
 			storedDesk({ tabs: [{ sessionIds: ['a', 42, null, ''] }], selectedTab: 0 })
 		).toEqual({ tabs: [{ sessionIds: ['a'] }], selectedTab: 0 });

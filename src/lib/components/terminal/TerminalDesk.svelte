@@ -1,13 +1,18 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { t } from '$lib/services/locale/locale-state.svelte';
+	import * as m from '$lib/paraglide/messages';
+	import type { TerminalDeskMirror } from '$lib/types';
 	import TerminalPanel from './TerminalPanel.svelte';
 	import TerminalTabHeader from './TerminalTabHeader.svelte';
 	import TerminalTabButton from './TerminalTabButton.svelte';
 	import TerminalTabContainer from './TerminalTabContainer.svelte';
 	import TerminalSplitContainer from './TerminalSplitContainer.svelte';
-	import { t } from '$lib/services/locale/locale-state.svelte';
-	import * as m from '$lib/paraglide/messages';
-	import type { TerminalDeskMirror } from '$lib/types';
+	import JobTail from './JobTail.svelte';
+	import { jobsRoster, isLiveJob } from '$lib/services/jobs/roster-store.svelte';
+	import { registerJobTabOpener, registerJobTabClearer, connectJobFollow } from '$lib/services/jobs/follow-client.svelte';
+	import { appConfig, loadAppConfig } from '$lib/services/config/app-config.svelte';
+	import type { DsiJobFollowEvent } from '$lib/types';
 
 	/** TerminalDesk — the ONE terminal floor slot (Terminal Desk ADR,
 	 *  2026-09-24, D1/D3): tabs of stacked rows over the server's N-session
@@ -58,12 +63,152 @@
 	// settles, no mirror publishes and no row self-opens. The restored prop
 	// is read ONCE here, by design — rebuild state lives in restoring/tabs.
 	// svelte-ignore state_referenced_locally
-	let restoring = $state(!!restored && restored.tabs.length > 0);
+	let restoring = $state(
+		!!restored && (restored.tabs.length > 0 || (restored.jobs?.length ?? 0) > 0)
+	);
 	// svelte-ignore state_referenced_locally
 	let tabs = $state<Tab[]>(restoring ? [] : [defaultTab()]);
 	let selectedTab = $state(0);
 	let opening = $state(false);
 	let capped = $state(false);
+
+	// ── Job follower tabs (ADR-0035 D2/D3) ────────────────────────────
+	// A second tab species: a READ-ONLY follow of one job's output ring.
+	// Job tabs never mint sessions, never ride the mirror (D5), and are
+	// indexed AFTER the shell tabs in the combined selection.
+	type JobTab = {
+		key: number;
+		owner: string;
+		jobId: string;
+		label: string;
+		events: DsiJobFollowEvent[];
+		closer: () => void;
+		settled: boolean;
+	};
+	let jobTabs = $state<JobTab[]>([]);
+	let unregisterOpener: (() => void) | null = null;
+
+	const jobCount = (): number => tabs.length + jobTabs.length;
+
+	function closeJobTab(tab: JobTab): void {
+		const timer = pendingCloses.get(tab.key);
+		if (timer !== undefined) {
+			clearTimeout(timer);
+			pendingCloses.delete(tab.key);
+		}
+		const i = jobTabs.indexOf(tab);
+		if (i < 0) return;
+		tab.closer();
+		if (tab.owner) jobsRoster.unwatch(tab.owner);
+		jobTabs.splice(i, 1);
+		selectedTab = Math.max(0, Math.min(jobCount() - 1, selectedTab));
+	}
+
+	/** D3 amendment (operator, 2026-10-21): a settled job tab lingers 25s
+	 *  before auto-close — time to read the tail before it disappears. */
+	const JOB_TAB_CLOSE_DELAY_MS = 25_000;
+	const pendingCloses = new Map<number, ReturnType<typeof setTimeout>>();
+
+	function scheduleJobTabClose(tab: JobTab): void {
+		if (pendingCloses.has(tab.key)) return; // one timer per tab
+		pendingCloses.set(
+			tab.key,
+			setTimeout(() => {
+				pendingCloses.delete(tab.key);
+				closeJobTab(tab);
+			}, JOB_TAB_CLOSE_DELAY_MS)
+		);
+	}
+
+	/** The condition un-applied (roster refilled, job re-listed) — undo a
+	 *  pending close. Without this, a transient empty-roster window (status
+	 *  frame racing the first roster frame) permanently armed the close. */
+	function cancelJobTabClose(tab: JobTab): void {
+		const timer = pendingCloses.get(tab.key);
+		if (timer !== undefined) {
+			clearTimeout(timer);
+			pendingCloses.delete(tab.key);
+		}
+	}
+
+	function openJobTab(owner: string, jobId: string, label: string, select = true): void {
+		const existing = jobTabs.find((t) => t.owner === owner && t.jobId === jobId);
+		if (existing) {
+			if (select) selectedTab = tabs.length + jobTabs.indexOf(existing);
+			return;
+		}
+		if (owner) jobsRoster.watch(owner);
+		const closer = connectJobFollow(owner, jobId, (event) => {
+			const t = jobTabs.find((x) => x.owner === owner && x.jobId === jobId);
+			if (t === undefined) return;
+			t.events.push(event);
+			if (event.type === 'status') t.settled = true;
+		});
+		const tab: JobTab = { key: mkKey(), owner, jobId, label, events: [], closer, settled: false };
+		jobTabs.push(tab);
+		if (select) selectedTab = jobCount() - 1;
+	}
+
+	const unregisterJobTabOpener = registerJobTabOpener((owner, jobId, label) => openJobTab(owner, jobId, label));
+	const unregisterJobTabClearer = registerJobTabClearer((owner, jobId) => {
+		for (const tab of [...jobTabs]) {
+			if (tab.owner === owner && tab.jobId === jobId) closeJobTab(tab);
+		}
+	});
+
+	// Lifecycle auto-close (D3, amended 2026-10-21): a job tab is a view of
+	// ACTIVE work. Once the tab's job has settled AND its owner's roster
+	// shows no live jobs (or the job vanished entirely), the tab closes —
+	// 'no active jobs' means no terminal for it. Rides the page spine's
+	// refreshWatched cadence via the watch opened in openJobTab. A pending
+	// roster frame never writes [], so an honest-darkness tick is inert.
+	$effect(() => {
+		// jobs.autoClose (settings.yaml, default FALSE): false → the -J tab
+		// stays until the roster row's clear button or the job leaving the
+		// roster; true → the settle + no-active-jobs grace timer closes it.
+		loadAppConfig();
+		const autoClose = appConfig().jobs.autoClose;
+		for (const tab of [...jobTabs]) {
+			void jobsRoster.jobs(tab.owner); // track the version signal
+			if (!tab.settled) continue;
+			// An UNOWNED job has no roster to read — its settle IS the end
+			// (the follow stream already closed at status). Owned tabs also
+			// demand the roster agree: job gone, or (autoClose only) no live
+			// jobs left.
+			if (!tab.owner) {
+				// no roster to read → with autoClose the settle closes it;
+				// without, only the clear button removes it
+				if (autoClose) scheduleJobTabClose(tab);
+				else cancelJobTabClose(tab);
+				continue;
+			}
+			const roster = jobsRoster.jobs(tab.owner); // track the roster version
+			if (autoClose) {
+				const jobGone = !roster.some((j) => j.id === tab.jobId);
+				const noActiveJobs = !roster.some((j) => isLiveJob(j));
+				if (jobGone || noActiveJobs) scheduleJobTabClose(tab);
+				else cancelJobTabClose(tab);
+			} else {
+				// manual mode: the desk takes NO closing action, ever — the
+				// roster row's clear button is the only remover
+				cancelJobTabClose(tab);
+			}
+		}
+	});
+
+	onMount(() => {
+		return () => {
+			unregisterJobTabOpener();
+			unregisterJobTabClearer();
+			for (const timer of pendingCloses.values()) clearTimeout(timer);
+			pendingCloses.clear();
+			for (const tab of [...jobTabs]) {
+				tab.closer();
+				if (tab.owner) jobsRoster.unwatch(tab.owner);
+			}
+			jobTabs = [];
+		};
+	});
 
 	// ── ⌥+1…9 tab shortcut (2026-09-25) ──────────────────────────────
 	// The desk's row panels by row key — the shortcut focuses the first
@@ -89,10 +234,17 @@
 	}
 
 	$effect(() => {
-		if (restoring || tabs.length === 0) return;
+		if (restoring) return;
+		// Job tabs ride the mirror too (D5 amendment): remembered -J tabs
+		// survive a hard reload and re-open their follows on rebuild.
+		void jobTabs.length;
+		const jobs = jobTabs.map((j) => ({ owner: j.owner, jobId: j.jobId }));
+		const shells = tabs.map((t) => ({ sessionIds: t.rows.map((r) => r.assigned?.sessionId ?? '').filter((id) => id !== '') }));
+		if (shells.length === 0 && jobs.length === 0) return;
 		onMirror?.({
-			tabs: tabs.map((t) => ({ sessionIds: t.rows.map((r) => r.assigned?.sessionId ?? '').filter((id) => id !== '') })),
-			selectedTab
+			tabs: shells,
+			selectedTab,
+			...(jobs.length > 0 ? { jobs } : {})
 		});
 	});
 
@@ -131,7 +283,8 @@
 				tabs.push({ key: mkKey(), rows: [row] });
 				selectedTab = tabs.length - 1;
 			} else {
-				tabs[selectedTab].rows.push(row);
+				const shell = tabs[Math.min(selectedTab, tabs.length - 1)];
+				if (shell) shell.rows.push(row);
 			}
 		})();
 	}
@@ -218,6 +371,12 @@
 				tabs = built;
 				selectedTab = Math.max(0, Math.min(built.length - 1, restored?.selectedTab ?? 0));
 			}
+			// D5 amendment: remembered -J tabs re-open their follows after the
+			// shell ladder settles (label falls back to the job id until the
+			// roster names it).
+			for (const remembered of restored?.jobs ?? []) {
+				openJobTab(remembered.owner, remembered.jobId, remembered.jobId, false); // never steal focus from the restored selection
+			}
 			restoring = false;
 		})();
 	});
@@ -244,6 +403,16 @@ the rows. Restoring shows a quiet placeholder until the ladder settles.
 					onSelect={() => (selectedTab = i)}
 					onClose={() => closeTab(i)}
 				/>
+			{#each jobTabs as job, ji (job.key)}
+				<TerminalTabButton
+					index={tabs.length + ji}
+					label={'T' + (tabs.length + ji + 1) + '-J'}
+					title={job.label || job.jobId}
+					selected={tabs.length + ji === selectedTab}
+					onSelect={() => (selectedTab = tabs.length + ji)}
+					onClose={() => closeJobTab(job)}
+				/>
+			{/each}
 			{/each}
 		</TerminalTabHeader>
 		{#each tabs as tab, i (tab.key)}
@@ -260,6 +429,11 @@ the rows. Restoring shows a quiet placeholder until the ladder settles.
 						</div>
 					{/each}
 				</TerminalSplitContainer>
+			</TerminalTabContainer>
+		{/each}
+		{#each jobTabs as job, ji (job.key)}
+			<TerminalTabContainer index={tabs.length + ji} visible={tabs.length + ji === selectedTab}>
+				<JobTail events={job.events} label={job.label} />
 			</TerminalTabContainer>
 		{/each}
 		{#if opening}

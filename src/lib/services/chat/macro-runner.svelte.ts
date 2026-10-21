@@ -35,11 +35,11 @@
  * reads the panel's own poll truth for ✓/▶, never this module).
  */
 
+import { appConfig } from '$lib/services/config/app-config.svelte';
 import { compileRow, type SectionRecord } from './macro-sections';
 import { parseCommand, type ParsedCommand } from './command-parser';
 import { executeCommand, sendPrompt, type ExecutorContext } from './command-executor';
 import type { SuggestedPrompt } from './prompt-trigger.js';
-import { appConfig } from '$lib/services/config/app-config.svelte';
 
 /** One section's lifecycle, as the sheet renders it (✓ ▶ ⏳ ⊙ ⊘ ✕). */
 export type MacroLineState =

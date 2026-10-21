@@ -7,8 +7,8 @@
  * route exists so the verb does not piggyback on plugin apply.
  */
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
 import { spawnRestartChain } from '$lib/server/plugins/restart-chain';
+import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async () => {
 	const restarting = spawnRestartChain();

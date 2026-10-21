@@ -28,8 +28,8 @@
 	 * pills, workspaces before agents) separates it from the agent pills
 	 * when those render too.
 	 */
-	import WorkspaceChip from '../WorkspaceChip.svelte';
 	import type { FilterOption } from '$lib/utils/session-filters';
+	import WorkspaceChip from '../WorkspaceChip.svelte';
 
 	let {
 		workspaces,

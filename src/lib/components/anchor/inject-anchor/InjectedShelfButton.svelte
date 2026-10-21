@@ -2,11 +2,11 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { FileText } from '@lucide/svelte';
-	import InjectedShelfPopup from './InjectedShelfPopup.svelte';
 	import { injectedShelfFor } from '$lib/services/conversation/injected-shelf';
 	import { executeCommand } from '$lib/services/chat/command-executor';
 	import { loadinjectedCommand } from '$lib/services/chat/command-parser';
 	import type { DsiEntry } from '$lib/types';
+	import InjectedShelfPopup from './InjectedShelfPopup.svelte';
 
 	/**
 	 * InjectedShelfButton — the FloatingAnchor's Injected leaf (The

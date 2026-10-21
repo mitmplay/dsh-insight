@@ -14,8 +14,8 @@
  */
 
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types.js';
 import { countPromptUse } from '$lib/server/prompts/db.js';
+import type { RequestHandler } from './$types.js';
 
 export const POST: RequestHandler = async ({ request }) => {
 	let body: unknown;

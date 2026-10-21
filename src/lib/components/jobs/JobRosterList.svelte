@@ -2,6 +2,7 @@
 	import * as m from '$lib/paraglide/messages';
 	import { LoaderCircle, CircleCheck, CircleX, CircleAlert, CircleDashed } from '@lucide/svelte';
 	import { jobsRoster, isLiveJob } from '$lib/services/jobs/roster-store.svelte';
+	import { openJobTab, clearJobTab } from '$lib/services/jobs/follow-client.svelte';
 	import type { DsiJobView } from '$lib/types';
 
 	/**
@@ -73,7 +74,27 @@
 					<CircleDashed size={12} class="dead" />
 				{/if}
 			</span>
-			<span class="label" title={job.label}>{job.label}</span>
+			<!-- Job Follower Tab (ADR-0035; operator spec 2026-10-21): EVERY row
+		     opens its follower tab in the desk. The right-aligned clear
+		     button closes that job's -J tab (the autoClose:false path). -->
+		<button
+			type="button"
+			class="label clickable"
+			title={job.label + ' — open output in terminal'}
+			data-testid={'job-open-' + job.id}
+			onclick={() => openJobTab(job.owner ?? '', job.id, job.label)}
+		>
+			{job.label}
+		</button>
+		<button
+			type="button"
+			class="clear"
+			title="clear this job's terminal tab"
+			data-testid={'job-clear-' + job.id}
+			onclick={() => clearJobTab(job.owner ?? '', job.id)}
+		>
+			clear
+		</button>
 			<span class="bytes">{job.output.total}B</span>
 			{#if isLiveJob(job)}
 				<button
@@ -162,6 +183,37 @@
 		flex-shrink: 0;
 		color: var(--color-text-muted, #adb5bd);
 		font-variant-numeric: tabular-nums;
+	}
+
+	.clear {
+		flex-shrink: 0;
+		margin-left: auto;
+		border: 1px solid var(--color-border, #dee2e6);
+		color: var(--color-text-muted, #adb5bd);
+		background: transparent;
+		border-radius: 0.25rem;
+		font-size: 0.5625rem;
+		padding: 0.05rem 0.3rem;
+		cursor: pointer;
+	}
+
+	.clear:hover {
+		color: #ef4444;
+		border-color: #ef4444;
+	}
+
+	.label.clickable {
+		cursor: pointer;
+		text-align: left;
+		background: transparent;
+		border: none;
+		padding: 0;
+		font: inherit;
+		color: inherit;
+	}
+
+	.label.clickable:hover {
+		text-decoration: underline;
 	}
 
 	.kill {

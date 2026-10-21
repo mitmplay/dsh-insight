@@ -52,13 +52,14 @@ async function mountButton(sessionId = 'conv-1') {
 }
 
 describe('JobsButton', () => {
-	it('renders NOTHING at zero live jobs', async () => {
-		jobs = [job('bash-done', 'completed')];
+	it('renders the IDLE roster button at zero live jobs (autoClose:false spec)', async () => {
+		jobs = [job('bash-1', 'completed')];
 		const { component, target } = await mountButton();
-		expect(target.querySelector('[data-testid="jobs-button"]')).toBeNull();
-		unmount(component);
+		const btn = target.querySelector('[data-testid="jobs-button-trigger"]');
+		expect(btn).not.toBeNull();
+		expect(btn?.textContent).toContain('1'); // roster count when none live
+		unmount(component); // release the watch — the next test re-arms fresh
 	});
-
 	it('renders count for a running job', async () => {
 		const { component, target } = await mountButton();
 		const trigger = target.querySelector('[data-testid="jobs-button-trigger"]');

@@ -28,12 +28,12 @@
 	 */
 	import ToolsMessage from '$lib/components/message/common/ToolsMessage.svelte';
 	import RelativeTime from '$lib/components/message/common/RelativeTime.svelte';
-	import TurnUsagePanel from './TurnUsagePanel.svelte';
 	import { formatRunDuration } from '$lib/utils/time';
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import type { DsiTokenUsage } from '$lib/types';
 	import type { TurnLifecycle } from '$lib/services/conversation/turn-projection';
+	import TurnUsagePanel from './TurnUsagePanel.svelte';
 
 	let {
 		time,

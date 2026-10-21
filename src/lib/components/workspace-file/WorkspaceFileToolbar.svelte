@@ -14,9 +14,9 @@
 	 * ($bindable — the panel's render ladder reads it).
 	 */
 		import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
-	import WorkspaceFileTabGroup from './WorkspaceFileTabGroup.svelte';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
+	import WorkspaceFileTabGroup from './WorkspaceFileTabGroup.svelte';
 
 	// The canvas-copy capture target: the owning PanelColumn. The toolbar
 	// is a deeply nested child of the column, and the column element is

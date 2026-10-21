@@ -36,11 +36,11 @@
 	// The expanded rail header (brand title + action cluster) — extracted
 	// to its own component. AboutButton rides the header prefix AND the
 	// collapsed stub's prefix.
+	import { type SessionFilterState } from '$lib/utils/session-filters';
+	import { loadSessionFilter, saveSessionFilter } from '$lib/utils/session-filter-prefs';
 	import AppSidebarHeader from './AppSidebarHeader.svelte';
 	import AboutButton from './AboutButton.svelte';
 	import RestartButton from './RestartButton.svelte';
-	import { type SessionFilterState } from '$lib/utils/session-filters';
-	import { loadSessionFilter, saveSessionFilter } from '$lib/utils/session-filter-prefs';
 
 	let {
 		profile = null,

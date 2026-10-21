@@ -6,8 +6,8 @@
  * dispatches here for command.type === 'mention'.
  */
 
-import { buildDeliveredText, mintA2aId } from '../a2a-protocol';
 import { addPanelFromSidebar } from '$lib/services/panels/panel-registry';
+import { buildDeliveredText, mintA2aId } from '../a2a-protocol';
 import type { ExecutorContext, ExecutorResult, NoteSink } from '../command-executor';
 
 /**

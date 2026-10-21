@@ -129,7 +129,7 @@ describe('resolveConversationFlags — the fold flag gates (ADR-0010)', () => {
 	});
 
 	it('missing/empty/non-record section falls back to defaults', () => {
-		const dflt = { collapsable: false, progressiveFold: false };
+		const dflt = { collapsable: false, progressiveFold: false, heartbeatType: 'viewport-cap' };
 		expect(resolveConversationFlags(undefined)).toEqual(dflt);
 		expect(resolveConversationFlags({})).toEqual(dflt);
 		expect(resolveConversationFlags(null)).toEqual(dflt);
@@ -140,11 +140,18 @@ describe('resolveConversationFlags — the fold flag gates (ADR-0010)', () => {
 	it('true and false pass through untouched on both keys', () => {
 		expect(resolveConversationFlags({ collapsable: true })).toEqual({
 			collapsable: true,
-			progressiveFold: false
+			progressiveFold: false,
+			heartbeatType: 'viewport-cap'
+		});
+		expect(resolveConversationFlags({ heartbeatType: 'ticker-cap' })).toEqual({
+			collapsable: false,
+			progressiveFold: false,
+			heartbeatType: 'ticker-cap'
 		});
 		expect(resolveConversationFlags({ collapsable: false, progressiveFold: true })).toEqual({
 			collapsable: false,
-			progressiveFold: true
+			progressiveFold: true,
+			heartbeatType: 'viewport-cap'
 		});
 	});
 
@@ -152,7 +159,11 @@ describe('resolveConversationFlags — the fold flag gates (ADR-0010)', () => {
 		for (const bad of ['true', 'yes', 1, 0, null, {}, []]) {
 			expect(resolveConversationFlags({ collapsable: bad, progressiveFold: bad })).toEqual({
 				collapsable: false,
-				progressiveFold: false
+				progressiveFold: false,
+				heartbeatType: 'viewport-cap'
+			});
+			expect(resolveConversationFlags({ heartbeatType: bad })).toMatchObject({
+				heartbeatType: 'viewport-cap'
 			});
 		}
 	});
@@ -160,11 +171,20 @@ describe('resolveConversationFlags — the fold flag gates (ADR-0010)', () => {
 	it('keys are independent — one bad key never reverts its neighbor', () => {
 		expect(resolveConversationFlags({ collapsable: true, progressiveFold: 'always' })).toEqual({
 			collapsable: true,
-			progressiveFold: false
+			progressiveFold: false,
+			heartbeatType: 'viewport-cap'
+		});
+		expect(
+			resolveConversationFlags({ collapsable: true, progressiveFold: 'always', heartbeatType: 'ticker-cap' })
+		).toEqual({
+			collapsable: true,
+			progressiveFold: false,
+			heartbeatType: 'ticker-cap'
 		});
 		expect(resolveConversationFlags({ collapsable: null, progressiveFold: true })).toEqual({
 			collapsable: false,
-			progressiveFold: true
+			progressiveFold: true,
+			heartbeatType: 'viewport-cap'
 		});
 	});
 });

@@ -2,8 +2,8 @@
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import { Package } from '@lucide/svelte';
-	import DeliverablesPopup from './DeliverablesPopup.svelte';
 	import type { PresentedDelivery } from '$lib/services/conversation/deliverables';
+	import DeliverablesPopup from './DeliverablesPopup.svelte';
 
 	/**
 	 * DeliverablesButton — the Deliverables leaf of the floating anchor

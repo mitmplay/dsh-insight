@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { ChevronDown, ChevronRight } from '@lucide/svelte';
-	import FilesEditedDiff from './FilesEditedDiff.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import { getConversationSession } from '$lib/services/conversation/session-context.svelte';
+	import FilesEditedDiff from './FilesEditedDiff.svelte';
 	/**
 	 * FilesEditedCard — one completed turn's changed-files announcement
 	 * (Edited-Files Card, ADR 2026-09-25): the wire event carried only

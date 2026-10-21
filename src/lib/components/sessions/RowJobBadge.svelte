@@ -19,12 +19,12 @@
 	let open = $state(false);
 	let rootEl: HTMLElement | undefined = $state(undefined);
 
-	// Refcounted watch: mount opens the poll, unmount closes it — the store
-	// entry dies with the row, so a badge never outlives its row (ADR D2).
-	$effect(() => {
-		jobsRoster.watch(sessionId);
-		return () => jobsRoster.unwatch(sessionId);
-	});
+	// ADR-0034 D2 — the badge is a PURE READER: the heartbeat-scope service
+	// owns every watch call (viewport rows ∪ panels ∪ current), so a badge
+	// never fetches on its own and offscreen rows cost nothing. This effect
+	// (ADR-0033's anchored watcher) is retired by that decision.
+	// (The old watch/unwatch effect lived here; see ADR-0033 D1 for why it
+	// was anchored, and ADR-0034 D2 for why the scope replaced it.)
 
 	/** Whole visible roster (own jobs + unowned), reactive. */
 	const jobs = $derived(jobsRoster.jobs(sessionId));

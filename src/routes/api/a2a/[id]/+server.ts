@@ -7,8 +7,8 @@
  */
 
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
 import { getRow } from '$lib/server/a2a/db.js';
+import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = ({ params }) => {
 	const row = getRow(params.id);

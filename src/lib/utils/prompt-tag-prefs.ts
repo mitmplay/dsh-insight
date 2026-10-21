@@ -13,8 +13,8 @@
  * grammar-validated on LOAD (the client mirror) so junk persisted by hand
  * or by an older build can never reach the LIKE predicate.
  */
-import { dsiKey } from './storage-profile';
 import { isValidTagWord } from '$lib/services/chat/prompt-trigger';
+import { dsiKey } from './storage-profile';
 
 /**
  * Load a tag-filter word array from its desk slot.

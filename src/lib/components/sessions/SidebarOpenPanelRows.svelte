@@ -1,13 +1,13 @@
 <script module lang="ts">
 	import { CornerDownRight } from '@lucide/svelte';
+	import type { DsiWorkspaceSummary } from '$lib/types';
+	import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
+	import { familyRenderOrder, type FamilyRenderEntry } from '$lib/services/lineage/lineage';
 	import RowButtonFold from './RowButtonFold.svelte';
 	import RowButtonClose from './RowButtonClose.svelte';
 	import RowButtonMoveDown from './RowButtonMoveDown.svelte';
 	import RowButtonMoveUp from './RowButtonMoveUp.svelte';
 	import WorkspaceRowItem from './WorkspaceRowItem.svelte';
-	import type { DsiWorkspaceSummary } from '$lib/types';
-	import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
-	import { familyRenderOrder, type FamilyRenderEntry } from '$lib/services/lineage/lineage';
 
 	/** The member shape the host adapts the published rows to (both
 	 *  kinds — panel and ghost rows carry the same PanelRow payload). */

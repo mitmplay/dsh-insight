@@ -12,12 +12,12 @@
  */
 
 import type { DsiEntry, DsiLedgerStats, DsiLiveStreamTail, PendingAnswer, AnsweredSettlement } from '$lib/types';
+import type { TodoItem } from '$lib/utils/todo-lists';
+import type { GoalResultGoal } from '$lib/utils/goals';
 import { collapseSystemPromptEntries, mergeEntries } from './dsh-events';
 import type { DshRawEvent } from './dsh-events';
 import type { DsiImageLimits } from './image-limits';
-import type { TodoItem } from '$lib/utils/todo-lists';
 import type { DsiPlanProjection } from './plan-projection';
-import type { GoalResultGoal } from '$lib/utils/goals';
 import type { PresentedDelivery } from './deliverables';
 import {
 	EMPTY_KNOBS,

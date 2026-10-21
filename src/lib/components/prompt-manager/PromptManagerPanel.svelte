@@ -20,6 +20,8 @@
 	 */
 	import { onMount } from 'svelte';
 	import { X } from '@lucide/svelte';
+	import { appConfig, loadAppConfig } from '$lib/services/config/app-config.svelte';
+	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
 	import PromptManagerTDLabel from './PromptManagerTDLabel.svelte';
 	import PromptManagerHeader from './PromptManagerHeader.svelte';
 	import PromptManagerContainer from './PromptManagerContainer.svelte';
@@ -27,12 +29,9 @@
 	import PromptManagerTDUses from './PromptManagerTDUses.svelte';
 	import PromptManagerEdit from './PromptManagerEdit.svelte';
 	import PromptManagerAdd from './PromptManagerAdd.svelte';
-	
-	import { appConfig, loadAppConfig } from '$lib/services/config/app-config.svelte';
-	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
 	import { PromptTable } from './table.svelte';
-import { PromptFilters } from './filters.svelte';
-import { PromptEditor } from './editor.svelte';
+	import { PromptFilters } from './filters.svelte';
+	import { PromptEditor } from './editor.svelte';
 
 		let {
 		onclose,

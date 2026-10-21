@@ -63,9 +63,11 @@ describe('app-config store', () => {
 				pollIdleMs: 2000,
 				statsBar: 'full-ledger',
 				collapsable: false,
-				progressiveFold: false
+				progressiveFold: false,
+				heartbeatType: 'viewport-cap'
 			},
 			home: { refreshMs: 5000 },
+			jobs: { autoClose: false },
 			a2a: { fastPollMs: 1000, watchTimeoutMs: 600_000, retentionDays: 90 },
 			panel: {
 				defaultWidth: 730,
@@ -155,7 +157,9 @@ describe('app-config store', () => {
 			pollIdleMs: 4000,
 			statsBar: 'partial',
 			collapsable: true,
-			progressiveFold: true
+			progressiveFold: true,
+			// not in the served body → the literal gate keeps the default
+			heartbeatType: 'viewport-cap'
 		});
 		expect(c.home.refreshMs).toBe(1500);
 		expect(c.a2a).toEqual({ fastPollMs: 250, watchTimeoutMs: 120_000, retentionDays: 7 });

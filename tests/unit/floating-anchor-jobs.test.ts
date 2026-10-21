@@ -59,10 +59,15 @@ describe('ConversationFloatingAnchor JobsButton', () => {
 		unmount(component);
 	});
 
-	it('renders NO jobs button when the session roster is empty', async () => {
+	it('renders the jobs button idle (0 live) when only settled jobs remain', async () => {
 		jobs = [job('bash-done', 'completed')];
 		const { component, target } = await mountAnchor({ jobsessionid: 'conv-1' });
-		expect(target.querySelector('[data-testid="jobs-button"]')).toBeNull();
+		// Job Follower Tab (ADR-0035): settled rows stay in the roster — the button
+		// renders with the idle tone and reports 0 live via its title.
+		const trigger = target.querySelector('[data-testid="jobs-button-trigger"]');
+		expect(trigger).not.toBeNull();
+		expect(trigger?.getAttribute('title')).toContain('0 live');
+		expect(trigger?.textContent).toContain('1'); // total roster rows
 		unmount(component);
 	});
 

@@ -41,6 +41,11 @@ export const DEFAULT_MACRO_MAX_LINES = 25;
  * again, depth-bounded; 3 = the ADR's default). */
 export const DEFAULT_MACRO_MAX_DEPTH = 3;
 
+/** `jobs.autoClose` default (Job Follower Tab, 2026-10-21 operator spec):
+ *  false → a settled -J tab stays until the operator clicks the roster
+ *  row's clear button or the roster empties. true → the 25s grace timer. */
+export const DEFAULT_JOBS_AUTOCLOSE = false;
+
 /** `conversation.pollRunningMs` / `pollIdleMs` defaults — BC-7 cadence:
  *  500ms while a turn runs, 2000ms idle, no other intervals. */
 export const DEFAULT_POLL_RUNNING_MS = 500;
@@ -63,6 +68,25 @@ export const DEFAULT_STATS_BAR_MODE: StatsBarMode = 'full-ledger';
  *  resolveSidebarPlacement). Both config readers run it. */
 export function resolveStatsBarMode(v: unknown): StatsBarMode {
 	return v === 'partial' || v === 'full-ledger' ? v : DEFAULT_STATS_BAR_MODE;
+}
+
+/** `conversation.heartbeatType` — WHICH sessions the jobs heartbeat polls
+ *  (ADR-0034 D1/D4):
+ *  - 'viewport-cap' → active panels + current conversation + the rows on
+ *    screen (the operator's attention);
+ *  - 'ticker-cap'   → every spine session — today's watch-everything
+ *    behavior, kept as an explicit operator escape hatch.
+ *  Missing/foreign values fall back to the viewport cap. */
+export type HeartbeatType = 'viewport-cap' | 'ticker-cap';
+
+/** `conversation.heartbeatType` default — watch what the operator sees. */
+export const DEFAULT_HEARTBEAT_TYPE: HeartbeatType = 'viewport-cap';
+
+/** Literal gate for `conversation.heartbeatType` — same discipline as
+ *  resolveStatsBarMode: only the two known strings pass. Both config
+ *  readers run it. */
+export function resolveHeartbeatType(v: unknown): HeartbeatType {
+	return v === 'ticker-cap' || v === 'viewport-cap' ? v : DEFAULT_HEARTBEAT_TYPE;
 }
 
 // ── workspace — The Settings Tree ADR 2026-09-18 D1 deleted the
@@ -94,6 +118,7 @@ export const DEFAULT_CONVERSATION_PROGRESSIVE_FOLD = false;
 export function resolveConversationFlags(v: unknown): {
 	collapsable: boolean;
 	progressiveFold: boolean;
+	heartbeatType: HeartbeatType;
 } {
 	const rec = isConfigRecord(v) ? v : {};
 	return {
@@ -102,7 +127,8 @@ export function resolveConversationFlags(v: unknown): {
 		progressiveFold:
 			typeof rec.progressiveFold === 'boolean'
 				? rec.progressiveFold
-				: DEFAULT_CONVERSATION_PROGRESSIVE_FOLD
+				: DEFAULT_CONVERSATION_PROGRESSIVE_FOLD,
+		heartbeatType: resolveHeartbeatType(rec.heartbeatType)
 	};
 }
 

@@ -21,10 +21,10 @@
 	 * space (flex: 1 in SessionFilterHeader), not from any margin here.
 	 * No styling reaches the wrapped components.
 	 */
+	import type { BlankMode, FilterOption, SessionFilterState } from '$lib/utils/session-filters';
 	import SessionFilterClear from './SessionFilterClear.svelte';
 	import SessionFilterToggle from './SessionFilterToggle.svelte';
 	import AddWorkspaceButton from '../common/layout/AddWorkspaceButton.svelte';
-	import type { BlankMode, FilterOption, SessionFilterState } from '$lib/utils/session-filters';
 
 	let {
 		workspaces,

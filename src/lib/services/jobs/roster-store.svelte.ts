@@ -59,6 +59,9 @@ interface RosterWatch {
 /** Watch refcounts — bookkeeping only, never render state. */
 const watches = new Map<string, RosterWatch>();
 
+/** Chunk size for the batch tick (ADR-0032 D3 — the URL-length guard). */
+const JOBS_BATCH_CHUNK = 50;
+
 /** The singleton surface every consumer imports (Wave 1 API, preserved). */
 class JobsRosterStore {
 	/** Begin watching a session (idempotent per extra watcher). */
@@ -132,9 +135,57 @@ class JobsRosterStore {
 	 * Refresh EVERY watched session — the spine tick's piggyback hook
 	 * (BC-7: the cadence belongs to the page's ONE interval, never to a
 	 * component timer). Unwatched sessions refresh nowhere.
+	 *
+	 * ADR-0032 D3 — ONE batch fetch per chunk of ≤50 watched ids
+	 * (`/api/dsh/jobs?sessionIds=…`), not one request per session: the
+	 * tick's request count scales with chunks, not watchers. Each applied
+	 * roster follows the same rules as refresh() — a pending frame is
+	 * honest darkness and must not clobber the last known jobs — and the
+	 * version signal bumps at most ONCE per chunk.
 	 */
 	refreshWatched(): void {
-		for (const sessionId of watches.keys()) void this.refresh(sessionId);
+		const ids = [...watches.keys()];
+		for (let i = 0; i < ids.length; i += JOBS_BATCH_CHUNK) {
+			void this.refreshBatch(ids.slice(i, i + JOBS_BATCH_CHUNK));
+		}
+	}
+
+	/** One batched snapshot fetch for a chunk of watched sessions. */
+	private async refreshBatch(ids: string[]): Promise<void> {
+		try {
+			const res = await fetch(`/api/dsh/jobs?sessionIds=${ids.map(encodeURIComponent).join(',')}`);
+			if (!res.ok) return;
+			const body = (await res.json()) as {
+				ok?: boolean;
+				rosters?: Record<string, { jobs?: DsiJobView[]; pending?: boolean }>;
+			};
+			if (!body.ok || !body.rosters) return;
+			let changed = false;
+			for (const sessionId of ids) {
+				if (!watches.has(sessionId)) continue; // unwatched mid-flight: drop the frame
+				const roster = body.rosters[sessionId];
+				if (!roster || roster.pending === true || !Array.isArray(roster.jobs)) continue;
+				jobsBySession.set(sessionId, roster.jobs);
+				changed = true;
+			}
+			if (changed) version += 1; // ONE bump per chunk, not per session
+		} catch {
+			// network hiccup — the next spine tick retries; never blank on error
+		}
+	}
+	/**
+	 * ADR-0034 D2 — arm a batch of ids WITHOUT the per-id singular first
+	 * load: the heartbeat scope is the sole watcher for these, and it
+	 * batch-fetches them itself. Refs arm at 1 (scope ownership); a later
+	 * badge-side watch() is a free extra ref.
+	 */
+	armMany(ids: string[]): void {
+		const fresh = ids.filter((id) => id && !watches.has(id));
+		for (const id of fresh) {
+			watches.set(id, { refs: 1 });
+			jobsBySession.set(id, []);
+		}
+		if (fresh.length > 0) void this.refreshBatch(fresh);
 	}
 }
 

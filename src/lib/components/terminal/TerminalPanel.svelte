@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import '@xterm/xterm/css/xterm.css';
-	import { pickTerminalTheme } from './terminal-theme';
 	import { themePrefs } from '$lib/utils/theme-prefs.svelte';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
+	import { pickTerminalTheme } from './terminal-theme';
 	import {
 		initialTerminalPanelState,
 		reduceTerminalFrame,

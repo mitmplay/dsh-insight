@@ -11,10 +11,10 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import * as m from '$lib/paraglide/messages';
+	import { persistId, resolveBrowserSession } from '$lib/services/panels/browser-session-resolver.js';
 	import BrowserHeader from './BrowserHeader.svelte';
 	import BrowserContent from './BrowserContent.svelte';
 	import { createMoveCoalescer, scalePoint } from './mirror-input.ts';
-	import { persistId, resolveBrowserSession } from '$lib/services/panels/browser-session-resolver.js';
 
 	let {
 		/** The browser-session registry id; undefined = this panel OPENS the

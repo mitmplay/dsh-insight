@@ -11,11 +11,11 @@
  */
 
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
 import { mintA2aId } from '$lib/services/chat/a2a-protocol.js';
 import { registerWatch, configureWatcher } from '$lib/server/a2a/watcher.js';
 import { readA2aConfig } from '$lib/server/insight-config.js';
 import { getDshConnection } from '$lib/server/dsh-connection.js';
+import type { RequestHandler } from './$types';
 
 /** Strict body validation — honest 400s, never silent guesses. */
 function readBody(raw: unknown): { from: string; to: string; message: string; watermark: number; id?: string } | { error: string } {

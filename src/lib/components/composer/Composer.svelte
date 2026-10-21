@@ -3,18 +3,6 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import { ArrowUp, Square, SquareCheck } from '@lucide/svelte';
 	import { onDestroy, onMount } from 'svelte';
-	import TokenCounter from './sibling/TokenCounter.svelte';
-	import ModelSelector from './sibling/ModelSelector.svelte';
-	import PromptInputText from './sibling/PromptInputText.svelte';
-	import StreamingIndicator from './sibling/StreamingIndicator.svelte';
-	import ContextConsumption from './sibling/ContextConsumption.svelte';
-	import AccessModeChip from './access-mode/AccessModeChip.svelte';
-	import AttachmentChips from './attachment/AttachmentChips.svelte';
-	import AttachmentManager from './attachment/AttachmentManager.svelte';
-	import SuggestStrip from './menu/suggest-strip/SuggestStrip.svelte';
-	import SlashMenu from './menu/SlashMenu.svelte';
-	import CommandHelpCard from '../card/CommandHelpCard.svelte';
-	import PromptsManagerDialog from '../prompt-manager/PromptsManagerDialog.svelte';
 	import type { AttachmentDraft, SerializedImage } from '$lib/services/chat/attachment-service.svelte';
 	import { DEFAULT_IMAGE_LIMITS } from '$lib/services/conversation/image-limits';
 	import { appConfig, loadAppConfig } from '$lib/services/config/app-config.svelte';
@@ -25,7 +13,6 @@
 		type SuggestedPrompt
 	} from '$lib/services/chat/prompt-trigger.js';
 	import { MENU_GESTURES } from '$lib/services/chat/command-help';
-	import { KeyboardRouter } from './controller/keyboard-router.svelte';
 	import type { SlashDirectory } from '$lib/services/chat/slash-directory.svelte';
 	import { loadDraft } from '$lib/utils/draft-prefs';
 import { DraftPersistence } from '$lib/services/chat/draft-persistence.svelte';
@@ -38,6 +25,19 @@ import { DraftPersistence } from '$lib/services/chat/draft-persistence.svelte';
 		type SyncStripView
 	} from '$lib/services/chat/prompt-sync.svelte';
 	import { getLensMode } from '$lib/services/conversation/lens-context.svelte';
+	import TokenCounter from './sibling/TokenCounter.svelte';
+	import ModelSelector from './sibling/ModelSelector.svelte';
+	import PromptInputText from './sibling/PromptInputText.svelte';
+	import StreamingIndicator from './sibling/StreamingIndicator.svelte';
+	import ContextConsumption from './sibling/ContextConsumption.svelte';
+	import AccessModeChip from './access-mode/AccessModeChip.svelte';
+	import AttachmentChips from './attachment/AttachmentChips.svelte';
+	import AttachmentManager from './attachment/AttachmentManager.svelte';
+	import SuggestStrip from './menu/suggest-strip/SuggestStrip.svelte';
+	import SlashMenu from './menu/SlashMenu.svelte';
+	import CommandHelpCard from '../card/CommandHelpCard.svelte';
+	import PromptsManagerDialog from '../prompt-manager/PromptsManagerDialog.svelte';
+	import { KeyboardRouter } from './controller/keyboard-router.svelte';
 	import { HelpController } from './controller/help-controller.svelte';
 	import { SlashController } from './controller/slash-controller.svelte';
 	import { StripController } from './controller/suggest-controller.svelte';

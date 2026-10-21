@@ -15,8 +15,8 @@
  * dropped, and a non-array `panels` value means the whole blob is junk.
  */
 import type { DsiPanelEntry, TerminalDeskMirror } from '$lib/types';
-import type { ReloadFeedback } from './skill-shelf-reload-machine';
 import { appConfig } from '$lib/services/config/app-config.svelte';
+import type { ReloadFeedback } from './skill-shelf-reload-machine';
 import { dsiKey } from './storage-profile';
 
 /** localStorage base key — one JSON blob `{ panels, selectedPanelId, panelWidth, zoom }`.
@@ -181,12 +181,28 @@ export function clampDeskMirror(value: unknown): TerminalDeskMirror | undefined 
 		if (sessionIds.length === 0) continue;
 		tabs.push({ sessionIds });
 	}
-	if (tabs.length === 0) return undefined;
+	// Job Follower Tab amendment: remembered -J tabs survive reload; a
+	// shells-only-empty mirror with remembered jobs is still usable.
+	const jobs: Array<{ owner: string; jobId: string }> = [];
+	if (Array.isArray(raw.jobs)) {
+		for (const j of raw.jobs) {
+			if (j === null || typeof j !== 'object') continue;
+			const owner = (j as Record<string, unknown>).owner;
+			const jobId = (j as Record<string, unknown>).jobId;
+			if (typeof owner !== 'string' || typeof jobId !== 'string') continue;
+			if (owner.length === 0 || jobId.length === 0) continue;
+			jobs.push({ owner, jobId });
+		}
+	}
+	if (tabs.length === 0 && jobs.length === 0) return undefined;
+	// a job-only mirror rebuilds with ONE fallback self-open shell in front,
+	// so the stored selected index may point at tabs.length (first job tab)
+	const maxIndex = tabs.length + jobs.length;
 	const selected =
 		typeof raw.selectedTab === 'number' && Number.isFinite(raw.selectedTab)
-			? Math.max(0, Math.min(tabs.length - 1, Math.round(raw.selectedTab)))
+			? Math.max(0, Math.min(maxIndex, Math.round(raw.selectedTab)))
 			: 0;
-	return { tabs, selectedTab: selected };
+	return { tabs, selectedTab: selected, ...(jobs.length > 0 ? { jobs } : {}) };
 }
 
 /** Persisted defaults when nothing (usable) is stored. */

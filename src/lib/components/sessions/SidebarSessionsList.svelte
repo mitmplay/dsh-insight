@@ -36,10 +36,12 @@
 	 * this pane absorbs its height either way.
 	 */
 	import { Bot, BotOff, ChevronDown, ChevronRight } from '@lucide/svelte';
-	import RowSessionItem from './RowSessionItem.svelte';
 	import FilterDateButton from '$lib/components/common/buttons/FilterDateButton.svelte';
 	import { defaultSpineGroupPrefs, type SpineGroupPrefs } from '$lib/utils/spine-group-prefs';
+	import { appConfig } from '$lib/services/config/app-config.svelte';
+	import { heartbeatScope } from '$lib/services/jobs/heartbeat-scope.svelte';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
+	import RowSessionItem from './RowSessionItem.svelte';
 
 	let {
 		current,
@@ -70,6 +72,52 @@
 		/** Reports a partial spine state change; the owner applies + persists. */
 		onspinechange?: (partial: Partial<SpineGroupPrefs>) => void;
 	} = $props();
+
+	// ADR-0034 — the heartbeat scope's viewport feed. One observer over the
+	// row anchors reports the on-screen ids; mode + spine set feed here too.
+	// BC-7: everything is event-driven — no timers of any kind.
+	let rowsEl: HTMLElement | undefined = $state(undefined);
+
+	$effect(() => {
+		// tracked read: a mode flip rebuilds the scope's wanted set
+		heartbeatScope.setMode(appConfig().conversation.heartbeatType);
+	});
+
+	$effect(() => {
+		// ticker-cap: the watched population is the whole rendered spine
+		if (appConfig().conversation.heartbeatType !== 'ticker-cap') return;
+		heartbeatScope.setSpine(visible.map((s) => s.sessionId));
+	});
+
+	$effect(() => {
+		// viewport-cap: observe the rendered anchors; report on-screen ids.
+		// Tracked reads of the mode + the rendered id list re-run this effect
+		// each tick — re-observe() on a known anchor is a no-op, so the only
+		// real work is observing genuinely new rows.
+		// No IntersectionObserver (unit DOM) → degrade to ticker-like: feed
+		// the rendered ids so fixtures can assert data arrival; the real
+		// browser always has the observer and never fetches offscreen.
+		if (appConfig().conversation.heartbeatType !== 'viewport-cap') return;
+		const ids = visible.map((s) => s.sessionId);
+		const report = (onScreen: string[]) => heartbeatScope.setViewport(onScreen);
+		if (typeof IntersectionObserver === 'undefined' || !rowsEl) {
+			report(ids);
+			return;
+		}
+		const onScreen = new Map<string, boolean>();
+		const io = new IntersectionObserver(
+			(entries) => {
+				for (const e of entries) {
+					const id = (e.target as HTMLElement).dataset.sessionId;
+					if (id) onScreen.set(id, e.isIntersecting);
+				}
+				report([...onScreen].filter(([, on]) => on).map(([id]) => id));
+			},
+			{ rootMargin: '200px 0px' } // hysteresis: watch ±200px past the edge
+		);
+		for (const a of rowsEl.querySelectorAll('a[data-session-id]')) io.observe(a);
+		return () => io.disconnect();
+	});
 
 	/** Chevron/title click — the whole rows block folds or unfolds. */
 	function toggle(): void {
@@ -149,7 +197,7 @@
 			</button>
 		</div>
 		{#if !spine.collapsed}
-			<div class="group-rows" id="sidebar-spine-group-rows" data-testid="sidebar-spine-group-rows">
+			<div class="group-rows" id="sidebar-spine-group-rows" bind:this={rowsEl} data-testid="sidebar-spine-group-rows">
 				{#if visible.length === 0 && !current}
 					<p class="hint" data-testid="sidebar-sessions-empty">{t(m.noSessionsMatch)}</p>
 				{:else if visible.length === 0}

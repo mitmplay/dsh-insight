@@ -16,10 +16,10 @@
 	 * Window framing (OCI FileViewer idiom): filename header + "N of M"
 	 * line count; a truncated window shows its offset honestly.
 	 */
-	import MarkdownContent from './MarkdownContent.svelte';
 	import CopyButton from '$lib/components/common/buttons/CopyButton.svelte';
 	import { highlightCode, isKnownCodeLang } from '$lib/utils/highlight-code';
 	import type { DsiReadView } from '$lib/types';
+	import MarkdownContent from './MarkdownContent.svelte';
 
 	let { view }: { view: DsiReadView } = $props();
 

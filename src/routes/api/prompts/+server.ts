@@ -24,9 +24,9 @@
  */
 
 import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types.js';
 import { searchPrompts, listPrompts, createPrompt } from '$lib/server/prompts/db.js';
 import { isValidTagWord, parseTagWords } from '$lib/server/prompts/tags.js';
+import type { RequestHandler } from './$types.js';
 
 const MAX_LIMIT = 10;
 

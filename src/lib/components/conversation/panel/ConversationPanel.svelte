@@ -29,15 +29,10 @@
 	import { createConversationStore } from '$lib/services/conversation/store.svelte';
 	import { createPollingOrchestrator } from '$lib/services/conversation/polling-orchestrator.svelte';
 	import { invalidateSessionAttachmentUrls } from '$lib/services/conversation/attachment-urls.svelte';
-	import ConversationError from './ConversationError.svelte';
 	import StickToBottomToggle from '$lib/components/composer/sibling/StickToBottomToggle.svelte';
 	import StreamingIndicator from '$lib/components/composer/sibling/StreamingIndicator.svelte';
 	import ConversationFooter from '$lib/components/conversation/footer/ConversationFooter.svelte';
 	import ConversationHeader from '$lib/components/conversation/header/ConversationHeader.svelte';
-	import ConversationScrollArea from './ConversationScrollArea.svelte';
-	import ConversationFloatingAnchor from './ConversationFloatingAnchor.svelte';
-	import A2aChipStack from './A2aChipStack.svelte';
-	import ConversationStatsBar from './ConversationStatsBar.svelte';
 	import { deriveSessionStats, statsFromLedger } from '$lib/services/conversation/session-stats';
 	import { appConfig } from '$lib/services/config/app-config.svelte';
 	import { setPanelMode } from '$lib/services/conversation/panel-context.svelte';
@@ -45,17 +40,22 @@
 	import { getCurrentModel } from '$lib/services/conversation/current-model';
 	import { directoryFor, type SlashDirectory } from '$lib/services/chat/slash-directory.svelte';
 	import { macroRunner, macroRunState } from '$lib/services/chat/macro-runner.svelte';
-	import { SubmitLadder } from './submit-ladder.svelte';
-	import { Popups } from './popups.svelte';
-	import { Paging } from './paging.svelte';
 	import MacroBar from '$lib/components/bar/macro-bar/MacroBar.svelte';
 	import GoalBar from '$lib/components/bar/goal-bar/GoalBar.svelte';
 	import type { DsiPermission } from '$lib/services/conversation/permission-state';
 	import type { DshRawEvent } from '$lib/services/conversation/dsh-events';
 	import { contextWindowOf } from '$lib/utils/context-window';
 	import { groupTurns } from '$lib/utils/turn-grouping';
-	import { GoalBarMachine } from './goal-bar.svelte';
 	import type { DsiEntry, PendingAnswer, AnsweredSettlement, DsiA2aExchangeView } from '$lib/types';
+	import ConversationError from './ConversationError.svelte';
+	import ConversationScrollArea from './ConversationScrollArea.svelte';
+	import ConversationFloatingAnchor from './ConversationFloatingAnchor.svelte';
+	import A2aChipStack from './A2aChipStack.svelte';
+	import ConversationStatsBar from './ConversationStatsBar.svelte';
+	import { SubmitLadder } from './submit-ladder.svelte';
+	import { Popups } from './popups.svelte';
+	import { Paging } from './paging.svelte';
+	import { GoalBarMachine } from './goal-bar.svelte';
 
 	let {
 		panelId = null,

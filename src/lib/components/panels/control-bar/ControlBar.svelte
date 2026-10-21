@@ -36,8 +36,8 @@
 	 * breaks no commitment.
 	 */
 	import { Settings } from '@lucide/svelte';
-	import ControlBarTray from './ControlBarTray.svelte';
 	import { PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_ZOOM } from '$lib/utils/panel-prefs';
+	import ControlBarTray from './ControlBarTray.svelte';
 
 	let {
 		panelWidth = $bindable(PANEL_DEFAULT_WIDTH),
