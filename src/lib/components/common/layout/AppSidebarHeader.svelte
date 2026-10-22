@@ -15,14 +15,28 @@
 	import AppSidebarHeaderAction from './AppSidebarHeaderAction.svelte';
 	import AboutButton from './AboutButton.svelte';
 	import RestartButton from './RestartButton.svelte';
+	import { PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_ZOOM } from '$lib/utils/panel-prefs';
 
 	let {
 		captureContainer = null,
+		trayContainer = null,
+		panelWidth = $bindable(PANEL_DEFAULT_WIDTH),
+		zoom = $bindable(PANEL_DEFAULT_ZOOM),
+		onresizeall,
 		onToggleCollapse
 	}: {
 		/** The ConversationPage root element — passed through to the
 		 *  canvas-copy button's capture target (page-owned bind:this). */
 		captureContainer?: HTMLElement | null;
+		/** The floor element — the ControlBar tray's canvas-copy capture
+		 *  target, threaded down to the action cluster. */
+		trayContainer?: HTMLElement | null;
+		/** Uniform-panel width preset (bind: through to ControlBar). */
+		panelWidth?: number;
+		/** Floor zoom multiplier (bind: through to ControlBar). */
+		zoom?: number;
+		/** Commit a new uniform width on every thumb move. */
+		onresizeall?: (width: number) => void;
 		/** Flip collapsed ↔ expanded (page-owned, persisted there). */
 		onToggleCollapse?: () => void;
 	} = $props();
@@ -33,7 +47,14 @@
 	<RestartButton class="rail-collapsed-label" />
 	<AboutButton />
 	<AppSidebarHeaderTitle />
-	<AppSidebarHeaderAction {captureContainer} {onToggleCollapse} />
+	<AppSidebarHeaderAction
+		{captureContainer}
+		{trayContainer}
+		bind:panelWidth
+		bind:zoom
+		{onresizeall}
+		{onToggleCollapse}
+	/>
 </header>
 
 <style>

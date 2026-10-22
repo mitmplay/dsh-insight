@@ -51,9 +51,10 @@ export function parseFileLinkHref(href: string): {
 } {
 	const value = stripAngleWrapper(href.trim());
 	const hash = value.indexOf('#');
-	const raw = hash === -1 ? value : value.slice(0, hash);
+	const raw = hash === -1 ? splitColonAnchor(value).path : value.slice(0, hash);
 	const anchor = hash === -1 ? '' : value.slice(hash + 1);
 	let lines: { start: number; end: number } | null = null;
+	if (hash === -1) lines = splitColonAnchor(value).lines;
 	// GitHub style #L12-L15 AND the bare #12-15 variant both parse —
 	// operators write both; a number is a number.
 	const single = anchor.match(/^L?(\d+)$/);
@@ -74,6 +75,33 @@ export function parseFileLinkHref(href: string): {
 /** CommonMark angle-bracket destinations (<path> and their %3C/%3E
  *  encodings) are destination syntax, never path bytes - renderers that
  *  hand the wrapper through must not have it reach the host read. */
+/**
+ * The colon anchor arm (ADR-0028 The Colon Anchor): IDE-style :line
+ * suffixes — path/file.ts:334, :10-20 — are the SAME fact as #L anchors
+ * in IDE clothes, so they split into the display hint the same way.
+ * Digits-only tail after the LAST colon; a malformed tail (:0, :20-10)
+ * degrades to no hint and KEEPS the colon in the path (never guesses,
+ * hash-grammar posture); any other colon stays path bytes (a:b/c.ts).
+ */
+function splitColonAnchor(
+	value: string
+): { path: string; lines: { start: number; end: number } | null } {
+	const colon = value.lastIndexOf(':');
+	if (colon === -1) return { path: value, lines: null };
+	const tail = value.slice(colon + 1);
+	const single = tail.match(/^(\d+)$/);
+	const range = tail.match(/^(\d+)-(\d+)$/);
+	if (single) {
+		const n = Number(single[1]);
+		if (n >= 1) return { path: value.slice(0, colon), lines: { start: n, end: n } };
+	} else if (range) {
+		const s = Number(range[1]);
+		const e = Number(range[2]);
+		if (s >= 1 && e >= s) return { path: value.slice(0, colon), lines: { start: s, end: e } };
+	}
+	return { path: value, lines: null };
+}
+
 function stripAngleWrapper(value: string): string {
 	return value
 		.replace(/^(?:%3C|<)/i, '')
@@ -84,8 +112,10 @@ export function normalizeFileLinkPath(href: string): string | null {
 	let value = stripAngleWrapper(href.trim()).replace(/^\.\//, '').replace(/\/{2,}/g, '/');
 	// A line anchor is display metadata, not path bytes — strip it before
 	// normalization so '#L139' never reaches the host read (RCA above).
+	// The colon arm (:139, ADR-0028) rides the same ruling.
 	const hash = value.indexOf('#');
 	if (hash !== -1) value = value.slice(0, hash);
+	value = splitColonAnchor(value).path;
 	if (value.startsWith('/')) value = value.slice(1);
 	if (value === '' || hasDotDotSegment(value)) return null;
 	return value;

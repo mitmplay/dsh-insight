@@ -44,6 +44,7 @@
 		running,
 		delegated = false,
 		count = 0,
+		browser = false,
 		depth = 0,
 		fork = false,
 		docChild = false,
@@ -57,6 +58,9 @@
 		/** Delegation live (2026-08-27, ADR D3) — forwarded to the glyph;
 		 *  default false renders the pre-lineage two-state glyph. */
 		delegated?: boolean;
+		/** ADR-0037 D4 — a folded GLASS row: forwarded to the glyph (the
+		 *  pulsing frame). Default false = the session grammar. */
+		browser?: boolean;
 		/** Live descendant count — forwarded; badge only when > 0. */
 		count?: number;
 		/** Lineage depth (ADR D6, spine rows): > 0 replaces the chip with
@@ -93,7 +97,7 @@
 	} = $props();
 </script>
 
-<SessionStatus {running} {delegated} {count} />
+<SessionStatus {running} {delegated} {count} {browser} />
 {#if depth > 0}
 	<!-- Sub-agent row (ADR D6): the workspace column carries the depth
 	     cue instead of a chip — the spawned session's cwd is its

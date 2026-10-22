@@ -44,9 +44,8 @@
 
 <style>
 	.tray {
-		position: absolute;
-		top: calc(100% + 0.375rem);
-		right: 0;
+		/* Positioning lives on the portaled .tray-float host in
+		   ControlBar — this element carries only the tray's visuals. */
 		display: flex;
 		flex-direction: column;
 		gap: 0.625rem;

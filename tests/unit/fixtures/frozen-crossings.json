@@ -3,6 +3,10 @@
   "crossings": [
     {
       "from": "components/common/layout/AppSidebar.svelte",
+      "to": "components/panels/control-bar/ControlBar.svelte"
+    },
+    {
+      "from": "components/common/layout/AppSidebar.svelte",
       "to": "components/sessions/SidebarSessions.svelte"
     },
     {

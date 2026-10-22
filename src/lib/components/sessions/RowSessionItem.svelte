@@ -22,6 +22,7 @@
 	import {
 		addPanelFromSidebar,
 		replaceSelectedFromRegistry,
+		summonGlassFromRegistry,
 		panelRegistryActive
 	} from '$lib/services/panels/panel-registry';
 	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
@@ -49,6 +50,12 @@
 		return conversationSeedUrl(session.sessionId, getWorkspaceState()?.profile ?? null);
 	}
 
+	/** A folded glass's spine row (origin 'browser', 2026-10-22): the
+	 *  sessionId is the browser-session registry id, NOT a conversation —
+	 *  no seed href, and the click summons the glass (the ONE summon
+	 *  seam, ADR-0037 D4) instead of the floor add/replace verbs. */
+	const isGlass = $derived((session.origin as string | null | undefined) === 'browser');
+
 	/** Tooltip (W4 4.2): workspace path + affordance when on the floor.
 	 *  (Row attribute — no props, no state: pure function of the row.
 	 *  The cwd cue is EXTENDED, never replaced — commitment 5 — and
@@ -66,6 +73,14 @@
 	 *  selected panel (ADR-0006 R5 verbs, reversed 2026-08-28); with no
 	 *  floor mounted the registry's no-op lets the anchor navigate. */
 	function onRowClick(e: MouseEvent): void {
+		if (isGlass) {
+			summonGlassFromRegistry(
+				{ sessionId: session.sessionId, openedBy: session.parentSessionId ?? undefined },
+				{ replace: false }
+			);
+			e.preventDefault();
+			return;
+		}
 		const verb = e.shiftKey ? replaceSelectedFromRegistry : addPanelFromSidebar;
 		const handled = verb({
 			sessionId: session.sessionId,
@@ -80,7 +95,7 @@
 <a
 	class="row"
 	class:child={depth > 0}
-	href={conversationHref()}
+	href={isGlass ? undefined : conversationHref()}
 	data-testid="sidebar-session-card"
 	data-session-id={session.sessionId}
 	data-depth={depth}
@@ -89,11 +104,12 @@
 >
 	<WorkspaceRowItem
 		running={session.running}
+		browser={isGlass}
 		workspace={session.workspace}
 		{workspaces}
 		label={session.title ?? 'untitled'}
 		{depth}
-		fork={session.parentSessionId != null && session.origin !== 'subagent'}
+		fork={session.parentSessionId != null && session.origin !== 'subagent' && !isGlass}
 	/>
 	<!-- The Job Badge (ADR-0026 D2): state ON the owner row, never a new
 	     row. The badge's root stops propagation, so a badge or popover

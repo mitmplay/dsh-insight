@@ -54,12 +54,18 @@
 		 *  share one state); this component only reads and reports writes. */
 		filter,
 		paneledSessionIds = [],
-		onfilterchange
+		/** ADR-0037 D4 spine half (2026-10-22): folded glasses whose opener
+		 *  holds no panel — synthetic rows nested under the opener family;
+		 *  a row's click summons the glass (RowSessionItem's 'browser' arm). */
+		glassRows = [] as Array<{ sessionId: string; openedBy: string; title: string }>,
+		onfilterchange,
 	}: {
 		currentSessionId: string;
 		filter: SessionFilterState;
 		/** Open floor panels (W4) — paneled sessions leave the spine. */
 		paneledSessionIds?: string[];
+		/** Folded glasses for the SPINE (ADR-0037 D4 spine half). */
+		glassRows?: Array<{ sessionId: string; openedBy: string; title: string }>;
 		onfilterchange: (next: SessionFilterState) => void;
 	} = $props();
 
@@ -133,6 +139,28 @@
 	});
 
 	const ready = $derived(phase === 'ready' ? sessions : []);
+	/** Folded-glass synthetic rows (2026-10-22): shaped as session
+	 *  summaries so the WHOLE spine pipeline (lineage, family nesting,
+	 *  filters) treats them as the opener's children. origin 'browser'
+	 *  marks the row for RowSessionItem's summon click; workspace and
+	 *  title ride the opener so filters keep the family whole. */
+	const glassSummaries = $derived.by<DsiSessionSummary[]>(() => {
+		return glassRows.map((g) => {
+			const opener = ready.find((s) => s.sessionId === g.openedBy);
+			return {
+				sessionId: g.sessionId,
+				title: g.title || 'Browser',
+				agentPreset: null,
+				running: true,
+				blank: false,
+				updatedAt: opener?.updatedAt ?? 0,
+				workspace: opener?.workspace ?? null,
+				turns: null,
+				parentSessionId: g.openedBy,
+				origin: 'browser'
+			} satisfies DsiSessionSummary;
+		});
+	});
 	/** Current row — looked up from the RAW list (never filtered away). */
 	const current = $derived(ready.find((s) => s.sessionId === currentSessionId) ?? null);
 
@@ -164,10 +192,19 @@
 	// Lineage facts (W4 tasks 4.1/4.2, ADR D5/D7) over the READY list (the
 	// full family graph — parents may sit outside `others` as current or
 	// paneled rows); pure module, derived per tick.
-	const lineage = $derived(deriveLineage(ready, []));
+	const lineage = $derived(deriveLineage([...ready, ...glassSummaries], []));
 	// No double-listing: a sub-agent under an OPEN parent (panel or ghost)
 	// leaves the spine — one session, one home.
-	const unsuppressed = $derived(suppressFromSpine(others, lineage, paneled));
+	const unsuppressed = $derived(
+		suppressFromSpine(
+			// The glass rows join the spine body AFTER the pills/presets census
+			// (pills derive from `others`) — one synthetic row must not mint a
+			// workspace pill or a + New chat preset count.
+			[...others, ...glassSummaries],
+			lineage,
+			paneled
+		)
+	);
 	const wsPills = $derived(workspaceOptions(others, workspaces));
 	const presets = $derived(presetOptions(availablePresets, others));
 	/** Self-healed filter — a persisted key no pill carries reads as All. */

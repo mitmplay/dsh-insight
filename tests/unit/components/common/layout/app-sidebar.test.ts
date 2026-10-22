@@ -22,12 +22,19 @@
  *    page's captureContainer (the ConversationPage root) flows through
  *    to the PNG render (html-to-image mocked, canvas-copy-button.test.ts
  *    pattern)
+ *  - the residual branch coverage (2026-10-22): ControlBar inside the
+ *    collapsed stub (onresizeall ?? (() => {}) fallback), Restart/About on
+ *    the stub prefix, omitted callbacks as silent optional-call no-ops,
+ *    the null capture/tray-container defaults, embedded captureContainer
+ *    threading, and the filter $state seeding from loadSessionFilter
+ *    (profile key vs default desk)
  */
 
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import AppSidebar from '$lib/components/common/layout/AppSidebar.svelte';
+import { PANEL_DEFAULT_WIDTH } from '$lib/utils/panel-prefs';
 import { setWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
 import { toBlob } from 'html-to-image';
 
@@ -125,6 +132,7 @@ function stubFetch(log: FetchLog[]): void {
 				return jsonResponse({ ok: true, sessionId: 's-adopted', agentPreset: null });
 			if (url === '/api/dsh/workspaces') return jsonResponse({ ok: true });
 			if (url === '/api/dsh/directory') return jsonResponse({ ok: true, listing: LISTING });
+			if (url === '/api/floor/mode') return jsonResponse({ dev: true });
 			return jsonResponse({ ok: true });
 		})
 	);
@@ -340,6 +348,172 @@ describe('AppSidebar — header CanvasCopyButton (page capture)', () => {
 		expect(mockedToBlob).toHaveBeenCalledTimes(1);
 		expect(mockedToBlob.mock.calls[0][0]).toBe(pageRoot);
 		expect(writes).toHaveLength(1);
+		unmount(instance);
+	});
+});
+
+describe('AppSidebar — residual branches (optional props + filter seed)', () => {
+	it('collapsed stub: ControlBar mounts inside it and Restart/About ride the prefix (onresizeall ?? no-op fallback — default mount passes none)', async () => {
+		const log: FetchLog[] = [];
+		stubFetch(log);
+		// No onresizeall prop → ControlBar gets the ?? (() => {}) fallback.
+		const { target, instance } = mountSidebar({ collapsed: true });
+		await settle();
+		const stub = target.querySelector('[data-testid="app-sidebar-collapsed"]') as HTMLElement;
+		// The floor ControlBar self-positions fixed — its mount site is the stub.
+		expect(stub.querySelector('[data-testid="controlbar"]')).not.toBeNull();
+		expect(stub.querySelector('[data-testid="sidebar-restart-trigger"]')).not.toBeNull();
+		expect(stub.querySelector('[data-testid="sidebar-about-trigger"]')).not.toBeNull();
+		unmount(instance);
+	});
+
+	it('omitted callbacks: the stub expand click and gutter mousedown are silent no-ops', async () => {
+		const log: FetchLog[] = [];
+		stubFetch(log);
+		// undefined overrides mountSidebar's spies → the ?.() optional-call branches.
+		const collapsed = mountSidebar({ collapsed: true, onToggleCollapse: undefined });
+		await settle();
+		const expand = collapsed.target.querySelector('button[aria-label="Expand sidebar"]') as HTMLButtonElement;
+		expect(() => {
+			expand.click();
+			flushSync();
+		}).not.toThrow();
+		unmount(collapsed.instance);
+
+		const standalone = mountSidebar({ onResizeStart: undefined });
+		await settle();
+		const gutter = standalone.target.querySelector('[data-testid="sidebar-gutter"]') as HTMLElement;
+		expect(() => gutter.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))).not.toThrow();
+		unmount(standalone.instance);
+	});
+
+	it('standalone defaults: null capture/tray containers + no onresizeall — the canvas button renders and its click is the documented null-container no-op', async () => {
+		const log: FetchLog[] = [];
+		stubFetch(log);
+		mockedToBlob.mockClear();
+		const { target, instance } = mountSidebar();
+		await settle();
+		// The header's canvas-copy button renders regardless of a null container.
+		const button = target.querySelector('[data-testid="canvas-copy-button"]') as HTMLButtonElement;
+		expect(button).not.toBeNull();
+		button.click();
+		await settle();
+		// Null container → CanvasCopyButton's no-op: no PNG render, no throw.
+		expect(mockedToBlob).not.toHaveBeenCalled();
+		unmount(instance);
+	});
+
+	it('embedded rail threads the page containers too (captureContainer reaches the header copy)', async () => {
+		const log: FetchLog[] = [];
+		stubFetch(log);
+		mockedToBlob.mockClear();
+		mockedToBlob.mockResolvedValue(new Blob(['embedded-png'], { type: 'image/png' }));
+		Object.defineProperty(navigator, 'clipboard', {
+			configurable: true,
+			value: { write: vi.fn(async () => {}) }
+		});
+		vi.stubGlobal(
+			'ClipboardItem',
+			class {
+				payload: Record<string, Blob>;
+				constructor(p: Record<string, Blob>) {
+					this.payload = p;
+				}
+			}
+		);
+		const pageRoot = document.createElement('div');
+		const { target, instance } = mountSidebar({ embedded: true, captureContainer: pageRoot });
+		await settle();
+		(target.querySelector('[data-testid="canvas-copy-button"]') as HTMLButtonElement).click();
+		await settle();
+		expect(mockedToBlob).toHaveBeenCalledTimes(1);
+		expect(mockedToBlob.mock.calls[0][0]).toBe(pageRoot);
+		unmount(instance);
+	});
+
+	it('filter $state seeds from loadSessionFilter — the desk\'s stored blob (profile) vs the default desk (null profile)', async () => {
+		const log: FetchLog[] = [];
+		stubFetch(log);
+		// A stored filter under the profile desk's key seeds $state at mount.
+		localStorage.setItem(
+			'dsi-session-filter_widi',
+			JSON.stringify({ workspace: null, preset: 'research', blankMode: false })
+		);
+		const profiled = mountSidebar({ profile: 'widi' });
+		await settle();
+		expect(profiled.target.querySelector('[data-testid="filter-summary"]')?.textContent).toContain('Research');
+		unmount(profiled.instance);
+
+		// null profile reads the DEFAULT desk key, not the profile one.
+		localStorage.clear();
+		localStorage.setItem(
+			'dsi-session-filter',
+			JSON.stringify({ workspace: null, preset: 'research', blankMode: false })
+		);
+		const def = mountSidebar({ profile: null });
+		await settle();
+		expect(def.target.querySelector('[data-testid="filter-summary"]')?.textContent).toContain('Research');
+		unmount(def.instance);
+	});
+});
+
+describe("AppSidebar — the collapsed stub ControlBar onresizeall wiring", () => {
+	/** Mount the collapsed stub and slide its ControlBar tray's width
+	 *  slider (the tray portals to document.body). */
+	async function slideStubTray(props: Record<string, unknown>, value: string) {
+		const target = document.createElement('div');
+		document.body.appendChild(target);
+		const instance = mount(AppSidebar, {
+			target,
+			props: { currentSessionId: 's-current', collapsed: true, ...props }
+		});
+		await settle();
+		const trigger = target.querySelector('[data-testid="controlbar-trigger"]') as HTMLElement;
+		expect(trigger).not.toBeNull();
+		trigger.click();
+		flushSync();
+		const slider = document.body.querySelector(
+			'[data-testid="controlbar-slider-width-input"]'
+		) as HTMLInputElement;
+		expect(slider).not.toBeNull();
+		slider.value = value;
+		slider.dispatchEvent(new Event('input', { bubbles: true }));
+		flushSync();
+		return { instance };
+	}
+
+	it('onresizeall PROVIDED: the stub tray thumb reports through to the page', async () => {
+		const spy = vi.fn();
+		const { instance } = await slideStubTray({ onresizeall: spy }, '600');
+		expect(spy).toHaveBeenCalledWith(600);
+		unmount(instance);
+	});
+
+	it('onresizeall OMITTED: the ?? fallback absorbs the thumb move — no throw', async () => {
+		const { instance } = await slideStubTray({}, '620');
+		// No crash is the assertion: the noop fallback ran.
+		expect(document.body.querySelector('[data-testid="controlbar-tray"]')).not.toBeNull();
+		unmount(instance);
+	});
+
+	it('standalone mount WITHOUT panelWidth/zoom: the $bindable defaults seed the tray slider', async () => {
+		const log: FetchLog[] = [];
+		stubFetch(log);
+		const target = document.createElement('div');
+		document.body.appendChild(target);
+		const instance = mount(AppSidebar, {
+			target,
+			props: { currentSessionId: 's-current' }
+		});
+		await settle();
+		const trigger = target.querySelector('[data-testid="controlbar-trigger"]') as HTMLElement;
+		expect(trigger).not.toBeNull();
+		trigger.click();
+		flushSync();
+		const slider = document.body.querySelector(
+			'[data-testid="controlbar-slider-width-input"]'
+		) as HTMLInputElement;
+		expect(slider.value).toBe(String(PANEL_DEFAULT_WIDTH));
 		unmount(instance);
 	});
 });

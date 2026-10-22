@@ -3,7 +3,7 @@
  *
  * 01 a hard page.reload() mid-task keeps the session: same id re-binds, the
  *    debug port stays HELD, frames resume on the remounted glass
- * 02 panel-close after the reload still frees the port (the D8 gate, reused)
+ * 02 browse-close after the reload still frees the port (the D8 gate, reused)
  *
  * The reload is the operator's muscle memory that used to KILL the browser
  * (the old onDestroy close-POST). Here it must detach the SSE stream only.
@@ -105,14 +105,13 @@ test.describe.serial('sticky glass reload e2e', () => {
 		await expect(page.locator('.column.selected')).toHaveCount(1);
 	});
 
-	test('02 panel-close after the reload still frees the port (D8 gate reused)', async ({ page, request }) => {
-		// session 01 is still open and re-bound on this fresh page load? No —
+	test('02 browse-close after the reload FOLDS — the port stays held (ADR-0037 D1)', async ({ page, request }) => {
 		// serial tests share the worker page only via storage; reopen the glass
 		await openGlass(page);
 		const mine = await panelSession(page, request);
-		await page.getByTestId('panel-browser').getByTestId('panel-close').click();
+		await page.getByTestId('panel-browser').getByTestId('browse-close').click();
 		await expect(page.getByTestId('panel-browser')).toHaveCount(0);
-		await expect.poll(async () => (await request.get('/api/browser/' + mine.id + '/page')).status()).toBe(409);
-		await expect.poll(() => portHeld(mine.port).toString()).toBe('false');
+		await expect.poll(async () => (await request.get('/api/browser/' + mine.id + '/page')).status()).toBe(200);
+		await expect.poll(() => portHeld(mine.port).toString()).toBe('true');
 	});
 });

@@ -133,12 +133,14 @@ describe('+page.svelte — resize-all slider (ControlBar onresizeall)', () => {
 		const { target } = await mountPage();
 		target.querySelector<HTMLButtonElement>('[data-testid="controlbar-trigger"]')?.click();
 		flushSync();
-		const input = target.querySelector<HTMLInputElement>('[data-testid="controlbar-slider-width-input"]');
+		// The tray portals to document.body (2026-10-22) — query there,
+		// not inside the mount target.
+		const input = document.body.querySelector<HTMLInputElement>('[data-testid="controlbar-slider-width-input"]');
 		expect(input).not.toBeNull();
 		input!.value = '700';
 		input!.dispatchEvent(new Event('input', { bubbles: true }));
 		flushSync();
-		expect(target.querySelector('[data-testid="controlbar-slider-width-value"]')?.textContent).toContain('700');
+		expect(document.body.querySelector('[data-testid="controlbar-slider-width-value"]')?.textContent).toContain('700');
 		unmount(target.firstElementChild as never);
 	});
 });

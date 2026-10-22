@@ -37,8 +37,19 @@ export function makeTerminalPanel(): DsiPanelEntry {
 	return { id: nextPanelId(), kind: 'terminal', width: clampPanelWidth(d().getPanelWidth()) };
 }
 
-export function makeBrowserPanel(): DsiPanelEntry {
-	return { id: nextPanelId(), kind: 'browser', width: clampPanelWidth(d().getPanelWidth()) };
+/** width: the reload-restored panel re-mints at the width the operator
+ *  dragged before (browser-slot persistence, RCA 2026-10-22); absent for
+ *  chip clicks and legacy slots — the honest-slider preset.
+ *  openedBy: the opener session's provenance, recorded ONCE at spawn and
+ *  never rewritten (ADR-0036 D1/D2); undefined = no conversation context. */
+export function makeBrowserPanel(width?: number, openedBy?: string, sessionId?: string): DsiPanelEntry {
+	return {
+		id: nextPanelId(),
+		kind: 'browser',
+		width: clampPanelWidth(width ?? d().getPanelWidth()),
+		...(openedBy !== undefined ? { openedBy } : {}),
+		...(sessionId !== undefined ? { browserSessionId: sessionId } : {})
+	};
 }
 
 export function makeManagerPanel(): DsiPanelEntry {

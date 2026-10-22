@@ -19,6 +19,7 @@ import {
 } from '$lib/services/panels/panel-placement';
 import type { ReloadFeedback } from '$lib/utils/skill-shelf-reload-machine';
 import type {
+	DsiBrowserPanel,
 	DsiPanelEntry,
 	DsiPluginRackPanel,
 	DsiSkillShelfPanel,
@@ -32,6 +33,7 @@ import {
 	selectedIndex_,
 	insertPanel,
 	insertionSlot,
+	pinnedSlotIndex,
 	makeWorkspaceExplorerPanel,
 	makeBrowserPanel
 } from '$lib/services/panels/floor-registry.svelte';
@@ -75,6 +77,16 @@ export function setShelfReload(panelId: string, reload: ReloadFeedback | null): 
 	st.panels = st.panels.with(idx, { ...(st.panels[idx] as DsiSkillShelfPanel), reload });
 }
 
+/** The glass reports its resolved browser-session id (Amendment 3): the
+ *  slot persistence reads it off the ENTRY so N glasses each re-bind to
+ *  their OWN session at boot. The panel component stays the resolver —
+ *  this is only the write-back. */
+export function setBrowserSessionId(panelId: string, sessionId: string): void {
+	const idx = st.panels.findIndex((p) => p.id === panelId);
+	if (idx < 0 || st.panels[idx].kind !== 'browser') return;
+	st.panels = st.panels.with(idx, { ...(st.panels[idx] as DsiBrowserPanel), browserSessionId: sessionId });
+}
+
 // ── Workspace opens (The Shared Tree ADR 2026-09-17, D2) ─────────────
 /** Chip click action: ONE explorer per WORKSPACE root across ALL
  * sessions — a click on any session sharing the root FOCUSES the open
@@ -97,8 +109,12 @@ export function openWorkspaceExplorer(sessionId: string, workspace: string): voi
  *  browser panel across the floor — the terminal singleton rule (Terminal
  *  Desk ADR D2). A click on an open browser FOCUSES it; a miss inserts at
  *  the focused slot. */
-export function openBrowserPanel(index?: number, keepSelection = false): void {
-	const open = st.panels.find((p) => p.kind === 'browser');
+export function openBrowserPanel(index?: number, keepSelection = false, width?: number, openedBy?: string, sessionId?: string): void {
+	// Amendment 3: ONE glass PER OPENER — the dedupe key is openedBy (the
+	// workspace-explorer per-root precedent). A second opener's chip spawns
+	// its OWN glass; the same opener's click focuses. The keyless
+		// ControlBar open remains the lone keyless singleton.
+	const open = st.panels.find((p) => p.kind === 'browser' && p.openedBy === openedBy);
 	if (open) {
 		st.selectedPanelId = open.id;
 		return;
@@ -112,9 +128,22 @@ export function openBrowserPanel(index?: number, keepSelection = false): void {
 	// reload too). The exception: the browser panel ITSELF was focused
 	// before the reload — then the restore legitimately refocuses it.
 	const prevSelected = st.selectedPanelId;
+	// D6 (Amendment 2): a chip spawn pins the glass RIGHT of its opener's
+	// family region — the same grammar a sub-agent gets (lineagePinnedSlot:
+	// opener index + 1, past the doc tail and earlier siblings' subtrees;
+	// the browser is never in childrenByParent, so it lands at the region's
+	// end). Reload restore keeps the persisted slot index instead.
+	const slot =
+		index !== undefined
+			? Math.max(0, Math.min(index, st.panels.length))
+			: openedBy !== undefined && d().getLineageFacts().childrenByParent
+				? pinnedSlotIndex(openedBy, 'browser')
+				: insertionSlot(); // fail-soft: no lineage table, focused slot
 	insertPanel(
-		makeBrowserPanel(),
-		index === undefined ? insertionSlot() : Math.max(0, Math.min(index, st.panels.length))
+		// openedBy rides the INSERT path only — the per-opener early-return
+		// above is D2: the same opener's click focuses, never rewrites.
+		makeBrowserPanel(width, openedBy, sessionId),
+		slot
 	);
 	if (keepSelection && prevSelected !== null && prevSelected !== undefined) {
 		// The previous selection is a blob-restored panel (the browser was
@@ -295,6 +324,17 @@ export function removePanel(panelId: string, opts: { family?: boolean } = {}): v
 		}
 	}
 	const doomedPanelIds = new SvelteSet<string>();
+	// D5 REVISED (Amendment 2): the glass dies with its opener — the
+	// openedBy edge is the browser's family edge, the explorerPanelId
+	// precedent below. A browser with no provenance (ControlBar open) has
+	// no family and survives every cascade.
+	if (opts.family !== false && rootSessionId !== null) {
+		for (const p of st.panels) {
+			if (p.kind === 'browser' && p.openedBy !== undefined && doomed.has(p.openedBy)) {
+				doomedPanelIds.add(p.id);
+			}
+		}
+	}
 	if (opts.family !== false && root.kind === 'workspace-explorer') {
 		for (const p of st.panels) {
 			if (

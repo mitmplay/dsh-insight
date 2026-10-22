@@ -41,7 +41,7 @@
 		/** Spine view state (collapse, name filter, sub-agent toggle, date
 		 *  filter) — relayed to the list; the owner applies + persists. */
 		spine,
-		onspinechange
+		onspinechange,
 	}: {
 		current: DsiSessionSummary | null;
 		visible: DsiSessionSummary[];

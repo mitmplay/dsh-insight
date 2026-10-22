@@ -59,6 +59,36 @@
 	let open = $state(false);
 	let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
+	// The tray PORTALS to document.body (2026-10-22): the ControlBar now
+	// mounts in the sidebar (header action cluster / collapsed stub),
+	// whose .rail carries overflow:hidden — an in-flow absolute tray
+	// would clip — and the embedded rail lives inside PanelsZoom's
+	// transform:scale() ancestor, which turns any fixed descendant into
+	// its coordinate space. Anchored under the trigger's VIEWPORT rect
+	// (transform-true), clamped so the 15rem tray never leaves screen.
+	let triggerEl: HTMLElement | null = null;
+	let trayStyle = $state('');
+
+	$effect(() => {
+		if (!open) return;
+		const rect = triggerEl?.getBoundingClientRect();
+		if (!rect) return;
+		const TRAY_MIN = 256 + 16; // 15rem min-width + padding slack
+		const left = Math.max(8, Math.min(rect.left, window.innerWidth - TRAY_MIN));
+		trayStyle = 'left: ' + left + 'px; top: ' + (rect.bottom + 6) + 'px';
+	});
+
+	/** Portal action: host the tray outside every clipping/transform
+	 *  ancestor; the hover lifecycle re-attaches on the host below. */
+	function portal(node: HTMLElement) {
+		document.body.appendChild(node);
+		return {
+			destroy() {
+				node.remove();
+			}
+		};
+	}
+
 	/** Reveal now and cancel any pending hide (hover re-enter, focus). */
 	function reveal(): void {
 		if (hideTimer !== null) {
@@ -112,6 +142,7 @@
 	<button
 		type="button"
 		class="trigger"
+		bind:this={triggerEl}
 		data-testid="controlbar-trigger"
 		aria-label={t(m.floorControls)}
 		aria-expanded={open}
@@ -120,19 +151,36 @@
 		<Settings size={14} aria-hidden="true" />
 	</button>
 	{#if open}
-		<ControlBarTray bind:panelWidth bind:zoom {onresizeall} {captureContainer} />
+		<!-- Portaled to document.body — the hover/focus/Escape lifecycle
+		     re-attaches here, since the tray is no longer a DOM descendant
+		     of the .controlbar host those handlers sit on. -->
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions —
+		     the listeners are the tray's HOVER LIFECYCLE (reveal/hide
+		     grace + Escape), not pointer interaction; the tray's real
+		     controls stay themselves inside ControlBarTray. -->
+		<div
+			class="tray-float"
+			role="group"
+			use:portal
+			style={trayStyle}
+			onmouseenter={reveal}
+			onmouseleave={scheduleHide}
+			onfocusin={reveal}
+			onfocusout={(e: FocusEvent & { currentTarget: EventTarget & Node; relatedTarget: EventTarget | null }) => {
+				const next = e.relatedTarget;
+				if (!(next instanceof Node) || !e.currentTarget.contains(next)) scheduleHide();
+			}}
+			onkeydown={onKeydown}
+		>
+			<ControlBarTray bind:panelWidth bind:zoom {onresizeall} {captureContainer} />
+		</div>
 	{/if}
 </div>
 
 <style>
 	.controlbar {
-		/* Pinned top-right OVER the panels viewport (the floor's chrome
-		   corner — the sidebar is left-anchored, so the viewport's right
-		   edge is the window's right edge). */
-		position: fixed;
-		top: 0.5rem;
-		right: 0.75rem;
-		z-index: 30;
+		/* Flows inline where hosted (sidebar header action cluster /
+		   collapsed stub, 2026-10-22) — no fixed pinning. */
 	}
 
 	.trigger {
@@ -159,5 +207,12 @@
 	.trigger:focus-visible {
 		opacity: 1;
 		color: var(--color-text-primary, #212529);
+	}
+
+	/* Portaled tray host: fixed under the trigger's viewport rect
+	   (left/top set inline), above every floor chrome. */
+	.tray-float {
+		position: fixed;
+		z-index: 60;
 	}
 </style>

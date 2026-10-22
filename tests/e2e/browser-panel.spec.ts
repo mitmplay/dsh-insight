@@ -4,7 +4,7 @@
  * 01 a browser panel mounts the glass and reaches live frames
  * 02 a click through the glass lands in the real browser (fixture title flips)
  * 03 typed text through the glass reaches the fixture input
- * 04 panel-close removes the panel AND frees the debug port (D8)
+ * 04 browse-close removes the panel AND frees the debug port (D8)
  *
  * Fixture = a data: URL (no extra server): a full-viewport button/input that
  * reports into document.title — the /page route is the DOM-truth channel,
@@ -197,16 +197,75 @@ test.describe.serial('glass browser e2e', () => {
 			.toBeCloseTo(box!.width, 1);
 	});
 
-	test('04 panel-close removes the panel and frees the debug port (D8)', async ({ page, request }) => {
+	test('04 browse-close FOLDS: panel leaves, the session and its port SURVIVE (ADR-0037 D1)', async ({
+ page, request }) => {
 		await openGlass(page);
 		const mine = (await panelSession(page, request)).id;
 		const myPort = (await (await request.get('/api/browser')).json()) as { sessions: Array<{ id: string; port: number }> };
 		const thePort = myPort.sessions.find((s) => s.id === mine)!.port;
 		// scope INSIDE the browser panel — the floor chrome uses panel-close too
-		await page.getByTestId('panel-browser').getByTestId('panel-close').click();
+		await page.getByTestId('panel-browser').getByTestId('browse-close').click();
 		await expect(page.getByTestId('panel-browser')).toHaveCount(0);
-		await expect.poll(async () => (await request.get('/api/browser/' + mine + '/page')).status()).toBe(409);
+		// THE FOLD: no owner-release kill — the session stays live, the port stays held
+		await expect.poll(async () => (await request.get('/api/browser/' + mine + '/page')).status()).toBe(200);
 		const held = spawnSync('lsof', ['-ti', 'tcp:' + thePort, '-sTCP:LISTEN'], { stdio: 'pipe' });
-		expect(held.status !== 0).toBe(true);
+		expect(held.status === 0).toBe(true);
+		// the folded glass ghost-nests under its opener in SidebarOpenPanels (D4) — one click summons it back
+for (const m of []) {} /* noop */
+		const row = page.locator(`[data-testid="sidebar-ghost-row"][data-session-id="${mine}"]`);
+		await expect(row).toBeVisible({ timeout: 10_000 });
+		// GLYPH EVIDENCE (operator bug 2026-10-22): the pulsing FRAME paints,
+		// never the stream bars; the title names the glass first.
+		await expect(row.locator('.frame')).toBeVisible();
+		await expect(row.locator('.bar')).toHaveCount(0);
+		await expect(row).toContainText('Browser — ');
+		await row.screenshot({ path: 'test-results/glass-ghost-row.png' });
+		await row.click();
+		await expect(page.getByTestId('panel-browser')).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('browser-status')).toHaveAttribute('data-status', 'live', { timeout: 20_000 });
+	});
+	// The Glass Provenance (ADR-0036, task 4.1): the chip survives the hard
+	// reload (the slot re-mint) and dies with the panel close (no ghost).
+	// The never-rewrite rule is unit-pinned (browser-species.test.ts) — this
+	// surface case pins what the operator sees.
+	test('06 provenance chip survives reload and dies with the panel', async ({ page }) => {
+		await openGlass(page);
+		const chip = page.getByTestId('browser-provenance');
+		await expect(chip).toBeVisible();
+		// the STABLE identity is the title attribute (the opener session id);
+		// the visible label may heal from the raw id to the spine title after
+		// a tick — text equality across the reload is not the contract
+		const before = await chip.getAttribute('title');
+		expect(before?.trim().length).toBeGreaterThan(0);
+		// the session open must SETTLE (persistId lands) before the reload —
+		// otherwise the boot restore correctly finds no persisted id (the
+		// least-surprise rule) and summons nothing
+		await expect(page.getByTestId('browser-status')).toHaveAttribute('data-status', 'live', { timeout: 20_000 });
+		// HARD reload — the boot restore re-mints the glass from the slot
+		await page.reload();
+		await expect(page.getByTestId('panel-browser')).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('browser-provenance')).toHaveAttribute('title', before ?? '', { timeout: 20_000 });
+		// panel close takes the chip (and its slot) with it — no ghost
+		await page.getByTestId('panel-browser').getByTestId('browse-close').click();
+		await expect(page.getByTestId('panel-browser')).toHaveCount(0);
+		await expect(page.getByTestId('browser-provenance')).toHaveCount(0);
+	});
+
+	// Amendment 2: the glass is FAMILY, not furniture — it spawns to the
+	// RIGHT of its opener (D6) and dies with it (D5 revised).
+	test('07 glass spawns right of opener and cascade-closes with it', async ({ page }) => {
+		await openGlass(page);
+		await expect(page.getByTestId('browser-status')).toHaveAttribute('data-status', 'live', { timeout: 20_000 });
+		// D6 placement: the glass column sits right of the conversation column
+		const convColumn = page.getByTestId('panel-column').filter({ has: page.getByTestId('conversation-header') }).first();
+		const convBox = await convColumn.boundingBox();
+		const glassBox = await page.getByTestId('panel-browser').boundingBox();
+		expect(convBox).not.toBeNull();
+		expect(glassBox!.x).toBeGreaterThanOrEqual(convBox!.x + convBox!.width - 1);
+		// the roster row wears the sub-agent costume: depth 1 under its opener
+		await expect(page.locator('[data-panel-id][data-depth="1"]')).toHaveCount(1);
+		// D5 revised cascade: closing the OPENER conversation takes the glass
+		await page.getByTestId('browse-close').first().click();
+		await expect(page.getByTestId('panel-browser')).toHaveCount(0, { timeout: 10_000 });
 	});
 });

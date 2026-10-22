@@ -44,7 +44,7 @@
 		onspinechange,
 		onfilterchange,
 		oncreated,
-		onreplace
+		onreplace,
 	}: {
 		phase: 'loading' | 'ready' | 'error';
 		message?: string;

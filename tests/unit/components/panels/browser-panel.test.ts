@@ -4,7 +4,7 @@
  * the warm shape (prop seed, no open POST), frame arrival (status live +
  * canvas draw + viewport from frame ÷ dpr), operator input mapping (scaled
  * mouse press/release/wheel, printable-key text, move coalescing, 409
- * close), owner-release (panel-close single POST + onclose, unmount
+ * close), owner-release (browse-close single POST + onclose, unmount
  * DETACHES ONLY — no close POST, ADR-0030 D1) and the failure shapes (open
  * failure, SSE error).
  * fetch and EventSource are stubbed; rAF is captured so move coalescing is
@@ -364,27 +364,23 @@ describe('BrowserPanel — operator input mapping (D6)', () => {
 	});
 });
 
-describe('BrowserPanel — owner release (D8)', () => {
-	it('panel-close POSTs /close exactly once, closes the stream, reports onclose', async () => {
+describe('BrowserPanel — the fold (ADR-0037 D1/D2)', () => {
+	it('browse-close FOLDS: reports onclose, NO /close POST, stream detached', async () => {
 		let closed = 0;
 		const view = mountPanel({ browserSessionId: 'warm-abc12345', onclose: () => (closed += 1) });
 		await settle();
 		await goLive(view);
-		const btn = view.target.querySelector('[data-testid="panel-close"]') as HTMLButtonElement;
+		const btn = view.target.querySelector('\[data-testid="browse-close"\]') as HTMLButtonElement;
 		expect(btn.disabled).toBe(false);
-		btn.click();
-		btn.click(); // the closing guard eats the double invocation
+		btn.click(); // in the real flow the FIRST onclose removes the panel — no double fire
 		await settle();
-		expect(env.closeCalls).toEqual(['/api/browser/warm-abc12345/close']);
-		expect(StubEventSource.instances[0].closed).toBe(true);
-		expect(statusOf(view.target)).toBe('closed');
+		expect(env.closeCalls).toEqual([]); // THE FOLD: the session stays alive
+		expect(StubEventSource.instances[0].closed).toBe(false); // detach is the unmount's job — the fold only reports upward
 		expect(closed).toBe(1);
 		view.un();
-		// unmount after an owner-release does NOT post /close again
-		expect(env.closeCalls).toHaveLength(1);
 	});
 
-	it('unmount DETACHES ONLY: no /close POST — the session survives the page (ADR-0030 D1)', async () => {
+it('unmount DETACHES ONLY: no /close POST — the session survives the page (ADR-0030 D1)', async () => {
 		const view = mountPanel({ browserSessionId: 'warm-abc12345' });
 		await settle();
 		view.un();
@@ -392,25 +388,11 @@ describe('BrowserPanel — owner release (D8)', () => {
 		expect(env.closeCalls).toEqual([]);
 	});
 
-	it('a close network blip still reports upward — the registry close is the authority', async () => {
-		let closed = 0;
-		const view = mountPanel({ browserSessionId: 'warm-abc12345', onclose: () => (closed += 1) });
-		await settle();
-		fetchMock.mockImplementationOnce(async () => {
-			throw new TypeError('network down');
-		});
-		(view.target.querySelector('[data-testid="panel-close"]') as HTMLButtonElement).click();
-		await settle();
-		expect(statusOf(view.target)).toBe('closed');
-		expect(closed).toBe(1);
-		view.un();
-	});
-
 	it('a panel that never got a session closes nothing — close-click is a no-op and unmount posts nothing', async () => {
 		env.openOk = false;
 		const view = mountPanel();
 		await settle();
-		(view.target.querySelector('[data-testid="panel-close"]') as HTMLButtonElement).click();
+		(view.target.querySelector('[data-testid="browse-close"]') as HTMLButtonElement).click();
 		await settle();
 		expect(statusOf(view.target)).toBe('failed'); // unchanged, no session to close
 		view.un();
@@ -450,29 +432,17 @@ describe('BrowserPanel — sticky glass (The Sticky Glass, ADR-0030)', () => {
 		const view = mountPanel();
 		await settle();
 		expect(localStorage.getItem('dsi.browser.sessionId')).toBe(SESSION_ID);
-		view.un();
 	});
 
-	it('hard-reload shape: unmount after a cold open posts NO close — the session survives', async () => {
-		const view = mountPanel();
+	it('browse-close FOLDS in the sticky flow too: no /close POST, onclose only (ADR-0037 D1)', async () => {
+		const view = mountPanel({ browserSessionId: 'warm-abc12345' });
 		await settle();
+		(view.target.querySelector('[data-testid="browse-close"]') as HTMLButtonElement).click();
+		await settle();
+		expect(env.closeCalls).toEqual([]);
 		view.un();
 		await settle();
 		expect(env.closeCalls).toEqual([]);
-		// and the persisted id is still there for the remount
-		expect(localStorage.getItem('dsi.browser.sessionId')).toBe(SESSION_ID);
-	});
-
-	it('panel-close still posts /close exactly once (D8 untouched)', async () => {
-		const view = mountPanel({ browserSessionId: 'warm-abc12345' });
-		await settle();
-		(view.target.querySelector('[data-testid="panel-close"]') as HTMLButtonElement).click();
-		await settle();
-		expect(env.closeCalls).toEqual(['/api/browser/warm-abc12345/close']);
-		view.un();
-		// and the owner-release clears the persisted id? No — D8 closes the
-		// session; the stale id falls through on the next mount (resolver D4)
-		await settle();
 	});
 });
 

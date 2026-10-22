@@ -25,7 +25,8 @@
 	 * and copy-id stay live (the clipboard has no floor membership).
 	 * Default false: a floor mount renders exactly as before.
 	 */
-	import { Check, ChevronLeft, ChevronRight, Copy, X } from '@lucide/svelte';
+	import { Check, ChevronLeft, ChevronRight, Copy } from '@lucide/svelte';
+	import PanelClose from './PanelClose.svelte';
 	import { movePanelFromRegistry } from '$lib/services/panels/panel-registry';
 	import { copyWithFeedback } from '$lib/utils/clipboard';
 	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
@@ -154,17 +155,7 @@
 			/>
 		{/if}
 		{#if onremove || lens}
-			<button
-				type="button"
-				class="hdr-btn"
-				disabled={lens}
-				data-testid="panel-close"
-				aria-label={t(() => m.closePanelNamed({ id: sessionId }))}
-				title={t(m.closePanelHint)}
-				onclick={(e) => onremove?.({ shiftKey: e.shiftKey })}
-			>
-				<X size={12} aria-hidden="true" />
-			</button>
+			<PanelClose {sessionId} {lens} {onremove} />
 		{/if}
 	</span>
 </div>

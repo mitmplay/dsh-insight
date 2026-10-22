@@ -188,6 +188,7 @@
 					>
 						<WorkspaceRowItem
 							running={g.running}
+							browser={g.panel.id.startsWith('glass-')}
 							depth={g.depth ?? 1}
 							workspace={g.workspace}
 							{workspaces}

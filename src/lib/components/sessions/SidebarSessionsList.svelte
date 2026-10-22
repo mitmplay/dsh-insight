@@ -207,7 +207,7 @@
 						<RowSessionItem session={s} depth={depthById[s.sessionId] ?? 0} {workspaces} />
 					{/each}
 				{/if}
-			</div>
+		</div>
 		{/if}
 	</div>
 </div>

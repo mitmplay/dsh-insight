@@ -249,6 +249,15 @@ export function familyRenderOrder<TPanel extends FamilyMember, TGhost extends Fa
 		list.push(g);
 		ghostsByParent.set(key, list);
 	}
+	// Wire order governs INSIDE a ghost cluster too (ADR-0037 as-built:
+	// the folded glass flushes first under its opener). Stable sort by
+	// the member's own order — missing sorts last (Infinity).
+	for (const [key, list] of ghostsByParent) {
+		ghostsByParent.set(
+			key,
+			[...list].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity))
+		);
+	}
 	const out: Array<FamilyRenderEntry<TPanel, TGhost>> = [];
 	const seenPanels = new Set<string>();
 	const seenGhosts = new Set<string>();
@@ -295,6 +304,18 @@ export function familyRenderOrder<TPanel extends FamilyMember, TGhost extends Fa
 	// themselves (fail-soft, the module's rule; deriveLineage precedent).
 	for (const p of panels) {
 		if (!seenPanels.has(p.id)) renderPanel(p);
+	}
+	// Orphan ghost clusters (2026-10-22): a folded glass whose opener holds
+	// NO panel — the last panel closed, the glass folded on (ADR-0037 D4:
+	// the ghost row owns the bring-back). Without this walk the cluster
+	// renders nowhere at all: the roster's rows gate sees no panels and
+	// this function never reaches a ghost whose parent is not a panel.
+	// The cluster heads its own block, anchored to its (absent) parent —
+	// the fold gates treat an off-floor anchor as transparent.
+	for (const g of ghosts) {
+		if (seenGhosts.has(g.id)) continue; // flushed inside a cluster above
+		if (g.parent !== null && panelIds.has(g.parent)) continue; // anchored under its panel
+		renderGhostSubtree(g, g.parent || g.id);
 	}
 	return out;
 }

@@ -67,7 +67,8 @@
 	let {
 		running,
 		delegated = false,
-		count = 0
+		count = 0,
+		browser = false
 	}: {
 		/** Live-turn flag — bars when true, static dot when false. */
 		running: boolean;
@@ -75,12 +76,17 @@
 		delegated?: boolean;
 		/** Live descendant count — badge renders only when > 0. */
 		count?: number;
+		/** ADR-0037 D4 — a folded GLASS row: the glyph is a pulsing frame,
+		 *  never the stream bars (a browser session is not a chat turn). */
+		browser?: boolean;
 	} = $props();
 
 	/** Accessible name — four distinct states; the count rides along
 	 *  (WCAG 1.4.1: never color alone). */
 	const label = $derived(
-		running
+		browser
+			? 'browser session, folded — click to open'
+			: running
 			? delegated
 				? count > 0
 					? `running and delegating, ${count} running`
@@ -96,14 +102,15 @@
 
 <span
 	class="status"
-	class:run={running}
-	class:idle={!running}
+	class:run={running && !browser}
+	class:idle={!running && !browser}
+	class:browser={browser}
 	class:delegated={delegated}
 	role="img"
 	aria-label={label}
 	data-testid="session-status"
 >
-	{#if running}<span class="bar"></span><span class="bar"></span><span class="bar"></span>{/if}{#if count > 0}<span class="badge" aria-hidden="true">×{count}</span>{/if}
+	{#if browser}<span class="frame" aria-hidden="true"></span>{:else if running}<span class="bar"></span><span class="bar"></span><span class="bar"></span>{/if}{#if count > 0}<span class="badge" aria-hidden="true">×{count}</span>{/if}
 </span>
 
 <style>
@@ -229,5 +236,24 @@
 		font-weight: 600;
 		line-height: 0.625rem;
 		text-align: center;
+	}
+
+	/* ADR-0037 D4 — the glass glyph: a small framed viewport that
+	   breathes (opacity pulse) — motion says 'alive', the frame says
+	   'browser', and neither borrows the stream-bars grammar. Same
+	   0.5rem footprint; prefers-reduced-motion freezes the pulse. */
+	.frame {
+		width: 0.55rem;
+		height: 0.45rem;
+		border: 1.5px solid var(--si-run, #c92a2a);
+		border-radius: 1px;
+		animation: glass-breathe 1.6s ease-in-out infinite;
+	}
+	@keyframes glass-breathe {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.35; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.frame { animation: none; }
 	}
 </style>

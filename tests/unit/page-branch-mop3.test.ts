@@ -162,22 +162,16 @@ describe('+page.svelte — boot browser auto-restore ladder', () => {
 		unmount(instance);
 	});
 
-	it('no persisted id: the probe never even fires — no auto-open', async () => {
-		const calls = [];
-		const realFetch = globalThis.fetch;
-		vi.stubGlobal('fetch', function (...args) {
-			calls.push(String(args[0]));
-			return realFetch(...args);
-		});
+	it('an empty slot list (Amendment 3) restores nothing', async () => {
+		localStorage.setItem('dsi.browser.sessionId', 'b-live');
 		const { instance } = await mountBare();
-		expect(calls.some((u) => u.includes('/api/browser'))).toBe(false);
+		await settle();
 		expect(document.querySelector('[data-testid="panel-browser-slot"]')).toBeNull();
 		unmount(instance);
 	});
 
-	it('a live persisted id restores the glass at its persisted slot (index honored, keepSelection)', async () => {
-		localStorage.setItem('dsi.browser.sessionId', 'b-live');
-		localStorage.setItem('dsi.browser.panelIndex', '1');
+	it('a slot whose sessionId is live restores the glass at its persisted slot (Amendment 3 list)', async () => {
+		localStorage.setItem('dsi.browser.panelIndex', JSON.stringify([{ index: 1, openedBy: 's-floor', sessionId: 'b-live' }]));
 		browserBody = { ok: true, sessions: [{ id: 'b-live' }] };
 		const { target, instance } = await mountBare();
 		const slot = await waitFor('[data-testid="panel-browser-slot"]', target);
@@ -185,8 +179,24 @@ describe('+page.svelte — boot browser auto-restore ladder', () => {
 		unmount(instance);
 	});
 
-	it('a dead persisted id (probe lists others) — no auto-open, index fallback null', async () => {
-		localStorage.setItem('dsi.browser.sessionId', 'b-dead');
+	it('TWO live slots restore TWO glasses, each bound to its OWN session (Amendment 3 reload survival)', async () => {
+		localStorage.setItem(
+			'dsi.browser.panelIndex',
+			JSON.stringify([
+				{ index: 1, openedBy: 's-floor', sessionId: 'b-live' },
+				{ index: 2, openedBy: 's-other', sessionId: 'b-live-2' }
+			])
+		);
+		browserBody = { ok: true, sessions: [{ id: 'b-live' }, { id: 'b-live-2' }] };
+		const { target, instance } = await mountBare();
+		await settle();
+		const slots = target.querySelectorAll('[data-testid="panel-browser-slot"]');
+		expect(slots.length).toBe(2);
+		unmount(instance);
+	});
+
+	it('a slot with a dead sessionId (probe lists others) — no auto-open (per-slot gate)', async () => {
+		localStorage.setItem('dsi.browser.panelIndex', JSON.stringify([{ index: 1, sessionId: 'b-dead' }]));
 		browserBody = { ok: true, sessions: [{ id: 'other' }] };
 		const { instance } = await mountBare();
 		await settle();

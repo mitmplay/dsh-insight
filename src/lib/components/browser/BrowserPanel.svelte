@@ -11,7 +11,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import * as m from '$lib/paraglide/messages';
-	import { persistId, resolveBrowserSession } from '$lib/services/panels/browser-session-resolver.js';
+	import { persistId } from '$lib/services/panels/browser-session-resolver.js';
 	import BrowserHeader from './BrowserHeader.svelte';
 	import BrowserContent from './BrowserContent.svelte';
 	import { createMoveCoalescer, scalePoint } from './mirror-input.ts';
@@ -23,11 +23,22 @@
 		/** Owner-release callback (D8): fired AFTER /close answered ok. */
 		onclose,
 		/** Test seam: base URL for the API (e2e runs same-origin; default ''). */
-		apiBase = ''
+		apiBase = '',
+		/** Provenance (ADR-0036 D3): the opener session's id, its live spine
+		 *  title, and the opener's lineage depth — the lineage chip's facts.
+		 *  openedBy absent (ControlBar open) means NO chip, honestly. */
+		openedBy = undefined,
+		parentTitle = null,
+		depth = 0,
+		onsession,
 	}: {
 		browserSessionId?: string | undefined;
 		onclose?: () => void;
 		apiBase?: string;
+		openedBy?: string | undefined;
+		parentTitle?: string | null;
+		depth?: number;
+		onsession?: (id: string) => void;
 	} = $props();
 
 	let sessionId = $state<string | null>(null);
@@ -184,21 +195,14 @@
 		void proxy({ action: dir });
 	}
 
-	/** D8 owner-release: close the SERVER session first (kills the browser),
-	 *  then report upward so the floor removes the panel. Exactly once —
-	 *  the closing flag guards double-invocations (the single-close-post
-	 *  unit contract). */
-	async function closePanel(): Promise<void> {
-		if (closing || !sessionId) return;
-		closing = true;
-		es?.close();
-		try {
-			await fetch(apiBase + '/api/browser/' + sessionId + '/close', { method: 'POST' });
-		} catch {
-			/* the registry close is the authority; a network blip must not
-			   trap the panel — report upward regardless */
-		}
-		status = 'closed';
+	/** The FOLD (ADR-0037 D1): the header close button only reports
+	 *  upward - the route's onclose is removePanel, the panel leaves the
+	 *  floor, and the SERVER SESSION STAYS ALIVE (the reaper is the
+	 *  bound; the slot entry keeps the re-bind facts). The old
+	 *  owner-release kill (POST /close on this click, ADR-0029 D8) is
+	 *  retired from this surface: kills belong to the reaper and
+	 *  cascade close now. */
+	function fold(): void {
 		onclose?.();
 	}
 
@@ -226,9 +230,20 @@
 				// (ADR-0030 D1/D4) — a hard reload lands HERE, not in a kill.
 				sessionId ??= browserSessionId ?? null;
 				if (!sessionId) {
-					const r = await resolveBrowserSession(apiBase);
-					sessionId = r.id;
-					reBound = r.reBound;
+					// Amendment 3: a chip-spawned glass OPENS FRESH — the global
+					// persisted id is another glass's session, and re-binding to it
+					// would share one profile across glasses (the reported bug:
+					// both glasses showing the same session id). Re-bind rides the
+					// ENTRY's browserSessionId (the slot's per-glass sessionId).
+					const res = await fetch(apiBase + '/api/browser', { method: 'POST' });
+					if (!res.ok) throw new Error('open failed: ' + res.status);
+					const info = (await res.json()) as { id: string };
+					sessionId = info.id;
+					reBound = false;
+					// Amendment 3: report the session up — the slot list carries one
+					// sessionId per glass so the boot restore re-binds each glass
+					// to its OWN session.
+					onsession?.(sessionId);
 					persistSeeded(sessionId);
 					const p = await fetch(apiBase + '/api/browser/' + sessionId + '/page');
 					if (p.ok) dpr = ((await p.json()) as { dpr?: number }).dpr ?? 1;
@@ -268,9 +283,9 @@
 		// DETACH ONLY (ADR-0030 D1/D2): an unmount — hard reload, tab close,
 		// floor teardown — releases the EventSource, never the session. The
 		// browser, its profile, and the brain on the brain port survive; the
-		// persisted id re-binds on the next mount. Owner-release stays where
-		// ADR-0029 D8 put it: the explicit panel-close click (and the
-		// server-side idle reaper as the safety net).
+		// persisted id re-binds on the next mount. Kills live with the
+		// reaper and cascade close now (ADR-0037 D2) - the header fold is
+		// just an unmount.
 		es?.close();
 	});
 </script>
@@ -285,11 +300,26 @@
 		busy={proxyBusy}
 		{canBack}
 		{canForward}
-		onclose={() => void closePanel()}
+		onclose={() => fold()}
 		onnavigate={submitUrl}
 		onreload={() => void proxy({ action: 'reload' })}
 		onhistory={goHistory}
 	/>
+	{#if openedBy}
+		<!-- The lineage chip (ADR-0036 D3): who asked for this glass. The
+		     title rides the spine merge the route resolved; a pruned opener
+		     degrades to the raw session id. Depth tint like the transcript. -->
+		<div
+			class="browser-provenance flex items-center gap-1 border-b border-surface-border px-2 py-0.5 text-[10px] text-surface-muted"
+			class:depth-tinted={depth > 0}
+			data-testid="browser-provenance"
+			title={openedBy}
+		>
+			<span class="opacity-70">⌥</span>
+			<span class="truncate">{parentTitle ?? openedBy}</span>
+			{#if depth > 0}<span class="opacity-60">·d{depth}</span>{/if}
+		</div>
+	{/if}
 	<BrowserContent
 		{status}
 		{failReason}
@@ -302,3 +332,10 @@
 		onkey={onKey}
 	/>
 </div>
+<style>
+	/* Depth tint, self-contained (ADR-0036 D3): the conversation surface's
+	   depth-tint is scoped there; the chip carries its OWN tone. */
+	.depth-tinted {
+		background-color: color-mix(in srgb, var(--color-surface-active, transparent) 30%, transparent);
+	}
+</style>

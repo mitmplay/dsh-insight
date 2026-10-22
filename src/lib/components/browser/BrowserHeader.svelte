@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages';
+	import BrowserClosed from './BrowserClosed.svelte';
 
 	let {
 		/** Panel session state — drives the dot color and testid data. */
@@ -100,11 +101,6 @@
 	<span class="flex items-center gap-2" data-testid="browser-status" data-status={status} data-rebound={reBound}>
 		<span class="inline-block h-2 w-2 rounded-full {status === 'live' ? 'bg-emerald-500' : status === 'failed' || status === 'closed' ? 'bg-red-500' : 'bg-amber-400'}"></span>
 		{#if sessionId}<span class="rounded-t-md border border-b-0 border-surface-border bg-surface-elevated px-2 py-0.5 font-mono text-[10px] opacity-80" data-testid="browser-session-tab">{sessionId.slice(0, 8)}</span>{/if}
-		<button
-			class="rounded px-1 hover:bg-surface-active"
-			data-testid="panel-close"
-			disabled={closing}
-			onclick={() => onclose?.()}
-		>✕</button>
+		<BrowserClosed {closing} {onclose} />
 	</span>
 </div>

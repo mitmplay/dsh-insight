@@ -243,15 +243,42 @@ export function blockBounds(
 			}
 			return [idx, idx];
 		}
-		if (at.kind !== 'injected-doc') return [idx, idx];
-		let i = idx;
-		while (i > 0 && panels[i - 1].kind === 'injected-doc') i--;
-		const head = panels[i - 1];
-		if (head === undefined || head.kind !== 'conversation') return [idx, idx];
-		if (head.sessionId !== at.sourceSessionId) {
-			return [idx, idx];
+		if (at.kind === 'browser') {
+			// ADR-0036 Amendment 2 (D5/D6): the glass travels with its opener —
+			// back over the contiguous browser run to the family conversation
+			// above; the opener must belong to THAT family (D6 pins the glass
+			// at the family-region end, so the head may be a sub-agent, not the
+			// opener itself — climb openedBy's chain over the move facts).
+			let i = idx;
+			while (i > 0 && panels[i - 1].kind === 'browser') i--;
+			const head = panels[i - 1];
+			const inFamily = (id: string | undefined, root: string): boolean => {
+				if (id === undefined) return false;
+				let cur: string | null = id;
+				for (let guard = 0; guard < panels.length + 1 && cur !== null; guard++) {
+					if (cur === root) return true;
+					cur = facts.parentOf.get(cur) ?? null;
+				}
+				return false;
+			};
+			if (head === undefined || head.kind !== 'conversation' || !inFamily(head.sessionId, at.openedBy)) {
+				return [idx, idx];
+			}
+			sessionId = head.sessionId;
 		}
-		sessionId = head.sessionId;
+		// The browser branch above already claimed the family (sessionId set):
+		// fall through to the climb instead of the family-less return.
+		if (at.kind !== 'injected-doc' && sessionId === null) return [idx, idx];
+		if (at.kind === 'injected-doc') {
+			let i = idx;
+			while (i > 0 && panels[i - 1].kind === 'injected-doc') i--;
+			const head = panels[i - 1];
+			if (head === undefined || head.kind !== 'conversation') return [idx, idx];
+			if (head.sessionId !== at.sourceSessionId) {
+				return [idx, idx];
+			}
+			sessionId = head.sessionId;
+		}
 	}
 	// Climb to the family head (root ancestor on the floor).
 	for (let guard = 0; guard < panels.length + 1; guard++) {
@@ -306,6 +333,13 @@ function unitOf(
 			continue;
 		}
 		if (p.kind === 'injected-doc' && familySessions.has(p.sourceSessionId)) {
+			end = i;
+			continue;
+		}
+		// The glass rides the family block too (Amendment 2): a browser whose
+		// opener is already in the family is contiguous family — the operator's
+		// move of the main agent carries it (the doc-tail pattern, session-keyed).
+		if (p.kind === 'browser' && p.openedBy !== undefined && familySessions.has(p.openedBy)) {
 			end = i;
 			continue;
 		}

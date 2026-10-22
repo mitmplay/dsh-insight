@@ -73,7 +73,8 @@
 	import {
 		addPanelFromSidebar,
 		movePanelFromRegistry,
-		selectPanelFromRegistry
+		selectPanelFromRegistry,
+		summonGlassFromRegistry
 	} from '$lib/services/panels/panel-registry';
 	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
 	import { familyRenderOrder } from '$lib/services/lineage/lineage';
@@ -100,11 +101,14 @@
 	/** Header name — session title, id when unknown (the row-label grammar). */
 	// Manager rows (ADR D6/D10) carry no session id — the title ('Prompt Manager')
 	// is always set for them, so the id fallback never fires.
+	// Zero-panel fallback (2026-10-22): the roster survives on folded-glass
+	// ghosts alone after the last panel closes — the header names the first
+	// ghost so the group never reads as an empty "Focused -".
 	const headName = $derived(
 		selectedRow
 			? (selectedRow.title ??
 				(selectedRow.panel.kind === 'conversation' ? selectedRow.panel.sessionId : null))
-			: null
+			: (ws?.ghosts ?? [])[0]?.title ?? null
 	);
 
 	// EXPANDED by default (2026-09-18 change; collapsed 2026-08-26); the
@@ -237,6 +241,17 @@
 		const stored = loadPanelGroupPrefs(profile).unfoldedSessionIds;
 		unfoldedParents = Object.fromEntries(stored.map((id) => [id, true]));
 	});
+	// ADR-0037 D4 — the glass fold must SHOW its result: the moment a
+	// folded-glass ghost exists, its opener's family reveals (the same
+	// 'you acted, you must see it' rule the adoption reveal encodes).
+	// One write per glass; a later explicit fold by the operator wins.
+	$effect(() => {
+		for (const g of ws?.ghosts ?? []) {
+			if (g.panel.id.startsWith('glass-') && g.parentSessionId && unfoldedParents[g.parentSessionId] !== true) {
+				unfoldedParents[g.parentSessionId] = true;
+			}
+		}
+	});
 
 	/** The desk blob's fold half (D4): the live map's `true` entries pruned
 	 *  to current floor members (panel or ghost — `memberById` is the
@@ -341,6 +356,15 @@
 	 *  head) and ask the tree to reveal the clicked row. */
 	function onAdopt(ghost: PanelRow): void {
 		if (ghost.panel.kind !== 'conversation') return; // ghosts are always conversation-shaped
+		// ADR-0037 D4: a folded GLASS ghost summons — openBrowserPanel
+		// re-binds the surviving session; never addPanelFromSidebar.
+		if (ghost.panel.id.startsWith('glass-')) {
+			summonGlassFromRegistry(
+				{ sessionId: ghost.panel.sessionId, openedBy: ghost.parentSessionId ?? undefined },
+				{ replace: false }
+			);
+			return;
+		}
 		revealSessionId = ghost.panel.sessionId;
 		addPanelFromSidebar({ sessionId: ghost.panel.sessionId, agentPreset: null });
 	}
@@ -449,7 +473,7 @@
 	});
 </script>
 
-{#if rows.length > 0}
+{#if rows.length > 0 || (ws?.ghosts ?? []).length > 0}
 	<div class="pane" data-testid="sidebar-panel-pane">
 		<div class="panel-group" data-testid="sidebar-panel-group">
 			<div class="group-head-row">

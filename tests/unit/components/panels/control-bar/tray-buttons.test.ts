@@ -149,7 +149,9 @@ describe('TrayButtons — captureContainer pass-through through ControlBar', () 
 		const bar = target.querySelector('[data-testid="controlbar"]') as HTMLElement;
 		bar.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
 		flushSync();
-		const button = target.querySelector('[data-testid="canvas-copy-button"]') as HTMLElement;
+		// The tray portals to document.body (2026-10-22) — it is NOT a
+		// DOM descendant of the mount target anymore.
+		const button = document.body.querySelector('[data-testid="canvas-copy-button"]') as HTMLElement;
 		expect(button).not.toBeNull();
 		button.click();
 		await settle();

@@ -14,8 +14,8 @@
 	import PromptManagerPanel from '$lib/components/prompt-manager/PromptManagerPanel.svelte';
 	import TerminalDesk from '$lib/components/terminal/TerminalDesk.svelte';
 	import { registerJobTabLauncher } from '$lib/services/jobs/follow-client.svelte';
-	import BrowserPanel from '$lib/components/browser/BrowserPanel.svelte';
-	import { persistPanelIndex, readPersistedId, readPersistedIndex } from '$lib/services/panels/browser-session-resolver.js';
+	import BrowserManager from '$lib/components/browser/BrowserManager.svelte';
+	import { browserSlotStore, persistBrowserSlots, primeBrowserSlotStore, readBrowserSlots } from '$lib/services/panels/browser-session-resolver.js';
 	import SettingsSkillsPanel from '$lib/components/settings-skills/SettingsSkillsPanel.svelte';
 	import PluginManagerPanel from '$lib/components/settings-plugins/PluginManagerPanel.svelte';
 	import SettingsEditorPanel from '$lib/components/panels/SettingsEditorPanel.svelte';
@@ -27,7 +27,6 @@
 	import PanelLoupe from '$lib/components/panels/PanelLoupe.svelte';
 	import StickyColumnContainer from '$lib/components/panels/StickyColumnContainer.svelte';
 	import EmptyFloor from '$lib/components/panels/EmptyFloor.svelte';
-	import ControlBar from '$lib/components/panels/control-bar/ControlBar.svelte';
 	import {
 		registerAddPanel,
 		registerMovePanel,
@@ -35,9 +34,11 @@
 		registerReplacePanelBySession,
 		registerReplaceSelected,
 		registerSelectPanel,
-		registerStartPanelResize
+		registerStartPanelResize,
+		registerSummonGlass
 	} from '$lib/services/panels/panel-registry';
 	import { setWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
+	import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
 	import { panelHeaderLabel } from '$lib/services/panels/panel-rows';
 	import { appConfig } from '$lib/services/config/app-config.svelte';
 	import { resetSync } from '$lib/services/chat/prompt-sync.svelte';
@@ -110,19 +111,39 @@
 	// server. No live id → no auto-open: a browser must never come back to
 	// life uninvited (least-surprise, ADR-0029 D8's rejection stands); the
 	// chip remains the way to summon a fresh one.
-	void (async () => {
+	// ADR-0037 D4 — the ONE summon seam, two summoners (boot + sidebar
+	// sidebar ghost rows). Probes the live set, re-mints every UNFOLDED glass
+	// whose own session answers live (reload survival, Amendment 3), and
+	// prunes folded entries whose session died (the honest row).
+	async function restoreBrowserGlasses(): Promise<void> {
 		try {
-			const persisted = readPersistedId();
-			if (!persisted) return;
 			if (floorApi.floor.panels.some((panel) => panel.kind === 'browser')) return;
 			const res = await fetch('/api/browser');
 			if (!res.ok) return;
 			const body = (await res.json()) as { sessions?: Array<{ id: string }> };
-			if (body.sessions?.some((s) => s.id === persisted)) floorApi.openBrowserPanel(readPersistedIndex() ?? undefined, true);
+			const live = new Set((body.sessions ?? []).map((s) => s.id));
+			const slots = readBrowserSlots();
+			const dead = slots.filter((s) => s.sessionId && !live.has(s.sessionId));
+			if (dead.length > 0) persistBrowserSlots(slots.filter((s) => !dead.includes(s)));
+			for (const slot of slots) {
+				if (slot.folded) continue; // a folded glass never comes back uninvited (ADR-0029 D8)
+				if (!slot.sessionId || !live.has(slot.sessionId)) continue;
+				summonGlass(slot);
+			}
 		} catch {
 			/* a boot-time probe must never break the floor */
 		}
-	})();
+	}
+
+	/** Bring ONE folded glass back (the summon; the replace verb is the
+	 *  same re-bind — the glass owns its slot identity, D4). */
+	// FOLD-LOG summon
+	function summonGlass(glass: { index?: number; width?: number; openedBy?: string; sessionId?: string }): void {
+		floorApi.openBrowserPanel(glass.index, true, glass.width, glass.openedBy, glass.sessionId);
+	}
+
+	primeBrowserSlotStore();
+	void restoreBrowserGlasses();
 
 	// ── Derived reads (template names unchanged) ────────────────────────
 	const panels = $derived(floorApi.floor.panels as DsiPanelEntry[]);
@@ -140,6 +161,51 @@
 	const conversationPanels = $derived(floorReads.conversationPanels);
 	const panelRows = $derived(floorReads.panelRows);
 	const ghostRows = $derived(floorReads.ghostRows);
+	// ADR-0037 D4: the folded glasses' sidebar rows — derived from the
+// slot mirror, titled through the existing spine merge, keyed by
+// opener. The summon clears the flag by remounting (the persist
+// effect writes unfolded entries for mounted glasses).
+	const allFoldedGlassRows = $derived(
+		$browserSlotStore
+			.filter((s) => s.folded && s.sessionId && s.openedBy)
+			.map<PanelRow>((s) => ({
+				panel: {
+					id: 'glass-' + s.sessionId,
+					kind: 'conversation',
+					sessionId: s.sessionId as string,
+					agentPreset: null,
+					width: 0
+				},
+				title: 'Browser — ' + (panelTitleFor(s.openedBy as string) ?? (s.openedBy as string)),
+				workspace: null,
+				dead: false,
+				running: true,
+				depth: (lineageFacts.depthById.get(s.openedBy as string) ?? 0) + 1,
+				runningDescendants: 0,
+				kind: 'ghost' as const,
+				parentSessionId: s.openedBy as string,
+				siblingIndex: -1 // ADR-0037 D4: the glass flushes FIRST under its opener
+			}))
+	);
+	// Two homes by the OPENER's floor state (2026-10-22 operator review):
+	// opener PANELED -> the roster's ghost grammar (under its opener, the
+	// established grammar); opener UNPANELED -> the SPINE, nested under
+	// the opener family in the Sessions list — never a dangling orphan
+	// block floating above the sessions.
+	const foldedGlassRows = $derived(
+		allFoldedGlassRows.filter((g) =>
+			conversationPanels.some((p) => p.sessionId === g.parentSessionId)
+		)
+	);
+	const spineGlassRows = $derived(
+		allFoldedGlassRows
+			.filter((g) => !conversationPanels.some((p) => p.sessionId === g.parentSessionId))
+			.map((g) => ({
+				sessionId: (g.panel as { sessionId: string }).sessionId,
+				openedBy: g.parentSessionId as string,
+				title: g.title ?? 'Browser'
+			}))
+	);
 	const sidebarPlacement = $derived(appConfig().sidebar.placement);
 	const sidebarInZoom = $derived(sidebarPlacement === 'panels-zoom' && !pagePrefs.sidebarCollapsed);
 	pageFeeds.installFeeds(() => conversationPanels.map((p) => p.sessionId));
@@ -151,12 +217,30 @@
 	// ── Persistence (R2: one effect, every change) + seed strip (R1) ────
 	// The browser panel's floor slot rides localStorage (the blob does not
 	// persist the browser species) — the boot auto-restore pins to it.
+	let browserSeen = false;
 	$effect(() => {
-		const bIdx = panels.findIndex((panel) => panel.kind === 'browser');
-		// A boot-time tick sees NO browser panel (the auto-restore is still
-		// async) — a -1 must never wipe the saved slot the restore is about
-		// to read. persistPanelIndex treats negatives as no-ops.
-		if (bIdx >= 0) persistPanelIndex(bIdx);
+		// Amendment 3: the slot is a LIST — one entry per glass, each with
+		// its own width, opener, and resolved sessionId (the boot restore
+		// re-binds N glasses to N live sessions). A boot-time tick sees no
+		// browser panel (the restore is still async); the browserSeen latch
+		// only lets a POST-glass no-glass tick clear the list — no ghost.
+		const glasses = panels.filter((panel) => panel.kind === 'browser');
+		if (glasses.length > 0) {
+			browserSeen = true;
+			persistBrowserSlots(
+				glasses.map((g) => ({
+					index: panels.indexOf(g),
+					width: g.width,
+					openedBy: g.openedBy,
+					sessionId: g.browserSessionId
+				}))
+			);
+		} else if (browserSeen) {
+			browserSeen = false;
+			// ADR-0037 D3: a FOLD keeps its entry — marked, not wiped. The
+			// boot restore skips folded entries; the probe prunes the dead.
+			persistBrowserSlots(readBrowserSlots().map((s) => ({ ...s, folded: true })));
+		}
 	});
 	$effect(() => {
 		savePanelPrefs(
@@ -218,7 +302,8 @@
 		registerReplacePanelBySession,
 		registerSelectPanel,
 		registerStartPanelResize,
-		registerMovePanel
+		registerMovePanel,
+		registerSummonGlass
 	] as const;
 	onMount(() => {
 		registerAddPanel(floorApi.doAdd);
@@ -228,13 +313,16 @@
 		registerSelectPanel(floorApi.selectPanel);
 		registerStartPanelResize(floorApi.doStartPanelResize);
 		registerMovePanel(floorApi.doMovePanel);
+		registerSummonGlass((glass) => summonGlass(glass));
 		setWorkspaceState({
 			get rows() {
 				return panelRows;
 			},
-			get ghosts() {
-				return ghostRows;
-			},
+				get ghosts() {
+					// ADR-0037 D4: folded glasses join the ghost rows — the SAME
+					// interleaved grammar under the opener (the sub-agent pattern).
+					return [...ghostRows, ...foldedGlassRows];
+				},
 			get selectedPanelId() {
 				return selectedPanelId;
 			},
@@ -283,6 +371,11 @@
 		currentSessionId={selected?.kind === 'conversation' ? selected.sessionId : ''}
 		paneledSessionIds={conversationPanels.map((p) => p.sessionId)}
 		captureContainer={pageRoot}
+		trayContainer={floorEl}
+		glassRows={spineGlassRows}
+		bind:panelWidth={pagePrefs.panelWidth}
+		bind:zoom={pagePrefs.zoom}
+		onresizeall={floorApi.resizeAll}
 		onToggleCollapse={toggleSidebar}
 		onResizeStart={startSidebarResize}
 	/>
@@ -316,12 +409,14 @@
 		<!-- Browser branch (The Glass Browser spec W2, ADR-0029 D4): the
 		     glass owns its session lifecycle — panel-close / unmount both
 		     release it (D8); the floor just removes the slot. -->
-		<div class="panel-manager-body" data-testid="panel-browser-slot">
-			<BrowserPanel
-				browserSessionId={'browserSessionId' in panel ? panel.browserSessionId : undefined}
-				onclose={() => floorApi.removePanel(panel.id)}
-			/>
-		</div>
+		<BrowserManager
+			browserSessionId={'browserSessionId' in panel ? panel.browserSessionId : undefined}
+			onclose={() => floorApi.removePanel(panel.id)}
+			openedBy={panel.openedBy}
+			parentTitle={panel.openedBy ? (panelTitleFor(panel.openedBy) ?? panel.openedBy) : null}
+			depth={panel.openedBy ? (lineageFacts.depthById.get(panel.openedBy) ?? 0) : 0}
+			onsession={(id) => floorApi.setBrowserSessionId(panel.id, id)}
+		/>
 	{:else if panel.kind === 'injected-doc'}
 		<!-- Injected-doc branch (Loadinjected ADR D1/D2): the kind's SINGLE
 		     floor content — extension-routed Markdown / Monaco readOnly over
@@ -478,7 +573,7 @@
 					a2aRows={a2aRowsFor(p.sessionId)}
 					a2aTitles={spineTitles}
 					onOpenExplorer={floorApi.openWorkspaceExplorer}
-					onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel())}
+					onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel(undefined, false, undefined, p.sessionId))}
 					focusComposer={p.id === focusComposerId}
 					oncomposerfocus={() => floorApi.clearFocusComposer()}
 					focused={p.id === selectedPanelId}
@@ -505,7 +600,7 @@
 					a2aTitles={spineTitles}
 					onNeedCold={(sid) => void ensureCold(sid)}
 					onOpenExplorer={floorApi.openWorkspaceExplorer}
-					onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel())}
+					onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel(undefined, false, undefined, p.sessionId))}
 					focusComposer={p.id === focusComposerId}
 					oncomposerfocus={() => floorApi.clearFocusComposer()}
 					focused={p.id === selectedPanelId}
@@ -522,11 +617,10 @@
 		{@render sidebarRail()}
 	{/if}
 
-	<ControlBar bind:panelWidth={pagePrefs.panelWidth} bind:zoom={pagePrefs.zoom} onresizeall={floorApi.resizeAll} captureContainer={floorEl} />
-
 	<!-- The floor wrapper: PanelsZoom's layout slot (flex:1 moves here;
 	     the viewport fills it) and the tray canvas-copy's capture target
-	     (bind:this → captureContainer down through ControlBar). -->
+	     (bind:this → trayContainer down through AppSidebar into the
+	     sidebar-hosted ControlBar, 2026-10-22). -->
 	<div class="floor" bind:this={floorEl}>
 		<!-- railWidth rides the zoom frame's geometry fingerprint: mounting,
 		     unmounting, or resizing the in-zoom rail re-measures the frame

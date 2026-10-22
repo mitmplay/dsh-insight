@@ -174,6 +174,36 @@ let startPanelResizeHandler: StartPanelResizeHandler | null = null;
 let movePanelHandler: MovePanelHandler | null = null;
 
 /**
+ * ADR-0037 D4 — the glass summon: bring a FOLDED glass back to the
+ * floor, re-binding to its surviving session (openBrowserPanel with the
+ * slot entry's index/width/openedBy/sessionId). The browser twin of
+ * addPanelFromSidebar — the sidebar's ghost-row adopt verb (ADR-0037 D4).
+ */
+export interface GlassSummon {
+	index?: number;
+	width?: number;
+	openedBy?: string;
+	sessionId?: string;
+}
+export type SummonGlassHandler = (glass: GlassSummon, opts: { replace: boolean }) => void;
+let summonGlassHandler: SummonGlassHandler | null = null;
+
+/** Register the glass-summon action (the folded-glass ghost adopt click). */
+export function registerSummonGlass(handler: SummonGlassHandler | null): void {
+	summonGlassHandler = handler;
+}
+
+/**
+ * Ask the floor owner to summon a folded glass.
+ * @returns true when a handler ran; false when the floor is not mounted.
+ */
+export function summonGlassFromRegistry(glass: GlassSummon, opts: { replace: boolean }): boolean {
+	if (summonGlassHandler === null) return false;
+	summonGlassHandler(glass, opts);
+	return true;
+}
+
+/**
  * Register the add-panel action (spine plain click, ControlBar paste-add).
  * Pass null to unregister — the route does this in its destroy lifecycle.
  */

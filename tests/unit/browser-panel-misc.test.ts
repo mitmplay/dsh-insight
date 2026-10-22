@@ -387,17 +387,17 @@ describe('BrowserPanel — viewport-follow sync (ADR-0031 amendment 2, slice E)'
 });
 
 describe('BrowserPanel — late SSE error after close (slice E)', () => {
-	it('an error after the panel is closed does NOT flip the status back to failed', async () => {
+	it('a late SSE error after the FOLD lands on a detached stream - no crash, no failed flip (ADR-0037 D1)', async () => {
 		const view = mountPanel({ browserSessionId: 'warm-abc12345' });
 		await settle();
 		await goLive(view);
-		(view.target.querySelector('[data-testid="panel-close"]') as HTMLButtonElement).click();
+		(view.target.querySelector('[data-testid="browse-close"]') as HTMLButtonElement).click();
 		await settle();
-		expect(statusOf(view.target)).toBe('closed');
-		StubEventSource.instances[0].fireError(); // late disconnect event
+		view.un(); // the fold removes the panel - the unmount detaches the stream
+		expect(StubEventSource.instances[0].closed).toBe(true);
+		StubEventSource.instances[0].fireError(); // late disconnect on the detached stream
 		flushSync();
-		expect(statusOf(view.target)).toBe('closed'); // the closed arm of the guard
-		view.un();
+		// no throw, no state write - the component is gone
 	});
 
 	it('an empty address bar Enter is a no-op', async () => {

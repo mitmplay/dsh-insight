@@ -370,7 +370,7 @@ describe('ControlBar tray (task 5.1-T)', () => {
 		const bar = target.querySelector('[data-testid="controlbar"]') as HTMLElement;
 		expect(bar.classList.contains('open')).toBe(true);
 		expect(bar.getAttribute('data-open')).toBe('true');
-		expect(target.querySelector('[data-testid="controlbar-tray"]')).not.toBeNull();
+		expect(document.body.querySelector('[data-testid="controlbar-tray"]')).not.toBeNull();
 		unmount(instance);
 	});
 
@@ -378,11 +378,11 @@ describe('ControlBar tray (task 5.1-T)', () => {
 		const seen: PanelAddRequest[] = [];
 		registerAddPanel((request) => seen.push({ ...request }));
 		const { target, instance } = await mountTray();
-		const input = target.querySelector('[data-testid="controlbar-add-input"]') as HTMLInputElement;
+		const input = document.body.querySelector('[data-testid="controlbar-add-input"]') as HTMLInputElement;
 		input.value = '  session-42  ';
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		await settle();
-		(target.querySelector('[data-testid="controlbar-add-submit"]') as HTMLButtonElement).click();
+		(document.body.querySelector('[data-testid="controlbar-add-submit"]') as HTMLButtonElement).click();
 		await settle();
 		expect(seen).toEqual([{ sessionId: 'session-42', agentPreset: null }]);
 		// Successful fire clears the field — the appearing panel is the feedback.
@@ -404,7 +404,7 @@ describe('ControlBar tray (task 5.1-T)', () => {
 				seen.push(request.sessionId);
 		});
 		const { target, instance } = await mountTray();
-		const input = target.querySelector('[data-testid="controlbar-add-input"]') as HTMLInputElement;
+		const input = document.body.querySelector('[data-testid="controlbar-add-input"]') as HTMLInputElement;
 		// Empty (whitespace-only) submit — no fire.
 		input.value = '   ';
 		input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -429,11 +429,11 @@ describe('ControlBar tray (task 5.1-T)', () => {
 		const seen: PanelAddRequest[] = [];
 		registerReplaceSelected((request) => seen.push(request));
 		const { target, instance } = await mountTray();
-		const input = target.querySelector('[data-testid="controlbar-add-input"]') as HTMLInputElement;
+		const input = document.body.querySelector('[data-testid="controlbar-add-input"]') as HTMLInputElement;
 		input.value = '  session-99  ';
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		await settle();
-		(target.querySelector('[data-testid="controlbar-replace-submit"]') as HTMLButtonElement).click();
+		(document.body.querySelector('[data-testid="controlbar-replace-submit"]') as HTMLButtonElement).click();
 		await settle();
 		expect(seen).toEqual([{ sessionId: 'session-99', agentPreset: null }]);
 		// Successful fire clears the field — the swapped panel is the feedback.
@@ -467,12 +467,12 @@ describe('ControlBar tray (task 5.1-T)', () => {
 				added.push(request.sessionId);
 		});
 		const { target, instance } = await mountTray();
-		const input = target.querySelector('[data-testid="controlbar-add-input"]') as HTMLInputElement;
+		const input = document.body.querySelector('[data-testid="controlbar-add-input"]') as HTMLInputElement;
 		// Whitespace-only Rplc click — no fire.
 		input.value = '   ';
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		await settle();
-		(target.querySelector('[data-testid="controlbar-replace-submit"]') as HTMLButtonElement).click();
+		(document.body.querySelector('[data-testid="controlbar-replace-submit"]') as HTMLButtonElement).click();
 		await settle();
 		expect(replaced).toEqual([]);
 		// Enter (form submit) fires Add even with a replace handler registered —
@@ -491,12 +491,12 @@ describe('ControlBar tray (task 5.1-T)', () => {
 
 	it('Rplc with no replace handler registered is a graceful no-op (leaf never crashes)', async () => {
 		const { target, instance } = await mountTray();
-		const input = target.querySelector('[data-testid="controlbar-add-input"]') as HTMLInputElement;
+		const input = document.body.querySelector('[data-testid="controlbar-add-input"]') as HTMLInputElement;
 		input.value = 'session-13';
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		await settle();
 		expect(() => {
-			(target.querySelector('[data-testid="controlbar-replace-submit"]') as HTMLButtonElement).click();
+			(document.body.querySelector('[data-testid="controlbar-replace-submit"]') as HTMLButtonElement).click();
 		}).not.toThrow();
 		await settle();
 		unmount(instance);
@@ -504,7 +504,7 @@ describe('ControlBar tray (task 5.1-T)', () => {
 
 	it('width slider lives within clamps and commits onresizeall on every thumb move', async () => {
 		const { target, instance } = await mountTray({ panelWidth: 730 });
-		const slider = target.querySelector(
+		const slider = document.body.querySelector(
 			'[data-testid="controlbar-slider-width-input"]'
 		) as HTMLInputElement;
 		// The input's min/max mirror the single bound site (panel-prefs).
@@ -522,7 +522,7 @@ describe('ControlBar tray (task 5.1-T)', () => {
 
 	it('zoom slider binds within clamps through the harness', async () => {
 		const { target, instance } = await mountTray({ zoom: 1 });
-		const slider = target.querySelector(
+		const slider = document.body.querySelector(
 			'[data-testid="controlbar-slider-zoom-input"]'
 		) as HTMLInputElement;
 		expect(Number(slider.min)).toBe(PANEL_MIN_ZOOM);
@@ -533,7 +533,7 @@ describe('ControlBar tray (task 5.1-T)', () => {
 		await settle();
 		expect(instance.read().zoom).toBeCloseTo(0.9, 5);
 		expect(
-			(target.querySelector('[data-testid="controlbar-slider-zoom-value"]') as HTMLElement)
+			(document.body.querySelector('[data-testid="controlbar-slider-zoom-value"]') as HTMLElement)
 				.textContent
 		).toBe('90%');
 		unmount(instance);
@@ -541,12 +541,12 @@ describe('ControlBar tray (task 5.1-T)', () => {
 
 	it('no RegisterFeature / home link surfaces in the tray (ADR-0006 R7)', async () => {
 		const { target, instance } = await mountTray();
-		const tray = target.querySelector('[data-testid="controlbar-tray"]') as HTMLElement;
+		const tray = document.body.querySelector('[data-testid="controlbar-tray"]') as HTMLElement;
 		const text = tray.textContent?.toLowerCase() ?? '';
 		expect(text).not.toContain('register');
 		expect(text).not.toContain('home');
-		expect(target.querySelector('[data-testid="controlbar-register"]')).toBeNull();
-		expect(target.querySelector('[data-testid="controlbar-home"]')).toBeNull();
+		expect(document.body.querySelector('[data-testid="controlbar-register"]')).toBeNull();
+		expect(document.body.querySelector('[data-testid="controlbar-home"]')).toBeNull();
 		unmount(instance);
 	});
 });

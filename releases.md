@@ -1,5 +1,20 @@
 # Releases
 
+## 0.8.1
+
+Bumped from 0.8.0 — the Glass Fold ships, and the floor ControlBar moves into the sidebar rail.
+
+### Features
+- The Glass Fold (ADR-0037) — closing a browser panel FOLDS it like a sub-agent: the session survives as a folded-glass row, the boot restore skips folded entries (a glass never comes back uninvited), and ONE summon seam brings it back (boot + sidebar row click). `0e70d1b`, `a81e7ec`, `23b35c8`; regression pins in `family-render-glass-first.test.ts`, e2e `04/reload-02` rewritten to fold semantics.
+- The floor ControlBar now lives in the sidebar rail — hosted by `AppSidebarHeaderAction` (expanded header cluster) and by `AppSidebar`'s collapsed stub before the Restart button; the tray portals to `document.body` pinned under the trigger's viewport rect so the rail's overflow clipping and the zoom transform can never cut it off; `panelWidth`/`zoom`/`resize-all` stay page-owned, bound through the sidebar chain. `5bde03c`; portal-aware updates in `tray-buttons.test.ts`, `panels-row.test.ts`, `page-floor-interactions.test.ts`.
+- Folded glasses nest in the Sessions spine under their opener when the opener holds no panel (synthetic `origin: browser` rows; the row click summons the glass; pills/presets census untouched) — `62e5146`; regression pair in `browser-family-rows.test.ts`.
+
+### Bug fixes
+- The summoned glass dropped BELOW its ghost siblings — the browser roster row shipped no `siblingIndex`, so the sibling merge read it as Infinity and every ghost flushed first; the summoned glass now carries the folded glass's wire slot (-1), a kind flip never reorders. `a1abbc9`; regression pair in `browser-family-rows.test.ts` (red-first).
+- The folded glass vanished entirely after the last panel closed — the roster gated on open panels and `familyRenderOrder` never reached a ghost whose parent is not a panel; orphan ghost clusters now render as their own block and the roster survives on ghosts. `62e5146`; orphan-ghost pin in `family-render-glass-first.test.ts`.
+- The spine's glass row wore the wrong costume (fork-green lineage line, plain glyph) — glass rows now ship the roster's costume: the glass glyph and the muted spawned line. `786b368`.
+- ADR-0018 boundary: the layout→panels ControlBar crossing is frozen in `frozen-crossings.json` (operator sign-off, commit 5bde03c).
+
 ## 0.8.0
 
 Bumped from 0.7.0 — the Job Follower Tab (ADR-0035): click a live job in the roster and watch its output in a -J terminal tab on the TerminalDesk, with reload persistence and an operator-controlled autoClose roster.

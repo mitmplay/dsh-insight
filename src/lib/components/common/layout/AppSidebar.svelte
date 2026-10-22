@@ -41,6 +41,8 @@
 	import AppSidebarHeader from './AppSidebarHeader.svelte';
 	import AboutButton from './AboutButton.svelte';
 	import RestartButton from './RestartButton.svelte';
+	import { PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_ZOOM } from '$lib/utils/panel-prefs';
+	import ControlBar from '../../panels/control-bar/ControlBar.svelte';
 
 	let {
 		profile = null,
@@ -50,6 +52,15 @@
 		currentSessionId,
 		paneledSessionIds = [],
 		captureContainer = null,
+		trayContainer = null,
+		/** ADR-0037 D4, spine half (2026-10-22): folded glasses whose OPENER
+		 *  holds no panel — the page routes them here (not into the roster's
+		 *  ghost grammar) so the Sessions list nests them under the opener
+		 *  family; the row's click summons the glass back. */
+		glassRows = [] as Array<{ sessionId: string; openedBy: string; title: string }>,
+		panelWidth = $bindable(PANEL_DEFAULT_WIDTH),
+		zoom = $bindable(PANEL_DEFAULT_ZOOM),
+		onresizeall,
 		onToggleCollapse,
 		onResizeStart
 	}: {
@@ -76,6 +87,19 @@
 		 *  its click is CanvasCopyButton's documented null-container
 		 *  no-op. */
 		captureContainer?: HTMLElement | null;
+		/** The floor element — the ControlBar tray's canvas-copy capture
+		 *  target (page-owned bind:this on .floor, threaded to the tray). */
+		trayContainer?: HTMLElement | null;
+		/** Uniform-panel width preset (bind: up to the route, through to
+		 *  the ControlBar the sidebar now hosts, 2026-10-22). */
+		panelWidth?: number;
+		/** Floor zoom multiplier (bind: up to the route, through to the
+		 *  ControlBar). */
+		zoom?: number;
+		/** ControlBar thumb move — route sets all panels + the preset. */
+		onresizeall?: (width: number) => void;
+		/** Folded glasses for the SPINE (see the prop comment above). */
+		glassRows?: Array<{ sessionId: string; openedBy: string; title: string }>;
 		/** Flip collapsed ↔ expanded (page-owned, persisted there). */
 		onToggleCollapse?: () => void;
 		/** Gutter mousedown — the page runs the drag and owns the clamp.
@@ -104,6 +128,10 @@
 
 {#if collapsed}
 	<div class="rail-collapsed" data-testid="app-sidebar-collapsed">
+		<!-- The floor ControlBar rides the stub too (2026-10-22): it
+		     self-positions fixed top-right over the floor, so its slot in
+		     the stub is a mount site only. -->
+		<ControlBar bind:panelWidth bind:zoom onresizeall={onresizeall ?? (() => {})} captureContainer={trayContainer} />
 		<!-- Prefix of the stub: the circled-A About trigger, wearing the
 		     stub label's ink so it reads as part of the vertical stack. -->
 		<RestartButton class="rail-collapsed-label" />
@@ -130,7 +158,14 @@
 	     seam). Same testid as the standalone rail so specs/E2E target one
 	     contract at either site. -->
 	<aside class="rail rail-embedded" data-testid="app-sidebar">
-		<AppSidebarHeader {captureContainer} {onToggleCollapse} />
+		<AppSidebarHeader
+			{captureContainer}
+			{trayContainer}
+			bind:panelWidth
+			bind:zoom
+			{onresizeall}
+			{onToggleCollapse}
+		/>
 
 		<SidebarSessions
 			{currentSessionId}
@@ -142,12 +177,20 @@
 {:else}
 	<div class="rail-wrap" data-testid="app-sidebar" style="width: {width}px">
 		<aside class="rail">
-			<AppSidebarHeader {captureContainer} {onToggleCollapse} />
+			<AppSidebarHeader
+			{captureContainer}
+			{trayContainer}
+			bind:panelWidth
+			bind:zoom
+			{onresizeall}
+			{onToggleCollapse}
+		/>
 
 			<SidebarSessions
 				{currentSessionId}
 				{paneledSessionIds}
 				{filter}
+				{glassRows}
 				onfilterchange={(f) => (filter = f)}
 			/>
 		</aside>

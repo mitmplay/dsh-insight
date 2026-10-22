@@ -6,7 +6,8 @@ import {
 	configureFloorRegistry,
 	resetFloorState,
 	st,
-	openBrowserPanel
+	openBrowserPanel,
+	removePanel
 } from '$lib/services/panels/floor-registry.svelte';
 
 // the seam the state home demands (the page normally configures it)
@@ -72,5 +73,124 @@ describe('browser floor species (W2 2.2)', () => {
 		(target.querySelector('[data-testid="open-browser"]') as HTMLElement).click();
 		expect(fired).toBe(1);
 		unmount(instance);
+	});
+
+});
+
+// ── ADR-0036 D1/D2: provenance recorded once at spawn, never rewritten ──
+describe('glass provenance (ADR-0036)', () => {
+	it('openBrowserPanel records openedBy on the inserted entry', () => {
+		resetFloorState();
+		openBrowserPanel(undefined, false, undefined, 'sess-a');
+		const entry = st.panels.find((p) => p.kind === 'browser') as { openedBy?: string };
+		expect(entry.openedBy).toBe('sess-a');
+	});
+
+	it('a DIFFERENT opener spawns its OWN glass — one glass per opener (Amendment 3)', () => {
+		resetFloorState();
+		openBrowserPanel(undefined, false, undefined, 'sess-a');
+		const idA = (st.panels.find((p) => p.kind === 'browser') as { id: string }).id;
+		openBrowserPanel(undefined, false, undefined, 'sess-b');
+		const glasses = st.panels.filter((p) => p.kind === 'browser') as Array<{ id: string; openedBy?: string }>;
+		expect(glasses).toHaveLength(2);
+		const glassB = glasses.find((g) => g.openedBy === 'sess-b')!;
+		expect(glassB).toBeDefined();
+		expect(glassB.id).not.toBe(idA);
+		expect(st.selectedPanelId).toBe(glassB.id);
+	});
+
+	it('the SAME opener click only focuses — openedBy never rewrites (D2)', () => {
+		resetFloorState();
+		openBrowserPanel(undefined, false, undefined, 'sess-a');
+		const idA = (st.panels.find((p) => p.kind === 'browser') as { id: string }).id;
+		openBrowserPanel(undefined, false, undefined, 'sess-a');
+		expect(st.panels.filter((p) => p.kind === 'browser')).toHaveLength(1);
+		const entry = st.panels.find((p) => p.kind === 'browser') as { id: string; openedBy?: string };
+		expect(entry.id).toBe(idA);
+		expect(entry.openedBy).toBe('sess-a');
+		expect(st.selectedPanelId).toBe(idA);
+	});
+
+	it('a ControlBar-style open (no opener) leaves openedBy undefined', () => {
+		resetFloorState();
+		openBrowserPanel();
+		const entry = st.panels.find((p) => p.kind === 'browser') as { openedBy?: string };
+		expect(entry.openedBy).toBeUndefined();
+	});
+
+	it('makeBrowserPanel omits the field entirely when no opener given', async () => {
+		const mod = await import('$lib/services/panels/floor-registry/factories.js');
+		const panel = mod.makeBrowserPanel() as { openedBy?: string };
+		expect('openedBy' in panel).toBe(false);
+		const owned = mod.makeBrowserPanel(700, 'sess-a') as { openedBy?: string; width: number };
+		expect(owned.openedBy).toBe('sess-a');
+		expect(owned.width).toBe(700);
+	});
+
+});
+
+// ── ADR-0036 Amendment 2: the glass is family, not furniture ──────────
+describe('glass placement + cascade (Amendment 2)', () => {
+	function configure(): void {
+		configureFloorRegistry({
+			getLineageFacts: () =>
+				({
+					subagentIds: new Set(['sess-sub']),
+					depthById: new Map([
+						['sess-a', 0],
+						['sess-sub', 1]
+					]),
+					rootIds: new Set(['sess-a']),
+					// sess-sub is a child of sess-a (the cascade walk reads this)
+					childrenByParent: new Map([['sess-a', [{ sessionId: 'sess-sub' } as never]]])
+				}) as never,
+			getMoveFacts: () => ({ parentOf: () => null }) as never,
+			getWorkspaceFor: () => null,
+			ensureCold: async () => undefined,
+			rememberEdge: () => undefined,
+			getPanelWidth: () => 480,
+			setPanelWidthPreset: () => undefined,
+			setTreePct: () => undefined,
+			getSettingsHomes: () => ({}),
+			applyTerminalDeskAction: () => undefined
+		});
+	}
+
+	it('chip spawn pins the glass right of the opener family region (D6)', () => {
+		resetFloorState();
+		configure();
+		// floor shape: A | sub(agent of A) | other
+		st.panels = [
+			{ id: 'p1', kind: 'conversation', sessionId: 'sess-a', agentPreset: null, width: 480 },
+			{ id: 'p2', kind: 'conversation', sessionId: 'sess-sub', agentPreset: null, width: 480 },
+			{ id: 'p3', kind: 'prompt-manager', width: 480 }
+		] as never;
+		st.selectedPanelId = 'p3'; // focus is ELSEWHERE — placement must ignore it
+		openBrowserPanel(undefined, false, undefined, 'sess-a');
+		const idx = st.panels.findIndex((p) => p.kind === 'browser');
+		expect(idx).toBe(2); // after p1+p2 (the family region), before p3
+	});
+
+	it('closing the opener dooms the glass (D5 revised)', () => {
+		resetFloorState();
+		configure();
+		st.panels = [
+			{ id: 'p1', kind: 'conversation', sessionId: 'sess-a', agentPreset: null, width: 480 },
+			{ id: 'pb', kind: 'browser', width: 480, openedBy: 'sess-a' }
+		] as never;
+		st.selectedPanelId = 'pb';
+		removePanel('p1'); // family walk: sess-a dooms sess-a's family incl. the glass
+		expect(st.panels.some((p) => p.kind === 'browser')).toBe(false);
+	});
+
+	it('a ControlBar glass (no provenance) survives every cascade', () => {
+		resetFloorState();
+		configure();
+		st.panels = [
+			{ id: 'p1', kind: 'conversation', sessionId: 'sess-a', agentPreset: null, width: 480 },
+			{ id: 'pb', kind: 'browser', width: 480 }
+		] as never;
+		removePanel('p1');
+		expect(st.panels.some((p) => p.kind === 'browser')).toBe(true);
 	});
 });

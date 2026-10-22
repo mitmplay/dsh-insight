@@ -142,7 +142,41 @@ export function panelRowsFor(input: PanelRowsInput): PanelRow[] {
 	const { panels, spineRows, coldCache, deadSessions, edgeCache, lineageFacts, moveFacts } = input;
 	const openSessionIds = openSessionIdsOf(panels);
 	return panels.map<PanelRow>((p, index) => {
-		if (p.kind === 'terminal' || p.kind === 'browser' || p.kind === 'prompt-manager' || p.kind === 'settings-editor' || p.kind === 'skill-shelf' || p.kind === 'plugin-rack') {
+		if (p.kind === 'browser') {
+			// ADR-0036 Amendment 2: the glass is FAMILY — the roster row paints
+			// the sub-agent lineage costume: parent edge = openedBy, depth one
+			// below the opener (degrades to 0 if the opener's panel is gone —
+			// transient at worst, the D5 cascade kills the glass with it). NO
+			// positional move verbs: the glass travels with the opener's family
+			// block (the injected-doc grammar — moves are the family head's
+			// verbs, lineage-move's browser branches carry it).
+			const parentOpen = p.openedBy !== undefined && openSessionIds.has(p.openedBy);
+			const openerDepth =
+				p.openedBy !== undefined ? (lineageFacts.depthById.get(p.openedBy) ?? 0) : 0;
+			return {
+				panel: p,
+				title: 'Browser',
+				workspace: null,
+				dead: false,
+				running: false,
+				depth: parentOpen ? openerDepth + 1 : 0,
+				runningDescendants: 0,
+				kind: 'panel' as const,
+				parentSessionId: p.openedBy ?? null,
+				fork: false,
+				spawnerTitle: null,
+				// ADR-0037 D4's wire slot, panel half (2026-10-22): the folded
+				// glass ghost ships siblingIndex -1, so the SUMMONED glass
+				// must too — without it the sibling merge reads the missing
+				// order as Infinity and the roster drops the browser BELOW
+				// the sub-agent ghosts the moment it flips kind (the
+				// reported summon-reorder bug).
+				siblingIndex: -1,
+				canMoveUp: false,
+				canMoveDown: false
+			};
+		}
+		if (p.kind === 'terminal' || p.kind === 'prompt-manager' || p.kind === 'settings-editor' || p.kind === 'skill-shelf' || p.kind === 'plugin-rack') {
 			// Kind-honest non-session facts (ADR §8 required case; the
 			// settings-editor branch rides the same rule — Settings Panel
 			// ADR D3): never running/dead, depth 0, no lineage keys; move

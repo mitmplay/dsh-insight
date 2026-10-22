@@ -397,8 +397,12 @@ export interface DsiSessionSummary {
 	parentSessionId?: string | null;
 	/** 'subagent' when the harness spawned this session; null/absent for
 	 *  user-created ones (lineage sidebar, 2026-08-27). Same optional-and-
-	 *  null-normalized contract as parentSessionId. */
-	origin?: 'subagent' | null;
+	 *  null-normalized contract as parentSessionId. 'browser' is a SYNTHETIC
+	 *  client-side marker (2026-10-22): a folded glass's spine row — not a
+	 *  wire session at all; its sessionId is the browser-session registry id,
+	 *  and RowSessionItem routes the click to the summon verb, never to a
+	 *  conversation open. */
+	origin?: 'subagent' | 'browser' | null;
 }
 
 /**
@@ -698,6 +702,10 @@ export interface DsiBrowserPanel {
 	width: number;
 	/** The browser-session registry id (Wire 1); undefined = open on mount. */
 	browserSessionId?: string;
+	/** The session that opened this glass via its browser chip — recorded
+	 *  ONCE at spawn, never rewritten by later clicks (ADR-0036 D1/D2).
+	 *  undefined = opened without conversation context (ControlBar). */
+	openedBy?: string;
 }
 
 /** The prompt-manager branch (ADR D6/D8) — hosts PromptManagerPanel; no

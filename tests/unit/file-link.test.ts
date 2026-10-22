@@ -32,6 +32,9 @@ describe('normalizeFileLinkPath', () => {
 		expect(normalizeFileLinkPath('/workspace/src/a.ts')).toBe('workspace/src/a.ts');
 		expect(normalizeFileLinkPath('src//a.ts')).toBe('src/a.ts');
 		expect(normalizeFileLinkPath('deepseek-insight/src/a.ts#L153')).toBe('deepseek-insight/src/a.ts');
+		// ADR-0028: the colon anchor never reaches the host read either.
+		expect(normalizeFileLinkPath('deepseek-insight/src/a.ts:153')).toBe('deepseek-insight/src/a.ts');
+		expect(normalizeFileLinkPath('deepseek-insight/src/a.ts:10-20')).toBe('deepseek-insight/src/a.ts');
 	});
 	it('refuses workspace escapes with null', () => {
 		expect(normalizeFileLinkPath('../secrets')).toBeNull();
@@ -59,6 +62,27 @@ describe('normalizeFileLinkPath', () => {
 		});
 		it('normalizes the path part', () => {
 			expect(parseFileLinkHref('./src//a.ts#L3').path).toBe('src/a.ts');
+		});
+		// ADR-0028 The Colon Anchor: IDE-style :line suffixes split the same
+		// way as hash anchors — digits-only tail after the LAST colon.
+		it('splits a single :line suffix into path + line', () => {
+			const r = parseFileLinkHref('deepseek-insight/src/lib/utils/turn-grouping.ts:334');
+			expect(r.path).toBe('deepseek-insight/src/lib/utils/turn-grouping.ts');
+			expect(r.lines).toEqual({ start: 334, end: 334 });
+		});
+		it('parses a :line-line suffix', () => {
+			const r = parseFileLinkHref('src/a.ts:10-20');
+			expect(r.path).toBe('src/a.ts');
+			expect(r.lines).toEqual({ start: 10, end: 20 });
+		});
+		it('keeps the colon on malformed or non-digit tails (never guesses)', () => {
+			expect(parseFileLinkHref('src/a.ts:0').lines).toBeNull();
+			expect(parseFileLinkHref('src/a.ts:0').path).toBe('src/a.ts:0');
+			expect(parseFileLinkHref('src/a.ts:20-10').lines).toBeNull();
+			expect(parseFileLinkHref('src/a.ts:20-10').path).toBe('src/a.ts:20-10');
+			expect(parseFileLinkHref('a:b/c.ts').lines).toBeNull();
+			expect(parseFileLinkHref('a:b/c.ts').path).toBe('a:b/c.ts');
+			expect(parseFileLinkHref('c.ts:x1').path).toBe('c.ts:x1');
 		});
 	});
 });

@@ -22,3 +22,4 @@ src/lib/paraglide/
 
 # dsi-thin two-lane worktrees (removed at batch close)
 .worktrees/
+.playwright-mcp/

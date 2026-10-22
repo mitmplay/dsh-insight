@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { persistPanelIndex, readPersistedIndex } from '$lib/services/panels/browser-session-resolver.js';
+import {
+	persistBrowserSlots,
+	persistPanelIndex,
+	readBrowserSlots,
+	readPersistedIndex
+} from '$lib/services/panels/browser-session-resolver.js';
 
 function fakeStorage(): {
 	store: Map<string, string>;
@@ -108,5 +113,66 @@ describe('persistPanelIndex', () => {
 			}
 		};
 		expect(() => persistPanelIndex(-1, throwing)).not.toThrow();
+	});
+});
+
+// ── The browser slot LIST (Amendment 3): one entry per glass ──────────
+describe('browser slot list', () => {
+	it('round-trips a full slot: index, width, openedBy, sessionId', () => {
+		const st = fakeStorage();
+		persistBrowserSlots([{ index: 2, width: 1200, openedBy: 'sess-a', sessionId: 'bs-1' }], st);
+		expect(readBrowserSlots(st)).toEqual([{ index: 2, width: 1200, openedBy: 'sess-a', sessionId: 'bs-1' }]);
+	});
+
+	it('round-trips MULTIPLE glasses sorted by floor position', () => {
+		const st = fakeStorage();
+		persistBrowserSlots(
+			[
+				{ index: 3, openedBy: 'sess-b', sessionId: 'bs-2' },
+				{ index: 0, openedBy: 'sess-a', sessionId: 'bs-1' }
+			],
+			st
+		);
+		expect(readBrowserSlots(st)).toEqual([
+			{ index: 0, openedBy: 'sess-a', sessionId: 'bs-1' },
+			{ index: 3, openedBy: 'sess-b', sessionId: 'bs-2' }
+		]);
+	});
+
+	it('reads the legacy plain-number slot as a bare index', () => {
+		const st = fakeStorage();
+		st.setItem('dsi.browser.panelIndex', '5');
+		expect(readBrowserSlots(st)).toEqual([{ index: 5 }]);
+	});
+
+	it('reads the legacy single-object slot (width era) into the list', () => {
+		const st = fakeStorage();
+		st.setItem('dsi.browser.panelIndex', JSON.stringify({ index: 1, width: 1000, openedBy: 'sess-a' }));
+		expect(readBrowserSlots(st)).toEqual([{ index: 1, width: 1000, openedBy: 'sess-a' }]);
+	});
+
+	it('drops junk entries field-wise, keeps the usable ones', () => {
+		const st = fakeStorage();
+		st.setItem(
+			'dsi.browser.panelIndex',
+			JSON.stringify([{ index: -1 }, { index: 2, width: 'wide' }, { index: 4, openedBy: '' }, { index: 6, openedBy: 'sess-a' }])
+		);
+		expect(readBrowserSlots(st)).toEqual([{ index: 2 }, { index: 4 }, { index: 6, openedBy: 'sess-a' }]);
+	});
+
+	it('junk JSON is an empty list, never a throw', () => {
+		const st = fakeStorage();
+		st.setItem('dsi.browser.panelIndex', '{oops');
+		expect(readBrowserSlots(st)).toEqual([]);
+	});
+
+	it('an empty list clears the key; null storage stays safe', () => {
+		const st = fakeStorage();
+		persistBrowserSlots([{ index: 1 }], st);
+		persistBrowserSlots([], st);
+		expect(st.store.has('dsi.browser.panelIndex')).toBe(false);
+		expect(readBrowserSlots(st)).toEqual([]);
+		expect(readBrowserSlots(null)).toEqual([]);
+		expect(() => persistBrowserSlots([{ index: 0, width: 700 }], null)).not.toThrow();
 	});
 });
