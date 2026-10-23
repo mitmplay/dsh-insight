@@ -63,7 +63,7 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.375rem;
-		padding: 0.25rem 0.25rem;
+		padding: 0.5rem 0.5rem;
 		border-radius: 0.25rem;
 		border: solid thin color-mix(in srgb, var(--color-accent-amber) 24%, transparent);
 	}
