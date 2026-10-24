@@ -46,6 +46,10 @@ export interface FloorRegistryDeps {
 	/** Terminal Desk action forward (--new-tab / --split-down) — the desk
 	 *  ref stays the route's bind:this; the machine only forwards. */
 	applyTerminalDeskAction(action: 'new-tab' | 'split-down'): void;
+	/** The Glass Close Ladder (ADR 2026-10-24 D1/D2): the route's wire kill
+	 *  for doomed glasses — fire-and-forget POST close per id. Optional:
+	 *  tests configure the registry without it; a missing seam is a no-op. */
+	releaseGlasses?(sessionIds: string[]): void;
 }
 
 let deps: FloorRegistryDeps | null = null;

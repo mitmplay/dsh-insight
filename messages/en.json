@@ -466,5 +466,6 @@
 	"browserUrlPlaceholder": "Search or type a URL",
 	"browserReload": "Reload",
 	"browserBack": "Back",
-	"browserForward": "Forward"
+	"browserForward": "Forward",
+	"browserCloseDelete": "Delete the glass browser — kills the session and removes the panel"
 }

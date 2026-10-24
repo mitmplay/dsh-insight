@@ -15,7 +15,7 @@
 	import TerminalDesk from '$lib/components/terminal/TerminalDesk.svelte';
 	import { registerJobTabLauncher } from '$lib/services/jobs/follow-client.svelte';
 	import BrowserManager from '$lib/components/browser/BrowserManager.svelte';
-	import { browserSlotStore, persistBrowserSlots, primeBrowserSlotStore, readBrowserSlots } from '$lib/services/panels/browser-session-resolver.js';
+	import { browserSlotStore, persistBrowserSlots, primeBrowserSlotStore, readBrowserSlots, removeBrowserSlot } from '$lib/services/panels/browser-session-resolver.js';
 	import SettingsSkillsPanel from '$lib/components/settings-skills/SettingsSkillsPanel.svelte';
 	import PluginManagerPanel from '$lib/components/settings-plugins/PluginManagerPanel.svelte';
 	import SettingsEditorPanel from '$lib/components/panels/SettingsEditorPanel.svelte';
@@ -39,12 +39,13 @@
 	} from '$lib/services/panels/panel-registry';
 	import { setWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
 	import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
-	import { panelHeaderLabel } from '$lib/services/panels/panel-rows';
+	import { foldedGlassRowsFor, panelHeaderLabel } from '$lib/services/panels/panel-rows';
 	import { appConfig } from '$lib/services/config/app-config.svelte';
 	import { resetSync } from '$lib/services/chat/prompt-sync.svelte';
 	import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
 	import { pageFeeds } from '$lib/services/workspace/page-feeds.svelte';
 	import * as floorApi from '$lib/services/panels/floor-registry.svelte';
+	import { releaseGlasses } from '$lib/services/panels/glass-release.js';
 	import {
 		agentFor,
 		agentLabelFor,
@@ -84,7 +85,11 @@
 		setPanelWidthPreset: (w) => (pagePrefs.panelWidth = w),
 		setTreePct: (pct) => (pagePrefs.treePct = pct),
 		getSettingsHomes: () => appConfig().settingsHomes,
-		applyTerminalDeskAction: (a) => terminalDeskRef?.applyAction(a)
+		applyTerminalDeskAction: (a) => terminalDeskRef?.applyAction(a),
+		// The Glass Close Ladder (ADR 2026-10-24 D1/D2): the cascade's wire
+		// kill — fire-and-forget close per doomed glass; an ok answer prunes
+		// the slot entry so the ghost rows drop in the same stroke (D4).
+		releaseGlasses: (ids) => void releaseGlasses(ids)
 	});
 	// Seed resets to one panel; a bare arrival restores the stored blob.
 	floorApi.initFloor(
@@ -136,10 +141,15 @@
 	}
 
 	/** Bring ONE folded glass back (the summon; the replace verb is the
-	 *  same re-bind — the glass owns its slot identity, D4). */
+	 *  same re-bind — the glass owns its slot identity, D4). keepSelection:
+	 *  boot restore keeps the operator's focus (true, the default); the
+	 *  ghost-click summon focuses the GLASS (false, Ladder focus contract). */
 	// FOLD-LOG summon
-	function summonGlass(glass: { index?: number; width?: number; openedBy?: string; sessionId?: string }): void {
-		floorApi.openBrowserPanel(glass.index, true, glass.width, glass.openedBy, glass.sessionId);
+	function summonGlass(
+		glass: { index?: number; width?: number; openedBy?: string; sessionId?: string },
+		opts: { keepSelection?: boolean } = {}
+	): void {
+		floorApi.openBrowserPanel(glass.index, opts.keepSelection ?? true, glass.width, glass.openedBy, glass.sessionId);
 	}
 
 	primeBrowserSlotStore();
@@ -166,26 +176,11 @@
 // opener. The summon clears the flag by remounting (the persist
 // effect writes unfolded entries for mounted glasses).
 	const allFoldedGlassRows = $derived(
-		$browserSlotStore
-			.filter((s) => s.folded && s.sessionId && s.openedBy)
-			.map<PanelRow>((s) => ({
-				panel: {
-					id: 'glass-' + s.sessionId,
-					kind: 'conversation',
-					sessionId: s.sessionId as string,
-					agentPreset: null,
-					width: 0
-				},
-				title: 'Browser — ' + (panelTitleFor(s.openedBy as string) ?? (s.openedBy as string)),
-				workspace: null,
-				dead: false,
-				running: true,
-				depth: (lineageFacts.depthById.get(s.openedBy as string) ?? 0) + 1,
-				runningDescendants: 0,
-				kind: 'ghost' as const,
-				parentSessionId: s.openedBy as string,
-				siblingIndex: -1 // ADR-0037 D4: the glass flushes FIRST under its opener
-			}))
+		foldedGlassRowsFor(
+			$browserSlotStore,
+			(id) => lineageFacts.depthById.get(id) ?? 0,
+			(id) => panelTitleFor(id)
+		)
 	);
 	// Two homes by the OPENER's floor state (2026-10-22 operator review):
 	// opener PANELED -> the roster's ghost grammar (under its opener, the
@@ -313,7 +308,7 @@
 		registerSelectPanel(floorApi.selectPanel);
 		registerStartPanelResize(floorApi.doStartPanelResize);
 		registerMovePanel(floorApi.doMovePanel);
-		registerSummonGlass((glass) => summonGlass(glass));
+		registerSummonGlass((glass, opts) => summonGlass(glass, opts));
 		setWorkspaceState({
 			get rows() {
 				return panelRows;
@@ -406,16 +401,33 @@
 			/>
 		</div>
 	{:else if panel.kind === 'browser'}
-		<!-- Browser branch (The Glass Browser spec W2, ADR-0029 D4): the
-		     glass owns its session lifecycle — panel-close / unmount both
-		     release it (D8); the floor just removes the slot. -->
+		<!-- Browser branch (The Glass Browser spec W2, ADR-0029 D4). The
+		     header 🗑 (BrowserClosed, Glass Close Ladder Amendment 1,
+		     2026-10-24 operator ruling) is a FULL CLOSE — same as a
+		     close-panel: the wire session is killed (releaseGlasses → the
+		     registry's idempotent close, slot pruned on ok) AND the panel
+		     leaves the floor. The old fold (ADR-0037 D1) is retired on
+		     this surface. -->
 		<BrowserManager
 			browserSessionId={'browserSessionId' in panel ? panel.browserSessionId : undefined}
-			onclose={() => floorApi.removePanel(panel.id)}
+			onclose={() => {
+				if ('browserSessionId' in panel && panel.browserSessionId) {
+					void releaseGlasses([panel.browserSessionId]);
+				}
+				floorApi.removePanel(panel.id);
+			}}
 			openedBy={panel.openedBy}
 			parentTitle={panel.openedBy ? (panelTitleFor(panel.openedBy) ?? panel.openedBy) : null}
 			depth={panel.openedBy ? (lineageFacts.depthById.get(panel.openedBy) ?? 0) : 0}
 			onsession={(id) => floorApi.setBrowserSessionId(panel.id, id)}
+			onclosed={() => {
+				// The Glass Close Ladder (ADR 2026-10-24 D4): the touch answered
+				// 409 CLOSED — prune the slot entry so the ghost rows drop in
+				// the same stroke, no reload.
+				if ('browserSessionId' in panel && panel.browserSessionId) {
+					removeBrowserSlot(panel.browserSessionId);
+				}
+			}}
 		/>
 	{:else if panel.kind === 'injected-doc'}
 		<!-- Injected-doc branch (Loadinjected ADR D1/D2): the kind's SINGLE

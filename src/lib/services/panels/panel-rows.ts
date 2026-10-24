@@ -345,3 +345,35 @@ export function ghostPanelRowsFor(input: PanelRowsInput): PanelRow[] {
 			?.findIndex((k) => k.sessionId === g.sessionId)
 	}));
 }
+/**
+ * The folded-glass ghost rows (ADR-0037 D4, extracted 2026-10-24 — the
+ * Glass Close Ladder task 2.2): the ONE derivation the route renders.
+ * Pure over the slot mirror — a removeBrowserSlot prune drops the ghost
+ * (roster) and the spine nest in the same stroke (Ladder ADR D4).
+ */
+export function foldedGlassRowsFor(
+	slots: readonly { index: number; sessionId?: string; openedBy?: string; folded?: boolean }[],
+	depthOf: (sessionId: string) => number,
+	titleFor: (sessionId: string) => string | null
+): PanelRow[] {
+	return slots
+		.filter((s) => s.folded && s.sessionId && s.openedBy)
+		.map<PanelRow>((s) => ({
+			panel: {
+				id: 'glass-' + s.sessionId,
+				kind: 'conversation',
+				sessionId: s.sessionId as string,
+				agentPreset: null,
+				width: 0
+			},
+			title: 'Browser — ' + (titleFor(s.openedBy as string) ?? (s.openedBy as string)),
+			workspace: null,
+			dead: false,
+			running: true,
+			depth: depthOf(s.openedBy as string) + 1,
+			runningDescendants: 0,
+			kind: 'ghost' as const,
+			parentSessionId: s.openedBy as string,
+			siblingIndex: -1 // ADR-0037 D4: the glass flushes FIRST under its opener
+		}));
+}

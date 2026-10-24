@@ -466,5 +466,6 @@
 	"browserUrlPlaceholder": "搜索或输入网址",
 	"browserReload": "重新加载",
 	"browserBack": "后退",
-	"browserForward": "前进"
+	"browserForward": "前进",
+	"browserCloseDelete": "删除玻璃浏览器 — 终止会话并移除面板"
 }

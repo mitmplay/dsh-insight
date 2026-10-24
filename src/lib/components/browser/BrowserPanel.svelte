@@ -20,8 +20,12 @@
 		/** The browser-session registry id; undefined = this panel OPENS the
 		 *  session on mount (the singleton panel's cold shape). */
 		browserSessionId = undefined,
-		/** Owner-release callback (D8): fired AFTER /close answered ok. */
+		/** Fold callback (ADR-0037 D1): the header ✕ — removePanel only. */
 		onclose,
+		/** The death notice (Glass Close Ladder ADR 2026-10-24 D4): a touch
+		 *  answered 409 CLOSED — the session is gone. The panel never kills
+		 *  and never prunes; it only reports so the route can prune. */
+		onclosed,
 		/** Test seam: base URL for the API (e2e runs same-origin; default ''). */
 		apiBase = '',
 		/** Provenance (ADR-0036 D3): the opener session's id, its live spine
@@ -34,6 +38,7 @@
 	}: {
 		browserSessionId?: string | undefined;
 		onclose?: () => void;
+		onclosed?: () => void;
 		apiBase?: string;
 		openedBy?: string | undefined;
 		parentTitle?: string | null;
@@ -106,6 +111,7 @@
 			if (res.status === 409) {
 				status = 'closed';
 				es?.close();
+				onclosed?.(); // the death notice rides upward (Ladder D4)
 			}
 		} catch {
 			/* transient — the status strip shows liveness via frames anyway */
@@ -179,6 +185,7 @@
 				canForward = idx < count - 1;
 				header?.clearInput();
 			} else if (res.status === 404 || res.status === 409) {
+				if (res.status === 409) onclosed?.(); // death notice (Ladder D4)
 				status = 'closed';
 				es?.close();
 			}

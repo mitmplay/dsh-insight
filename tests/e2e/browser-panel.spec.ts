@@ -197,7 +197,7 @@ test.describe.serial('glass browser e2e', () => {
 			.toBeCloseTo(box!.width, 1);
 	});
 
-	test('04 browse-close FOLDS: panel leaves, the session and its port SURVIVE (ADR-0037 D1)', async ({
+	test('04 browse-close KILLS: panel leaves, the session dies, the port is FREED (Ladder Amendment 1)', async ({
  page, request }) => {
 		await openGlass(page);
 		const mine = (await panelSession(page, request)).id;
@@ -206,23 +206,10 @@ test.describe.serial('glass browser e2e', () => {
 		// scope INSIDE the browser panel — the floor chrome uses panel-close too
 		await page.getByTestId('panel-browser').getByTestId('browse-close').click();
 		await expect(page.getByTestId('panel-browser')).toHaveCount(0);
-		// THE FOLD: no owner-release kill — the session stays live, the port stays held
-		await expect.poll(async () => (await request.get('/api/browser/' + mine + '/page')).status()).toBe(200);
-		const held = spawnSync('lsof', ['-ti', 'tcp:' + thePort, '-sTCP:LISTEN'], { stdio: 'pipe' });
-		expect(held.status === 0).toBe(true);
-		// the folded glass ghost-nests under its opener in SidebarOpenPanels (D4) — one click summons it back
-for (const m of []) {} /* noop */
-		const row = page.locator(`[data-testid="sidebar-ghost-row"][data-session-id="${mine}"]`);
-		await expect(row).toBeVisible({ timeout: 10_000 });
-		// GLYPH EVIDENCE (operator bug 2026-10-22): the pulsing FRAME paints,
-		// never the stream bars; the title names the glass first.
-		await expect(row.locator('.frame')).toBeVisible();
-		await expect(row.locator('.bar')).toHaveCount(0);
-		await expect(row).toContainText('Browser — ');
-		await row.screenshot({ path: 'test-results/glass-ghost-row.png' });
-		await row.click();
-		await expect(page.getByTestId('panel-browser')).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByTestId('browser-status')).toHaveAttribute('data-status', 'live', { timeout: 20_000 });
+		// THE KILL (Ladder Amendment 1): wire session dead (409 tombstone), port freed, NO ghost
+		await expect.poll(async () => (await request.get('/api/browser/' + mine + '/page')).status()).toBe(409);
+		await expect.poll(() => spawnSync('lsof', ['-ti', 'tcp:' + thePort, '-sTCP:LISTEN'], { stdio: 'pipe' }).status === 0).toBe(false);
+		await expect(page.locator(`[data-testid="sidebar-ghost-row"][data-session-id="${mine}"]`)).toHaveCount(0, { timeout: 10_000 });
 	});
 	// The Glass Provenance (ADR-0036, task 4.1): the chip survives the hard
 	// reload (the slot re-mint) and dies with the panel close (no ghost).

@@ -118,6 +118,24 @@ export function workspaceFileSlot(
 export type ChildrenByParent = ReadonlyMap<string, readonly DsiSessionSummary[]>;
 
 /**
+ * The glass FIRST slot under its opener (operator ruling 2026-10-24):
+ * a summoned/spawned glass lands DIRECTLY below its opener - past the
+ * opener document tail, BEFORE every adopted child - matching the
+ * spine tree wire order -1 (the ghost always reads as the first
+ * child). Supersedes the region-end placement for the glass only.
+ */
+export function glassFirstSlot(
+	panels: readonly DsiPanelEntry[],
+	openedBy: string
+): number {
+	const openerIdx = panels.findIndex(
+		(p) => p.kind === "conversation" && p.sessionId === openedBy
+	);
+	if (openerIdx === -1) return panels.length;
+	return docTailEnd(panels, openerIdx, openedBy) + 1;
+}
+
+/**
  * Insert-before-focused slot (operator spec, 2026-08-31): a fresh panel
  * lands at the FOCUSED panel's index — immediately before it — and takes
  * focus (the route selects it). 0 when nothing is focused (empty floor,
@@ -149,7 +167,18 @@ export function focusedInsertionSlot(
 	const focus = Math.max(0, selectedIndex);
 	const focused = panels[focus];
 	if (focused === undefined) return 0;
-	if (focused.kind === 'workspace-explorer' || focused.kind === 'workspace-file') {
+	if (
+		focused.kind === 'workspace-explorer' ||
+		focused.kind === 'workspace-file' ||
+		focused.kind === 'browser'
+	) {
+		// The glass joins the clamp (BUG 2026-10-23, the glass wedge): a
+		// focused browser panel used to fall through as family-less, so the
+		// insert-before-focused slot was the glass's OWN index — the newcomer
+		// wedged between the opener's family and its sticky glass. blockBounds'
+		// browser branch (ADR-0036 Amendment 2) resolves the opener's family
+		// block — or the glass itself when keyless (ControlBar, own unit) —
+		// the same nearest non-splitting slot the workspace pair gets.
 		const block = blockBounds(panels, focus, { parentOf });
 		return block === null ? focus : block[0];
 	}
@@ -203,6 +232,13 @@ export function lineagePinnedSlot(
 	let index = base;
 	while (index < panels.length) {
 		const at = panels[index];
+		// The ghost guards the family head (Ladder Amendment 2, operator
+		// 2026-10-24): the glass is the FIRST child — a newly pinned child
+		// lands AFTER it, never between the opener and its ghost.
+		if (at.kind === 'browser' && at.openedBy === parentSessionId) {
+			index++;
+			continue;
+		}
 		if (at.kind !== 'conversation' || !closure.has(at.sessionId)) break;
 		index++;
 	}

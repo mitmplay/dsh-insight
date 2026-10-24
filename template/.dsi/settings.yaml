@@ -11,6 +11,7 @@ conversation:
   collapsable: true
   progresiveFold: true
   statsBar: full-ledger
+  heartbeatType: viewport-cap
 home:
   refreshMs: 5000
 server:
@@ -30,5 +31,11 @@ prompts:
   tags: session lookup macro skill plan rca git cov ptc cordis standard minimal
   dbPath: ~/agentic-ai/deepseek-insight/template/.dsi/
 dsh:
-  authToken: FPF0nflCaApjA-K-MD99RG_u6PnnSjdrhJqs1fTsbus
+  authToken: OfGiW2yPUKNPbqCMa62cBid4uYd1Hce7Tv7jg9MUefw
   presetEnglish: true
+browser:
+  headless: true
+  screencastQuality: 60
+  screencastMaxFps: 10
+jobs:
+  autoClose: false

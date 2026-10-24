@@ -13,6 +13,7 @@ import {
 	findWorkspaceExplorerPanel,
 	findWorkspaceFilePanel,
 	focusedInsertionSlot,
+	glassFirstSlot,
 	injectedDocSlot,
 	lineagePinnedSlot,
 	wireParentOf,
@@ -22,6 +23,7 @@ import {
 } from '$lib/services/panels/panel-placement';
 import { moveFactsFrom } from '$lib/services/lineage/lineage-move';
 import type {
+	DsiBrowserPanel,
 	DsiConversationPanel,
 	DsiInjectedDocPanel,
 	DsiSessionSummary,
@@ -31,6 +33,10 @@ import type {
 
 function conv(id: string, sessionId: string): DsiConversationPanel {
 	return { id, kind: 'conversation', sessionId, agentPreset: null, width: 730 };
+}
+
+function browser(id: string, openedBy?: string): DsiBrowserPanel {
+	return { id, kind: 'browser', width: 730, ...(openedBy !== undefined ? { openedBy } : {}) };
 }
 
 function row(sessionId: string, parentSessionId: string | null = null): DsiSessionSummary {
@@ -125,6 +131,24 @@ describe('focusedInsertionSlot — family clamp + orphan head (7.1-T)', () => {
 	it('no selection (empty floor / stale) falls back to the front', () => {
 		expect(focusedInsertionSlot([], 0, new Map())).toBe(0);
 		expect(focusedInsertionSlot([conv('p-a', 'A')], -3, new Map())).toBe(0);
+	});
+
+	// BUG 2026-10-23 (the glass wedge): a focused BROWSER panel gave no
+	// family clamp — the insert-before-focused slot was the glass's own
+	// index, wedging the newcomer between the opener's family and its
+	// sticky glass (ADR-0036 Amendment 2). The move grammar and the
+	// sidebar's familyRenderOrder both ride the glass with the family;
+	// the focused-slot clamp must resolve the same block.
+	it('a GLASS focus riding its opener family clamps to the block head (never splits opener and glass)', () => {
+		// Floor: |A|glass| — focus on the glass (index 1) clamps to head A's index 0.
+		const panels = [conv('p-a', 'A'), browser('p-glass', 'A')];
+		const parentOf = new Map<string, string>(); // a root agent, no edges needed
+		expect(focusedInsertionSlot(panels, 1, parentOf)).toBe(0);
+	});
+
+	it('a KEYLESS glass (ControlBar open) is its own unit — its focus slot survives', () => {
+		const panels = [conv('p-a', 'A'), browser('p-glass')];
+		expect(focusedInsertionSlot(panels, 1, new Map())).toBe(1);
 	});
 });
 
@@ -394,5 +418,40 @@ describe('retired-phrase sweep (3.1-T, Shared Tree ADR D1/D3)', () => {
 		};
 		walk('src');
 		expect(offenders).toEqual([]);
+	});
+});
+
+// The Glass Close Ladder Amendment 2: the ghost is ALWAYS the first
+// child under its opener — glassFirstSlot lands it below the opener
+// (past its doc tail) and before every adopted child.
+describe('glassFirstSlot — the ghost is the first child (Ladder A2)', () => {
+	const panels = [
+		conv('p1', 'A'),
+		conv('p2', 'sub'),
+		conv('p3', 'B')
+	];
+	it('lands directly below the opener, before adopted children', () => {
+		expect(glassFirstSlot(panels, 'A')).toBe(1);
+	});
+	it('an opener with no floor panel appends at the end', () => {
+		expect(glassFirstSlot(panels, 'Z')).toBe(panels.length);
+	});
+});
+// The Glass Close Ladder Amendment 2 (operator bug 2026-10-24): the ghost
+// is the FIRST child — a newly pinned sub-agent lands AFTER the glass,
+// never between the opener and it.
+describe('lineagePinnedSlot — the ghost guards the family head', () => {
+	const panels = [
+		conv('p1', 'A'),
+		{ id: 'g1', kind: 'browser', width: 480, openedBy: 'A' } as DsiPanelEntry,
+		conv('p2', 'B')
+	];
+	const kids = index({ A: ['new1'] });
+	it('a new child lands AFTER the glass, never between opener and ghost', () => {
+		expect(lineagePinnedSlot(panels, kids, 'A', 'new1')).toBe(2);
+	});
+	it('a second child lands after the first, still behind the ghost', () => {
+		const withChild = [conv('p1', 'A'), conv('p9', 'new1'), { id: 'g1', kind: 'browser', width: 480, openedBy: 'A' } as DsiPanelEntry, conv('p2', 'B')];
+		expect(lineagePinnedSlot(withChild, kids, 'A', 'new2')).toBe(3);
 	});
 });

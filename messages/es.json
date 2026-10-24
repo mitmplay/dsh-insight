@@ -466,5 +466,6 @@
 	"browserUrlPlaceholder": "Buscar o escribir una URL",
 	"browserReload": "Recargar",
 	"browserBack": "Atrás",
-	"browserForward": "Adelante"
+	"browserForward": "Adelante",
+	"browserCloseDelete": "Eliminar el navegador de vidrio — mata la sesión y quita el panel"
 }

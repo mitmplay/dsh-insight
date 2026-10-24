@@ -105,13 +105,13 @@ test.describe.serial('sticky glass reload e2e', () => {
 		await expect(page.locator('.column.selected')).toHaveCount(1);
 	});
 
-	test('02 browse-close after the reload FOLDS — the port stays held (ADR-0037 D1)', async ({ page, request }) => {
+	test('02 browse-close after the reload KILLS — panel gone, session dead, port freed (Ladder Amendment 1)', async ({ page, request }) => {
 		// serial tests share the worker page only via storage; reopen the glass
 		await openGlass(page);
 		const mine = await panelSession(page, request);
 		await page.getByTestId('panel-browser').getByTestId('browse-close').click();
 		await expect(page.getByTestId('panel-browser')).toHaveCount(0);
-		await expect.poll(async () => (await request.get('/api/browser/' + mine.id + '/page')).status()).toBe(200);
-		await expect.poll(() => portHeld(mine.port).toString()).toBe('true');
+		await expect.poll(async () => (await request.get('/api/browser/' + mine.id + '/page')).status()).toBe(409);
+		await expect.poll(() => portHeld(mine.port).toString()).toBe('false');
 	});
 });

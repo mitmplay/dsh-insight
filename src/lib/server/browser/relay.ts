@@ -37,8 +37,10 @@ export class BrowserRelay {
 	private started = false;
 
 	/** JPEG quality 0..100 — from BrowserConfig.screencastQuality
-	 *  (default 90; yaml `browser.screencast:` override, amendment 3). */
-	constructor(cdp: CDPSession, private quality = 90) {
+	 *  (default 90; yaml `browser.screencast:` override, amendment 3).
+	 *  maxFps — ADR-0039 D1: target fps intent; start() derives CDP's
+	 *  everyNthFrame from a nominal 30 Hz paint clock (clamp ≥1). */
+	constructor(cdp: CDPSession, private quality = 90, private maxFps = 15) {
 		this.cdp = cdp;
 	}
 
@@ -56,8 +58,21 @@ export class BrowserRelay {
 		// which dithered captcha images into noise). JPEG stays JPEG: the
 		// encode is libjpeg-turbo SIMD on the CPU either way — no hardware
 		// path exists to lose (ADR-0031 amendments 3).
-		await this.cdp.send('Page.startScreencast', { format: 'jpeg', quality: this.quality, everyNthFrame: 1 });
+		await this.cdp.send('Page.startScreencast', { format: 'jpeg', quality: this.quality, everyNthFrame: Math.max(1, Math.round(30 / this.maxFps)) });
 		this.started = true;
+	}
+
+	/** Deterministic first-frame seed (RCA 2026-10-23 The First Frame That
+	 *  Never Knocked): a starved screencast birth leaves the ring empty
+	 *  FOREVER — screencast only speaks on paint damage. The opener synthesizes
+	 *  the first frame via Page.captureScreenshot and seeds the ring here so
+	 *  attachers get a frame immediately. Does not advance past a real frame. */
+	seed(frame: RelayFrame): void {
+		if (!this.cdp) throw new RelayClosedError();
+		if (this.latest) return;
+		this.seq += 1;
+		this.latest = { ...frame, seq: this.seq };
+		for (const sub of this.subscribers) sub(this.latest);
 	}
 
 	latestFrame(): RelayFrame | null {

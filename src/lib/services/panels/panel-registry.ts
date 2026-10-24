@@ -185,7 +185,7 @@ export interface GlassSummon {
 	openedBy?: string;
 	sessionId?: string;
 }
-export type SummonGlassHandler = (glass: GlassSummon, opts: { replace: boolean }) => void;
+export type SummonGlassHandler = (glass: GlassSummon, opts: { replace: boolean; keepSelection?: boolean }) => void;
 let summonGlassHandler: SummonGlassHandler | null = null;
 
 /** Register the glass-summon action (the folded-glass ghost adopt click). */

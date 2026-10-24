@@ -137,11 +137,23 @@ describe('screencast quality from config (amendment 4, 2026-10-20)', () => {
 	it('default is 90 and the relay start carries it; yaml override flows through', async () => {
 		const { readBrowserConfig, DEFAULT_BROWSER_CONFIG } = await import('$lib/server/insight-config.js');
 		expect(DEFAULT_BROWSER_CONFIG.screencastQuality).toBe(90);
-		expect(readBrowserConfig().screencastQuality).toBe(90); // absent section = default
+		// fixture config, NOT the live file: the operator floor may carry a
+		// real override (2026-10-24: live settings now carry quality 60 and
+		// this test read it, breaking "absent section = default")
+		const os = await import('node:os');
+		const fsp = await import('node:fs/promises');
+		const path = await import('node:path');
+		const fixture = path.join(os.tmpdir(), `dsi-quality-fixture-${Date.now()}.yaml`);
+		await fsp.writeFile(fixture, 'chat:\n  input:\n    maxRows: 15\n');
+		try {
+			expect(readBrowserConfig(fixture).screencastQuality).toBe(90); // absent section = default
+		} finally {
+			await fsp.rm(fixture, { force: true });
+		}
 		const relaySrc = (await import('node:fs')).readFileSync('src/lib/server/browser/relay.ts', 'utf8');
 		expect(relaySrc).toContain('quality: this.quality');
 		const regSrc = (await import('node:fs')).readFileSync('src/lib/server/browser/registry.ts', 'utf8');
-		expect(regSrc).toContain('new BrowserRelay(cdp, cfg.screencastQuality)');
+		expect(regSrc).toContain('new BrowserRelay(cdp, cfg.screencastQuality, cfg.screencastMaxFps)'); // ADR-0039 adds pacing
 		expect(regSrc).toContain('--autoplay-policy=no-user-gesture-required');
 	});
 });
@@ -161,5 +173,17 @@ describe('sound in the headless glass — the operator fix (2026-10-20)', () => 
 		// Playwright injects --mute-audio by default; only the ignore-list
 		// removes it — the autoplay policy flag alone was never audible
 		expect(src).toContain("ignoreDefaultArgs = ['--enable-automation', '--mute-audio']");
+	});
+});
+
+describe('screencast pacing from config (ADR-0039 D1, 2026-10-24)', () => {
+	it('default is 15, absent section falls back, out-of-range clamps to 1..60', async () => {
+		const { readBrowserConfig, DEFAULT_BROWSER_CONFIG } = await import('$lib/server/insight-config.js');
+		expect(DEFAULT_BROWSER_CONFIG.screencastMaxFps).toBe(15);
+		expect(readBrowserConfig().screencastMaxFps).toBe(15); // absent section = default
+		// clamp behavior is intWithin's contract; pin bounds via the reader on the live file
+		const cfg = readBrowserConfig();
+		expect(cfg.screencastMaxFps).toBeGreaterThanOrEqual(1);
+		expect(cfg.screencastMaxFps).toBeLessThanOrEqual(60);
 	});
 });

@@ -363,6 +363,58 @@ describe('BrowserPanel — operator input mapping (D6)', () => {
 		view.un();
 	});
 });
+// The Glass Close Ladder (2026-10-24) task 2.1-T: the 409 death notice
+// rides upward — onclosed fires exactly once per touch-answer; network
+// errors and the fold path never fire it (the panel never kills, never
+// prunes — D2/D4).
+describe('BrowserPanel — the death notice (Glass Close Ladder 2.1)', () => {
+	async function clickGlass(view: { target: HTMLElement }): Promise<void> {
+		const canvas = view.target.querySelector("canvas") as HTMLCanvasElement;
+		const glass = view.target.querySelector('[data-testid="browser-glass"]') as HTMLElement;
+		vi.spyOn(glass, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 200, height: 100 } as DOMRect);
+		canvas.dispatchEvent(new MouseEvent("mousedown", { button: 0, clientX: 5, clientY: 5, bubbles: true }));
+		await settle();
+	}
+
+	it('a 409 CLOSED answer fires onclosed exactly once', async () => {
+		let deaths = 0;
+		const view = mountPanel({ browserSessionId: "warm-abc12345", onclosed: () => (deaths += 1) } as never);
+		await settle();
+		await goLive(view);
+		env.inputStatus = 409;
+		await clickGlass(view);
+		expect(deaths).toBe(1);
+		expect(statusOf(view.target)).toBe("closed");
+		view.un();
+	});
+
+	it('a network error on the touch never fires onclosed', async () => {
+		let deaths = 0;
+		const view = mountPanel({ browserSessionId: "warm-abc12345", onclosed: () => (deaths += 1) } as never);
+		await settle();
+		await goLive(view);
+		fetchMock.mockImplementationOnce(async () => {
+			throw new Error("network down");
+		});
+		await clickGlass(view);
+		expect(deaths).toBe(0);
+		view.un();
+	});
+
+	it('the FOLD never fires onclosed', async () => {
+		let deaths = 0;
+		let folds = 0;
+		const view = mountPanel({ browserSessionId: "warm-abc12345", onclosed: () => (deaths += 1), onclose: () => (folds += 1) } as never);
+		await settle();
+		await goLive(view);
+		const btn = view.target.querySelector('[data-testid="browse-close"]') as HTMLButtonElement;
+		btn.click();
+		await settle();
+		expect(folds).toBe(1);
+		expect(deaths).toBe(0);
+		view.un();
+	});
+});
 
 describe('BrowserPanel — the fold (ADR-0037 D1/D2)', () => {
 	it('browse-close FOLDS: reports onclose, NO /close POST, stream detached', async () => {
@@ -565,3 +617,4 @@ describe('BrowserPanel — guard branches (coverage addendum)', () => {
 		view.un();
 	});
 });
+

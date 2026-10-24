@@ -140,6 +140,23 @@ export function persistBrowserSlots(slots: BrowserSlot[], storage: Pick<Storage,
  *  folded set from it; persistBrowserSlots is the only writer. */
 export const browserSlotStore = writable<BrowserSlot[]>([]);
 
+/**
+ * Drop the slot entry whose glass session died (The Glass Close Ladder
+ * ADR 2026-10-24 D4): the live prune — a dead glass's entry is REMOVED,
+ * never folded, so the roster ghost and the spine nest drop with it in
+ * the same mirror stroke, no reload. Unknown id = quiet no-op (false).
+ */
+export function removeBrowserSlot(
+	sessionId: string,
+	storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = defaultStorage()!
+): boolean {
+	const slots = readBrowserSlots(storage);
+	const next = slots.filter((s) => s.sessionId !== sessionId);
+	if (next.length === slots.length) return false;
+	persistBrowserSlots(next, storage);
+	return true;
+}
+
 /** Seed the mirror from storage (boot). */
 export function primeBrowserSlotStore(storage: Pick<Storage, 'getItem'> | null = defaultStorage()): void {
 	browserSlotStore.set(readBrowserSlots(storage));

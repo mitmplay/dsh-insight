@@ -345,16 +345,21 @@ class BrowserRegistry {
 		// and the screencast (and the glass) freezes: keep it compositing.
 		// OFF-screen parking: the panel is the browser's face, the OS window
 		// is the chassis
+		'--disable-blink-features=AutomationControlled',
+		'--disable-features=IsolateOrigins,site-per-process',
+		'--disable-dev-shm-usage',
 		'--disable-backgrounding-occluded-windows',
 		'--disable-renderer-backgrounding',
 		'--disable-background-timer-throttling',
-		'--disable-blink-features=AutomationControlled',
 		// the glass has no physical keys: page media must autoplay WITH
 		// sound (operator report 2026-10-20 — silent headless YouTube)
 		'--autoplay-policy=no-user-gesture-required',
 		'--window-position=-32000,-32000'
 	],
-	viewport: null
+	viewport: {width: 1920, height: 1080},
+	userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+	timezoneId: 'America/New_York',
+	locale: 'en-US'
 });
 let context: BrowserContext;
 try {
@@ -367,7 +372,7 @@ const browser = context.browser();
 		// port we own (lsof) — the same handle close() verifies with.
 		const pid = pidOfPort(port);
 		const cdp = await context.newCDPSession(context.pages()[0] ?? (await context.newPage()));
-		const relay = new BrowserRelay(cdp, cfg.screencastQuality);
+		const relay = new BrowserRelay(cdp, cfg.screencastQuality, cfg.screencastMaxFps);
 		await relay.start();
 		// A fresh profile window often shows NO first paint until interaction —
 		// and screencast emits only on paint. Guarantee the first frame (and
@@ -376,6 +381,23 @@ const browser = context.browser();
 		await cdp.send('Page.enable').catch(() => undefined);
 		await cdp.send('Page.navigate', { url: start }).catch(() => undefined);
 		await new Promise((r) => setTimeout(r, 600)); // first paint → first frame
+		// First frame is a CONTRACT, not a side effect (RCA 2026-10-23 — The
+		// First Frame That Never Knocked): with pipe + --remote-debugging-port
+		// both alive, Chrome sometimes starves the screencast's initial frame,
+		// and screencast stays silent until the page changes → the ring is born
+		// empty forever and the glass freezes on "waiting for frames…". Give a
+		// healthy screencast a bounded grace, then synthesize the first frame
+		// with a plain captureScreenshot and seed the ring. The port flag STAYS
+		// — close()'s pid-via-lsof verification depends on it.
+		if (relay.latestFrame() === null) {
+			for (let i = 0; i < 10 && relay.latestFrame() === null; i += 1) {
+				await new Promise((r) => setTimeout(r, 100));
+			}
+		}
+		if (relay.latestFrame() === null) {
+			const shot = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: cfg.screencastQuality }).catch(() => null);
+			if (shot) relay.seed({ seq: 0, jpeg: shot.data, metadata: { seeded: true } });
+		}
 
 		// Env override beats the yaml default (DSI_MCP_PORT; tests live in the
 		// isolated 19515 range) — the operator's explicit env is still the

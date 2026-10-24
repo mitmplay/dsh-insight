@@ -558,6 +558,9 @@ export interface BrowserConfig {
 	/** Screencast JPEG quality 10..100 (amendment 3: captcha legibility).
 	 *  No hardware encoder exists in the CDP path — this trades bytes only. */
 	screencastQuality: number;
+	/** Screencast target fps 1..60 (ADR-0039 D1) — intent knob; the relay
+	 *  derives CDP's everyNthFrame from a nominal 30 Hz paint clock. */
+	screencastMaxFps: number;
 }
 
 export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
@@ -568,7 +571,8 @@ export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
 	profileRoot: join(homedir(), '.dsi', 'browser-profiles'),
 	maxSessions: 4,
 	idleMs: 600_000,
-	screencastQuality: 90
+	screencastQuality: 90,
+	screencastMaxFps: 15
 };
 
 function strOr(v: unknown, fallback: string): string {
@@ -588,6 +592,7 @@ export function readBrowserConfig(configPath?: string): BrowserConfig {
 		profileRoot: strOr(section.profileRoot, DEFAULT_BROWSER_CONFIG.profileRoot),
 		maxSessions: intWithin(section.maxSessions, 1, 32, DEFAULT_BROWSER_CONFIG.maxSessions),
 		idleMs: intWithin(section.idleMs, 10_000, 86_400_000, DEFAULT_BROWSER_CONFIG.idleMs),
-		screencastQuality: intWithin(section.screencastQuality, 10, 100, DEFAULT_BROWSER_CONFIG.screencastQuality)
+		screencastQuality: intWithin(section.screencastQuality, 10, 100, DEFAULT_BROWSER_CONFIG.screencastQuality),
+		screencastMaxFps: intWithin(section.screencastMaxFps, 1, 60, DEFAULT_BROWSER_CONFIG.screencastMaxFps)
 	};
 }

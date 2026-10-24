@@ -12,7 +12,8 @@
 		openedBy = undefined,
 		parentTitle = null,
 		depth = 0,
-		onsession
+		onsession,
+		onclosed
 	}: {
 		browserSessionId?: string;
 		onclose: () => void;
@@ -24,11 +25,14 @@
 		/** Session write-back (Amendment 3): the glass reports its resolved
 		 *  browser-session id; the floor entry carries it for the slot list. */
 		onsession?: (id: string) => void;
+		/** The death notice pass-through (Glass Close Ladder D4): a touch
+		 *  answered 409 CLOSED — the route prunes the slot entry. */
+		onclosed?: () => void;
 	} = $props();
 </script>
 
 <div class="panel-manager-body" data-testid="panel-browser-slot">
-	<BrowserPanel {browserSessionId} {onclose} {openedBy} {parentTitle} {depth} {onsession} />
+	<BrowserPanel {browserSessionId} {onclose} {openedBy} {parentTitle} {depth} {onsession} {onclosed} />
 </div>
 <style>
 	/* Same rule as +page.svelte's scoped .panel-manager-body (RCA

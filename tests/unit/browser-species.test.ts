@@ -12,8 +12,8 @@ import {
 
 // the seam the state home demands (the page normally configures it)
 configureFloorRegistry({
-	getLineageFacts: () => ({ subagentIds: new Set(), depthById: new Map(), rootIds: new Set() }) as never,
-	getMoveFacts: () => ({}) as never,
+	getLineageFacts: () => ({ subagentIds: new Set(), depthById: new Map(), rootIds: new Set(), childrenByParent: new Map() }) as never,
+	getMoveFacts: () => ({ parentOf: new Map() }) as never,
 	getWorkspaceFor: () => null,
 	ensureCold: async () => undefined,
 	rememberEdge: () => undefined,
@@ -38,6 +38,40 @@ describe('browser floor species (W2 2.2)', () => {
 		openBrowserPanel(); // second click FOCUSES, never duplicates
 		expect(st.panels.filter((p) => p.kind === 'browser')).toHaveLength(1);
 		expect(st.selectedPanelId).toBe(id);
+	});
+
+	// The ghost is ALWAYS the first child under its opener (operator ruling
+	// 2026-10-24 — the spine tree ships wire order -1, the floor must match).
+	// A sub-agent adopted BEFORE the glass never pushes it to the region end.
+	it('a chip-spawned glass pins FIRST under its opener, before adopted children', () => {
+		// the opener HAS an adopted child: childrenByParent carries A -> [sub]
+		configureFloorRegistry({
+			getLineageFacts: () => ({
+				subagentIds: new Set(['sub']),
+				depthById: new Map([['sub', 1]]),
+				rootIds: new Set(['A', 'B']),
+				childrenByParent: new Map([['A', [{ sessionId: 'sub', title: 'sub', agentPreset: null, running: false, blank: false, updatedAt: 0, workspace: '/w', turns: null, parentSessionId: 'A', origin: 'subagent' }]]])
+			}) as never,
+			getMoveFacts: () => ({ parentOf: new Map([['sub', 'A']]) }) as never,
+			getWorkspaceFor: () => null,
+			ensureCold: async () => undefined,
+			rememberEdge: () => undefined,
+			getPanelWidth: () => 480,
+			setPanelWidthPreset: () => undefined,
+			setTreePct: () => undefined,
+			getSettingsHomes: () => ({}),
+			applyTerminalDeskAction: () => undefined
+		});
+		resetFloorState();
+		// floor: |A|sub|B| — A already has an adopted child sub-agent
+		st.panels = [
+			{ id: 'p-a', kind: 'conversation', sessionId: 'A', agentPreset: null, width: 480 },
+			{ id: 'p-sub', kind: 'conversation', sessionId: 'sub', agentPreset: null, width: 480 },
+			{ id: 'p-b', kind: 'conversation', sessionId: 'B', agentPreset: null, width: 480 }
+		] as never;
+		openBrowserPanel(undefined, false, undefined, 'A', 'bs-1');
+		const kinds = st.panels.map((p) => (p.kind === 'conversation' ? (p as { sessionId: string }).sessionId : p.kind));
+		expect(kinds).toEqual(['A', 'browser', 'sub', 'B']);
 	});
 
 	it('ConversationHeader renders the browser chip only when the opener is provided', () => {
@@ -156,7 +190,7 @@ describe('glass placement + cascade (Amendment 2)', () => {
 		});
 	}
 
-	it('chip spawn pins the glass right of the opener family region (D6)', () => {
+	it('chip spawn pins the glass FIRST under its opener, before children (Ladder Amendment 2)', () => {
 		resetFloorState();
 		configure();
 		// floor shape: A | sub(agent of A) | other
@@ -168,7 +202,7 @@ describe('glass placement + cascade (Amendment 2)', () => {
 		st.selectedPanelId = 'p3'; // focus is ELSEWHERE — placement must ignore it
 		openBrowserPanel(undefined, false, undefined, 'sess-a');
 		const idx = st.panels.findIndex((p) => p.kind === 'browser');
-		expect(idx).toBe(2); // after p1+p2 (the family region), before p3
+		expect(idx).toBe(1); // the ghost is ALWAYS the first child: right after A, before sub
 	});
 
 	it('closing the opener dooms the glass (D5 revised)', () => {

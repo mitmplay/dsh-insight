@@ -466,5 +466,6 @@
 	"browserUrlPlaceholder": "Cari atau ketik URL",
 	"browserReload": "Muat ulang",
 	"browserBack": "Kembali",
-	"browserForward": "Maju"
+	"browserForward": "Maju",
+	"browserCloseDelete": "Hapus browser kaca — matikan sesi dan hapus panel"
 }

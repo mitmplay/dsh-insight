@@ -74,9 +74,22 @@
 	 *  floor mounted the registry's no-op lets the anchor navigate. */
 	function onRowClick(e: MouseEvent): void {
 		if (isGlass) {
+			// The ghost-summon family rule (operator bug 2026-10-24): the
+			// glass never lands as an orphan — its opener conversation comes
+			// back first (addPanelFromSidebar dedupes to focus when the
+			// opener is already paneled), then the glass summons and pins
+			// beside its family (D6).
+			if (session.parentSessionId) {
+				addPanelFromSidebar({
+					sessionId: session.parentSessionId,
+					agentPreset: session.agentPreset
+				});
+			}
 			summonGlassFromRegistry(
 				{ sessionId: session.sessionId, openedBy: session.parentSessionId ?? undefined },
-				{ replace: false }
+				// the operator clicked the BROWSER — the summon must focus it,
+				// not restore the opener's selection (focus contract)
+				{ replace: false, keepSelection: false }
 			);
 			e.preventDefault();
 			return;

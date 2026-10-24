@@ -361,7 +361,9 @@
 		if (ghost.panel.id.startsWith('glass-')) {
 			summonGlassFromRegistry(
 				{ sessionId: ghost.panel.sessionId, openedBy: ghost.parentSessionId ?? undefined },
-				{ replace: false }
+				// the operator clicked the BROWSER — the summon focuses it
+				// (keepSelection false), never the previously focused panel
+				{ replace: false, keepSelection: false }
 			);
 			return;
 		}

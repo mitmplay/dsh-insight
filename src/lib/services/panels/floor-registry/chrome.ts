@@ -15,6 +15,7 @@ import { SvelteSet } from 'svelte/reactivity';
 import { clampTreePct } from '$lib/utils/panel-prefs';
 import {
 	findWorkspaceExplorerPanel,
+	glassFirstSlot,
 	workspaceExplorerSlot
 } from '$lib/services/panels/panel-placement';
 import type { ReloadFeedback } from '$lib/utils/skill-shelf-reload-machine';
@@ -136,8 +137,8 @@ export function openBrowserPanel(index?: number, keepSelection = false, width?: 
 	const slot =
 		index !== undefined
 			? Math.max(0, Math.min(index, st.panels.length))
-			: openedBy !== undefined && d().getLineageFacts().childrenByParent
-				? pinnedSlotIndex(openedBy, 'browser')
+			: openedBy !== undefined
+				? glassFirstSlot(st.panels, openedBy) // Amendment 2: FIRST under the opener, before adopted children
 				: insertionSlot(); // fail-soft: no lineage table, focused slot
 	insertPanel(
 		// openedBy rides the INSERT path only — the per-opener early-return
@@ -324,10 +325,14 @@ export function removePanel(panelId: string, opts: { family?: boolean } = {}): v
 		}
 	}
 	const doomedPanelIds = new SvelteSet<string>();
-	// D5 REVISED (Amendment 2): the glass dies with its opener — the
-	// openedBy edge is the browser's family edge, the explorerPanelId
-	// precedent below. A browser with no provenance (ControlBar open) has
-	// no family and survives every cascade.
+	// D5 REVISED (Amendment 2) — and RE-SCOPED by the operator ruling of
+	// 2026-10-24 (Glass Close Ladder Amendment 2): a cascade dooms the
+	// browser PANEL only. The wire session SURVIVES the opener close — the
+	// slot tick folds it and the lineage-tree ghost nests it under the
+	// opener family in SidebarSessionsList. The ONLY wire killers are the
+	// header trash (the route's onclose → releaseGlasses) and the reaper.
+	// A browser with no provenance (ControlBar open) has no family and
+	// survives every cascade.
 	if (opts.family !== false && rootSessionId !== null) {
 		for (const p of st.panels) {
 			if (p.kind === 'browser' && p.openedBy !== undefined && doomed.has(p.openedBy)) {

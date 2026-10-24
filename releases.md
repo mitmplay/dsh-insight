@@ -1,5 +1,21 @@
 # Releases
 
+## 0.8.2
+
+Bumped from 0.8.1 — the Glass Close Ladder lands (the trash kills, everything else folds), and the frame pipe learns its second dial.
+
+### Features
+- **The Glass Close Ladder (ADR, Accepted)** — exactly two things kill a glass: the header 🗑 (BrowserClosed: wire close + panel removed + slot pruned in one stroke) and the idle reaper. The opener's close and the glass column close FOLD, never kill; sidebar rows cannot kill. `019ff596`, `69952197`, `28d319b6`, `7cb1cca8`; headed demo spec `0dadb3de` (trash removes panel + SidebarOpenPanels row).
+- **The Frame Pacer (ADR-0039)** — `browser.screencastMaxFps` (default 15, clamp 1..60): Chrome skips frames at the SOURCE via `everyNthFrame`, so skipped frames are never JPEG-encoded; the relay ring/ack/seed and input chain untouched. Pacing pins 15→2, 30→1, 7→4, 1→30 in `browser-relay-mock.test.ts`; wiring pin in `browser-proxy-verbs.test.ts` (29/29 green). `51d27881`.
+- **The first frame is a contract** — a starved screencast birth left the glass frozen on "waiting for frames…" forever; `open()` now seeds the relay ring via `Page.captureScreenshot` after a grace window (`BrowserRelay.seed()`). RCA 2026-10-23 The First Frame That Never Knocked; `c1bb3a2a`.
+- **A focused glass clamps inserts** — promoting an agent while the glass holds floor focus lands the newcomer at the opener's family block head, never wedged between opener and glass; pinned in `panel-placement.test.ts`. `beea5bf2`.
+- **KB — Browser Manager feature-contract-scenario** — the surface got its first feature/contract/scenario note (kill authority, fold ladder, state table, open question pointing at ADR-0038); later rewritten as the two-dials frame-pipe contract (size × rate) including the measured `maxFps: 1` feedback-lag trap. `f938029a`, `c392e927`, `bc5c48c4`.
+
+### Bug fixes
+- Ghost summon adopted the wrong family — summoning a spine ghost now adopts its opener (the glass never lands as an orphan), the ghost is ALWAYS the first child under its opener, and pinned children land AFTER the ghost, never between opener and ghost. `b8d5a4eb`, `41a5c96c`, `eacf8f5d`, `8aca533e`.
+- The glass persona dropped its fake Windows/New_York UA/timezone/locale overrides (self-consistent host Mac Chrome now); an initial fix + its 100%-branch test were reverted when the approach shifted to ADR-0038 hands-not-evasions. `8cd90fc7`, `9d80f9a0`, `4f16ce38`.
+- Captcha launch hardening — consistent persona, site-isolation off, dev-shm (later superseded by ADR-0038's human-in-the-glass ruling). `0176b3d3`, `31392f9c`.
+
 ## 0.8.1
 
 Bumped from 0.8.0 — the Glass Fold ships, and the floor ControlBar moves into the sidebar rail.
@@ -431,38 +447,3 @@ Bumped from v0.5.36 — the chat → composer reorganization lands whole: source
 ### Refactoring
 
 - **components/chat → components/composer** (3299ec3, 42311f3, e069d8e, ca25bff, de1c2e3) — the flat `chat/` namespace is gone: attachment components into `composer/attachment/`, SlashMenu + suggest-strip into `composer/menu/`, six sibling components into `composer/sibling/`, PromptInput renamed Composer; every importer updated.
-- **The Test Mirror** (5d37eef, ADR 2026-09-26) — 134 component unit tests moved under `tests/unit/components/<area>/` mirroring the source subtree shape, per the new ADR; 193 service/route tests stay flat. Full suite 4,393 green under the coverage gate.
-- **Coverage gaps closed** (03e1634) — every sub-80% coverage gap shut; full suite green under the 80% global per-file gate.
-- **AccessModeConfirm extracted** (69b3ab7) — the risk gate lives in `access-mode/` with chip move + Composer wiring.
-
-### Docs
-
-- **Dev-doc stale-path audit** (21867bc) — 123 dev docs, 218 stale `components/chat` mentions rewritten to current locations; the audit record with the full mapping table lives at `dev/rename-audit-2026-09-26.md`.
-
-## v0.5.36
-
-Bumped from v0.5.35 — Add Workspace flow fixes.
-
-### Bug fixes
-
-- **Add workspace: stuck panel after a successful native pick** — after the OS
-  folder dialog returned a path and the adopt+create succeeded, the panel's
-  `done` step left the dialog rendered with a permanently disabled
-  "Add workspace & start chat" button (in the native flow `listing` is null,
-  so the confirm button could never enable). The panel now dismisses itself on
-  full success; it reopens showing the error only if the navigation callback
-  itself throws, so a failure is never silently swallowed. Regression test:
-  "a successful native pick dismisses the panel (no stuck dialog)".
-- **Add workspace: the new session ignored the selected Agent** — the create
-  POST sent only `{ cwd }`, so the fresh session always landed on the host
-  default agent even when an agent pill was selected in the SessionFilter row
-  (the pill visible in SessionFilterHeader). The selected agent preset is now
-  threaded through SessionFilterMeta into AddWorkspaceButton and rides the
-  create (`{ cwd, agentPreset }`), matching NewChatButton's grammar. No pill
-  selected still falls back to the host default. Regression test: "the armed
-  agent rides the create — no silent default".
-
-### Tests
-
-- 2 new regression tests in `tests/unit/add-workspace-button.test.ts`
-  (24 total, all passing).

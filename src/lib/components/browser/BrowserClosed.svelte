@@ -1,14 +1,21 @@
 <!--
-	BrowserClosed — the header's close (✕) button, extracted from
-	BrowserHeader. Dumb seam: reports the owner-release click upward
-	(ADR-0031 D8 — the panel performs the actual close); disabled while
-	the panel mirrors a closing session.
+	BrowserClosed — the header's CLOSE (🗑) button, extracted from
+	BrowserHeader. Amendment 1 (Glass Close Ladder ADR 2026-10-24, operator
+	ruling): the header verb is a FULL CLOSE — the same as a close-panel:
+	the route kills the Playwright browser (wire close) AND removes the
+	panel from the floor. The old fold (ADR-0037 D1) is retired for this
+	surface. Dumb seam: reports the kill intent upward (ADR-0031 D8 — the
+	panel/route performs the actual close); disabled while the panel
+	mirrors a closing session.
 -->
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages';
+
 	let {
 		/** Double-invocation guard mirrored from the panel while closing. */
 		closing = false,
-		/** Owner-release click (D8): the panel performs the actual close. */
+		/** Kill intent click (D8): the panel reports upward; the route
+		 *  performs the wire close + panel removal. */
 		onclose
 	}: {
 		closing?: boolean;
@@ -17,8 +24,35 @@
 </script>
 
 <button
-	class="rounded px-1 hover:bg-surface-active"
+	class="rounded hover:bg-surface-active"
 	data-testid="browse-close"
+	aria-label={m.browserCloseDelete()}
+	title={m.browserCloseDelete()}
 	disabled={closing}
 	onclick={() => onclose?.()}
->✕</button>
+>
+	<!-- trashbin: the verb is DELETE, not hide (Amendment 1) -->
+	<svg
+		width="14"
+		height="14"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="red"
+		stroke-width="2"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<path d="M3 6h18" />
+		<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+		<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+		<path d="M10 11v6" />
+		<path d="M14 11v6" />
+	</svg>
+</button>
+<style>
+	button {
+		display: inline-flex;
+		align-items: center;
+	}
+</style>
