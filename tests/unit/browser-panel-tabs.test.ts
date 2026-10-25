@@ -63,6 +63,9 @@ const env = {
 	activateStatus: 200,
 	activateBody: null as Record<string, unknown> | null,
 activateAnswer: { targetId: T2, seq: 7, jpeg: 'Ym91bmRhcnk=', url: 'https://two.example' } as Record<string, unknown>,
+	opentabBody: null as Record<string, unknown> | null,
+	opentabStatus: 200,
+	opentabAnswer: { targetId: 'tid-new', seq: 42, jpeg: 'Ym91bmRhcnk=', url: 'about:blank', title: '' } as Record<string, unknown>,
 	closed: false
 };
 
@@ -82,6 +85,10 @@ const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Respo
 		env.activateBody = JSON.parse(String(init.body)) as Record<string, unknown>;
 		return new Response(JSON.stringify(env.activateAnswer), { status: env.activateStatus });
 	}
+	if (url.includes('/opentab')) {
+		env.opentabBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+		return new Response(JSON.stringify(env.opentabAnswer), { status: env.opentabStatus });
+	}
 	if (url.includes('/input')) return new Response('{}', { status: 200 });
 	return new Response('unrouted: ' + url, { status: 404 });
 });
@@ -91,6 +98,8 @@ beforeEach(() => {
 	env.tabs = twoTabs;
 	env.activateStatus = 200;
 	env.activateBody = null;
+	env.opentabBody = null;
+	env.opentabStatus = 200;
 	vi.stubGlobal('Image', FrameImage as unknown as typeof Image);
 	vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
 	vi.stubGlobal('EventSource', StubEventSource as unknown as typeof EventSource);
@@ -202,4 +211,62 @@ it('polls /tabs while live — a brain-opened tab appears WITHOUT remount (bugfi
 	flushSync();
 	expect(target.querySelectorAll('[data-testid="browser-tab"]')).toHaveLength(2);
 	vi.useRealTimers();
+});
+
+describe('BrowserPanel + chip (ADR-0042 D3)', () => {
+	it('renders the + chip at the strip end; disabled until live (component contract), armed on the first frame', async () => {
+		const { target } = mountPanel();
+		await tick();
+		await tick();
+		flushSync();
+		const plus = () => target.querySelector('[data-testid="browser-tab-new"]') as HTMLButtonElement;
+		expect(plus()).toBeTruthy();
+		expect(plus().disabled).toBe(true); // status still connecting — not live yet
+		StubEventSource.instances[0].emit('frame', JSON.stringify({ jpeg: 'aGk=', metadata: {} }));
+		await tick();
+		flushSync();
+		expect(plus().disabled).toBe(false);
+		expect(plus().textContent).toContain('+');
+	});
+
+	it('click POSTs an EMPTY body (absence = blank, ADR-0042 D1), paints the boundary, re-attaches SSE at the seq, refreshes tabs immediately', async () => {
+		env.tabs = oneTab;
+		const { target } = mountPanel();
+		await tick();
+		await tick();
+		StubEventSource.instances[0].emit('frame', JSON.stringify({ jpeg: 'aGk=', metadata: {} }));
+		await tick();
+		flushSync();
+		const before = StubEventSource.instances.length;
+		// the server registry now holds the new tab — the mock reflects that
+		env.tabs = twoTabs;
+		(target.querySelector('[data-testid="browser-tab-new"]') as HTMLButtonElement).click();
+		await tick();
+		await tick();
+		flushSync();
+		expect(env.opentabBody).toEqual({}); // no literal about:blank — absence is the signal
+		const sources = StubEventSource.instances.slice(before);
+		expect(sources.some((s) => s.url.includes('fromSeq=42'))).toBe(true);
+		// immediate refresh (NOT the 2s poll): two chips right after the answer
+		expect(target.querySelectorAll('[data-testid="browser-tab"]').length).toBe(2);
+	});
+
+	it('an opentab refusal (409) leaves the strip on the old face — no crash, no SSE churn', async () => {
+		env.opentabStatus = 409;
+		env.tabs = oneTab;
+		const { target } = mountPanel();
+		await tick();
+		await tick();
+		StubEventSource.instances[0].emit('frame', JSON.stringify({ jpeg: 'aGk=', metadata: {} }));
+		await tick();
+		flushSync();
+		const before = StubEventSource.instances.length;
+		(target.querySelector('[data-testid="browser-tab-new"]') as HTMLButtonElement).click();
+		await tick();
+		await tick();
+		flushSync();
+		expect(env.opentabBody).toEqual({});
+		expect(StubEventSource.instances.length).toBe(before); // no re-attach on refusal
+		expect(target.querySelectorAll('[data-testid="browser-tab"]')).toHaveLength(1);
+	});
 });

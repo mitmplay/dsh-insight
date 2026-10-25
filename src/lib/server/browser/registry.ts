@@ -913,26 +913,30 @@ const browser = context.browser();
 		}
 	}
 
-	/** Open a NEW tab in the glass at `url` and make it the active face
-	 *  (the context menu's 'open in new tab' verbs). Returns the new tab. */
-	async openTab(id: string, url: string, opts?: { activate?: boolean }): Promise<{ targetId: string; seq: number; jpeg: string | null; url: string; title: string }> {
+	/** Open a NEW tab in the glass and make it the active face. With a
+	 *  `url`: the context-menu open-link/image path — create BLANK then
+	 *  navigate through the verb seam (createTarget with a URL races its own
+	 *  navigation and lands on chrome-error, observed 2026-10-25). WITHOUT a
+	 *  url (ADR-0042 D2, the + chip): createTarget ONLY — the birth state
+	 *  again, no navigation. Either way activate() applies the first-frame
+	 *  contract (ADR-0040 D4 / ADR-0042 D4: grace, then a captureScreenshot
+	 *  seed) and returns the boundary payload the caller paints. */
+	async openTab(id: string, url?: string, opts?: { activate?: boolean }): Promise<{ targetId: string; seq: number; jpeg: string | null; url: string; title: string }> {
 		const e = this.peek(id);
 		if (e.closed) throw new BrowserRegistryRefusal('CLOSED', 'session is closing');
 		const src = (e.activeTargetId ? e.tabs.get(e.activeTargetId) : null)?.cdp ?? [...e.tabs.values()][0]?.cdp;
 		if (!src) throw new BrowserRegistryRefusal('CLOSED', 'no tab handle to create from');
-		// create BLANK then navigate through the verb seam — createTarget with
-		// a URL races its own navigation and lands on chrome-error (observed
-		// 2026-10-25); blank + navigate(targetId) is the proven path
 		const res = (await src.send('Target.createTarget', { url: 'about:blank' })) as { targetId?: string } | null;
 		const targetId = res?.targetId;
 		if (!targetId) throw new BrowserRegistryRefusal('NO_TARGET', 'Target.createTarget returned no id');
-		await this.navigate(id, url, { waitLoad: true, targetId });
-		if (opts?.activate ?? true) await this.activate(id, targetId);
-		// boundary payload (ADR-0040 D4): the caller paints THIS frame before
-		// its SSE re-attaches, so the mirror never freezes on the old face
+		if (url) await this.navigate(id, url, { waitLoad: true, targetId });
+		if (opts?.activate ?? true) {
+			const b = await this.activate(id, targetId);
+			return { ...b, targetId };
+		}
+		// no-activate caller: report whatever the fresh face has so far
 		const h = e.tabs.get(targetId);
-		const pi = await this.pageInfo(id, targetId).catch(() => ({ url, title: '' }));
-		return { targetId, seq: h?.relay.latestFrame()?.seq ?? 0, jpeg: h?.relay.latestFrame()?.jpeg ?? null, url: pi.url || url, title: pi.title };
+		return { targetId, seq: h?.relay.latestFrame()?.seq ?? 0, jpeg: h?.relay.latestFrame()?.jpeg ?? null, url: url ?? 'about:blank', title: '' };
 	}
 
 	/** Apply the remembered panel viewport by RESIZING THE WINDOW (round 10:

@@ -134,7 +134,6 @@ describe('POST opentab', () => {
 	});
 
 	it.each([
-		['missing url', {}],
 		['non-string url', { url: 42 }],
 		['ftp scheme', { url: 'ftp://x' }],
 		['javascript scheme', { url: 'javascript:alert(1)' }],
@@ -144,6 +143,17 @@ describe('POST opentab', () => {
 		expect(res.status).toBe(400);
 		expect(await res.json()).toEqual({ error: 'BAD_URL' });
 		expect(spies.openTab).not.toHaveBeenCalled();
+	});
+
+	it('an absent or empty url opens a BLANK tab (ADR-0042 D1) — forwarded as undefined', async () => {
+		const res = await postJson(postOpen, {});
+		expect(res.status).toBe(200);
+		expect(spies.openTab).toHaveBeenCalledWith(ID, undefined);
+
+		spies.openTab.mockClear();
+		const empty = await postJson(postOpen, { url: '' });
+		expect(empty.status).toBe(200);
+		expect(spies.openTab).toHaveBeenCalledWith(ID, undefined);
 	});
 
 	it.each([

@@ -211,6 +211,20 @@ describe('openTab', () => {
     expect(e.activeTargetId).not.toBe('tid-new-1'); // activate skipped
   });
 
+  it('blank path (ADR-0042 D2): creates WITHOUT navigating, reports about:blank', async () => {
+    const e = seed();
+    const navSpy = vi.spyOn(browserRegistry, 'navigate').mockResolvedValue({} as never);
+    handleOf(e).cdp.send.mockImplementation(async (method: string) => {
+      if (method === 'Target.createTarget') return { targetId: 'tid-blank-1' };
+      return {};
+    });
+    const res = await browserRegistry.openTab(e.id, undefined, { activate: false });
+    expect(res.targetId).toBe('tid-blank-1');
+    expect(res.url).toBe('about:blank');
+    expect(navSpy).not.toHaveBeenCalled(); // createTarget ONLY — no navigate round trip
+    navSpy.mockRestore();
+  });
+
   it('activate:true moves the pointer and re-activates the new face', async () => {
     const e = seed();
     let created = 0;

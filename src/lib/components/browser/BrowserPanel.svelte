@@ -284,17 +284,21 @@
 		void post({ kind: 'mouse', type: 'mousePressed', x: p.x, y: p.y, button: 'right', clickCount: 1 });
 		void post({ kind: 'mouse', type: 'mouseReleased', x: p.x, y: p.y, button: 'right', clickCount: 1 });
 	}
-	async function ctxOpenTab(url: string): Promise<void> {
-		ctxClose();
+	/** ADR-0042 D3: ONE client choreography for tab creation — the context
+	 *  menu's open-link/image (url present) and the strip's + chip (url
+	 *  empty = BLANK, the birth state again). Empty body per D1: absence is
+	 *  the blank signal, never a literal about:blank. Callers own their own
+	 *  ctxClose(). */
+	async function openTab(url: string): Promise<void> {
 		if (!sessionId) return;
 		try {
 			const res = await fetch(apiBase + '/api/browser/' + sessionId + '/opentab', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ url })
+				body: JSON.stringify(url ? { url } : {})
 			});
 			if (!res.ok) return;
-			const b = (await res.json()) as { seq: number; jpeg: string | null };
+			const b = (await res.json()) as { targetId: string; seq: number; jpeg: string | null };
 			if (b.jpeg) draw({ jpeg: b.jpeg, metadata: { boundary: true } });
 			const p2 = await fetch(apiBase + '/api/browser/' + sessionId + '/page?targetId=' + encodeURIComponent(b.targetId));
 			if (p2.ok) dpr = ((await p2.json()) as { dpr?: number }).dpr ?? 1;
@@ -324,9 +328,9 @@
 		const m = ctxMenu;
 		ctxClose();
 		if (!m) return;
-		if (action === 'open-image' && m.src) return void ctxOpenTab(m.src);
+		if (action === 'open-image' && m.src) return void openTab(m.src);
 		if (action === 'copy-image' && m.src) return void ctxCopy(m.src);
-		if (action === 'open-link' && m.href) return void ctxOpenTab(m.href);
+		if (action === 'open-link' && m.href) return void openTab(m.href);
 		if (action === 'copy-link' && m.href) return void ctxCopy(m.href);
 		if (action === 'reload') return void proxy({ action: 'reload' });
 		if (action === 'send-right-click') return ctxSendRightClick();
@@ -609,11 +613,24 @@
 	{/if}
 	{#if tabs.length >= 1}
 		<!-- ADR-0040 D5: the tab strip — panel furniture fed by the registry;
-		     a click is an activate, the boundary frame paints the answer -->
+		     a click is an activate, the boundary frame paints the answer.
+		     ADR-0042 D3: the + chip at the strip's END is the operator's tab
+		     CREATE — an absent-URL opentab (the birth state again); the panel
+		     performs it exactly like activate: boundary paint, dpr, SSE
+		     re-attach, immediate refresh. No address-bar focus grab (D3). -->
 		<div class="flex items-center gap-1 overflow-x-auto border-b border-surface-border px-1 py-0.5 text-[11px]" data-testid="browser-tab-strip">
 			{#each tabs as t (t.targetId)}
 				<BrowserTab tab={t} disabled={switching} onactivate={(id) => void activateTab(id)} onclose={(id) => void ctxCloseTab(id)} />
 			{/each}
+			<button
+				type="button"
+				class="shrink-0 rounded px-1.5 leading-none text-zinc-500 hover:bg-zinc-100 disabled:opacity-40"
+				title="New tab"
+				aria-label="New tab"
+				data-testid="browser-tab-new"
+				disabled={switching || status !== 'live'}
+				onclick={() => void openTab('')}
+			>+</button>
 		</div>
 	{/if}
 	<BrowserContent
