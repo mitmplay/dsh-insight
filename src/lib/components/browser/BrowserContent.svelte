@@ -23,7 +23,11 @@
 		onup,
 		onmove,
 		onwheel,
-		onkey
+		onkey,
+		oncontextmenu,
+		ctxMenu = null,
+		onctxaction,
+		onctxclose
 	}: {
 		status: 'opening' | 'connecting' | 'live' | 'failed' | 'closed';
 		failReason?: string | null;
@@ -34,6 +38,10 @@
 		onmove?: (e: MouseEvent) => void;
 		onwheel?: (e: WheelEvent) => void;
 		onkey?: (e: KeyboardEvent) => void;
+		oncontextmenu?: (e: MouseEvent) => void;
+		ctxMenu?: { px: number; py: number; href: string | null; src: string | null } | null;
+		onctxaction?: (action: string) => void;
+		onctxclose?: () => void;
 	} = $props();
 </script>
 
@@ -55,7 +63,27 @@
 			onwheel={onwheel}
 			onkeydown={onkey}
 			onkeyup={onkey}
+			oncontextmenu={oncontextmenu}
 		></canvas>
+		{#if ctxMenu}
+			<div
+				class="absolute z-50 min-w-44 rounded-md border border-zinc-700 bg-white py-1 text-xs shadow-xl"
+				style="left:{ctxMenu.px}px; top:{ctxMenu.py}px"
+				data-testid="browser-ctxmenu"
+			>
+				{#if ctxMenu.src}
+					<button type="button" class="block w-full px-3 py-1.5 text-left text-zinc-900 hover:bg-zinc-200" onclick={() => onctxaction?.('open-image')} data-testid="browser-ctxmenu-item">Open image in new tab</button>
+					<button type="button" class="block w-full px-3 py-1.5 text-left text-zinc-900 hover:bg-zinc-200" onclick={() => onctxaction?.('copy-image')} data-testid="browser-ctxmenu-item">Copy image address</button>
+				{/if}
+				{#if ctxMenu.href}
+					<button type="button" class="block w-full px-3 py-1.5 text-left text-zinc-900 hover:bg-zinc-200" onclick={() => onctxaction?.('open-link')} data-testid="browser-ctxmenu-item">Open link in new tab</button>
+					<button type="button" class="block w-full px-3 py-1.5 text-left text-zinc-900 hover:bg-zinc-200" onclick={() => onctxaction?.('copy-link')} data-testid="browser-ctxmenu-item">Copy link address</button>
+				{/if}
+				<button type="button" class="block w-full px-3 py-1.5 text-left text-zinc-900 hover:bg-zinc-200" onclick={() => onctxaction?.('reload')} data-testid="browser-ctxmenu-item">Reload</button>
+				<div class="my-1 border-t border-zinc-300"></div>
+				<button type="button" class="block w-full px-3 py-1.5 text-left text-zinc-900 hover:bg-zinc-200" onclick={() => onctxaction?.('send-right-click')} data-testid="browser-ctxmenu-item">Send right-click to the page</button>
+			</div>
+		{/if}
 		{#if status !== 'live'}
 			<div class="absolute inset-0 grid place-items-center text-xs opacity-60" data-testid="browser-placeholder">
 				{status === 'opening' ? m.browserLaunching() : m.browserWaitingFrames()}

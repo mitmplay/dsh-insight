@@ -35,11 +35,13 @@ export const POST = async (ctx: { params: { id: string }; request: Request }): P
 	const input = validate(body);
 	if (!input) return json({ error: 'BAD_INPUT' }, { status: 400 });
 	try {
-		await browserRegistry.dispatch(ctx.params.id, input);
+		// ADR-0040 D3: optional tab pointer; absent means the ACTIVE tab.
+		const tid = (body as { targetId?: unknown }).targetId;
+		await browserRegistry.dispatch(ctx.params.id, input, typeof tid === 'string' && tid ? tid : undefined);
 		return json({ ok: true });
 	} catch (err) {
 		if (err instanceof BrowserRegistryRefusal) {
-			return json({ error: err.code }, { status: err.code === 'NO_SESSION' ? 404 : 409 });
+			return json({ error: err.code }, { status: err.code === 'NO_SESSION' || err.code === 'NO_TARGET' ? 404 : 409 });
 		}
 		if ((err as Error).name === 'RelayClosedError') return json({ error: 'CLOSED' }, { status: 409 });
 		throw err;

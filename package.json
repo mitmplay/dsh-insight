@@ -38,7 +38,7 @@
 		"node": ">=22.19"
 	},
 	"dsh": {
-		"webVersion": "0.2.1-rc.2"
+		"webVersion": "0.2.1-rc.3"
 	},
 	"bin": {
 		"dsi": "bin/dsi.mjs"
@@ -90,10 +90,5 @@
 		"node-pty": "1.2.0-beta.15",
 		"playwright-core": "1.61.0",
 		"yaml": "^2.9.0"
-	},
-	"pnpm": {
-		"overrides": {
-			"monaco-editor": "0.57.0"
-		}
 	}
 }

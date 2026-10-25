@@ -11,3 +11,4 @@ minimumReleaseAgeExclude:
   - '@lix-js/sdk@0.16.1'
 overrides:
   cookie: ^0.7.0
+  monaco-editor: 0.57.0

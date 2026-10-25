@@ -9,9 +9,9 @@ import { json } from '@sveltejs/kit';
 import { browserRegistry, BrowserRegistryRefusal } from '$lib/server/browser/registry.js';
 
 export const POST = async (ctx: { params: { id: string }; request: Request }): Promise<Response> => {
-	let body: { width?: unknown; height?: unknown };
+	let body: { width?: unknown; height?: unknown; targetId?: unknown };
 	try {
-		body = (await ctx.request.json()) as { width?: unknown; height?: unknown };
+		body = (await ctx.request.json()) as { width?: unknown; height?: unknown; targetId?: unknown };
 	} catch {
 		return json({ error: 'BAD_REQUEST' }, { status: 400 });
 	}
@@ -19,11 +19,16 @@ export const POST = async (ctx: { params: { id: string }; request: Request }): P
 		return json({ error: 'BAD_REQUEST' }, { status: 400 });
 	}
 	try {
-		await browserRegistry.setViewport(ctx.params.id, body.width, body.height);
+		// ADR-0040 D3: optional tab pointer; absent means the ACTIVE tab
+		const targetId = typeof body.targetId === 'string' && body.targetId ? body.targetId : undefined;
+		// keep the 3-arg call shape when no tab is targeted (call-compat)
+		if (targetId) await browserRegistry.setViewport(ctx.params.id, body.width, body.height, targetId);
+		else await browserRegistry.setViewport(ctx.params.id, body.width, body.height);
 		return json({ ok: true });
 	} catch (err) {
 		if (err instanceof BrowserRegistryRefusal) {
-			return json({ error: err.code }, { status: err.code === 'NO_SESSION' ? 404 : 409 });
+			// NO_TARGET (ADR-0040) is a 404 like NO_SESSION; only tombstones 409
+			return json({ error: err.code }, { status: err.code === 'NO_SESSION' || err.code === 'NO_TARGET' ? 404 : 409 });
 		}
 		throw err;
 	}

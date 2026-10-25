@@ -35,6 +35,10 @@ export class BrowserRelay {
 	private latest: RelayFrame | null = null;
 	private chain: Promise<void> = Promise.resolve();
 	private started = false;
+	/** ADR-0040 D1: an INACTIVE tab's screencast is suspended (no Chrome-side
+	 *  encode, no wire cost) while the relay — ring, seq, subscribers — lives
+	 *  on, so re-activation resumes instead of rebuilding. */
+	private paused = false;
 
 	/** JPEG quality 0..100 — from BrowserConfig.screencastQuality
 	 *  (default 90; yaml `browser.screencast:` override, amendment 3).
@@ -60,6 +64,32 @@ export class BrowserRelay {
 		// path exists to lose (ADR-0031 amendments 3).
 		await this.cdp.send('Page.startScreencast', { format: 'jpeg', quality: this.quality, everyNthFrame: Math.max(1, Math.round(30 / this.maxFps)) });
 		this.started = true;
+		this.paused = false;
+	}
+
+	/** Suspend the screencast, keep the relay (ADR-0040 D1). Idempotent. */
+	async pause(): Promise<void> {
+		if (!this.cdp || !this.started || this.paused) return;
+		this.paused = true;
+		await this.cdp.send('Page.stopScreencast').catch(() => undefined);
+	}
+
+	/** Re-start the screencast after a pause (same dials). Idempotent. */
+	async resume(): Promise<void> {
+		if (!this.cdp || !this.started || !this.paused) return;
+		this.paused = false;
+		await this.cdp.send('Page.startScreencast', { format: 'jpeg', quality: this.quality, everyNthFrame: Math.max(1, Math.round(30 / this.maxFps)) }).catch(() => undefined);
+	}
+
+	/** Activation MUST stream (ADR-0040 D4): START a never-started (lazily
+	 *  attached) relay, RESUME a paused one, no-op an already-streaming one.
+	 *  BUGFIX 2026-10-24: activate() called resume() only — a lazily attached
+	 *  tab (started=false) never began streaming and the mirror froze on its
+	 *  seeded boundary frame (the operator's hung second YouTube tab). */
+	async ensureStreaming(): Promise<void> {
+		if (!this.cdp) throw new RelayClosedError();
+		if (!this.started) return this.start();
+		if (this.paused) return this.resume();
 	}
 
 	/** Deterministic first-frame seed (RCA 2026-10-23 The First Frame That

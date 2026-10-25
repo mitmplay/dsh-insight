@@ -49,8 +49,8 @@ export function reaperEligible(
 }
 
 export class BrowserRegistryRefusal extends Error {
-	readonly code: 'NO_SESSION' | 'CLOSED';
-	constructor(code: 'NO_SESSION' | 'CLOSED', message: string) {
+	readonly code: 'NO_SESSION' | 'CLOSED' | 'NO_TARGET';
+	constructor(code: 'NO_SESSION' | 'CLOSED' | 'NO_TARGET', message: string) {
 		super(message);
 		this.name = 'BrowserRegistryRefusal';
 		this.code = code;
@@ -79,17 +79,34 @@ export interface OpenOptions {
 	spawnMcp?: boolean;
 	/** Test seam: fixed port. */
 	port?: number;
+	/** Birth viewport — the opener measures its BrowserContent box and passes
+	 *  it so the glass is born at the size of the panel it will live in
+	 *  (BUGFIX round 11: no more desktop-scale first render). */
+	width?: number;
+	height?: number;
 	/** Initial page URL — navigating paints the page, which is what makes
 	 *  screencast emit its first frame (a blank page paints nothing). */
 	url?: string;
+}
+
+/** One attached page of the glass context: its own CDP session + relay
+ *  (ADR-0040 D1 — one relay per page; only the ACTIVE tab streams). */
+export interface TabHandle {
+	targetId: string;
+	cdp: CDPSession;
+	relay: BrowserRelay;
 }
 
 interface RegistryEntry {
 	id: string;
 	createdAt: string;
 	context: BrowserContext;
-	cdp: CDPSession;
-	relay: BrowserRelay;
+	/** Attached tab handles keyed by CDP targetId (ADR-0040 D2). */
+	tabs: Map<string, TabHandle>;
+	/** The active-tab pointer — server-owned, never panel state (D2). */
+	activeTargetId: string | null;
+	/** Last requested panel viewport, re-applied on every switch (D4). */
+	viewport: { width: number; height: number };
 	port: number;
 	/** The brain port this session's brain bound (config/env resolved at
 	 *  create — per-create read, ADR-0030 D3). */
@@ -136,6 +153,37 @@ function sweepOrphanProfiles(keep: Set<string>): void {
 	}
 }
 
+
+/** Brain re-homing (BUGFIX 2026-10-25): release the stable brain port
+ *  from any OTHER live session so the NEWEST glass binds it. The DSH
+ *  preset's brain URL is static (9515) — without this, the agent keeps
+ *  driving an older glass while the operator watches the new one. The
+ *  evicted glass mirrors fine; its status strip honestly reports the
+ *  brain down (ADR-0029 D7: the mirror never depends on the brain). */
+function evictBrainPort(brainPort: number, exceptId: string): void {
+	for (const e of state().entries.values()) {
+		if (e.id === exceptId || !e.mcpInProcess || e.mcpInProcess.port !== brainPort) continue;
+		const brain = e.mcpInProcess as {
+			connection?: { close?: () => Promise<void> };
+			httpServer?: { closeAllConnections?: () => void; close?: (cb?: () => unknown) => unknown };
+		};
+		void (async () => {
+			try {
+				await new Promise<void>((res) => {
+					brain.httpServer?.closeAllConnections?.();
+					brain.httpServer?.close?.(() => res());
+					setTimeout(res, 1500);
+				});
+				await brain.connection?.close?.();
+			} catch {
+				// eviction is best-effort — the port scan then frees the seat
+			}
+		})();
+		e.mcpInProcess = null;
+		e.mcpHealth = 'down';
+		e.mcpError = 'brain re-homed to a newer glass';
+	}
+}
 
 /** The in-process brain (D7): createConnection attached to the SAME headed
  *  browser via cdpEndpoint, served over a SIBLING http listener (SSE +
@@ -314,8 +362,118 @@ class BrowserRegistry {
 		s.reaperTimer.unref?.();
 	}
 
+	/** The ACTIVE tab's relay — what the stream route binds (ADR-0040 D2). */
 	relay(id: string): BrowserRelay {
-		return this.peek(id).relay;
+		const e = this.peek(id);
+		const h = e.activeTargetId ? e.tabs.get(e.activeTargetId) : null;
+		if (!h) throw new BrowserRegistryRefusal('CLOSED', 'no active tab handle');
+		return h.relay;
+	}
+
+	/** Resolve a verb's target handle: explicit targetId, else the active tab
+	 *  (ADR-0040 D3 — one verb seam, optional pointer). An ENUMERATED but
+	 *  not-yet-attached target attaches lazily here — attach is not stream
+	 *  (D1): verbs may reach any tab the strip can list. */
+	private async handleOf(e: RegistryEntry, targetId?: string): Promise<TabHandle> {
+		const key = targetId ?? e.activeTargetId ?? undefined;
+		if (!key) throw new BrowserRegistryRefusal('NO_TARGET', 'no active tab');
+		const have = e.tabs.get(key);
+		if (have) return have;
+		// name every unmapped page's target: newCDPSession then
+		// Target.getTargetInfo (no args = the session's own target).
+		// RETRY window: a tab opened via raw CDP (the brain's PUT /json/new)
+		// can lag Playwright's pages() by a beat — the headed proof caught a
+		// first-tick NO_TARGET race (bugfix 2026-10-24).
+		for (let attempt = 0; attempt < 5 && !e.tabs.has(key); attempt += 1) {
+			if (attempt > 0) await new Promise((r) => setTimeout(r, 400));
+			for (const page of e.context.pages()) {
+				const scdp = await e.context.newCDPSession(page);
+				let tid: string | null = null;
+				try {
+					const info = (await scdp.send('Target.getTargetInfo')) as { targetInfo?: { targetId?: string } };
+					tid = info.targetInfo?.targetId ?? null;
+				} catch {
+					// unreachable target — drop the probe session, keep walking
+				}
+				if (!tid || e.tabs.has(tid)) {
+					await scdp.detach().catch(() => undefined);
+					continue;
+				}
+				const cfg: BrowserConfig = readBrowserConfig();
+				const handle = { targetId: tid, cdp: scdp, relay: new BrowserRelay(scdp, cfg.screencastQuality, cfg.screencastMaxFps) };
+				void this.applyPanelViewport(e, handle).catch(() => undefined);
+				// BUGFIX round 8: brain-created tabs must render at the PANEL's
+				// viewport from birth — without this they sat at the 1920x1080
+				// launch default and the mirror showed them small and cut off
+				await scdp.send('Page.enable').catch(() => undefined);
+				await this.applyPanelViewport(e, { cdp: scdp }).catch(() => undefined);
+				e.tabs.set(tid, handle);
+				if (tid === key) break;
+			}
+		}
+		const h = e.tabs.get(key);
+		if (!h) throw new BrowserRegistryRefusal('NO_TARGET', 'no such tab: ' + key);
+		return h;
+	}
+
+	/** Enumerate the context's page targets (ADR-0040 D5 feed) — type:page
+	 *  only; iframes/omnibox/service workers are chrome noise (wire capture
+	 *  2026-10-24). Read-only: never attaches, never streams (D1). */
+	async listTabs(id: string): Promise<{ targetId: string; url: string; title: string; active: boolean }[]> {
+		const e = this.peek(id);
+		const src = (e.activeTargetId ? e.tabs.get(e.activeTargetId) : null)?.cdp ?? [...e.tabs.values()][0]?.cdp;
+		if (!src) return [];
+		const res = (await src.send('Target.getTargets').catch(() => null)) as { targetInfos?: { targetId: string; type: string; url: string; title: string }[] } | null;
+		return (res?.targetInfos ?? [])
+			.filter((t) => t.type === 'page')
+			.map((t) => ({ targetId: t.targetId, url: t.url, title: t.title, active: t.targetId === e.activeTargetId }))
+			// CDP does NOT expose Chrome's window tab order (no public API) —
+			// sort by title so the strip is deterministic instead of creation-
+			// order arbitrary (operator round 3: 'order is not correct').;
+	}
+
+	/** Attach (lazily), seed the first frame, re-apply the viewport, and move
+	 *  the active pointer (ADR-0040 D1/D2/D4). The OLD active relay pauses —
+	 *  only the active tab streams. Returns the boundary payload. */
+	async activate(id: string, targetId: string): Promise<{ targetId: string; seq: number; jpeg: string | null; url: string; title: string }> {
+		const e = this.peek(id);
+		if (e.closed) throw new BrowserRegistryRefusal('CLOSED', 'session is closing');
+		const h = await this.handleOf(e, targetId);
+		// pause the outgoing face BEFORE moving the pointer (D1 wire economics)
+		const old = e.activeTargetId ? e.tabs.get(e.activeTargetId) : null;
+		if (old && old.targetId !== targetId) await old.relay.pause().catch(() => undefined);
+		await h.cdp.send('Page.enable').catch(() => undefined);
+		await this.applyPanelViewport(e, h);
+		// ADR-0040 D4: start lazily-attached relays, resume paused ones —
+		// a switch must STREAM, not paint one seeded frame and freeze
+		// raise the tab to Chrome's FOREGROUND — Chrome composites only the
+		// active tab, so a background tab's screencast is silent (the freeze).
+		// The window itself stays parked off-screen; the panel is its face.
+		await h.cdp.send('Page.bringToFront').catch(() => undefined);
+				await h.relay.ensureStreaming().catch(() => undefined);
+		// per-switch first-frame contract (D4): the open() idiom re-fired —
+		// bounded grace, then a deterministic captureScreenshot seed
+		if (h.relay.latestFrame() === null) {
+			for (let i = 0; i < 10 && h.relay.latestFrame() === null; i += 1) {
+				await new Promise((r) => setTimeout(r, 100));
+			}
+		}
+		if (h.relay.latestFrame() === null) {
+			const cfg: BrowserConfig = readBrowserConfig();
+			const shot = (await h.cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: cfg.screencastQuality }).catch(() => null)) as { data?: string } | null;
+			if (shot?.data) h.relay.seed({ seq: 0, jpeg: shot.data, metadata: { seeded: true } });
+		}
+		e.activeTargetId = targetId;
+		let url = '';
+		let title = '';
+		try {
+			const pi = await this.pageInfo(id, targetId);
+			url = pi.url;
+			title = pi.title;
+		} catch {
+			// a hostile page blocking evaluate must not fail the switch
+		}
+		return { targetId, seq: h.relay.latestFrame()?.seq ?? 0, jpeg: h.relay.latestFrame()?.jpeg ?? null, url, title };
 	}
 
 	async open(options: OpenOptions = {}): Promise<BrowserSessionInfo> {
@@ -354,9 +512,13 @@ class BrowserRegistry {
 		// the glass has no physical keys: page media must autoplay WITH
 		// sound (operator report 2026-10-20 — silent headless YouTube)
 		'--autoplay-policy=no-user-gesture-required',
-		'--window-position=-32000,-32000'
+		'--window-position=-32000,-32000',
+						'--window-size=' + (Math.max(200, Math.min(1920, options.width ?? 730)) + 6) + ',' + (Math.max(120, Math.min(1080, options.height ?? 830)) + 70)
 	],
-	viewport: {width: 1920, height: 1080},
+	// THE FIX (operator, 2026-10-25): the panel is ~700px — the glass is BORN
+	// at panel scale, so the FIRST screencast frame is already native. No more
+	// desktop-scale first render shrinking in the mirror.
+	viewport: {width: 730, height: 830},
 	userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
 	timezoneId: 'America/New_York',
 	locale: 'en-US'
@@ -373,6 +535,16 @@ const browser = context.browser();
 		const pid = pidOfPort(port);
 		const cdp = await context.newCDPSession(context.pages()[0] ?? (await context.newPage()));
 		const relay = new BrowserRelay(cdp, cfg.screencastQuality, cfg.screencastMaxFps);
+		// ADR-0040: the birth page is the first tab handle; the pointer starts on it.
+		const tabs = new Map<string, TabHandle>();
+		let activeTargetId: string | null = null;
+		try {
+			const info = (await cdp.send('Target.getTargetInfo')) as { targetInfo?: { targetId?: string } };
+			activeTargetId = info.targetInfo?.targetId ?? null;
+		} catch {
+			// best-effort — listTabs/activate recover ids via Target.getTargets later
+		}
+		if (activeTargetId) tabs.set(activeTargetId, { targetId: activeTargetId, cdp, relay });
 		await relay.start();
 		// A fresh profile window often shows NO first paint until interaction —
 		// and screencast emits only on paint. Guarantee the first frame (and
@@ -405,7 +577,9 @@ const browser = context.browser();
 		const brainPort = Number(process.env.DSI_MCP_PORT ?? cfg.brainPort);
 		if (cfg.enabled) this.ensureReaper(cfg.idleMs);
 		const entry: RegistryEntry = {
-			id, context, cdp, relay, port, pid, profileDir,
+			id, context, tabs, activeTargetId,
+			viewport: { width: 1920, height: 1080 },
+			port, pid, profileDir,
 			brainPort,
 			streamSubscribers: 0,
 			lastMcpActivity: Date.now(),
@@ -420,6 +594,13 @@ const browser = context.browser();
 
 		if (options.spawnMcp ?? true) {
 			if (process.env.DSI_MCP_IN_PROCESS === '1') {
+				// BUGFIX 2026-10-25 (operator report: brain tabs land in a glass the
+				// operator is not watching): the stable brain port (9515) is the DSH
+				// preset's FIXED URL — a second glass used to scan to 9516 and the
+				// agent kept driving the OLD glass. The brain is a FLOOR SINGLETON
+				// (ADR-0030): a new glass RE-HOMES it — the previous holder's brain
+				// is released (honestly surfaced as down) and 9515 binds HERE.
+				evictBrainPort(brainPort, id);
 				// D7 dev shape: the brain runs IN this process (createConnection
 				// + sibling SSE listener, the README programmatic pattern)
 				try {
@@ -504,7 +685,10 @@ const browser = context.browser();
 			}
 		}
 		try {
-			entry.relay.stop();
+			// every tab handle dies with the session (ADR-0040: tabs live inside
+			// ONE context — the kill ladder is unchanged)
+			for (const h of entry.tabs.values()) h.relay.stop();
+			entry.tabs.clear();
 		} catch (e) {
 			errs.push(e);
 		}
@@ -528,49 +712,55 @@ const browser = context.browser();
 	/** Wait for the page's next load event, capped — the navigate idiom
 	 *  (a send races the context teardown otherwise) shared by reload and
 	 *  history travel (ADR-0031 D3/D4). */
-	private async waitLoad(e: RegistryEntry, capMs = 3000): Promise<void> {
+	private async waitLoad(h: TabHandle, capMs = 3000): Promise<void> {
 		await new Promise<void>((res) => {
 			const on = (p: { loadEventFired?: unknown }) => {
-				e.cdp.off('Page.loadEventFired', on as never);
+				h.cdp.off('Page.loadEventFired', on as never);
 				res();
 			};
-			e.cdp.on('Page.loadEventFired', on as never);
+			h.cdp.on('Page.loadEventFired', on as never);
 			setTimeout(res, capMs);
 		});
 	}
 
 	/** Navigate the session's active page — public because causing page
 	 *  damage is the only reliable way to make screencast emit a frame. */
-	async navigate(id: string, url: string, opts?: { waitLoad?: boolean }): Promise<void> {
+	async navigate(id: string, url: string, opts?: { waitLoad?: boolean; targetId?: string }): Promise<void> {
 		const e = this.peek(id);
-		await e.cdp.send('Page.enable').catch(() => undefined);
+		const h = await this.handleOf(e, opts?.targetId);
+		await h.cdp.send('Page.enable').catch(() => undefined);
 		if (opts?.waitLoad) {
-			const loaded = this.waitLoad(e);
-			await e.cdp.send('Page.navigate', { url });
+			const loaded = this.waitLoad(h);
+			await h.cdp.send('Page.navigate', { url });
 			await loaded;
 			return;
 		}
-		await e.cdp.send('Page.navigate', { url });
+		await h.cdp.send('Page.navigate', { url });
 	}
 
 	/** Match the page viewport to the panel's glass box (ADR-0031
 	 *  amendment 2): the screencast frame then equals the panel size, so
 	 *  the mirror shows content at native scale instead of zooming a
 	 *  fixed default viewport. CDP-side clamps keep hostile sizes out. */
-	async setViewport(id: string, width: number, height: number): Promise<void> {
+	async setViewport(id: string, width: number, height: number, targetId?: string): Promise<void> {
+		console.log('[viewport] set', id.slice(0, 8), width + 'x' + height, 'target', targetId ?? 'active');
 		const w = Math.max(200, Math.min(8192, Math.round(width)));
 		const h = Math.max(120, Math.min(8192, Math.round(height)));
 		const e = this.peek(id);
-		await e.cdp.send('Page.enable').catch(() => undefined);
-		await e.cdp.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 0, mobile: false });
+		// remembered so activate() re-applies the panel size on switch (D4)
+		e.viewport = { width: w, height: h };
+		const handle = await this.handleOf(e, targetId);
+		await handle.cdp.send('Page.enable').catch(() => undefined);
+		await this.applyPanelViewport(e, handle);
 	}
 
 	/** The history position (ADR-0031): every proxy-verb answer carries it
 	 *  so the header's back/forward buttons stay honest at the ends. */
-	async navInfo(id: string): Promise<{ currentIndex: number; entryCount: number }> {
+	async navInfo(id: string, targetId?: string): Promise<{ currentIndex: number; entryCount: number }> {
 		const e = this.peek(id);
-		await e.cdp.send('Page.enable').catch(() => undefined);
-		const hist = (await e.cdp.send('Page.getNavigationHistory', {})) as unknown as {
+		const h = await this.handleOf(e, targetId);
+		await h.cdp.send('Page.enable').catch(() => undefined);
+		const hist = (await h.cdp.send('Page.getNavigationHistory', {})) as unknown as {
 			currentIndex: number;
 			entries: unknown[];
 		};
@@ -579,13 +769,14 @@ const browser = context.browser();
 
 	/** Reload the session's active page (ADR-0031 D4): Page.reload keeps
 	 *  the history entry, unlike re-navigating the current URL. */
-	async reload(id: string): Promise<{ url: string; title: string }> {
+	async reload(id: string, targetId?: string): Promise<{ url: string; title: string }> {
 		const e = this.peek(id);
-		await e.cdp.send('Page.enable').catch(() => undefined);
-		const loaded = this.waitLoad(e);
-		await e.cdp.send('Page.reload', {});
+		const h = await this.handleOf(e, targetId);
+		await h.cdp.send('Page.enable').catch(() => undefined);
+		const loaded = this.waitLoad(h);
+		await h.cdp.send('Page.reload', {});
 		await loaded;
-		return this.pageInfo(id);
+		return this.pageInfo(id, targetId);
 	}
 
 	/** Travel the browser's OWN back/forward list (ADR-0031 D3):
@@ -593,10 +784,11 @@ const browser = context.browser();
 	 *  is the browser's travel verb — never Runtime.evaluate('history.back()'),
 	 *  which races the teardown and lies about the browser-level list.
 	 *  Bounds refusals keep the header buttons honest at the list ends. */
-	async pageHistory(id: string, dir: 'back' | 'forward'): Promise<{ url: string; title: string; currentIndex: number; entryCount: number }> {
+	async pageHistory(id: string, dir: 'back' | 'forward', targetId?: string): Promise<{ url: string; title: string; currentIndex: number; entryCount: number }> {
 		const e = this.peek(id);
-		await e.cdp.send('Page.enable').catch(() => undefined);
-		const hist = (await e.cdp.send('Page.getNavigationHistory', {})) as unknown as {
+		const h = await this.handleOf(e, targetId);
+		await h.cdp.send('Page.enable').catch(() => undefined);
+		const hist = (await h.cdp.send('Page.getNavigationHistory', {})) as unknown as {
 			currentIndex: number;
 			entries: { id: number }[];
 		};
@@ -604,10 +796,10 @@ const browser = context.browser();
 		if (target < 0 || target >= hist.entries.length) {
 			throw new BrowserRegistryRefusal('CLOSED', 'HISTORY_END — cannot go ' + dir + ' from index ' + hist.currentIndex + ' of ' + hist.entries.length);
 		}
-		const loaded = this.waitLoad(e);
-		await e.cdp.send('Page.navigateToHistoryEntry', { entryId: hist.entries[target].id });
+		const loaded = this.waitLoad(h);
+		await h.cdp.send('Page.navigateToHistoryEntry', { entryId: hist.entries[target].id });
 		await loaded;
-		return { ...(await this.pageInfo(id)), currentIndex: target, entryCount: hist.entries.length };
+		return { ...(await this.pageInfo(id, targetId)), currentIndex: target, entryCount: hist.entries.length };
 	}
 
 	/** Race an evaluate against a cap — a hung evaluate must never wedge a
@@ -629,17 +821,112 @@ const browser = context.browser();
 	 *  location read, the e2e's DOM-truth channel (the glass proves clicks
 	 *  by effects the page itself reports), and the viewport-follow witness
 	 *  (innerWidth/innerHeight prove the emulation landed, amend 2). */
-	async pageInfo(id: string): Promise<{ url: string; title: string; dpr: number; innerWidth: number; innerHeight: number; playerError: string | null; mediaErrorCode: number | null }> {
+	async pageInfo(id: string, targetId?: string): Promise<{ url: string; title: string; dpr: number; innerWidth: number; innerHeight: number; playerError: string | null; mediaErrorCode: number | null }> {
 		const e = this.peek(id);
+		const h = await this.handleOf(e, targetId);
 		// playerError/mediaErrorCode (amendment 5): the page's OWN failure
 		// text (e.g. YouTube's .ytp-error-content) + the MediaError code, so
 		// a site refusal is diagnosable instead of a mystery
-		const raw = await this.evaluateCapped(e.cdp, 'JSON.stringify({ url: location.href, title: document.title, dpr: window.devicePixelRatio, innerWidth: window.innerWidth, innerHeight: window.innerHeight, playerError: (document.querySelector(".ytp-error-content-wrap-reason, .ytp-error-content, [role=alert]")?.textContent || "").trim() || null, mediaErrorCode: (document.querySelector("video")?.error?.code) ?? null })', 3000);
+		const raw = await this.evaluateCapped(h.cdp, 'JSON.stringify({ url: location.href, title: document.title, dpr: window.devicePixelRatio, innerWidth: window.innerWidth, innerHeight: window.innerHeight, playerError: (document.querySelector(".ytp-error-content-wrap-reason, .ytp-error-content, [role=alert]")?.textContent || "").trim() || null, mediaErrorCode: (document.querySelector("video")?.error?.code) ?? null })', 3000);
 		if (raw === null) return { url: '(busy)', title: '(busy)', dpr: 1, innerWidth: 0, innerHeight: 0, playerError: null, mediaErrorCode: null };
 		return JSON.parse(raw) as { url: string; title: string; dpr: number; innerWidth: number; innerHeight: number; playerError: string | null; mediaErrorCode: number | null };
 	}
 
-	dispatch(id: string, input: InputDispatch): Promise<void> {
+	/** The page element under viewport coords — the glass context menu's
+	 *  data pass (BUGFIX 2026-10-25: Chrome's NATIVE right-click menu is
+	 *  browser UI and never renders in the screencast, so DSI supplies its
+	 *  own menu; this tells it what the right-click landed on). */
+	async elementAt(id: string, x: number, y: number, targetId?: string): Promise<{ href: string | null; src: string | null; text: string | null }> {
+		const e = this.peek(id);
+		const h = await this.handleOf(e, targetId);
+		const expr = 'JSON.stringify((() => { const el = document.elementFromPoint(' + Number(x) + ',' + Number(y) + '); if (!el) return { href: null, src: null, text: null }; const a = el.closest("a"); const img = el.closest("img"); return { href: a ? a.href : null, src: img ? (img.currentSrc || img.src) : null, text: (a && a.textContent || "").trim().slice(0, 80) || null }; })())';
+		const raw = await this.evaluateCapped(h.cdp, expr, 2000);
+		if (raw === null) return { href: null, src: null, text: null };
+		try {
+			return JSON.parse(raw) as { href: string | null; src: string | null; text: string | null };
+		} catch {
+			return { href: null, src: null, text: null };
+		}
+	}
+
+	/** Open a NEW tab in the glass at `url` and make it the active face
+	 *  (the context menu's 'open in new tab' verbs). Returns the new tab. */
+	async openTab(id: string, url: string, opts?: { activate?: boolean }): Promise<{ targetId: string; seq: number; jpeg: string | null; url: string; title: string }> {
+		const e = this.peek(id);
+		if (e.closed) throw new BrowserRegistryRefusal('CLOSED', 'session is closing');
+		const src = (e.activeTargetId ? e.tabs.get(e.activeTargetId) : null)?.cdp ?? [...e.tabs.values()][0]?.cdp;
+		if (!src) throw new BrowserRegistryRefusal('CLOSED', 'no tab handle to create from');
+		// create BLANK then navigate through the verb seam — createTarget with
+		// a URL races its own navigation and lands on chrome-error (observed
+		// 2026-10-25); blank + navigate(targetId) is the proven path
+		const res = (await src.send('Target.createTarget', { url: 'about:blank' })) as { targetId?: string } | null;
+		const targetId = res?.targetId;
+		if (!targetId) throw new BrowserRegistryRefusal('NO_TARGET', 'Target.createTarget returned no id');
+		await this.navigate(id, url, { waitLoad: true, targetId });
+		if (opts?.activate ?? true) await this.activate(id, targetId);
+		// boundary payload (ADR-0040 D4): the caller paints THIS frame before
+		// its SSE re-attaches, so the mirror never freezes on the old face
+		const h = e.tabs.get(targetId);
+		const pi = await this.pageInfo(id, targetId).catch(() => ({ url, title: '' }));
+		return { targetId, seq: h?.relay.latestFrame()?.seq ?? 0, jpeg: h?.relay.latestFrame()?.jpeg ?? null, url: pi.url || url, title: pi.title };
+	}
+
+	/** Apply the remembered panel viewport by RESIZING THE WINDOW (round 10:
+	 *  emulation-on-headed renders the page centered in the big off-screen
+	 *  window — the small/cut-off mirror). Also clears any stale override. */
+	/** Resize the glass's WINDOW to the panel size and clear emulation.
+	 *  ROUND 10 (the REAL small/cut-off root cause, headed-proven):
+	 *  Emulation.setDeviceMetricsOverride on HEADED chrome renders the
+	 *  emulated viewport CENTERED INSIDE the physical off-screen window
+	 *  (black around it) and the screencast captures the whole window —
+	 *  the mirror shows a tiny page. Resizing the WINDOW itself makes the
+	 *  page fill it natively; the panel is the window's face (ADR-0029 D1).
+	 *  Re-asserted on every attach/switch/setViewport (round 11: something
+	 *  re-expands the window — the mirror shrinks again — so this is now
+	 *  idempotent and called from all three paths). */
+	private async applyPanelViewport(e: RegistryEntry, handle: { cdp: import('playwright-core').CDPSession }): Promise<void> {
+		await handle.cdp.send('Page.enable').catch(() => undefined);
+		const race = async (p: Promise<unknown>, fb: unknown): Promise<unknown> => await Promise.race([p.catch(() => fb), new Promise((res) => setTimeout(() => res(fb), 2500))]);
+		const anyCdp = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
+		const dims = (await race(anyCdp.send('Runtime.evaluate', { expression: 'JSON.stringify({ oh: window.outerHeight - window.innerHeight, ow: window.outerWidth - window.innerWidth })', returnByValue: true }), null)) as { result?: { value?: string } } | null;
+		let chromeH = 0, chromeW = 0;
+		try { const d = JSON.parse((dims && dims.result && dims.result.value) || '{}'); chromeH = Number(d.oh) || 0; chromeW = Number(d.ow) || 0; } catch { /* defaults */ }
+		const anyCdp2 = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
+		const win = (await race(anyCdp2.send('Target.getWindowForTarget'), null)) as { windowId?: number } | null;
+		if (win && win.windowId) {
+			await race(anyCdp2.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { width: Math.max(200, e.viewport.width + chromeW), height: Math.max(120, e.viewport.height + chromeH), windowState: 'normal' } }), null);
+			const check = (await race(anyCdp2.send('Browser.getWindowForTarget', { targetId: e.activeTargetId }), null)) as { bounds?: { width?: number; height?: number } } | null;
+			console.log('[window] resized ->', JSON.stringify(check && check.bounds ? check.bounds : check), 'want', e.viewport.width + chromeW, 'x', e.viewport.height + chromeH);
+		} else {
+			console.log('[window] no windowId — resize skipped (raced out)');
+		}
+		await race(anyCdp2.send('Emulation.clearDeviceMetricsOverride'), null);
+	}
+	/** Close ONE tab (the strip X): Target.closeTarget, stop its relay,
+	 *  drop the handle — and if it was the active face, the pointer moves
+	 *  to the first surviving tab (re-activated, first-frame contract
+	 *  re-fired). Closing the LAST tab is refused: the kill ladder owns
+	 *  session death (the trash is the operator-facing kill). */
+	async closeTab(id: string, targetId: string): Promise<{ ok: boolean; activeTargetId: string | null }> {
+		const e = this.peek(id);
+		if (e.closed) throw new BrowserRegistryRefusal('CLOSED', 'session is closing');
+		if (e.tabs.size <= 1) throw new BrowserRegistryRefusal('NO_TARGET', 'cannot close the last tab — use the trash to close the glass');
+		const victim = e.tabs.get(targetId);
+		if (!victim) throw new BrowserRegistryRefusal('NO_TARGET', 'no such tab: ' + targetId);
+		victim.relay.stop();
+		e.tabs.delete(targetId);
+		await victim.cdp.send('Target.closeTarget', { targetId }).catch(() => undefined);
+		await victim.cdp.detach().catch(() => undefined);
+		if (e.activeTargetId === targetId) {
+			const next = [...e.tabs.keys()][0] ?? null;
+			e.activeTargetId = next;
+			if (next) await this.activate(id, next).catch(() => undefined);
+			else e.activeTargetId = null;
+		}
+		return { ok: true, activeTargetId: e.activeTargetId };
+	}
+
+	async dispatch(id: string, input: InputDispatch, targetId?: string): Promise<void> {
 		// A closed id is a TOMBSTONED id — the panel gets 409 CLOSED (its
 		// signal to stop), never a 404 masquerading as a typo (D8).
 		if (!state().entries.has(id) && state().closed.has(id)) {
@@ -647,7 +934,9 @@ const browser = context.browser();
 		}
 		const e = this.peek(id);
 		if (e.closed) throw new BrowserRegistryRefusal('CLOSED', 'session is closing');
-		return e.relay.dispatch(input);
+		// async (not promise-returning) so NO_TARGET lands as a REJECTION,
+		// not a synchronous throw across the route boundary
+		await (await this.handleOf(e, targetId)).relay.dispatch(input);
 	}
 }
 

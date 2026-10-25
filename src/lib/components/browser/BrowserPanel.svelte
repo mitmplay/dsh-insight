@@ -65,6 +65,64 @@
 	let canForward = $state(false);
 	let header: { clearInput(): void } | null = $state(null);
 	const SEARCH_URL = 'https://www.google.com/search?q=';
+	/** ADR-0040 D5: the tab strip — the registry's tab list mirrored here;
+	 *  the SERVER stays the authority (activeTargetId), this is a view. */
+	let tabs = $state<{ targetId: string; url: string; title: string; active: boolean }[]>([]);
+	let switching = $state(false);
+
+	async function refreshTabs(): Promise<void> {
+		if (!sessionId) return;
+		try {
+			const res = await fetch(apiBase + '/api/browser/' + sessionId + '/tabs');
+			if (res.ok) tabs = ((await res.json()) as { tabs: typeof tabs }).tabs;
+		} catch {
+			/* transient — the strip refetches on the next switch */
+		}
+	}
+
+	/** ADR-0040 D4: activate paints the BOUNDARY frame from the response —
+	 *  the panel never waits on a blank paint — then re-attaches the SSE at
+	 *  the carried seq so the stream resumes on the new relay's ring. */
+	async function activateTab(targetId: string): Promise<void> {
+		if (!sessionId || switching || tabs.find((t) => t.targetId === targetId)?.active) return;
+		switching = true;
+		try {
+			const res = await fetch(apiBase + '/api/browser/' + sessionId + '/activate', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ targetId })
+			});
+			if (res.status === 409) {
+				status = 'closed';
+				es?.close();
+				onclosed?.();
+				return;
+			}
+			if (!res.ok) return;
+			const boundary = (await res.json()) as { seq: number; jpeg: string | null; url: string };
+			if (boundary.jpeg) draw({ jpeg: boundary.jpeg, metadata: { boundary: true } });
+			const p = await fetch(apiBase + '/api/browser/' + sessionId + '/page?targetId=' + encodeURIComponent(targetId));
+			if (p.ok) dpr = ((await p.json()) as { dpr?: number }).dpr ?? 1;
+			es?.close();
+			es = new EventSource(apiBase + '/api/browser/' + sessionId + '/stream?fromSeq=' + boundary.seq);
+			es.addEventListener('frame', (ev) => {
+				status = 'live';
+				failReason = null;
+				draw(JSON.parse((ev as MessageEvent).data as string));
+				if (wrap && viewport.w > 0 && Math.abs(viewport.w - wrap.clientWidth) > 8) lastViewport = { w: 0, h: 0 };
+				syncViewport();
+				maybeRefreshTabs();
+			});
+			es.onerror = () => {
+				if (status !== 'closed') status = 'failed';
+			};
+			void refreshTabs();
+		} catch {
+			/* transient — the strip keeps the old face */
+		} finally {
+			switching = false;
+		}
+	}
 	/** Viewport-follow (ADR-0031 amendment 2): the glass box size IS the
 	 *  page viewport — the frame comes back at panel size, so content
 	 *  renders at native scale. Debounced; one POST per settle. */
@@ -95,6 +153,24 @@
 	}
 
 	let es: EventSource | null = null;
+	/** One place owns the SSE lifecycle — mount, strip-activate, context-menu
+	 *  open/close all re-attach through here (round-5 bugfix: a server-side
+	 *  switch left the panel subscribed to the OLD, paused relay = frozen). */
+	function attachStream(fromSeq: number): void {
+		if (!sessionId) return;
+		es?.close();
+		es = new EventSource(apiBase + '/api/browser/' + sessionId + '/stream?fromSeq=' + fromSeq);
+		es.addEventListener('frame', (ev) => {
+			status = 'live';
+			failReason = null;
+			draw(JSON.parse((ev as MessageEvent).data as string));
+			syncViewport();
+			maybeRefreshTabs();
+		});
+		es.onerror = () => {
+			if (status !== 'closed') status = 'failed';
+		};
+	}
 	/** The mirrored page's devicePixelRatio — frame images arrive in DEVICE
 	 *  pixels; input coords must be CSS px (D6). Read once per session via
 	 *  the /page route. */
@@ -139,6 +215,114 @@
 	function onPointerMove(e: MouseEvent): void {
 		const p = toViewportCx(e);
 		if (p) moves.push(p.x, p.y);
+	}
+	/** BUGFIX 2026-10-25 (operator: YouTube's right-click menu never appears
+	 *  in the glass): only the LEFT button was dispatched. Right-click must
+	 *  reach the page as a right mousePressed/Released pair — Chrome paints
+	 *  its OWN context menu and the screencast mirrors it. preventDefault
+	 *  stops the DSI page's menu from covering the glass. */
+	/** BUGFIX 2026-10-25 round 2: Chrome's NATIVE right-click menu is browser
+	 *  UI — it never renders in the page, so the screencast can never show it
+	 *  (only in-page custom menus like YouTube's player menu can mirror). So
+	 *  DSI supplies its OWN menu: what the right-click landed on comes from
+	 *  the /element data pass; actions ride the wire (opentab/clipboard/the
+	 *  page's own menu via a dispatched right-click). */
+	let ctxMenu = $state<{ px: number; py: number; href: string | null; src: string | null } | null>(null);
+	let ctxPoint: { x: number; y: number } | null = null;
+
+	function onContextMenu(e: MouseEvent): void {
+		e.preventDefault();
+		const p = toViewportCx(e);
+		ctxPoint = p;
+		// wrap-LOCAL coords: the menu renders inside the glass wrap (position
+		// fixed is unreliable here — a floor ancestor transform becomes the
+		// containing block for fixed elements and misplaced the menu)
+		const rect = wrap?.getBoundingClientRect();
+		const menuW = 190, menuH = 210;
+		const px = rect ? Math.min(e.clientX - rect.left, rect.width - menuW - 6) : e.clientX;
+		const py = rect ? Math.min(e.clientY - rect.top, rect.height - menuH - 6) : e.clientY;
+		ctxMenu = { px: Math.max(6, px), py: Math.max(6, py), href: null, src: null };
+		if (!sessionId) return;
+		void (async () => {
+			try {
+				const res = await fetch(apiBase + '/api/browser/' + sessionId + '/element', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ x: p?.x ?? 0, y: p?.y ?? 0 })
+				});
+				if (res.ok && ctxMenu) {
+					const el = (await res.json()) as { href: string | null; src: string | null };
+					ctxMenu = { ...(ctxMenu as { px: number; py: number }), href: el.href, src: el.src };
+				}
+			} catch {
+				/* menu still shows the wire-independent items */
+			}
+		})();
+	}
+	function ctxClose(): void {
+		ctxMenu = null;
+	}
+	function ctxSendRightClick(): void {
+		const p = ctxPoint;
+		ctxClose();
+		if (!p) return;
+		void post({ kind: 'mouse', type: 'mousePressed', x: p.x, y: p.y, button: 'right', clickCount: 1 });
+		void post({ kind: 'mouse', type: 'mouseReleased', x: p.x, y: p.y, button: 'right', clickCount: 1 });
+	}
+	async function ctxOpenTab(url: string): Promise<void> {
+		ctxClose();
+		if (!sessionId) return;
+		try {
+			const res = await fetch(apiBase + '/api/browser/' + sessionId + '/opentab', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ url })
+			});
+			if (!res.ok) return;
+			const b = (await res.json()) as { seq: number; jpeg: string | null };
+			if (b.jpeg) draw({ jpeg: b.jpeg, metadata: { boundary: true } });
+			const p2 = await fetch(apiBase + '/api/browser/' + sessionId + '/page?targetId=' + encodeURIComponent(b.targetId));
+			if (p2.ok) dpr = ((await p2.json()) as { dpr?: number }).dpr ?? 1;
+			attachStream(b.seq);
+			void refreshTabs();
+		} catch {
+			/* transient */
+		}
+	}
+	async function ctxCloseTab(targetId: string): Promise<void> {
+		ctxClose();
+		if (!sessionId) return;
+		try {
+			await fetch(apiBase + '/api/browser/' + sessionId + '/closetab', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ targetId })
+			});
+			// the survivor may be a NEW active face — resync from the top
+			attachStream(0);
+			void refreshTabs();
+		} catch {
+			/* transient */
+		}
+	}
+	function ctxAct(action: string): void {
+		const m = ctxMenu;
+		ctxClose();
+		if (!m) return;
+		if (action === 'open-image' && m.src) return void ctxOpenTab(m.src);
+		if (action === 'copy-image' && m.src) return void ctxCopy(m.src);
+		if (action === 'open-link' && m.href) return void ctxOpenTab(m.href);
+		if (action === 'copy-link' && m.href) return void ctxCopy(m.href);
+		if (action === 'reload') return void proxy({ action: 'reload' });
+		if (action === 'send-right-click') return ctxSendRightClick();
+	}
+	async function ctxCopy(text: string): Promise<void> {
+		ctxClose();
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch {
+			/* clipboard permission denied — nothing honest to show */
+		}
 	}
 	function onWheel(e: WheelEvent): void {
 		const p = toViewportCx(e);
@@ -216,14 +400,27 @@
 	function draw(f: { jpeg: string; metadata: Record<string, unknown> }): void {
 		const img = new Image();
 		img.onload = () => {
-			if (!canvas) return;
-			canvas.width = img.width;
-			canvas.height = img.height;
-			// CDP screencast metadata carries NO viewport size — the frame IS
-			// the viewport in device pixels; CSS size = frame ÷ dpr (D6 basis)
+			if (!canvas || !wrap) return;
+			// BUGFIX round 8b (operator: switching tabs shrinks again): the frame
+			// size can relapse to the launch default (1920x993 observed) when
+			// something re-applies emulation behind our back. So the canvas bitmap
+			// is ALWAYS the wrap box (CSS 1:1, no object-fit dependence) and the
+			// frame is contain-fit into it with manual letterboxing — any frame
+			// size renders identically, native scale when sizes match.
+			const cw = Math.max(1, Math.round(wrap.clientWidth));
+			const ch = Math.max(1, Math.round(wrap.clientHeight));
+			if (canvas.width !== cw || canvas.height !== ch) {
+				canvas.width = cw;
+				canvas.height = ch;
+			}
 			viewport = { w: img.width / dpr, h: img.height / dpr };
 			const ctx = canvas.getContext('2d');
-			ctx?.drawImage(img, 0, 0);
+			if (!ctx) return;
+			ctx.fillStyle = '#000';
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+			const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+			const dw = img.width * scale, dh = img.height * scale;
+			ctx.drawImage(img, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
 		};
 		img.src = 'data:image/jpeg;base64,' + f.jpeg;
 	}
@@ -242,7 +439,15 @@
 					// would share one profile across glasses (the reported bug:
 					// both glasses showing the same session id). Re-bind rides the
 					// ENTRY's browserSessionId (the slot's per-glass sessionId).
-					const res = await fetch(apiBase + '/api/browser', { method: 'POST' });
+					// BUGFIX round 11 (operator design): measure THIS panel's glass box
+				// BEFORE opening — the glass is born at the size of its panel.
+				const birthW = Math.max(200, Math.round(wrap?.clientWidth || 0));
+				const birthH = Math.max(120, Math.round(wrap?.clientHeight || 0));
+				const res = await fetch(apiBase + '/api/browser', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify(birthW > 0 ? { width: birthW, height: birthH } : {})
+				});
 					if (!res.ok) throw new Error('open failed: ' + res.status);
 					const info = (await res.json()) as { id: string };
 					sessionId = info.id;
@@ -256,19 +461,10 @@
 					if (p.ok) dpr = ((await p.json()) as { dpr?: number }).dpr ?? 1;
 				}
 				status = 'connecting';
+				// ADR-0040 D5: the strip mirrors the registry's tab list
+				void refreshTabs();
 				// fromSeq=0 forces the server to push its LATEST frame on attach
-				es = new EventSource(apiBase + '/api/browser/' + sessionId + '/stream?fromSeq=0');
-				console.log('GLASS es opened for', sessionId);
-				es.addEventListener('frame', (ev) => {
-					status = 'live';
-					failReason = null;
-					draw(JSON.parse((ev as MessageEvent).data as string));
-					syncViewport();
-				});
-				es.onerror = () => {
-					console.log('GLASS es error, readyState', es?.readyState);
-					if (status !== 'closed') status = 'failed';
-				};
+				attachStream(0);
 			} catch (e) {
 				status = 'failed';
 				failReason = (e as Error).message;
@@ -286,6 +482,60 @@
 		return () => ro.disconnect();
 	});
 
+	$effect(() => {
+		// BUGFIX round 3 (operator: third tab invisible): in a narrow panel the
+		// strip can overflow — keep the ACTIVE tab scrolled into view on every
+		// tab-set change so "missing" tabs are impossible to overlook
+	$effect(() => {
+		if (!ctxMenu) return;
+		const onPD = (e: PointerEvent) => {
+			const t = e.target as HTMLElement | null;
+			if (t && t.closest('[data-testid="browser-ctxmenu"]')) return;
+			ctxClose();
+		};
+		window.addEventListener('pointerdown', onPD, { capture: true });
+		return () => window.removeEventListener('pointerdown', onPD, { capture: true });
+	});
+
+		if (!tabs.length) return;
+		const el = document.querySelector('[data-testid="browser-tab"][data-active="true"]');
+		el?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+	});
+
+	// BUGFIX 2026-10-24: the strip used to fetch ONCE at mount, so a tab the
+	// brain opened AFTER mount never appeared (the reported bug: two tabs on
+	// the wire, one in the glass). Poll while live — Target.getTargets is one
+	// cheap CDP read; the SERVER stays the authority (ADR-0040 D2).
+	let tabsPoll: ReturnType<typeof setInterval> | null = null;
+	let lastTabFetch = 0;
+	/** BUGFIX round 2 (operator: a third brain tab was missed between ticks):
+	 *  poll every 2s AND refresh on SSE activity when the last fetch is stale
+	 *  — a video page frames constantly, so the strip tracks the brain at
+	 *  ~2s granularity without hammering Target.getTargets. */
+	function maybeRefreshTabs(): void {
+		if (Date.now() - lastTabFetch < 2000) return;
+		lastTabFetch = Date.now();
+		void refreshTabs();
+	}
+	$effect(() => {
+		if (status !== 'live' || !sessionId) {
+			if (tabsPoll) {
+				clearInterval(tabsPoll);
+				tabsPoll = null;
+			}
+			return;
+		}
+		if (!tabsPoll) {
+			tabsPoll = setInterval(() => maybeRefreshTabs(), 2000);
+		}
+		return () => {
+			if (tabsPoll) {
+				clearInterval(tabsPoll);
+				tabsPoll = null;
+			}
+		};
+	});
+
 	onDestroy(() => {
 		// DETACH ONLY (ADR-0030 D1/D2): an unmount — hard reload, tab close,
 		// floor teardown — releases the EventSource, never the session. The
@@ -294,10 +544,11 @@
 		// reaper and cascade close now (ADR-0037 D2) - the header fold is
 		// just an unmount.
 		es?.close();
+		if (tabsPoll) clearInterval(tabsPoll);
 	});
 </script>
 
-<div class="flex h-full flex-col bg-surface-elevated" data-testid="panel-browser">
+<div class="relative flex h-full flex-col bg-surface-elevated" data-testid="panel-browser">
 	<BrowserHeader
 		bind:this={header}
 		{status}
@@ -327,6 +578,39 @@
 			{#if depth > 0}<span class="opacity-60">·d{depth}</span>{/if}
 		</div>
 	{/if}
+	{#if tabs.length >= 1}
+		<!-- ADR-0040 D5: the tab strip — panel furniture fed by the registry;
+		     a click is an activate, the boundary frame paints the answer -->
+		<div class="flex items-center gap-1 overflow-x-auto border-b border-surface-border px-1 py-0.5 text-[11px]" data-testid="browser-tab-strip">
+			{#each tabs as t (t.targetId)}
+				<div class="relative shrink-0">
+					<button
+						type="button"
+						class="w-32 truncate rounded px-1.5 py-0.5 pr-4 text-left whitespace-nowrap"
+						class:bg-blue-200={t.active}
+						class:text-blue-900={t.active}
+						class:text-zinc-600={!t.active}
+						class:hover:bg-zinc-100={!t.active}
+						class:font-medium={t.active}
+						disabled={switching || t.active}
+						data-testid="browser-tab"
+						data-active={t.active}
+						title={t.url}
+						onclick={() => void activateTab(t.targetId)}
+					>
+						{t.title || t.url || 'tab'}
+					</button>
+					<button
+						type="button"
+						class="absolute right-0.5 top-1/2 -translate-y-1/2 rounded text-[10px] leading-none text-red-500 hover:bg-red-500 hover:text-white"
+						title="Close tab"
+						data-testid="browser-tab-close"
+						onclick={(e) => { e.stopPropagation(); void ctxCloseTab(t.targetId); }}
+					>✕</button>
+				</div>
+			{/each}
+		</div>
+	{/if}
 	<BrowserContent
 		{status}
 		{failReason}
@@ -337,6 +621,10 @@
 		onmove={onPointerMove}
 		onwheel={onWheel}
 		onkey={onKey}
+		{ctxMenu}
+		onctxaction={ctxAct}
+		onctxclose={ctxClose}
+		oncontextmenu={onContextMenu}
 	/>
 </div>
 <style>

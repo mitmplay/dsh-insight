@@ -6,6 +6,7 @@ settings:
 
 overrides:
   cookie: ^0.7.0
+  monaco-editor: 0.57.0
 
 importers:
 
@@ -36,7 +37,7 @@ importers:
         specifier: ^11.17.0
         version: 11.17.2
       monaco-editor:
-        specifier: ^0.57.0
+        specifier: 0.57.0
         version: 0.57.0
       monaco-yaml:
         specifier: ^5.5.1
@@ -1860,12 +1861,12 @@ packages:
   monaco-worker-manager@2.0.1:
     resolution: {integrity: sha512-kdPL0yvg5qjhKPNVjJoym331PY/5JC11aPJXtCZNwWRvBr6jhkIamvYAyiY5P1AWFmNOy0aRDRoMdZfa71h8kg==}
     peerDependencies:
-      monaco-editor: '>=0.30.0'
+      monaco-editor: 0.57.0
 
   monaco-yaml@5.5.1:
     resolution: {integrity: sha512-vLR1EoV7Au0tkuA9T6ZJr2q7CooRP69AvlqzWh9Gui6amuijdTsfCAQHtCFobRMwkhbuly6J1Q16NziTTiWtWQ==}
     peerDependencies:
-      monaco-editor: '>=0.36'
+      monaco-editor: 0.57.0
 
   mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}

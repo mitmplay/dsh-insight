@@ -231,8 +231,9 @@
 	// svelte-ignore state_referenced_locally
 	store.seedPermission(permission, knobEvents);
 	// ADR-0027f D1: the cold inventory seeds once (wholesale replace).
+	// Intentional initial capture: the cold load's deliverables snapshot.
+	// svelte-ignore state_referenced_locally
 	if (deliverables !== undefined) {
-		// svelte-ignore state_referenced_locally
 		store.seedDeliverables(deliverables);
 	}
 
