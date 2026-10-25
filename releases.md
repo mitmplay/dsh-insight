@@ -1,5 +1,12 @@
 # Releases
 
+## 0.8.5
+
+Bumped from 0.8.4 — a knowledge-keeping release: the ADR-0042 + chip mechanics land as a KB walkthrough.
+
+### Features
+- **KB — the + chip mechanics, an ADR-0042 walkthrough** — the blank signal, createTarget-only birth, boundary via activate(), and the blank-tab lifecycle narrated end-to-end with the e2e proof, so the operator's blank page is documented beyond the ADR itself. `d33719e7`.
+
 ## 0.8.4
 
 Bumped from 0.8.3 — the operator grows the glass's tab set themselves: the strip's `+` opens a blank tab (the birth state again), and the test floor survives the vitest 4 / Node 26 drift.
