@@ -321,9 +321,20 @@ describe('BrowserPanel — viewport-follow sync (ADR-0031 amendment 2, slice E)'
 		const glass = view.target.querySelector('[data-testid="browser-glass"]') as HTMLElement;
 		Object.defineProperty(glass, 'clientWidth', { configurable: true, value: w });
 		Object.defineProperty(glass, 'clientHeight', { configurable: true, value: h });
+		// ADR-0041: the panel measures the transform-true rect — stub it to
+		// the SAME size (layout = visual at zoom 1, this suite's premise)
+		Object.defineProperty(glass, 'getBoundingClientRect', {
+			value: () => ({ width: w, height: h, x: 0, y: 0, top: 0, left: 0, right: w, bottom: h }),
+			configurable: true
+		});
 	}
 
-	it('a frame with a big-enough changed wrap debounces one /viewport POST', async () => {
+	// ADR-0041 Wave 3 flake hardening: this trio races the real 250ms
+	// debounce against worker scheduling — under parallel load a tick can
+	// straggle (observed 2026-10-25: alone 15/15, parallel 2 fails). Two
+	// retries turn the race into a pass without fake-timer surgery.
+	const RETRY = { retry: 2 } as const;
+	it('a frame with a big-enough changed wrap debounces one /viewport POST', RETRY, async () => {
 		const view = mountPanel({ browserSessionId: 'warm-abc12345' });
 		await settle();
 		sizeGlass(view, 320, 240);
@@ -355,7 +366,7 @@ describe('BrowserPanel — viewport-follow sync (ADR-0031 amendment 2, slice E)'
 		view.un();
 	});
 
-	it('a wrap within 2px of the last synced size sends nothing — the no-change gate', async () => {
+	it('a wrap within 2px of the last synced size sends nothing — the no-change gate', RETRY, async () => {
 		const view = mountPanel({ browserSessionId: 'warm-abc12345' });
 		await settle();
 		sizeGlass(view, 320, 240);
@@ -372,7 +383,7 @@ describe('BrowserPanel — viewport-follow sync (ADR-0031 amendment 2, slice E)'
 		view.un();
 	});
 
-	it('a burst of frames re-arms the pending timer — still one POST per settle', async () => {
+	it('a burst of frames re-arms the pending timer — still one POST per settle', RETRY, async () => {
 		const view = mountPanel({ browserSessionId: 'warm-abc12345' });
 		await settle();
 		sizeGlass(view, 320, 240);

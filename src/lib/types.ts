@@ -343,6 +343,19 @@ export type DsiEntry =
 			 *  so the transcript shows one row and re-shows only on a real
 			 *  prompt change. */
 			text: string;
+	  }
+	| {
+			kind: 'developer-message';
+			/** `dm:<seq>` of the developer/message event. */
+			id: string;
+			seq: number;
+			/** Wire: event.time of the developer/message. */
+			time: number;
+			/** Wire: developer/message.data.message.content text — the harness
+			 *  speaking a turn (today: tool-registry additions/removals).
+			 *  ADR-0027b D1: muted inline notice, never a chip, never a
+			 *  system-prompt collapse member. */
+			text: string;
 	  };
 
 /** One workflow member (a spawned child Session) inside a workflow-run

@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { chromium, type CDPSession, type BrowserContext } from 'playwright-core';
+import { chromium, type CDPSession, type BrowserContext, type Page } from 'playwright-core';
 
 import { readBrowserConfig, type BrowserConfig } from '$lib/server/insight-config.js';
 
@@ -95,6 +95,11 @@ export interface TabHandle {
 	targetId: string;
 	cdp: CDPSession;
 	relay: BrowserRelay;
+	/** ADR-0041: the Playwright page — headless viewport changes MUST go
+	 *  through Playwright's own API, or its context-level launch viewport
+	 *  emulation re-asserts over any raw CDP override (the fight that kept
+	 *  innerWidth pinned at the birth size). */
+	page: Page;
 }
 
 interface RegistryEntry {
@@ -107,6 +112,9 @@ interface RegistryEntry {
 	activeTargetId: string | null;
 	/** Last requested panel viewport, re-applied on every switch (D4). */
 	viewport: { width: number; height: number };
+	/** ADR-0041: headless glasses drive the page via Emulation (no real
+	 *  window to resize); headed ones via Browser.setWindowBounds. */
+	headless: boolean;
 	port: number;
 	/** The brain port this session's brain bound (config/env resolved at
 	 *  create — per-create read, ADR-0030 D3). */
@@ -400,13 +408,13 @@ class BrowserRegistry {
 					continue;
 				}
 				const cfg: BrowserConfig = readBrowserConfig();
-				const handle = { targetId: tid, cdp: scdp, relay: new BrowserRelay(scdp, cfg.screencastQuality, cfg.screencastMaxFps) };
+				const handle = { targetId: tid, cdp: scdp, relay: new BrowserRelay(scdp, cfg.screencastQuality, cfg.screencastMaxFps), page };
 				void this.applyPanelViewport(e, handle).catch(() => undefined);
 				// BUGFIX round 8: brain-created tabs must render at the PANEL's
 				// viewport from birth — without this they sat at the 1920x1080
 				// launch default and the mirror showed them small and cut off
 				await scdp.send('Page.enable').catch(() => undefined);
-				await this.applyPanelViewport(e, { cdp: scdp }).catch(() => undefined);
+				await this.applyPanelViewport(e, { cdp: scdp, relay: handle.relay, page }).catch(() => undefined);
 				e.tabs.set(tid, handle);
 				if (tid === key) break;
 			}
@@ -515,10 +523,17 @@ class BrowserRegistry {
 		'--window-position=-32000,-32000',
 						'--window-size=' + (Math.max(200, Math.min(1920, options.width ?? 730)) + 6) + ',' + (Math.max(120, Math.min(1080, options.height ?? 830)) + 70)
 	],
-	// THE FIX (operator, 2026-10-25): the panel is ~700px — the glass is BORN
-	// at panel scale, so the FIRST screencast frame is already native. No more
-	// desktop-scale first render shrinking in the mirror.
-	viewport: {width: 730, height: 830},
+	// ADR-0041 root-cause fix (2026-10-25, the black bands): a FIXED context
+	// viewport is a per-session emulation override Playwright owns and
+	// re-asserts — it pinned the page at 730x830 FOREVER, so the round-10
+	// window resize moved the chassis while the page never followed, and
+	// every panel whose box differed letterboxed (top/bottom black bands).
+	// HEADED: the WINDOW is the instrument — viewport:null lets the page
+	// track Browser.setWindowBounds natively. HEADLESS keeps emulation
+	// (headless has no real window to resize).
+	viewport: (options.headless ?? cfg.headless)
+		? { width: Math.max(200, Math.min(1920, options.width ?? 730)), height: Math.max(120, Math.min(1080, options.height ?? 830)) }
+		: null,
 	userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
 	timezoneId: 'America/New_York',
 	locale: 'en-US'
@@ -544,7 +559,7 @@ const browser = context.browser();
 		} catch {
 			// best-effort — listTabs/activate recover ids via Target.getTargets later
 		}
-		if (activeTargetId) tabs.set(activeTargetId, { targetId: activeTargetId, cdp, relay });
+		if (activeTargetId) tabs.set(activeTargetId, { targetId: activeTargetId, cdp, relay, page: context.pages()[0]! });
 		await relay.start();
 		// A fresh profile window often shows NO first paint until interaction —
 		// and screencast emits only on paint. Guarantee the first frame (and
@@ -578,7 +593,11 @@ const browser = context.browser();
 		if (cfg.enabled) this.ensureReaper(cfg.idleMs);
 		const entry: RegistryEntry = {
 			id, context, tabs, activeTargetId,
-			viewport: { width: 1920, height: 1080 },
+			// ADR-0041: the remembered viewport STARTS at the birth size — a
+			// 1920x1080 default made activate() resize the window to desktop
+			// scale before the panel's first viewport POST arrived.
+			viewport: { width: Math.max(200, Math.min(1920, options.width ?? 730)), height: Math.max(120, Math.min(1080, options.height ?? 830)) },
+			headless: options.headless ?? cfg.headless,
 			port, pid, profileDir,
 			brainPort,
 			streamSubscribers: 0,
@@ -751,7 +770,29 @@ const browser = context.browser();
 		e.viewport = { width: w, height: h };
 		const handle = await this.handleOf(e, targetId);
 		await handle.cdp.send('Page.enable').catch(() => undefined);
+		// the seq BEFORE the resize: freshness below is measured as "the ring
+		// moved past this", not "a frame exists" — an old-aspect frame must
+		// not count as a repaint (ADR-0041 D3)
+		const prevSeq = handle.relay.latestFrame()?.seq ?? -1;
 		await this.applyPanelViewport(e, handle);
+		await this.seedAfterResize(handle, prevSeq).catch(() => undefined);
+	}
+
+	/** ADR-0041 D3: a resize must REPAINT, not wait for the next page
+	 *  change — the screencast speaks only on change, so a static page
+	 *  keeps the old-aspect frame letterboxed on the panel forever (the
+	 *  operator's black bands, 2026-10-25). Bounded grace for a FRESH
+	 *  frame (seq past prevSeq); silence answers with the deterministic
+	 *  captureScreenshot seed — activate()'s first-frame idiom re-fired
+	 *  for the resize path. Never hangs the verb past the grace. */
+	private async seedAfterResize(handle: { cdp: import('playwright-core').CDPSession; relay: BrowserRelay }, prevSeq: number): Promise<void> {
+		for (let i = 0; i < 10 && (handle.relay.latestFrame()?.seq ?? -1) === prevSeq; i += 1) {
+			await new Promise((r) => setTimeout(r, 100));
+		}
+		if ((handle.relay.latestFrame()?.seq ?? -1) !== prevSeq) return; // a fresh frame beat the seed
+		const cfg: BrowserConfig = readBrowserConfig();
+		const shot = (await handle.cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: cfg.screencastQuality }).catch(() => null)) as { data?: string } | null;
+		if (shot?.data) handle.relay.seed({ seq: 0, jpeg: shot.data, metadata: { seeded: true, resize: true } });
 	}
 
 	/** The history position (ADR-0031): every proxy-verb answer carries it
@@ -884,8 +925,21 @@ const browser = context.browser();
 	 *  Re-asserted on every attach/switch/setViewport (round 11: something
 	 *  re-expands the window — the mirror shrinks again — so this is now
 	 *  idempotent and called from all three paths). */
-	private async applyPanelViewport(e: RegistryEntry, handle: { cdp: import('playwright-core').CDPSession }): Promise<void> {
+	private async applyPanelViewport(e: RegistryEntry, handle: { cdp: import('playwright-core').CDPSession; relay?: BrowserRelay; page?: Page }): Promise<void> {
 		await handle.cdp.send('Page.enable').catch(() => undefined);
+		// ADR-0041 headless arm: headless Chrome has no real window AND
+		// Playwright owns the launch viewport emulation - a raw CDP override
+		// from a sibling session gets re-asserted over (innerWidth stayed
+		// pinned at the birth size in the live proof). The viewport MUST go
+		// through the Playwright API on the handle, whose state stays
+		// authoritative - no fight, no re-assert.
+		if (e.headless && handle.page) {
+			await Promise.race([
+				handle.page.setViewportSize({ width: e.viewport.width, height: e.viewport.height }).catch(() => undefined),
+				new Promise((res) => setTimeout(res, 2500))
+			]);
+			return;
+		}
 		const race = async (p: Promise<unknown>, fb: unknown): Promise<unknown> => await Promise.race([p.catch(() => fb), new Promise((res) => setTimeout(() => res(fb), 2500))]);
 		const anyCdp = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
 		const dims = (await race(anyCdp.send('Runtime.evaluate', { expression: 'JSON.stringify({ oh: window.outerHeight - window.innerHeight, ow: window.outerWidth - window.innerWidth })', returnByValue: true }), null)) as { result?: { value?: string } } | null;

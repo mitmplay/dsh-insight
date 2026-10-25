@@ -17,6 +17,7 @@ import { mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import BrowserPanel from '$lib/components/browser/BrowserPanel.svelte';
+import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
 
 const DEBOUNCE_MS = 250;
 
@@ -101,6 +102,7 @@ function viewportCalls(): { url: string; body: Record<string, unknown> }[] {
 }
 
 beforeEach(() => {
+	pagePrefs.zoom = 1; // isolate the singleton from the previous test's zoom
 	StubEventSource.instances = [];
 	roInstances = [];
 	frameSize.w = 800;
@@ -136,11 +138,19 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-/** Override the glass wrap clientWidth/clientHeight (happy-dom reports 0). */
-function sizeWrap(target: HTMLElement, w: number, h: number): void {
+/** Override the glass wrap size. happy-dom reports 0; BOTH rulers are
+ *  stubbed so each test states its own geometry: clientWidth stays the
+ *  layout px, and getBoundingClientRect (ADR-0041 D1, the measure the
+ *  panel actually reads) carries the VISUAL px — defaults keep them
+ *  equal so pre-0041 tests keep their meaning. */
+function sizeWrap(target: HTMLElement, w: number, h: number, rectW = w, rectH = h): void {
 	const wrap = target.querySelector('[data-testid="browser-glass"]') as HTMLElement;
 	Object.defineProperty(wrap, 'clientWidth', { value: w, configurable: true });
 	Object.defineProperty(wrap, 'clientHeight', { value: h, configurable: true });
+	Object.defineProperty(wrap, 'getBoundingClientRect', {
+		value: () => ({ width: rectW, height: rectH, x: 0, y: 0, top: 0, left: 0, right: rectW, bottom: rectH }),
+		configurable: true
+	});
 }
 
 function mountPanel(props: { browserSessionId?: string } = {}) {
@@ -283,5 +293,82 @@ describe('BrowserPanel — syncViewport guard branches (viewport-follow)', () =>
 		view.un();
 		await settleViewport();
 		expect(viewportCalls()).toHaveLength(1); // nothing straggles after unmount
+	});
+});
+
+describe('BrowserPanel — the zoom-honest measure (ADR-0041 D1/D2)', () => {
+	it('the viewport POST carries the transform-true rect, NOT clientWidth', async () => {
+		const view = mountPanel({ browserSessionId: SESSION_ID });
+		await settle();
+		const source = await goLive(view);
+		// zoom 0.821 floor: layout 500x1000, seen 410x821 — the window must
+		// match the SEEN box; the layout ruler is the pre-transform lie
+		sizeWrap(view.target, 500, 1000, 410, 821);
+		fireFrame(source, 'f');
+		await settle();
+		await settleViewport();
+		expect(viewportCalls()).toEqual([
+			{ url: '/api/browser/' + SESSION_ID + '/viewport', body: { width: 410, height: 821 } }
+		]);
+		view.un();
+	});
+
+	it('a ZOOM-ONLY change (no ResizeObserver fire, no frame) re-arms the measure — one debounced POST', async () => {
+		const view = mountPanel({ browserSessionId: SESSION_ID });
+		await settle();
+		const source = await goLive(view);
+		sizeWrap(view.target, 500, 1000, 410, 821);
+		fireFrame(source, 'f');
+		await settle();
+		await settleViewport();
+		expect(viewportCalls()).toHaveLength(1);
+		// the operator drags the floor zoom: the VISUAL box moves, layout does
+		// not, the ResizeObserver is transform-blind — only the D2 effect sees it
+		sizeWrap(view.target, 500, 1000, 458, 916);
+		pagePrefs.zoom = 0.916; // the store is the single zoom authority the effect tracks
+		const callsBefore = viewportCalls().length;
+		await settle();
+		await settleViewport();
+		expect(viewportCalls().length).toBe(callsBefore + 1);
+		expect(viewportCalls().at(-1)?.body).toEqual({ width: 458, height: 916 });
+		view.un();
+	});
+
+	it('two zoom changes inside the debounce window collapse to ONE POST, the LAST size wins', async () => {
+		const view = mountPanel({ browserSessionId: SESSION_ID });
+		await settle();
+		const source = await goLive(view);
+		sizeWrap(view.target, 500, 1000, 410, 821);
+		fireFrame(source, 'f');
+		await settle();
+		await settleViewport();
+		const before = viewportCalls().length;
+		sizeWrap(view.target, 500, 1000, 458, 916);
+		pagePrefs.zoom = 0.916;
+		await settle();
+		sizeWrap(view.target, 500, 1000, 500, 1000); // zoom back to 1 before the timer fires
+		pagePrefs.zoom = 1;
+		await settle();
+		await settleViewport();
+		expect(viewportCalls().length).toBe(before + 1);
+		expect(viewportCalls().at(-1)?.body).toEqual({ width: 500, height: 1000 });
+		view.un();
+	});
+
+	it('the D2 zoom re-arm still honors the size gate — a collapsed rect posts nothing', async () => {
+		const view = mountPanel({ browserSessionId: SESSION_ID });
+		await settle();
+		const source = await goLive(view);
+		sizeWrap(view.target, 500, 1000, 410, 821);
+		fireFrame(source, 'f');
+		await settle();
+		await settleViewport();
+		const before = viewportCalls().length;
+		sizeWrap(view.target, 90, 300, 74, 246); // zoomed-down to below the 100px floor
+		pagePrefs.zoom = 0.5;
+		await settle();
+		await settleViewport();
+		expect(viewportCalls().length).toBe(before); // the gate ate it
+		view.un();
 	});
 });

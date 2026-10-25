@@ -1401,3 +1401,46 @@ describe('entryForEvent — turn lifecycle markers (Turn End Stamp)', () => {
 	});
 });
 
+
+describe('developer/message — ADR-0027b task 1.2-T', () => {
+	const devEvent: DshRawEvent = {
+		type: 'developer/message',
+		seq: 7,
+		time: 1787252800000,
+		data: {
+			turn: 3,
+			step: 1,
+			message: {
+				id: 'dm1',
+				role: 'developer',
+				source: { kind: 'tool-registry' },
+				content: [{ type: 'text', text: 'tools added: foo' }]
+			}
+		}
+	} as DshRawEvent;
+
+	it('content present -> developer-message entry with extracted text and dm:<seq> id', () => {
+		const e = entryForEvent(devEvent);
+		expect(e).not.toBeNull();
+		expect(e).toMatchObject({ kind: 'developer-message', id: 'dm:7', seq: 7, text: 'tools added: foo' });
+	});
+
+	it('empty content -> null (host parity: no content, no message - surface.ts:138-143)', () => {
+		const data = devEvent.data as { message: Record<string, unknown> };
+		const e = entryForEvent({ ...devEvent, data: { ...data, message: { ...data.message, content: [] } } } as DshRawEvent);
+		expect(e).toBeNull();
+	});
+
+	it('data undefined -> the early uninterpretable-envelope guard chips (documented mapper contract, seqs must survive)', () => {
+		// The mapper's pre-dispatch guard (api-dsh-pinned) chips ANY mapped-type
+		// event whose data is absent; our case only fires once data exists.
+		const e = entryForEvent({ type: 'developer/message', seq: 8, time: 1, data: undefined } as unknown as DshRawEvent);
+		expect(e).toMatchObject({ kind: 'unknown-event', eventType: 'developer/message', id: 'ev:8' });
+	});
+
+	it('content block without text -> null (our case, after the guard)', () => {
+		const data = devEvent.data as { message: Record<string, unknown> };
+		const e = entryForEvent({ ...devEvent, data: { ...data, message: { ...data.message, content: [{ type: 'text' }] } } } as DshRawEvent);
+		expect(e).toBeNull();
+	});
+});

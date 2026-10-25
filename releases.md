@@ -1,5 +1,24 @@
 # Releases
 
+## 0.8.3
+
+Bumped from 0.8.2 — the glass learns to follow tabs (the many-faced glass), measure honestly (the zoom-honest glass), and the developer turn gets its own stream entry.
+
+### Features
+- **The Many-Faced Glass (ADR-0040)** — per-tab relays with an active-tab pointer and a tab strip on the panel: strip always visible (2s poll + refresh-on-frame so brain-opened tabs appear without remount), active tab as blue pill with dark text, close X on every tab, context menu closes on outside click. New routes `/api/browser/[id]/tabs`, `opentab`, `closetab`, `activate`, `element`; e2e `browser-tabs.spec.ts`, unit pins `browser-panel-tabs.test.ts`, `browser-registry-tabs.test.ts`, `browser-tabs-routes.test.ts`. `22d9219f`, `37adc524`, `060b809d`, `7370c42e`.
+- **DSI context menu in the glass** — native menus never render in screencast, so the glass renders its own right-click menu from an element-data pass: opentab, copy, send right-click to the page. `55d3d4fd`, `b368a059`, `6d68c9b7`; pinned in `browser-panel-contextmenu.test.ts`.
+- **The Zoom-Honest Glass (ADR-0041, Accepted)** — the viewport measures the transform-true rect (page-prefs store is the single authority), zoom changes re-arm the measure, and a viewport POST on a silent page seeds the ring (seed-after-resize, no stale-aspect letterbox). Root cause of the small mirror was the fixed launch viewport pin: `viewport: null` for headed, Playwright-API headless. `72fe050a`..`5444124f`; e2e 08 zoom re-converge, `browser-panel-viewport.test.ts`, `browser-registry-resize-seed.test.ts`.
+- **The Developer Turn (ADR-0027b)** — developer/message maps to its own stream entry: host-event-catalog, mapper turn-grouping, and a DeveloperMessageRow that reads like a message, not a chip; pins in `dsh-event-catalog.test.ts`, `developer-message-row.test.ts`, `dsh-events*.test.ts`. `e9d4fa3c`.
+- **KB — browser-manager sizing rewrite** — one coherent flow (birth / window-follows / re-assert / zoom drift / repaint / belt-and-braces) replacing the viewport-follow notes. `9603389b`, `08bb3d73`.
+
+### Bug fixes
+- Small/cut-off mirror suite — lazy-attached tabs get the panel viewport at attach (`31775f3f`); self-heal forces a viewport re-sync when frame and panel sizes drift (`19d03f98`); viewport-follow resizes the WINDOW (headed centered emulation rendered a small mirror) for a native 1:1 (`d6d031f3`); birth size matches the panel 730x830 so the first render is native (`d36b31a4`); the open POST accepts a measured birth size and self-heals frame/panel mismatch (`5fcf716a`); ADR-0041 root-cause fix removes the launch viewport pin (`eb8332e6`).
+- Brain re-homes to the newest glass — agent tabs land in the watched panel instead of an orphaned old one. `e6057238`.
+- Lazy attach retries the pages scan — raw-CDP tabs no longer race the first verb. `e07a7a48`.
+- Active tab label was white-on-white; strip sorts by title (CDP exposes no tab order). `8be0cafe`.
+- A11y: close X contrast — red-on-blue failed, close X is blue-100 on blue for the active tab. `040042c2`.
+- One attachStream owns the SSE lifecycle — ctx open/close re-syncs like strip-activate, no double streams. `03d91fb4`.
+
 ## 0.8.2
 
 Bumped from 0.8.1 — the Glass Close Ladder lands (the trash kills, everything else folds), and the frame pipe learns its second dial.

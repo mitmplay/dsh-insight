@@ -262,6 +262,18 @@
 						/>
 					</div>
 				</PromptBubble>
+			{:else if group.kind === 'developer'}
+				<!-- ADR-0027b: the harness speaking a turn (today: tool-registry
+					changes) — a muted inline notice row: readable, visibly not
+					a chat bubble, never a gray chip. -->
+				<div
+					data-testid="developer-message-row"
+					data-seq={group.entry.seq}
+					class="mx-auto max-w-2xl rounded-md border border-text-muted/20 bg-surface0/5 px-3 py-1.5 text-xs text-text-muted"
+				>
+					<span class="mr-1.5 font-medium uppercase tracking-wide opacity-70">developer</span>
+					<span data-testid="developer-message-text">{group.entry.text}</span>
+				</div>
 			{:else if group.kind === 'prompt' || group.kind === 'context'}
 				<PromptBubble
 					text={group.kind === 'prompt' ? group.entry.text : undefined}

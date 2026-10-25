@@ -255,4 +255,39 @@ test.describe.serial('glass browser e2e', () => {
 		await page.getByTestId('browse-close').first().click();
 		await expect(page.getByTestId('panel-browser')).toHaveCount(0, { timeout: 10_000 });
 	});
+
+	// ADR-0041 D1+D2: the glass measures the transform-true rect and a
+	// zoom-ONLY change re-arms the measure — dragging the floor zoom (no
+	// layout resize, no ResizeObserver fire) must re-converge the
+	// Playwright viewport to the NEW seen box, smaller than the layout box.
+	test('08 a floor zoom change re-converges the viewport to the seen box', async ({ page, request }) => {
+		await openGlass(page);
+		const mine = (await panelSession(page, request)).id;
+		const innerW = async () => ((await (await request.get('/api/browser/' + mine + '/page')).json()) as { innerWidth: number }).innerWidth;
+		// baseline at zoom 1: viewport = the unzoomed seen box
+		const box1 = await page.getByTestId('browser-glass').boundingBox();
+		// precision 0: the rect is fractional under the zoom transform, the
+		// page viewport is integral CSS px — sub-pixel drift is expected
+		await expect.poll(innerW, { timeout: 15_000 }).toBeCloseTo(box1!.width, 0);
+		// zoom-only change: the layout box does NOT move (transform-blind
+		// observers see nothing) — the D2 effect must carry the correction.
+		// The zoom slider lives in the controlbar tray — open it first.
+		await page.getByTestId('controlbar-trigger').click();
+		const vpPosts: number[] = [];
+		page.on('request', (req) => {
+			if (req.url().includes('/viewport') && req.method() === 'POST') {
+				const b = JSON.parse(req.postData() ?? '{}') as { width?: number };
+				if (typeof b.width === 'number') vpPosts.push(b.width);
+			}
+		});
+		await page.getByTestId('controlbar-slider-zoom-input').fill('0.8');
+		await expect(page.getByTestId('controlbar-slider-zoom-value')).toContainText('80');
+		// the zoom change MUST produce a viewport POST carrying the SHRUNK
+		// width (D2 re-arm with the visual measure) — pin the client half
+		// before judging the server half
+		await expect.poll(() => vpPosts.some((w) => w < box1!.width - 5), { timeout: 5_000 }).toBe(true);
+		const box2 = await page.getByTestId('browser-glass').boundingBox();
+		expect(box2!.width).toBeLessThan(box1!.width - 5); // the seen box truly shrank
+		await expect.poll(innerW, { timeout: 15_000 }).toBeCloseTo(box2!.width, 0);
+	});
 });

@@ -15,6 +15,7 @@ import {
 	mergeEntries,
 	type DshRawEvent
 } from '$lib/services/conversation/dsh-events';
+import { groupTurns } from '$lib/utils/turn-grouping';
 
 function ev(type: string, data?: Record<string, unknown>, extra?: Partial<DshRawEvent>): DshRawEvent {
 	return { type, seq: 1, time: 1700000000000, ...(data !== undefined ? { data } : {}), ...extra };
@@ -414,5 +415,44 @@ describe('pipeline helpers re-exported from dsh-events', () => {
 		] as never[];
 		const merged = mergeEntries([], entries);
 		expect(collapseSystemPromptEntries(merged).length).toBeLessThan(2);
+	});
+});
+
+describe('groupTurns — developer-message group kind (ADR-0027b task 2.1-T)', () => {
+	const devEntry = {
+		kind: 'developer-message',
+		id: 'dm:7',
+		seq: 7,
+		time: 1700000000000,
+		text: 'tools added: foo'
+	} as any;
+	const assistant = {
+		kind: 'assistant-message',
+		id: 'a1',
+		seq: 8,
+		time: 1700000001000,
+		text: 'hi'
+	} as any;
+	const unknown = {
+		kind: 'unknown-event',
+		id: 'ev:9',
+		seq: 9,
+		time: 1700000002000,
+		eventType: 'workspace/changes'
+	} as any;
+
+	it('forms its own developer group, never folds into an assistant turn', () => {
+		const groups = groupTurns([devEntry, assistant]);
+		expect(groups.map((g) => g.kind)).toEqual(['developer', 'assistant-turn']);
+		expect(groups[0]).toMatchObject({ kind: 'developer', key: 'dm:7' });
+		expect((groups[1] as any).entries).toHaveLength(1);
+	});
+
+	it('never joins the escape family — unknown-event counts unaffected', () => {
+		const groups = groupTurns([assistant, unknown, devEntry]);
+		const kinds = groups.map((g) => g.kind);
+		expect(kinds).toContain('developer');
+		const escaped = groups.flatMap((g) => (g.kind === 'assistant-turn' ? g.entries : [])).filter((e) => e.kind === 'unknown-event');
+		expect(escaped).toHaveLength(1);
 	});
 });

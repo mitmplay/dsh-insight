@@ -33,7 +33,7 @@ type UserMessageEntry = Extract<DsiEntry, { kind: 'user-message' }>;
  *  merged context chip member has (exported for tests and chip renderers). */
 export type ContextEntry = UserMessageEntry & { meta: NonNullable<UserMessageEntry['meta']> };
 type SystemPromptEntry = Extract<DsiEntry, { kind: 'system-prompt' }>;
-export type AssistantSideEntry = Exclude<DsiEntry, { kind: 'user-message' | 'system-prompt' }>;
+export type AssistantSideEntry = Exclude<DsiEntry, { kind: 'user-message' | 'system-prompt' | 'developer-message' }>;
 
 /** A member of an assistant-turn bubble: assistant-side wire truth, or a
  *  context injection the open turn absorbed (The Turn Kept Whole, D1 —
@@ -44,6 +44,7 @@ export type TurnGroup =
 	| { kind: 'prompt'; key: string; entry: UserMessageEntry; context: ContextEntry[] }
 	| { kind: 'context'; key: string; entries: ContextEntry[] }
 	| { kind: 'system-prompt'; key: string; entry: SystemPromptEntry }
+	| { kind: 'developer'; key: string; entry: Extract<DsiEntry, { kind: 'developer-message' }> }
 	| { kind: 'assistant-turn'; key: string; entries: TurnMember[] };
 
 /** Group a render list into prompt(+context) / context / system-prompt / assistant-turn bubbles. */
@@ -103,6 +104,13 @@ export function groupTurns(entries: DsiEntry[]): TurnGroup[] {
 		// pipeline-faithful bookkeeping — they must never become TurnMembers,
 		// join a group, split one, or start one. The projection folds them.
 		if (entry.kind === 'turn-lifecycle') continue;
+		// ADR-0027b: the harness's developer turn is its own notice group —
+		// never a TurnMember, so it cannot fold into (or split) an assistant
+		// bubble, and never an unknown-event (the escape family's counts stay).
+		if (entry.kind === 'developer-message') {
+			groups.push({ kind: 'developer', key: entry.id, entry });
+			continue;
+		}
 		const side = entry as AssistantSideEntry;
 		const last = groups[groups.length - 1];
 		if (last?.kind === 'assistant-turn') last.entries.push(side);

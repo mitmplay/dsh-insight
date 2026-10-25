@@ -15,6 +15,7 @@
 	import BrowserHeader from './BrowserHeader.svelte';
 	import BrowserContent from './BrowserContent.svelte';
 	import { createMoveCoalescer, scalePoint } from './mirror-input.ts';
+	import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
 
 	let {
 		/** The browser-session registry id; undefined = this panel OPENS the
@@ -109,7 +110,7 @@
 				status = 'live';
 				failReason = null;
 				draw(JSON.parse((ev as MessageEvent).data as string));
-				if (wrap && viewport.w > 0 && Math.abs(viewport.w - wrap.clientWidth) > 8) lastViewport = { w: 0, h: 0 };
+				if (wrap && viewport.w > 0 && Math.abs(viewport.w - measureWrap().w) > 8) lastViewport = { w: 0, h: 0 };
 				syncViewport();
 				maybeRefreshTabs();
 			});
@@ -128,10 +129,18 @@
 	 *  renders at native scale. Debounced; one POST per settle. */
 	let viewportTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastViewport = { w: 0, h: 0 };
+	/** ADR-0041 D1: the eye's ruler — the transform-true rect (visual px).
+	 *  The floor zoom is a transform (PanelsZoom), which clientWidth cannot
+	 *  see; the rect is what the operator actually sees, and what the
+	 *  Playwright window must match. Same pixel space as the coord mapper. */
+	function measureWrap(): { w: number; h: number } {
+		if (!wrap) return { w: 0, h: 0 };
+		const r = wrap.getBoundingClientRect();
+		return { w: Math.round(r.width), h: Math.round(r.height) };
+	}
 	function syncViewport(): void {
 		if (!sessionId || !wrap) return;
-		const w = wrap.clientWidth;
-		const h = wrap.clientHeight;
+		const { w, h } = measureWrap();
 		if (w < 100 || h < 80) return; // collapsed/hidden — nothing honest to send
 		if (Math.abs(w - lastViewport.w) < 2 && Math.abs(h - lastViewport.h) < 2) return;
 		if (viewportTimer) clearTimeout(viewportTimer);
@@ -441,8 +450,11 @@
 					// ENTRY's browserSessionId (the slot's per-glass sessionId).
 					// BUGFIX round 11 (operator design): measure THIS panel's glass box
 				// BEFORE opening — the glass is born at the size of its panel.
-				const birthW = Math.max(200, Math.round(wrap?.clientWidth || 0));
-				const birthH = Math.max(120, Math.round(wrap?.clientHeight || 0));
+				// ADR-0041 D1: the rect (visual px), so a glass born on a zoomed
+				// floor starts at the size the operator SEES, not the layout box.
+				const birth = measureWrap();
+				const birthW = Math.max(200, birth.w);
+				const birthH = Math.max(120, birth.h);
 				const res = await fetch(apiBase + '/api/browser', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
@@ -480,6 +492,15 @@
 		const ro = new ResizeObserver(() => syncViewport());
 		ro.observe(el);
 		return () => ro.disconnect();
+	});
+
+	$effect(() => {
+		// ADR-0041 D2: a zoom-only change moves the VISUAL box without a
+		// layout resize — the ResizeObserver above is transform-blind. The
+		// floor zoom (page-prefs, the single authority) is the reactive
+		// input; the debounce and ±2px gates collapse drags into one POST.
+		void pagePrefs.zoom;
+		syncViewport();
 	});
 
 	$effect(() => {

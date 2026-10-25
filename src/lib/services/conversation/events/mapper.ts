@@ -439,6 +439,24 @@ export function entryForEvent(event: DshRawEvent): DsiEntry | null {
 			};
 		}
 
+		case 'developer/message': {
+			// ADR-0027b D1 (epic roster row b): the host's developer-role turn
+			// is a SurfaceEvent (DSH types.ts:440-448) — message species, never
+			// a chip. Empty content mirrors the host's own projection contract
+			// (surface.ts:138-143: no content, no message). turn/step/headerSeq
+			// are routing metadata, not reader content (ADR-0027b D4).
+			const message = data?.message as { content?: unknown } | undefined;
+			const text = textOfContent(message?.content);
+			if (typeof text !== 'string' || text.length === 0) return null;
+			return {
+				kind: 'developer-message',
+				id: `dm:${event.seq}`,
+				seq: event.seq,
+				time: event.time,
+				text
+			};
+		}
+
 		default:
 			// Unknown type — the harness recorded something this build does not
 			// know. Render it as a chip rather than dropping it (forward-compat).
