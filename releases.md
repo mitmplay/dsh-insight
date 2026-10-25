@@ -1,5 +1,16 @@
 # Releases
 
+## 0.8.4
+
+Bumped from 0.8.3 — the operator grows the glass's tab set themselves: the strip's `+` opens a blank tab (the birth state again), and the test floor survives the vitest 4 / Node 26 drift.
+
+### Features
+- **The Operator's Blank Page (ADR-0042, Accepted)** — a `+` chip at the end of the glass tab strip: clicking it opens a BLANK tab through the existing `/opentab` seam with an ABSENT url (never a literal `about:blank` in the grammar), the registry does `Target.createTarget` ONLY (no navigate — the documented chrome-error race stays dodged), and the boundary frame comes from `activate()`, inheriting the first-frame seed contract (ADR-0040 D4) by reuse. The address bar (no focus grab) drives the blank face; the context menu's open-link/image share the same client function. The blank tab is an ordinary tab: close it via the strip ✕ and the original re-activates, session survives. Unit pins `browser-tab-element-routes.test.ts` (absent/empty → blank, non-string still 400), `browser-registry-gap-sweep.test.ts` (blank path creates without navigating), `browser-panel-tabs.test.ts`; e2e `browser-plus-tab.spec.ts` (4/4 — create-active, address-bar DOM truth, close + survivor, kill ladder frees the port) with the ADR-0040 regression suite still 4/4. `d432aaba`.
+
+### Bug fixes
+- **Green test floor after vitest 4 / Node 26 drift** — 590 failures traced to test-infra storage drift (module-state isolation lost), not product code; the storage was rebuilt so the per-file isolation assumptions hold again. `497464de`; RCA `c41bd133`.
+- **Browser-surface coverage over the 80% floor** — per-file coverage raised across all browser unit surfaces (routes, registry, panel). `5e8503e4`.
+
 ## 0.8.3
 
 Bumped from 0.8.2 — the glass learns to follow tabs (the many-faced glass), measure honestly (the zoom-honest glass), and the developer turn gets its own stream entry.
