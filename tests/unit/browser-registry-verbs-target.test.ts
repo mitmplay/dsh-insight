@@ -12,7 +12,7 @@ afterAll(async () => {
 
 describe('registry verbs accept targetId (ADR-0040 D3)', () => {
 	it('default verbs still ride the ACTIVE tab (absent targetId unchanged)', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>base</title>base-page' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9446 + opened.length * 3, url: 'data:text/html,<title>base</title>base-page' });
 		opened.push(info.id);
 		const pi = await browserRegistry.pageInfo(info.id);
 		expect(pi.url).toContain('base-page');
@@ -21,7 +21,7 @@ describe('registry verbs accept targetId (ADR-0040 D3)', () => {
 	}, 120_000);
 
 	it('explicit targetId routes the verb to THAT tab, not the active one', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>tab-one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9446 + opened.length * 3, url: 'data:text/html,<title>t1</title>tab-one' });
 		opened.push(info.id);
 		const e = browserRegistry.peek(info.id);
 		const page2 = await e.context.newPage();
@@ -45,7 +45,7 @@ describe('registry verbs accept targetId (ADR-0040 D3)', () => {
 	}, 120_000);
 
 	it('NO_TARGET on an unknown target for every touched verb', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9446 + opened.length * 3, url: 'data:text/html,<title>t1</title>one' });
 		opened.push(info.id);
 		const BOGUS = 'no-such-target';
 		await expect(browserRegistry.pageInfo(info.id, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
@@ -55,5 +55,5 @@ describe('registry verbs accept targetId (ADR-0040 D3)', () => {
 		await expect(browserRegistry.setViewport(info.id, 800, 600, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
 		await expect(browserRegistry.pageHistory(info.id, 'back', BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
 		await expect(browserRegistry.dispatch(info.id, { kind: 'text', text: 'x' }, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
-	}, 120_000);
+	}, 240_000); // full-suite parallel chromium load can starve this box — 120s was observed to time out (2026-10-26)
 });

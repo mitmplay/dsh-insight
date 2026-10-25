@@ -23,7 +23,13 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 const h = vi.hoisted(() => {
   const makeCdp = () => {
     const cdp = new EventEmitter() as EventEmitter & { send: ReturnType<typeof vi.fn> };
-    cdp.send = vi.fn(async () => ({}));
+    cdp.send = vi.fn(async (method: string) => {
+      // ADR-0040: open() names the birth tab via Target.getTargetInfo — a
+      // CDP double that stays silent there leaves the entry pointerless.
+      if (method === 'Target.getTargetInfo') return { targetInfo: { targetId: 'tid-mop-' + (makeCdp as any).n++ } };
+      return {};
+    });
+    (makeCdp as any).n = (makeCdp as any).n ?? 0;
     return cdp;
   };
   return {
@@ -40,7 +46,8 @@ const h = vi.hoisted(() => {
       mcpPin: '0.0.83',
       profileRoot: '/tmp/dsi-mop-browser-profiles',
       idleMs: 60_000,
-      screencastQuality: 90
+      screencastQuality: 90,
+      screencastMaxFps: 15
     }
   };
 });
@@ -97,12 +104,27 @@ const state = (): { entries: Map<string, Entry>; closed: Set<string> } =>
 
 function seed(overrides: Partial<Entry> = {}): Entry {
   const cdp = h.makeCdp();
+  // ADR-0040 entry shape: the tab handles own cdp/relay; entry-level mirrors
+  // stay so the (e.cdp as any) assertions keep reading one object.
+  const TID = 'tid-' + Math.random().toString(36).slice(2, 8);
+  const relay = {
+    dispatch: vi.fn(async () => undefined),
+    stop: vi.fn(),
+    pause: vi.fn(async () => undefined),
+    ensureStreaming: vi.fn(async () => undefined),
+    latestFrame: vi.fn(() => null),
+    seed: vi.fn()
+  };
   const e: Entry = {
     id: 'seed-' + Math.random().toString(36).slice(2, 8),
     createdAt: new Date().toISOString(),
     context: { close: vi.fn(async () => undefined) },
     cdp,
-    relay: { dispatch: vi.fn(async () => undefined), stop: vi.fn() },
+    relay,
+    tabs: new Map([[TID, { targetId: TID, cdp, relay, page: { setViewportSize: vi.fn(async () => undefined) } }]]),
+    activeTargetId: TID,
+    viewport: { width: 1280, height: 800 },
+    headless: true,
     port: 9412,
     brainPort: 19515,
     pid: null,
@@ -213,7 +235,8 @@ describe('freePort / pidOfPort arms via open()', () => {
     const newPage = vi.fn(async () => ({}));
     mockLaunch({ pages: () => [], newPage });
     const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<h1>hi</h1>' });
-    const cdp = (state().entries.get(info.id) as Entry).cdp as any;
+    const born = state().entries.get(info.id) as Entry;
+    const cdp = [...born.tabs.values()][0].cdp as any;
     expect(cdp.send).toHaveBeenCalledWith('Page.navigate', { url: 'data:text/html,<h1>hi</h1>' });
     expect(newPage).toHaveBeenCalled();
     await browserRegistry.close(info.id);
@@ -365,22 +388,19 @@ describe('reload / pageHistory / setViewport / navInfo', () => {
   });
 
   it('setViewport clamps hostile sizes into the CDP-safe range', async () => {
-    const e = seed();
+    // VERDICT: source is authoritative — ADR-0041 (round 10, the black
+    // bands) replaced Emulation.setDeviceMetricsOverride with the WINDOW
+    // resize (headed: Browser.setWindowBounds; headless: the Playwright page
+    // API, whose context viewport is the re-asserting owner). The clamps
+    // (200..8192) and the rounding arm are unchanged.
+    const e = seed(); // headless seed -> the page.setViewportSize arm
+    const page = (e.tabs as Map<string, any>).get((e as any).activeTargetId).page;
     await browserRegistry.setViewport(e.id, 1, 99_999);
-    expect((e.cdp as any).send).toHaveBeenCalledWith('Emulation.setDeviceMetricsOverride', {
-      width: 200,
-      height: 8192,
-      deviceScaleFactor: 0,
-      mobile: false
-    });
+    expect(page.setViewportSize).toHaveBeenCalledWith({ width: 200, height: 8192 });
     await browserRegistry.setViewport(e.id, 100.6, 8191.4); // rounding arm
-    const calls = (e.cdp as any).send.mock.calls as [string, Record<string, unknown>][];
-    const last = calls.filter((c) => c[0] === 'Emulation.setDeviceMetricsOverride').at(-1)!;
-    expect(last[1]).toEqual({
+    expect(page.setViewportSize).toHaveBeenLastCalledWith({
       width: 200, // width floor is 200 — Math.round(100.6)=101 clamps UP
-      height: 8191,
-      deviceScaleFactor: 0,
-      mobile: false
+      height: 8191
     });
   });
 

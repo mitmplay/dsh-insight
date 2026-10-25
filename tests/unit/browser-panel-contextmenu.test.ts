@@ -38,7 +38,7 @@ beforeEach(() => {
   vi.stubGlobal('Image', class { onload: (() => void) | null = null; width = 800; height = 400; set src(v: string) { setTimeout(() => this.onload?.(), 0); } });
   vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
   vi.stubGlobal('EventSource', StubEventSource as unknown as typeof EventSource);
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() } as never);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ fillRect: vi.fn(), drawImage: vi.fn() } as never);
 });
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); document.body.innerHTML = ''; });

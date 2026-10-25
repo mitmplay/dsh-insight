@@ -30,14 +30,14 @@ describe('registry reads BrowserConfig at create', () => {
 	it('real launch honors headless from the config path (headless:true opens without a visible window and holds the port)', async () => {
 		// headless override is the same code path cfg.headless feeds — the
 		// config default (true) lands in the identical expression
-		const info = await browserRegistry.open({ spawnMcp: false, headless: true });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9486 + opened.length * 3, headless: true });
 		opened.push(info.id);
 		expect(info.port).toBeGreaterThan(0);
 		expect(portHeld(info.port)).toBe(true);
 	}, 120_000);
 
 	it('profile root comes from the config default (~/.dsi/browser-profiles)', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, headless: true });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9486 + opened.length * 3, headless: true });
 		opened.push(info.id);
 		expect(info.profileDir).toContain('.dsi/browser-profiles');
 	}, 120_000);

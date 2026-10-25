@@ -10,21 +10,23 @@ afterAll(async () => {
 
 describe('browser relay (real CDP)', () => {
 	it('keeps only the LATEST frame in the ring', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<h1>frames</h1>' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9461 + opened.length * 3, url: 'data:text/html,<h1>frames</h1>' });
 		opened.push(info.id);
 		const relay = browserRegistry.relay(info.id);
 		const seen: number[] = [];
 		const off = relay.subscribe((f: RelayFrame) => seen.push(f.seq));
 		// fresh damage AFTER subscribing — screencast emits only on paint
 		await browserRegistry.navigate(info.id, 'data:text/html,<h1>more</h1>');
-		await new Promise((r) => setTimeout(r, 1500));
+		// the navigate reseed grace (~1s) + a real screencast frame must BOTH
+		// fit inside this window — under parallel workers chromium paints late
+		await new Promise((r) => setTimeout(r, 4000));
 		off();
 		expect(seen.length).toBeGreaterThan(0);
 		expect(relay.latestFrame()?.seq).toBe(Math.max(...seen));
 	}, 120_000); // headed chromium under parallel workers needs >60s ceiling
 
 	it('serializes a burst of input dispatches and lands them in order', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9461 + opened.length * 3 });
 		opened.push(info.id);
 		const relay = browserRegistry.relay(info.id);
 		// open() guarantees a first paint (starter page), so the latest
@@ -39,7 +41,7 @@ describe('browser relay (real CDP)', () => {
 	}, 120_000); // headed chromium under parallel workers needs >60s ceiling
 
 	it('throws CLOSED (not a hang) after stop', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9461 + opened.length * 3 });
 		const relay = browserRegistry.relay(info.id);
 		await browserRegistry.close(info.id);
 		await expect(relay.dispatch({ kind: 'text', text: 'x' })).rejects.toBeInstanceOf(RelayClosedError);

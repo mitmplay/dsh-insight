@@ -16,7 +16,7 @@ describe('browser MCP wiring (W3)', () => {
 	});
 
 	it('child mode: session reports child brain with pid; close kills it first', async () => {
-		const info = await browserRegistry.open(); // spawnMcp default true
+		const info = await browserRegistry.open({ port: 9471 + opened.length * 3 }); // spawnMcp default true
 		opened.push(info.id);
 		expect(info.mcp).toBe('child');
 		const res = mcpRoute(ctx(info.id));
@@ -35,7 +35,7 @@ describe('browser MCP wiring (W3)', () => {
 	}, 60_000);
 
 	it('child death marks the session brain down, mirror keeps working', async () => {
-		const info = await browserRegistry.open();
+		const info = await browserRegistry.open({ port: 9471 + opened.length * 3 });
 		opened.push(info.id);
 		// find OUR child (match this session's cdp port) and SIGKILL it
 		const pgrep = spawnSync('pgrep', ['-f', 'cdp-endpoint http://127.0.0.1:' + info.port], { stdio: 'pipe' });

@@ -2,7 +2,7 @@
 	// ADR-0027b task 2.2-T: mounts the REAL ConversationScrollArea branch
 	// for a developer-message group, fed exactly the way the page does
 	// (entries in, groupTurns over them, groups handed down page-owned).
-	import ConversationScrollArea from '$lib/components/conversation/ConversationScrollArea.svelte';
+	import ConversationScrollArea from '$lib/components/conversation/panel/ConversationScrollArea.svelte';
 	import { groupTurns } from '$lib/utils/turn-grouping';
 	import type { DsiEntry } from '$lib/types';
 

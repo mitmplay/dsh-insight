@@ -467,5 +467,11 @@
 	"browserReload": "Muat ulang",
 	"browserBack": "Kembali",
 	"browserForward": "Maju",
-	"browserCloseDelete": "Hapus browser kaca — matikan sesi dan hapus panel"
+	"browserCloseDelete": "Hapus browser kaca — matikan sesi dan hapus panel",
+	"browserCtxOpenImage": "Buka gambar di tab baru",
+	"browserCtxCopyImage": "Salin alamat gambar",
+	"browserCtxOpenLink": "Buka tautan di tab baru",
+	"browserCtxCopyLink": "Salin alamat tautan",
+	"browserCtxSendRightClick": "Kirim klik kanan ke halaman",
+	"browserTabCloseTitle": "Tutup tab"
 }

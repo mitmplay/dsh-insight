@@ -12,7 +12,7 @@ afterAll(async () => {
 
 describe('browser registry tabs (ADR-0040)', () => {
 	it('listTabs: birth page is the first active tab (type:page only)', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9504 + opened.length * 3, url: 'data:text/html,<title>t1</title>one' });
 		opened.push(info.id);
 		const tabs = await browserRegistry.listTabs(info.id);
 		expect(tabs.length).toBeGreaterThanOrEqual(1);
@@ -22,7 +22,7 @@ describe('browser registry tabs (ADR-0040)', () => {
 	}, 120_000);
 
 	it('activate: lazy-attaches a second page, moves the pointer, seeds the boundary frame', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9504 + opened.length * 3, url: 'data:text/html,<title>t1</title>one' });
 		opened.push(info.id);
 		const e = browserRegistry.peek(info.id);
 		const page2 = await e.context.newPage();
@@ -43,7 +43,7 @@ describe('browser registry tabs (ADR-0040)', () => {
 	}, 120_000);
 
 	it('activate re-activating the active tab is a clean no-op', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9504 + opened.length * 3, url: 'data:text/html,<title>t1</title>one' });
 		opened.push(info.id);
 		const tabs = await browserRegistry.listTabs(info.id);
 		const active = tabs.find((t) => t.active)!;
@@ -52,7 +52,7 @@ describe('browser registry tabs (ADR-0040)', () => {
 	}, 120_000);
 
 	it('refusals: NO_TARGET unknown tab, NO_SESSION unknown id, CLOSED tombstone', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9504 + opened.length * 3, url: 'data:text/html,<title>t1</title>one' });
 		opened.push(info.id);
 		await expect(browserRegistry.activate(info.id, 'deadbeef')).rejects.toMatchObject({ code: 'NO_TARGET' });
 		await expect(browserRegistry.listTabs('no-such-id')).rejects.toMatchObject({ code: 'NO_SESSION' });

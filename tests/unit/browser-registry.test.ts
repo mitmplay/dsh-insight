@@ -20,7 +20,7 @@ describe('browser registry (real headed chromium)', () => {
 		expect(src).toContain("channel: 'chrome'"); // real Chrome = full codecs/Widevine for YouTube
 	});
 	it('creates a session with a debug port that actually listens', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9516 + opened.length * 3, });
 		opened.push(info.id);
 		expect(info.port).toBeGreaterThan(0);
 		expect(portHeld(info.port)).toBe(true);
@@ -28,7 +28,7 @@ describe('browser registry (real headed chromium)', () => {
 	}, 120_000); // headed chromium under parallel workers needs >60s ceiling
 
 	it('close() kills the browser and frees the port (D8)', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9516 + opened.length * 3, });
 		expect(portHeld(info.port)).toBe(true);
 		const r = await browserRegistry.close(info.id);
 		expect(r).toEqual({ ok: true, alreadyClosed: false });
@@ -36,14 +36,14 @@ describe('browser registry (real headed chromium)', () => {
 	}, 120_000); // headed chromium under parallel workers needs >60s ceiling
 
 	it('double close is idempotent (D8)', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9516 + opened.length * 3, });
 		await browserRegistry.close(info.id);
 		const second = await browserRegistry.close(info.id);
 		expect(second).toEqual({ ok: true, alreadyClosed: true });
 	}, 120_000); // headed chromium under parallel workers needs >60s ceiling
 
 	it('relay survives in process-global state across module reimports', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9516 + opened.length * 3, });
 		opened.push(info.id);
 		// dynamic path (not a literal) so TS does not type-resolve the query string
 		const reimportUrl = '$lib/server/browser/registry.js?reimport=1';

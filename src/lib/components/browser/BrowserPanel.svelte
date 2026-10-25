@@ -14,6 +14,7 @@
 	import { persistId } from '$lib/services/panels/browser-session-resolver.js';
 	import BrowserHeader from './BrowserHeader.svelte';
 	import BrowserContent from './BrowserContent.svelte';
+	import BrowserTab from './BrowserTab.svelte';
 	import { createMoveCoalescer, scalePoint } from './mirror-input.ts';
 	import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
 
@@ -75,7 +76,12 @@
 		if (!sessionId) return;
 		try {
 			const res = await fetch(apiBase + '/api/browser/' + sessionId + '/tabs');
-			if (res.ok) tabs = ((await res.json()) as { tabs: typeof tabs }).tabs;
+			if (res.ok) {
+				// the strip is furniture — a malformed payload (proxy quirk, route
+				// drift) degrades to 'no tabs', never a render throw on tabs.length
+				const data = (await res.json().catch(() => null)) as { tabs?: typeof tabs } | null;
+				tabs = Array.isArray(data?.tabs) ? data.tabs : [];
+			}
 		} catch {
 			/* transient — the strip refetches on the next switch */
 		}
@@ -504,10 +510,8 @@
 	});
 
 	$effect(() => {
-		// BUGFIX round 3 (operator: third tab invisible): in a narrow panel the
-		// strip can overflow — keep the ACTIVE tab scrolled into view on every
-		// tab-set change so "missing" tabs are impossible to overlook
-	$effect(() => {
+		// the context menu closes on any pointerdown OUTSIDE it (capture, so a
+		// glass click never both dismisses and acts)
 		if (!ctxMenu) return;
 		const onPD = (e: PointerEvent) => {
 			const t = e.target as HTMLElement | null;
@@ -518,6 +522,10 @@
 		return () => window.removeEventListener('pointerdown', onPD, { capture: true });
 	});
 
+	$effect(() => {
+		// BUGFIX round 3 (operator: third tab invisible): in a narrow panel the
+		// strip can overflow — keep the ACTIVE tab scrolled into view on every
+		// tab-set change so "missing" tabs are impossible to overlook
 		if (!tabs.length) return;
 		const el = document.querySelector('[data-testid="browser-tab"][data-active="true"]');
 		el?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
@@ -604,31 +612,7 @@
 		     a click is an activate, the boundary frame paints the answer -->
 		<div class="flex items-center gap-1 overflow-x-auto border-b border-surface-border px-1 py-0.5 text-[11px]" data-testid="browser-tab-strip">
 			{#each tabs as t (t.targetId)}
-				<div class="relative shrink-0">
-					<button
-						type="button"
-						class="w-32 truncate rounded px-1.5 py-0.5 pr-4 text-left whitespace-nowrap"
-						class:bg-blue-200={t.active}
-						class:text-blue-900={t.active}
-						class:text-zinc-600={!t.active}
-						class:hover:bg-zinc-100={!t.active}
-						class:font-medium={t.active}
-						disabled={switching || t.active}
-						data-testid="browser-tab"
-						data-active={t.active}
-						title={t.url}
-						onclick={() => void activateTab(t.targetId)}
-					>
-						{t.title || t.url || 'tab'}
-					</button>
-					<button
-						type="button"
-						class="absolute right-0.5 top-1/2 -translate-y-1/2 rounded text-[10px] leading-none text-red-500 hover:bg-red-500 hover:text-white"
-						title="Close tab"
-						data-testid="browser-tab-close"
-						onclick={(e) => { e.stopPropagation(); void ctxCloseTab(t.targetId); }}
-					>✕</button>
-				</div>
+				<BrowserTab tab={t} disabled={switching} onactivate={(id) => void activateTab(id)} onclose={(id) => void ctxCloseTab(id)} />
 			{/each}
 		</div>
 	{/if}

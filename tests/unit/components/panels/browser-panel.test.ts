@@ -119,7 +119,9 @@ beforeEach(() => {
 			return rafCbs.length;
 		}) as unknown as typeof requestAnimationFrame
 	);
-	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() } as never);
+	// draw() letterboxes manually (BUGFIX round 8b): fillRect paints the
+	// bitmap black, then drawImage contain-fits the frame into it.
+	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ fillRect: vi.fn(), drawImage: vi.fn() } as never);
 });
 
 afterEach(() => {
@@ -148,6 +150,17 @@ async function settle(times = 4): Promise<void> {
 		await new Promise((r) => setTimeout(r, 0));
 	}
 	flushSync();
+}
+
+/**
+ * Stub the glass wrap box (BUGFIX round 8b contract): draw() sizes the canvas
+ * BITMAP from wrap.clientWidth/Height — happy-dom layouts are always 0, so a
+ * test that wants a realistic bitmap pins the wrap box explicitly.
+ */
+function stubWrapBox(view: { target: HTMLElement }, w: number, h: number): void {
+	const glass = view.target.querySelector('[data-testid="browser-glass"]') as HTMLElement;
+	Object.defineProperty(glass, 'clientWidth', { value: w, configurable: true });
+	Object.defineProperty(glass, 'clientHeight', { value: h, configurable: true });
 }
 
 function statusOf(target: HTMLElement): string {
@@ -211,6 +224,7 @@ describe('BrowserPanel — open + stream attach (ADR-0029)', () => {
 		env.pageOk = false;
 		const view = mountPanel();
 		await settle();
+		stubWrapBox(view, 800, 400);
 		await goLive(view);
 		const canvas = view.target.querySelector('canvas') as HTMLCanvasElement;
 		expect(canvas.width).toBe(800);
@@ -236,6 +250,7 @@ describe('BrowserPanel — frames and the glass canvas', () => {
 	it('a frame flips status to live, sizes the canvas from the frame, derives the viewport from frame ÷ dpr, and draws', async () => {
 		const view = mountPanel();
 		await settle(); // dpr=2 via /page
+		stubWrapBox(view, 800, 400); // the bitmap is the wrap box now, not the frame
 		const canvas = view.target.querySelector('canvas') as HTMLCanvasElement;
 		const drawImage = canvas.getContext('2d')!.drawImage as ReturnType<typeof vi.fn>;
 		expect(view.target.querySelector('[data-testid="browser-placeholder"]')).not.toBeNull();
@@ -458,10 +473,12 @@ describe('BrowserPanel — sticky glass (The Sticky Glass, ADR-0030)', () => {
 		localStorage.clear();
 	});
 
-	it('remount with a persisted live id RE-BINDS: GET list only, no POST open, data-rebound=true', async () => {
+	it('a legacy persisted id does NOT re-bind on mount — Amendment 3: a glass OPENS FRESH (the global id is another glass\'s session)', async () => {
 		localStorage.setItem('dsi.browser.sessionId', 'persisted-id-1');
-		// first the list must answer live — the default fetchMock 404s GET, so
-		// layer a GET-aware implementation over it
+		// the resolver's GET list answers live — irrelevant to the panel: since
+		// Amendment 3 the re-bind decision rides the SLOT ENTRY's sessionId
+		// (passed as the browserSessionId prop by the boot restore), never the
+		// global key. A no-prop mount is a chip-spawned glass: fresh open.
 		const base = fetchMock.getMockImplementation()!;
 		fetchMock.mockImplementation(async (...args: Parameters<typeof fetch>) => {
 			const url = String(args[0]);
@@ -474,9 +491,11 @@ describe('BrowserPanel — sticky glass (The Sticky Glass, ADR-0030)', () => {
 		const view = mountPanel();
 		await settle();
 		const opened = fetchMock.mock.calls.some((c) => String(c[0]).endsWith('/api/browser') && (c[1] as RequestInit)?.method === 'POST');
-		expect(opened).toBe(false); // re-bind, not a twin open
+		expect(opened).toBe(true); // fresh open, not a re-bind to a foreign glass
 		const strip = view.target.querySelector('[data-testid="browser-status"]');
-		expect(strip?.getAttribute('data-rebound')).toBe('true');
+		expect(strip?.getAttribute('data-rebound')).toBe('false');
+		// the fresh id replaces the stale one for the next reload
+		expect(localStorage.getItem('dsi.browser.sessionId')).toBe(SESSION_ID);
 		view.un();
 	});
 
@@ -584,6 +603,7 @@ describe('BrowserPanel — guard branches (coverage addendum)', () => {
 		});
 		const view = mountPanel();
 		await settle();
+		stubWrapBox(view, 800, 400);
 		await goLive(view);
 		const canvas = view.target.querySelector('canvas') as HTMLCanvasElement;
 		expect(canvas.width).toBe(800);

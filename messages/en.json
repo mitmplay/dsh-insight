@@ -467,5 +467,11 @@
 	"browserReload": "Reload",
 	"browserBack": "Back",
 	"browserForward": "Forward",
-	"browserCloseDelete": "Delete the glass browser — kills the session and removes the panel"
+	"browserCloseDelete": "Delete the glass browser — kills the session and removes the panel",
+	"browserCtxOpenImage": "Open image in new tab",
+	"browserCtxCopyImage": "Copy image address",
+	"browserCtxOpenLink": "Open link in new tab",
+	"browserCtxCopyLink": "Copy link address",
+	"browserCtxSendRightClick": "Send right-click to the page",
+	"browserTabCloseTitle": "Close tab"
 }

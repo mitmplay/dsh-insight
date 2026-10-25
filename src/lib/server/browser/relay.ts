@@ -105,6 +105,20 @@ export class BrowserRelay {
 		for (const sub of this.subscribers) sub(this.latest);
 	}
 
+	/** Navigate reseed (ADR-0039 follow-up, 2026-10-25): unlike seed(), this
+	 *  REPLACES an existing frame. A discrete navigation under a paced
+	 *  screencast (everyNthFrame > 2, headless) composites too few frames for
+	 *  Chrome to emit anything — and the ring still holds the OPENER's
+	 *  synthesized frame, which seed() refuses to advance past, so the glass
+	 *  would freeze on the old face forever. A navigation is a real face
+	 *  change: it must land even over a synthesized frame. */
+	reseed(frame: RelayFrame): void {
+		if (!this.cdp) throw new RelayClosedError();
+		this.seq += 1;
+		this.latest = { ...frame, seq: this.seq };
+		for (const sub of this.subscribers) sub(this.latest);
+	}
+
 	latestFrame(): RelayFrame | null {
 		if (!this.cdp) throw new RelayClosedError();
 		return this.latest;

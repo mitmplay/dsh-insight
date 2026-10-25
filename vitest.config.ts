@@ -5,109 +5,140 @@ import path from 'node:path';
 // catalogs + cookie contract as the build — single source of truth.
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 
-export default defineConfig({
-	plugins: [
-		paraglideVitePlugin({
-			project: './project.inlang',
-			outdir: './src/lib/paraglide',
-			strategy: ['cookie', 'preferredLanguage', 'baseLocale'],
-			cookieName: 'dsi.locale'
-		}),
-		svelte(),
-		// node:sqlite externalization — probe-verified 2026-08-25 (spec GAP-2):
-		// vite under conditions:['browser'] fails at TRANSFORM time
-		// ("Cannot bundle Node.js built-in node:sqlite") for any test that
-		// imports node:sqlite. External-only resolution lets vitest hand the
-		// specifier to Node itself in the node-env-globed a2a test files.
-		// Shape copied from OCI's production vitest.config.ts (verified there).
-		{
-			name: 'externalize-node-sqlite',
-			enforce: 'pre',
-			resolveId(source: string) {
-				if (source === 'node:sqlite') {
-					return { id: 'node:sqlite', external: true };
-				}
-				return null;
+// Server-only test files — they genuinely need the 'node' environment
+// (node:sqlite importers, server-only route seams). Previously expressed as
+// environmentMatchGlobs, which vitest 4 removed (RCA 2026-10-25).
+const serverOnlyTestFiles = [
+	'tests/unit/ui-locale.test.ts',
+	'tests/unit/locale-resolver.test.ts',
+	'tests/unit/hooks-locale.test.ts',
+	'tests/unit/dsh-rpc.test.ts',
+	'tests/unit/dsh-connection.test.ts',
+	'tests/unit/config.test.ts',
+	'tests/unit/insight-config.test.ts',
+	'tests/unit/settings-document.test.ts',
+	'tests/unit/insight-config-yaml.test.ts',
+	'tests/unit/init-config-script.test.ts',
+	'tests/unit/api-dsh.test.ts',
+	'tests/unit/goal-route.test.ts',
+	'tests/unit/workspace-file-route.test.ts',
+	'tests/unit/workspace-tree-route.test.ts',
+	'tests/unit/a2a-db.test.ts',
+	'tests/unit/a2a-watcher.test.ts',
+	'tests/unit/git-watch-debounce.test.ts',
+	'tests/unit/git-watch-gate.test.ts',
+	'tests/unit/git-watch-mocked.test.ts',
+	'tests/unit/git-watch-edges.test.ts',
+	'tests/unit/explorer-git-events.test.ts',
+	'tests/unit/explorer-live-refresh.test.ts',
+	'tests/unit/a2a-routes.test.ts',
+	'tests/unit/prompts-db.test.ts',
+	'tests/unit/prompts-routes.test.ts',
+	'tests/unit/session-path.test.ts',
+	'tests/unit/dsh-sessions-root-config.test.ts',
+	'tests/unit/api-dsh-session-path-route.test.ts',
+	'tests/unit/terminal-route-seams.test.ts',
+	'tests/unit/prompts-similarity.test.ts',
+	'tests/unit/prompts-search.test.ts',
+	'tests/unit/dsh-connection-gaps.test.ts',
+	'tests/unit/browser-viewport-route.test.ts',
+	'tests/unit/browser-session-routes.test.ts',
+	'tests/unit/browser-tab-element-routes.test.ts'
+];
+
+// Vitest 4 inline test.projects entries do NOT inherit the root vite
+// plugins/resolve (verified empirically 2026-10-25: $lib alias died for every
+// dom suite until these were spread into each project). Factories give each
+// project its own plugin instances — vite plugins are stateful.
+const makePlugins = () => [
+	paraglideVitePlugin({
+		project: './project.inlang',
+		outdir: './src/lib/paraglide',
+		strategy: ['cookie', 'preferredLanguage', 'baseLocale'],
+		cookieName: 'dsi.locale'
+	}),
+	svelte(),
+	// node:sqlite externalization — probe-verified 2026-08-25 (spec GAP-2):
+	// vite under conditions:['browser'] fails at TRANSFORM time
+	// ("Cannot bundle Node.js built-in node:sqlite") for any test that
+	// imports node:sqlite. External-only resolution lets vitest hand the
+	// specifier to Node itself in the node-env-globed a2a test files.
+	// Shape copied from OCI's production vitest.config.ts (verified there).
+	{
+		name: 'externalize-node-sqlite',
+		enforce: 'pre',
+		resolveId(source: string) {
+			if (source === 'node:sqlite') {
+				return { id: 'node:sqlite', external: true };
 			}
+			return null;
 		}
-	],
-	resolve: {
-		alias: {
-			$lib: path.resolve(__dirname, 'src/lib'),
-			'$app/environment': path.resolve(__dirname, 'tests/stubs/app-environment.ts'),
-			'$app/state': path.resolve(__dirname, 'tests/stubs/app-state.ts'),
-			'$app/navigation': path.resolve(__dirname, 'tests/stubs/app-navigation.ts'),
-			// The yaml.worker bundle (settings-monaco's MonacoEnvironment) drags
-			// monaco-worker-manager's deep 'monaco-editor/esm/vs/...' import —
-			// unresolvable through monaco-editor's exports map — into the unit
-			// graph; no glue test spawns workers under happy-dom, so stub the
-			// ?worker default export instead.
-			'monaco-yaml/yaml.worker?worker': path.resolve(
-				__dirname,
-				'tests/stubs/yaml-worker.ts'
-			)
-		},
-		conditions: ['browser']
+	}
+];
+
+const makeResolve = () => ({
+	alias: {
+		$lib: path.resolve(import.meta.dirname, 'src/lib'),
+		'$app/environment': path.resolve(import.meta.dirname, 'tests/stubs/app-environment.ts'),
+		'$app/state': path.resolve(import.meta.dirname, 'tests/stubs/app-state.ts'),
+		'$app/navigation': path.resolve(import.meta.dirname, 'tests/stubs/app-navigation.ts'),
+		// The yaml.worker bundle (settings-monaco's MonacoEnvironment) drags
+		// monaco-worker-manager's deep 'monaco-editor/esm/vs/...' import —
+		// unresolvable through monaco-editor's exports map — into the unit
+		// graph; no glue test spawns workers under happy-dom, so stub the
+		// ?worker default export instead.
+		'monaco-yaml/yaml.worker?worker': path.resolve(
+			import.meta.dirname,
+			'tests/stubs/yaml-worker.ts'
+		)
 	},
+	conditions: ['browser']
+});
+
+export default defineConfig({
 	test: {
-		environment: 'happy-dom',
-		// Global fetch double (RCA 2026-09-24): unstubbed relative fetch() from
-		// mounted components rode happy-dom's http://localhost:3000 base into a
-		// real ECONNREFUSED AggregateError storm (~75 per run, stderr noise only).
-		// Same-origin /api/ URLs get a safe synthetic 404; per-test stubs
-		// (installDefaultFetch / vi.stubGlobal) replace this when installed.
-		setupFiles: ['tests/stubs/fetch-double.ts'],
-		include: ['tests/unit/**/*.{test,spec}.{ts,js}', 'tests/live/**/*.{test,spec}.{ts,js}'],
-		exclude: ['node_modules', '.svelte-kit', 'dist'],
-		environmentMatchGlobs: [
-			// Server-only modules — Node environment, no DOM
-			['tests/unit/ui-locale.test.ts', 'node'],
-			['tests/unit/locale-resolver.test.ts', 'node'],
-			['tests/unit/hooks-locale.test.ts', 'node'],
-			['tests/unit/dsh-rpc.test.ts', 'node'],
-			['tests/unit/dsh-connection.test.ts', 'node'],
-			['tests/unit/config.test.ts', 'node'],
-			['tests/unit/insight-config.test.ts', 'node'],
-			['tests/unit/settings-document.test.ts', 'node'],
-			['tests/unit/insight-config-yaml.test.ts', 'node'],
-			['tests/unit/init-config-script.test.ts', 'node'],
-			['tests/unit/api-dsh.test.ts', 'node'],
-			// goal route — server-only rpc seam (Goal Editor W1)
-			['tests/unit/goal-route.test.ts', 'node'],
-			// workspace-file route — server-only rpc seam (Workspace Explorer W2)
-			['tests/unit/workspace-file-route.test.ts', 'node'],
-			// workspace-tree route — server-only rpc seam (bugfix 2026-09-09)
-			['tests/unit/workspace-tree-route.test.ts', 'node'],
-			// a2a ledger — node:sqlite consumers, externalized + run under Node
-			['tests/unit/a2a-db.test.ts', 'node'],
-			['tests/unit/a2a-watcher.test.ts', 'node'],
-			// git-watch + git-events — chokidar/SSE server seams (Index Pulse W1/W2)
-			['tests/unit/git-watch-debounce.test.ts', 'node'],
-			['tests/unit/git-watch-gate.test.ts', 'node'],
-			['tests/unit/git-watch-mocked.test.ts', 'node'],
-			['tests/unit/git-watch-edges.test.ts', 'node'],
-			['tests/unit/explorer-git-events.test.ts', 'node'],
-			// explorer live invalidation — EventSource seam, DOM-free store logic
-			['tests/unit/explorer-live-refresh.test.ts', 'node'],
-			['tests/unit/a2a-routes.test.ts', 'node'],
-			// prompts library — node:sqlite consumers (Suggest Strip W1)
-			['tests/unit/prompts-db.test.ts', 'node'],
-			['tests/unit/prompts-routes.test.ts', 'node'],
-			// session full path — server-only resolver + config + route seam
-			// (The Session Full Path W1, 2026-09-14)
-			['tests/unit/session-path.test.ts', 'node'],
-			['tests/unit/dsh-sessions-root-config.test.ts', 'node'],
-			['tests/unit/api-dsh-session-path-route.test.ts', 'node'],
-			// terminal route seams — server-only registry/session mocks
-			['tests/unit/terminal-route-seams.test.ts', 'node'],
-			// prompts similarity + search math — node:sqlite consumers
-			['tests/unit/prompts-similarity.test.ts', 'node'],
-			['tests/unit/prompts-search.test.ts', 'node'],
-			// dsh-connection coverage-gap tests — server-only transport seams
-			['tests/unit/dsh-connection-gaps.test.ts', 'node'],
-			// browser viewport route — server-only registry seam (ADR-0031 am. 2)
-			['tests/unit/browser-viewport-route.test.ts', 'node']
+		// Vitest 4 removed environmentMatchGlobs (silently ignored — RCA
+		// 2026-10-25); the supported mechanism is test.projects. Each project
+		// spreads the shared vite plugins/resolve — inline projects do not
+		// inherit them from the root config.
+		projects: [
+			{
+				plugins: makePlugins(),
+				resolve: makeResolve(),
+				test: {
+					name: 'dom',
+					environment: 'happy-dom',
+					include: [
+						'tests/unit/**/*.{test,spec}.{ts,js}',
+						'tests/live/**/*.{test,spec}.{ts,js}'
+					],
+					// Everything the node project claims is removed here so no
+					// file runs twice.
+					exclude: [
+						'node_modules',
+						'.svelte-kit',
+						'dist',
+						...serverOnlyTestFiles
+					],
+					// web-storage first (RCA 2026-10-25): Node 26's built-in localStorage
+					// getter shadows happy-dom's and returns undefined without
+					// --localstorage-file; the stub swaps in a Map-backed Storage.
+					setupFiles: ['tests/stubs/web-storage.ts', 'tests/stubs/fetch-double.ts']
+				}
+			},
+			{
+				plugins: makePlugins(),
+				resolve: makeResolve(),
+				test: {
+					name: 'node',
+					environment: 'node',
+					include: serverOnlyTestFiles,
+					setupFiles: ['tests/stubs/web-storage.ts']
+				}
+			}
 		],
+		// NOTE: setupFiles live inside EACH project above — vitest 4 inline
+		// projects do not inherit them from the root test block.
 		coverage: {
 			provider: 'v8',
 			// text-summary — the headline numbers; text — the per-file table;

@@ -35,7 +35,7 @@ dsh:
   presetEnglish: true
 browser:
   headless: true
-  screencastQuality: 60
-  screencastMaxFps: 10
+  screencastQuality: 90
+  screencastMaxFps: 15
 jobs:
   autoClose: false

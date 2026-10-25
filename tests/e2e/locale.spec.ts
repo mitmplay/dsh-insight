@@ -12,7 +12,9 @@
  * language-menu-trigger, locale-option-* (LanguageMenu.svelte).
  * The menu list is shown by hovering the trigger (CSS-only dropdown).
  */
-import { expect, test } from '@playwright/test';
+// glass-reroutable fixtures: DSI_E2E_GLASS_CDP_URL runs these tests in the
+// LIVE BrowserManager glass (registry.ts launch), otherwise stock Playwright
+import { expect, test } from './fixtures/glass-browser';
 
 test.describe('locale switching', () => {
 	test('switch to id in the header: label flips, cookie set, no navigation', async ({ page }) => {

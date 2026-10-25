@@ -743,18 +743,27 @@ const browser = context.browser();
 	}
 
 	/** Navigate the session's active page — public because causing page
-	 *  damage is the only reliable way to make screencast emit a frame. */
+	 *  damage is the only reliable way to make screencast emit a frame.
+	 *  BUGFIX (ADR-0039 follow-up, 2026-10-25): at a paced cadence finer than
+	 *  everyNthFrame=2 (e.g. the operator's live screencastMaxFps: 10 →
+	 *  everyNthFrame 3), a HEADLESS single-damage navigate composites only
+	 *  1–2 frames and Chrome emits NOTHING — the glass froze on the old face
+	 *  after every header navigate. A bounded no-frame grace re-fires the
+	 *  deterministic captureScreenshot seed (the activate()/resize idiom):
+	 *  pacing still governs LIVE video; a discrete navigation always lands. */
 	async navigate(id: string, url: string, opts?: { waitLoad?: boolean; targetId?: string }): Promise<void> {
 		const e = this.peek(id);
 		const h = await this.handleOf(e, opts?.targetId);
 		await h.cdp.send('Page.enable').catch(() => undefined);
+		const prevSeq = h.relay.latestFrame()?.seq ?? -1;
 		if (opts?.waitLoad) {
 			const loaded = this.waitLoad(h);
 			await h.cdp.send('Page.navigate', { url });
 			await loaded;
-			return;
+		} else {
+			await h.cdp.send('Page.navigate', { url });
 		}
-		await h.cdp.send('Page.navigate', { url });
+		void this.seedAfterNavigate(h, prevSeq).catch(() => undefined);
 	}
 
 	/** Match the page viewport to the panel's glass box (ADR-0031
@@ -793,6 +802,20 @@ const browser = context.browser();
 		const cfg: BrowserConfig = readBrowserConfig();
 		const shot = (await handle.cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: cfg.screencastQuality }).catch(() => null)) as { data?: string } | null;
 		if (shot?.data) handle.relay.seed({ seq: 0, jpeg: shot.data, metadata: { seeded: true, resize: true } });
+	}
+
+	/** The navigate path's seed arm (ADR-0039 follow-up): same bounded grace,
+	 *  but the synthesized replacement must land OVER the opener's synthesized
+	 *  frame — seed() refuses that, reseed() is the honest verb (the mirror
+	 *  froze on the old face after every paced navigate otherwise). */
+	private async seedAfterNavigate(handle: { cdp: import('playwright-core').CDPSession; relay: BrowserRelay }, prevSeq: number): Promise<void> {
+		for (let i = 0; i < 10 && (handle.relay.latestFrame()?.seq ?? -1) === prevSeq; i += 1) {
+			await new Promise((r) => setTimeout(r, 100));
+		}
+		if ((handle.relay.latestFrame()?.seq ?? -1) !== prevSeq) return; // a real frame beat the seed
+		const cfg: BrowserConfig = readBrowserConfig();
+		const shot = (await handle.cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: cfg.screencastQuality }).catch(() => null)) as { data?: string } | null;
+		if (shot?.data) handle.relay.reseed({ seq: 0, jpeg: shot.data, metadata: { seeded: true, navigate: true } });
 	}
 
 	/** The history position (ADR-0031): every proxy-verb answer carries it

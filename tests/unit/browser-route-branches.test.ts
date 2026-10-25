@@ -300,7 +300,7 @@ describe('POST /api/browser/[id]/input', () => {
 			clickCount: 2,
 			deltaX: 0.5,
 			deltaY: -1
-		});
+		}, undefined); // ADR-0040 D3: absent targetId = active tab (explicit undefined)
 	});
 
 	it('leaves mouse optionals undefined; string coords are NOT coerced (rejected)', async () => {
@@ -316,7 +316,7 @@ describe('POST /api/browser/[id]/input', () => {
 			clickCount: undefined,
 			deltaX: undefined,
 			deltaY: undefined
-		});
+		}, undefined);
 
 		const strCoords = await input({ ...ctx('b1'), request: post({ kind: 'mouse', type: 'mouseMoved', x: '5', y: '6' }) });
 		expect(strCoords.status).toBe(400);
@@ -333,7 +333,7 @@ describe('POST /api/browser/[id]/input', () => {
 			code: 'KeyA',
 			windowsVirtualKeyCode: 0,
 			text: undefined
-		});
+		}, undefined);
 		await input({ ...ctx('b1'), request: post({ kind: 'key', type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, text: 'a' }) });
 		expect(dispatchMock).toHaveBeenLastCalledWith('b1', {
 			kind: 'key',
@@ -342,14 +342,14 @@ describe('POST /api/browser/[id]/input', () => {
 			code: 'KeyA',
 			windowsVirtualKeyCode: 65,
 			text: 'a'
-		});
+		}, undefined);
 	});
 
 	it('accepts a short text dispatch verbatim', async () => {
 		dispatchMock.mockResolvedValue(undefined);
 		const res = await input({ ...ctx('b1'), request: post({ kind: 'text', text: 'hello' }) });
 		expect(res.status).toBe(200);
-		expect(dispatchMock).toHaveBeenCalledWith('b1', { kind: 'text', text: 'hello' });
+		expect(dispatchMock).toHaveBeenCalledWith('b1', { kind: 'text', text: 'hello' }, undefined);
 	});
 
 	it('maps NO_SESSION refusal to 404 and other refusals to 409', async () => {

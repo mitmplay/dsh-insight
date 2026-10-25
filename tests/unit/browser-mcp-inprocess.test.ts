@@ -39,7 +39,7 @@ const postMcp = async (url: string, body: unknown): Promise<{ status: number; js
 
 describe('in-process MCP brain (D7, DSI_MCP_IN_PROCESS=1)', () => {
 	it('creates the brain in-process: sibling SSE listener + descriptor URL', async () => {
-		const info = await browserRegistry.open();
+		const info = await browserRegistry.open({ port: 9480 + opened.length * 3 });
 		opened.push(info.id);
 		expect(info.mcp).toBe('in-process');
 		const body = (await (await mcpRoute(ctx(info.id))).json()) as { mode: string; url: string; health: string };
@@ -59,7 +59,7 @@ describe('in-process MCP brain (D7, DSI_MCP_IN_PROCESS=1)', () => {
 	}, 60_000);
 
 	it('close disposes the brain and the sibling listener (D8 ordering)', async () => {
-		const info = await browserRegistry.open();
+		const info = await browserRegistry.open({ port: 9480 + opened.length * 3 });
 		const body = (await (await mcpRoute(ctx(info.id))).json()) as { url: string };
 		const r = await browserRegistry.close(info.id);
 		expect(r.ok).toBe(true);

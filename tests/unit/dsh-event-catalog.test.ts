@@ -85,12 +85,13 @@ describe('coverage diff — behavior agrees with the fixture (1.2)', () => {
 describe('mutation checks — the checker can go red (1.2-T)', () => {
 	// ADR-0027b landed: developer/message is mapped now (its classify at the
 	// synthetic envelope is 'silent' — acceptable for a mapped home; the
-	// never-chip promise held). The drift example moved to a kind that still
-	// behaves as a chip: deliverables/presented (pending ADR-0027f).
+	// never-chip promise held). ADR-0027f then landed too: deliverables/
+	// presented is silent-handoff now. The drift example rides the one kind
+	// that still behaves as a chip: working-directory/change (ADR-0027 D6).
 	it('a chip-behaving kind with a mapped home is a detected drift', () => {
-		expect(classify('deliverables/presented')).toBe('chip');
+		expect(classify('working-directory/change')).toBe('chip');
 		// the drift detector is the comparison itself; assert it disagrees
-		const drifted = classify('deliverables/presented') !== 'mapped';
+		const drifted = classify('working-directory/change') !== 'mapped';
 		expect(drifted).toBe(true);
 	});
 

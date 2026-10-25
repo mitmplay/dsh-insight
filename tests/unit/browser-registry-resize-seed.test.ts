@@ -18,7 +18,7 @@ afterAll(async () => {
 
 describe('browser registry — seed after resize (ADR-0041 D3)', () => {
 	it('a viewport POST on a silent static page repaints the ring (fresh frame or resize seed)', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>still</title>static' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9498 + opened.length * 3, url: 'data:text/html,<title>still</title>static' });
 		opened.push(info.id);
 		// the first-frame contract guarantees a birth frame; record its seq
 		const before = browserRegistry.relay(info.id).latestFrame();
@@ -36,7 +36,7 @@ describe('browser registry — seed after resize (ADR-0041 D3)', () => {
 	}, 120_000);
 
 	it('setViewport keeps the wire contract: still ONE active tab, session alive', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t</title>x' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9498 + opened.length * 3, url: 'data:text/html,<title>t</title>x' });
 		opened.push(info.id);
 		await browserRegistry.setViewport(info.id, 600, 450);
 		const tabs = await browserRegistry.listTabs(info.id);

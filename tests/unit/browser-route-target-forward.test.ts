@@ -19,7 +19,7 @@ const post = (handler: (ctx: { params: { id: string }; request: Request }) => Pr
 
 describe('route targetId forwarding (ADR-0040 D3)', () => {
 	it('navigate route honors targetId and answers THAT tab pageInfo', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>active-one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9528 + opened.length * 3, url: 'data:text/html,<title>t1</title>active-one' });
 		opened.push(info.id);
 		const e = browserRegistry.peek(info.id);
 		const page2 = await e.context.newPage();
@@ -42,7 +42,7 @@ describe('route targetId forwarding (ADR-0040 D3)', () => {
 	}, 120_000);
 
 	it('input + viewport routes accept targetId; unknown target answers 404 NO_TARGET', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>active-one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9528 + opened.length * 3, url: 'data:text/html,<title>t1</title>active-one' });
 		opened.push(info.id);
 		const okVp = await post(viewportRoute, info.id, { width: 1024, height: 700 });
 		expect((await okVp.json()) as { ok: boolean }).toEqual({ ok: true });

@@ -89,7 +89,9 @@ export const HOST_EVENT_CATALOG: readonly HostEventRow[] = [
 	{ type: 'step/start', home: 'silent-plumbing', reason: 'step bookkeeping' },
 	{ type: 'web/deepseek-search-llm-request', home: 'silent-plumbing', reason: 'background search prep' },
 	// -- chip today, with its re-homing sub-ADR (9) --
-	{ type: 'deliverables/presented', home: 'chip', target: 'ADR-0027f (DeliverablesButton, FloatingAnchor)' },
+	// ADR-0027f landed: deliverables render in their own anchor surface
+	// (the deliverables.ts reducer), never as a transcript chip.
+	{ type: 'deliverables/presented', home: 'silent-handoff', reason: 'deliverables render in their own anchor surface, not the transcript (ADR-0027f)', surface: 'DeliverablesButton (FloatingAnchor stack)' },
 	// ADR-0027b: re-homed from chip 2026-10-17 — developer-message entry.
 	{ type: 'developer/message', home: 'mapped' },
 	{ type: 'feedback/message-delete', home: 'chip', target: 'ADR-0027d (fold)' },

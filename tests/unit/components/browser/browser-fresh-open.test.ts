@@ -69,10 +69,12 @@ describe('per-glass fresh open (Amendment 3)', () => {
 		calls.length = 0;
 		const instance = mountPanel({ browserSessionId: 'restored-1' });
 		// the prop-seeded path adopts the session (no open, no re-bind — its
-		// stream attach uses EventSource, not fetch, so silence IS the proof)
+		// stream attach uses EventSource, not fetch). The ADR-0040 D5 tab strip
+		// polls GET /tabs on the adopted session too — furniture reads are fine;
+		// what this test forbids is any session-lifecycle call (open POST).
 		await new Promise((r) => setTimeout(r, 50));
 		expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/api/browser'))).toBe(false);
-		expect(calls).toHaveLength(0);
+		expect(calls.some((c) => !c.url.endsWith('/tabs'))).toBe(false); // only /tabs reads ride along
 		unmount(instance);
 	});
 });

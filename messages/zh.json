@@ -467,5 +467,11 @@
 	"browserReload": "重新加载",
 	"browserBack": "后退",
 	"browserForward": "前进",
-	"browserCloseDelete": "删除玻璃浏览器 — 终止会话并移除面板"
+	"browserCloseDelete": "删除玻璃浏览器 — 终止会话并移除面板",
+	"browserCtxOpenImage": "在新标签页中打开图片",
+	"browserCtxCopyImage": "复制图片地址",
+	"browserCtxOpenLink": "在新标签页中打开链接",
+	"browserCtxCopyLink": "复制链接地址",
+	"browserCtxSendRightClick": "向页面发送右键点击",
+	"browserTabCloseTitle": "关闭标签页"
 }

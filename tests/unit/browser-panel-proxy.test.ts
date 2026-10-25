@@ -97,7 +97,7 @@ beforeEach(() => {
 	fetchMock.mockClear();
 	vi.stubGlobal('EventSource', StubEventSource as unknown as typeof EventSource);
 	vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1) as unknown as typeof requestAnimationFrame);
-	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() } as never);
+	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ fillRect: vi.fn(), drawImage: vi.fn() } as never);
 });
 
 afterEach(() => {

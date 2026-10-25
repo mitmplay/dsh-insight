@@ -139,7 +139,7 @@ beforeEach(() => {
 			return rafCbs.length;
 		}) as unknown as typeof requestAnimationFrame
 	);
-	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() } as never);
+	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ fillRect: vi.fn(), drawImage: vi.fn() } as never);
 });
 
 afterEach(() => {

@@ -13,16 +13,29 @@ import { POST as navigate } from '../../src/routes/api/browser/[id]/navigate/+se
 import { POST as viewport } from '../../src/routes/api/browser/[id]/viewport/+server';
 
 const opened: string[] = [];
+const kill = () => import('node:child_process').then(({ spawnSync }) => spawnSync);
 afterAll(async () => {
-	for (const id of opened) await browserRegistry.close(id);
-});
+	for (const id of opened) {
+		const verdict = await Promise.race([
+			browserRegistry.close(id),
+			new Promise((r) => setTimeout(() => r('WEDGED'), 15_000))
+		]);
+		if (verdict === 'WEDGED') {
+			// a chromium shutdown wave can wedge context.close() — hard-kill the
+			// session's own port owner so a test run never leaks a glass
+			const spawnSync = await kill();
+			const s = browserRegistry.list().find((x) => x.id === id);
+			if (s?.pid) spawnSync('kill', ['-9', String(s.pid)]);
+		}
+	}
+}, 120_000); // 8 live chromium sessions close sequentially — 10s default is too tight
 const post = (body: unknown) => new Request('http://x', { method: 'POST', body: JSON.stringify(body) });
 const ctx = (id: string) => ({ params: { id } });
 const page = (t: string) => 'data:text/html,<title>' + t + '</title><h1>' + t + '</h1>';
 
 describe('registry pageHistory + reload (1.1-T)', () => {
 	it('back/forward travel the browser list and report bounds', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9466 + opened.length * 3 });
 		opened.push(info.id);
 		// fresh session: the list already holds the launch page(s), so back
 		// lands on the initial about:blank (bounds refusal is pinned by the
@@ -41,14 +54,14 @@ describe('registry pageHistory + reload (1.1-T)', () => {
 	}, 120_000);
 
 	it('forward at the list end refuses', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9466 + opened.length * 3 });
 		opened.push(info.id);
 		await browserRegistry.navigate(info.id, page('ONE'), { waitLoad: true });
 		await expect(browserRegistry.pageHistory(info.id, 'forward')).rejects.toBeInstanceOf(BrowserRegistryRefusal);
 	}, 120_000);
 
 	it('reload keeps the page and answers pageInfo (D4)', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9466 + opened.length * 3 });
 		opened.push(info.id);
 		await browserRegistry.navigate(info.id, page('REL'), { waitLoad: true });
 		const r = await browserRegistry.reload(info.id);
@@ -59,7 +72,7 @@ describe('registry pageHistory + reload (1.1-T)', () => {
 
 describe('navigate route closed union (1.2-T)', () => {
 	it('url member still works and validates (old shape pinned)', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9466 + opened.length * 3 });
 		opened.push(info.id);
 		const res = await navigate({ ...ctx(info.id), request: post({ url: page('UNION') }) });
 		expect(((await res.json()) as { title: string }).title).toBe('UNION');
@@ -67,7 +80,7 @@ describe('navigate route closed union (1.2-T)', () => {
 	}, 120_000);
 
 	it('action members route to reload/back/forward', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9466 + opened.length * 3 });
 		opened.push(info.id);
 		await navigate({ ...ctx(info.id), request: post({ url: page('X1') }) });
 		await navigate({ ...ctx(info.id), request: post({ url: page('X2') }) });
@@ -80,7 +93,7 @@ describe('navigate route closed union (1.2-T)', () => {
 	}, 120_000);
 
 	it('rejects open-union bodies and unknown sessions', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9466 + opened.length * 3 });
 		opened.push(info.id);
 		expect((await navigate({ ...ctx(info.id), request: post({}) })).status).toBe(400); // neither member
 		expect((await navigate({ ...ctx(info.id), request: post({ url: page('Y'), action: 'back' }) })).status).toBe(400); // both members
@@ -94,7 +107,7 @@ describe('navigate route closed union (1.2-T)', () => {
 
 describe('viewport follows the panel (ADR-0031 amendment 2)', () => {
 	it('setViewport resizes the page; pageInfo witnesses it', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9466 + opened.length * 3 });
 		opened.push(info.id);
 		await browserRegistry.navigate(info.id, page('VP'), { waitLoad: true });
 		await browserRegistry.setViewport(info.id, 500, 400);
@@ -104,7 +117,7 @@ describe('viewport follows the panel (ADR-0031 amendment 2)', () => {
 	}, 120_000);
 
 	it('viewport route validates shapes and answers ok', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9466 + opened.length * 3 });
 		opened.push(info.id);
 		const good = await viewport({ ...ctx(info.id), request: post({ width: 600, height: 450 }) });
 		expect(good.status).toBe(200);
@@ -122,7 +135,7 @@ describe('profile cleanup + screencast fidelity (operator reports 2026-10-20)', 
 	});
 
 	it('close removes the session profile dir from ~/.dsi/browser-profiles', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9466 + opened.length * 3 });
 		const list = browserRegistry.list() as Array<{ id: string; profileDir: string }>;
 		const mine = list.find((s) => s.id === info.id)!;
 		expect(mine.profileDir).toContain('browser-profiles');
@@ -180,10 +193,29 @@ describe('screencast pacing from config (ADR-0039 D1, 2026-10-24)', () => {
 	it('default is 15, absent section falls back, out-of-range clamps to 1..60', async () => {
 		const { readBrowserConfig, DEFAULT_BROWSER_CONFIG } = await import('$lib/server/insight-config.js');
 		expect(DEFAULT_BROWSER_CONFIG.screencastMaxFps).toBe(15);
-		expect(readBrowserConfig().screencastMaxFps).toBe(15); // absent section = default
-		// clamp behavior is intWithin's contract; pin bounds via the reader on the live file
-		const cfg = readBrowserConfig();
-		expect(cfg.screencastMaxFps).toBeGreaterThanOrEqual(1);
-		expect(cfg.screencastMaxFps).toBeLessThanOrEqual(60);
+		// fixture config, NOT the live file: the operator floor carries a real
+		// override (screencastMaxFps: 10 since 2026-10-24) and this test used
+		// to read it, breaking "absent section = default" (same lesson as the
+		// quality fixture above)
+		const os = await import('node:os');
+		const fsp = await import('node:fs/promises');
+		const path = await import('node:path');
+		const noSection = path.join(os.tmpdir(), `dsi-fps-fixture-${Date.now()}.yaml`);
+		await fsp.writeFile(noSection, 'chat:\n  input:\n    maxRows: 15\n');
+		const tooHigh = path.join(os.tmpdir(), `dsi-fps-high-${Date.now()}.yaml`);
+		await fsp.writeFile(tooHigh, 'browser:\n  screencastMaxFps: 999\n');
+		const tooLow = path.join(os.tmpdir(), `dsi-fps-low-${Date.now()}.yaml`);
+		await fsp.writeFile(tooLow, 'browser:\n  screencastMaxFps: 0\n');
+		try {
+			expect(readBrowserConfig(noSection).screencastMaxFps).toBe(15); // absent section = default
+			// intWithin's contract (same as every other section): OUT-OF-RANGE
+			// falls back to the default, it does not clamp to the bound
+			expect(readBrowserConfig(tooHigh).screencastMaxFps).toBe(15);
+			expect(readBrowserConfig(tooLow).screencastMaxFps).toBe(15);
+		} finally {
+			await fsp.rm(noSection, { force: true });
+			await fsp.rm(tooHigh, { force: true });
+			await fsp.rm(tooLow, { force: true });
+		}
 	});
 });

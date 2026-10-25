@@ -11,8 +11,9 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 
 // ---- shared mock handles (vi.hoisted: factories run before imports) --------
 const h = vi.hoisted(() => {
+	const pageJson = () => JSON.stringify({ url: 'data:x', title: 'T', dpr: 2, innerWidth: 800, innerHeight: 600, playerError: null, mediaErrorCode: null });
 	let evaluateReply: () => unknown = () => ({
-		result: { value: JSON.stringify({ url: 'data:x', title: 'T', dpr: 2 }) }
+		result: { value: pageJson() }
 	});
 	const makeCdp = () => {
 		const cdp = new EventEmitter() as EventEmitter & { send: ReturnType<typeof vi.fn> };
@@ -72,13 +73,25 @@ const seededIds: string[] = [];
 
 function fakeEntry(overrides: Partial<Entry> = {}): Entry {
 	const cdp = h.makeCdp();
+	const relay = new BrowserRelay(cdp as never);
+	// ADR-0040 entry shape: tabs own the cdp/relay pair; the entry keeps the
+	// active pointer. `cdp`/`relay` stay mirrored at entry level so the
+	// assertions below keep reading one object.
+	const TID = 'tid-' + Math.random().toString(36).slice(2, 8);
 	return {
 		id: 'seed-' + Math.random().toString(36).slice(2, 8),
 		createdAt: new Date().toISOString(),
 		context: { close: vi.fn(async () => undefined) },
 		cdp,
-		relay: new BrowserRelay(cdp as never),
+		relay,
+		tabs: new Map([[TID, { targetId: TID, cdp, relay, page: {} }]]),
+		activeTargetId: TID,
+		viewport: { width: 1280, height: 800 },
+		headless: true,
 		port: 9412,
+		brainPort: 9515,
+		streamSubscribers: 0,
+		lastMcpActivity: Date.now(),
 		pid: null,
 		profileDir: '/tmp/fake-profile',
 		mcpChild: null,
@@ -99,7 +112,7 @@ function seed(overrides: Partial<Entry> = {}): Entry {
 afterEach(() => {
 	for (const id of seededIds.splice(0)) entries().delete(id);
 	delete process.env.DSI_MCP_IN_PROCESS;
-	h.setEvaluateReply(() => ({ result: { value: JSON.stringify({ url: 'data:x', title: 'T', dpr: 2 }) } }));
+	h.setEvaluateReply(() => ({ result: { value: JSON.stringify({ url: 'data:x', title: 'T', dpr: 2, innerWidth: 800, innerHeight: 600, playerError: null, mediaErrorCode: null }) } }));
 });
 
 afterAll(async () => {
@@ -146,14 +159,14 @@ describe('browser registry branches — refusals, listing, tombstones', () => {
 
 // ---- dispatch fence ---------------------------------------------------------
 describe('browser registry branches — dispatch fence', () => {
-	it('dispatch: unknown + never-closed id refuses via the peek arm', () => {
-		expect(() => browserRegistry.dispatch('ghost', { kind: 'text', text: 'x' })).toThrowError(BrowserRegistryRefusal);
+	it('dispatch: unknown + never-closed id refuses via the peek arm', async () => {
+		await expect(browserRegistry.dispatch('ghost', { kind: 'text', text: 'x' })).rejects.toThrowError(BrowserRegistryRefusal);
 	});
 
-	it('dispatch: tombstoned (closed) id refuses CLOSED "session was closed" (D8)', () => {
+	it('dispatch: tombstoned (closed) id refuses CLOSED "session was closed" (D8)', async () => {
 		closedSet().add('tomb-dispatch');
 		try {
-			browserRegistry.dispatch('tomb-dispatch', { kind: 'text', text: 'x' });
+			await browserRegistry.dispatch('tomb-dispatch', { kind: 'text', text: 'x' });
 			expect.unreachable('must refuse');
 		} catch (e) {
 			expect((e as BrowserRegistryRefusal).code).toBe('CLOSED');
@@ -163,10 +176,10 @@ describe('browser registry branches — dispatch fence', () => {
 		}
 	});
 
-	it('dispatch: entry mid-close (closed flag) refuses CLOSED "session is closing"', () => {
+	it('dispatch: entry mid-close (closed flag) refuses CLOSED "session is closing"', async () => {
 		const e = seed({ closed: true });
 		try {
-			browserRegistry.dispatch(e.id, { kind: 'text', text: 'x' });
+			await browserRegistry.dispatch(e.id, { kind: 'text', text: 'x' });
 			expect.unreachable('must refuse');
 		} catch (err) {
 			expect((err as BrowserRegistryRefusal).code).toBe('CLOSED');
@@ -270,7 +283,7 @@ describe('browser registry branches — navigate + pageInfo', () => {
 
 	it('pageInfo returns the evaluated JSON when CDP answers in time', async () => {
 		const e = seed();
-		await expect(browserRegistry.pageInfo(e.id)).resolves.toEqual({ url: 'data:x', title: 'T', dpr: 2 });
+		await expect(browserRegistry.pageInfo(e.id)).resolves.toEqual({ url: 'data:x', title: 'T', dpr: 2, innerWidth: 800, innerHeight: 600, playerError: null, mediaErrorCode: null });
 	});
 
 	it('pageInfo degrades to (busy) when the evaluate never answers (3s cap)', async () => {

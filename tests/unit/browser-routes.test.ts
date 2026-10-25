@@ -27,7 +27,7 @@ describe('browser API routes (real session)', () => {
 	}, 120_000); // headed chromium under parallel workers needs >60s ceiling
 
 	it('input after close returns 409 CLOSED; unknown id 404 NO_SESSION', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9534 + opened.length * 3, });
 		await browserRegistry.close(info.id);
 		const bad = await input({ ...ctx(info.id), request: post({ kind: 'text', text: 'hi' }) });
 		expect(bad.status).toBe(409);
@@ -36,7 +36,7 @@ describe('browser API routes (real session)', () => {
 	}, 120_000); // headed chromium under parallel workers needs >60s ceiling
 
 	it('close route removes the entry (D8) and is idempotent', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9534 + opened.length * 3, });
 		const r1 = await (await close(ctx(info.id))).json();
 		expect(r1).toEqual({ ok: true, alreadyClosed: false });
 		const r2 = await (await close(ctx(info.id))).json();
@@ -45,7 +45,7 @@ describe('browser API routes (real session)', () => {
 
 	it('stream endpoint 404s unknown id and speaks SSE for a live one', async () => {
 		expect((await stream({ ...ctx('nope'), url: new URL('http://x/stream') })).status).toBe(404);
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9534 + opened.length * 3, });
 		opened.push(info.id);
 		const res = stream({ ...ctx(info.id), url: new URL('http://x/stream') });
 		expect(res.headers.get('content-type')).toBe('text/event-stream');

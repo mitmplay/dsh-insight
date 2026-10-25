@@ -30,7 +30,7 @@ describe('registry reaper notes + findLive', () => {
 		expect(browserRegistry.findLive(null)).toBe(false);
 		expect(browserRegistry.findLive(undefined)).toBe(false);
 		expect(browserRegistry.findLive('no-such-id')).toBe(false);
-		const info = await browserRegistry.open({ spawnMcp: false, headless: true });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9492, headless: true });
 		try {
 			expect(browserRegistry.findLive(info.id)).toBe(true);
 			await browserRegistry.close(info.id);
@@ -41,7 +41,7 @@ describe('registry reaper notes + findLive', () => {
 	}, 120_000);
 
 	it('stream subscriber notes clamp at zero (no negative counts)', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, headless: true });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9492, headless: true });
 		try {
 			browserRegistry.noteStreamClose(info.id); // unbalanced close — must not go negative
 			browserRegistry.noteStreamOpen(info.id);

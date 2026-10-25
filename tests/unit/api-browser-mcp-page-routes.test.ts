@@ -28,7 +28,8 @@ vi.mock('$lib/server/browser/registry.js', () => ({
 const mcp = (await import('../../src/routes/api/browser/[id]/mcp/+server')).GET;
 const page = (await import('../../src/routes/api/browser/[id]/page/+server')).GET;
 
-const ctx = (id: string) => ({ params: { id } });
+// the page route reads ?targetId off ctx.url (ADR-0040 D3) — tests pass a bare URL
+const ctx = (id: string) => ({ params: { id }, url: new URL('http://localhost/' + id) });
 
 beforeEach(() => {
 	list.mockReset();
@@ -102,7 +103,7 @@ describe('GET /api/browser/[id]/page', () => {
 		const res = await page(ctx('live'));
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ url: 'https://example.test/x', title: 'Example' });
-		expect(pageInfo).toHaveBeenCalledWith('live');
+		expect(pageInfo).toHaveBeenCalledWith('live', undefined);
 	});
 
 	it('NO_SESSION refusal → 404; CLOSED refusal → 409', async () => {

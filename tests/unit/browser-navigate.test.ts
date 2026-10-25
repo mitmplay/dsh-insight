@@ -9,11 +9,12 @@ afterAll(async () => {
 	for (const id of opened) await browserRegistry.close(id);
 });
 const post = (body: unknown) => new Request('http://x', { method: 'POST', body: JSON.stringify(body) });
-const ctx = (id: string) => ({ params: { id } });
+// the page route reads ?targetId off ctx.url (ADR-0040 D3) — tests pass a bare URL
+const ctx = (id: string) => ({ params: { id }, url: new URL('http://localhost/' + id) });
 
 describe('browser navigate + page routes', () => {
 	it('navigates to a data fixture and reads back url + title', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9456 + opened.length * 3 });
 		opened.push(info.id);
 		const res = await navigate({ ...ctx(info.id), request: post({ url: 'data:text/html,<title>FIX</title><h1>here</h1>' }) });
 		const body = (await res.json()) as { title?: string; error?: string };
@@ -25,7 +26,7 @@ describe('browser navigate + page routes', () => {
 
 	it('rejects junk urls and unknown sessions', async () => {
 		expect((await navigate({ ...ctx('nope'), request: post({ url: 'https://x.test' }) })).status).toBe(404);
-		const info = await browserRegistry.open({ spawnMcp: false });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9456 + opened.length * 3 });
 		opened.push(info.id);
 		expect((await navigate({ ...ctx(info.id), request: post({ url: 'javascript:alert(1)' }) })).status).toBe(400);
 	}, 60_000);

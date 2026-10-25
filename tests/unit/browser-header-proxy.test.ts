@@ -74,7 +74,7 @@ beforeEach(() => {
 	vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
 	vi.stubGlobal('EventSource', StubEventSource as unknown as typeof EventSource);
 	fetchMock.mockClear();
-	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() } as never);
+	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn(), fillRect: vi.fn() } as never);
 });
 afterEach(() => {
 	vi.unstubAllGlobals();

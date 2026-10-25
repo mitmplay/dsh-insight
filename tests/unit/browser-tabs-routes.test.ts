@@ -20,7 +20,7 @@ const POST = (id: string, body: unknown): Promise<Response> =>
 
 describe('tabs + activate routes (ADR-0040)', () => {
 	it('GET /tabs lists pages with the active flag', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>route-one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9543 + opened.length * 3, url: 'data:text/html,<title>t1</title>route-one' });
 		opened.push(info.id);
 		const res = await GET(info.id);
 		expect(res.status).toBe(200);
@@ -30,7 +30,7 @@ describe('tabs + activate routes (ADR-0040)', () => {
 	}, 120_000);
 
 	it('POST /activate returns the boundary payload and moves the pointer', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>route-one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9543 + opened.length * 3, url: 'data:text/html,<title>t1</title>route-one' });
 		opened.push(info.id);
 		const e = browserRegistry.peek(info.id);
 		const page2 = await e.context.newPage();
@@ -47,7 +47,7 @@ describe('tabs + activate routes (ADR-0040)', () => {
 	}, 120_000);
 
 	it('shape refusals and tombstones: 400 bad body, 404 unknown target/id, 409 CLOSED', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, url: 'data:text/html,<title>t1</title>route-one' });
+		const info = await browserRegistry.open({ spawnMcp: false, port: 9543 + opened.length * 3, url: 'data:text/html,<title>t1</title>route-one' });
 		opened.push(info.id);
 		expect((await POST(info.id, {})).status).toBe(400);
 		expect((await POST(info.id, { targetId: 42 })).status).toBe(400);

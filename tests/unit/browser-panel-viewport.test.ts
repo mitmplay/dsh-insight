@@ -119,7 +119,7 @@ beforeEach(() => {
 			return rafCbs.length;
 		}) as unknown as typeof requestAnimationFrame
 	);
-	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() } as never);
+	vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ fillRect: vi.fn(), drawImage: vi.fn() } as never);
 	// every route the panel may touch answers 200; viewport calls are recorded
 	fetchMock.mockClear();
 	fetchMock.mockImplementation(async (...args: Parameters<typeof fetch>): Promise<Response> => {

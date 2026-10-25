@@ -467,5 +467,11 @@
 	"browserReload": "Recargar",
 	"browserBack": "Atrás",
 	"browserForward": "Adelante",
-	"browserCloseDelete": "Eliminar el navegador de vidrio — mata la sesión y quita el panel"
+	"browserCloseDelete": "Eliminar el navegador de vidrio — mata la sesión y quita el panel",
+	"browserCtxOpenImage": "Abrir imagen en una pestaña nueva",
+	"browserCtxCopyImage": "Copiar la dirección de la imagen",
+	"browserCtxOpenLink": "Abrir enlace en una pestaña nueva",
+	"browserCtxCopyLink": "Copiar la dirección del enlace",
+	"browserCtxSendRightClick": "Enviar clic derecho a la página",
+	"browserTabCloseTitle": "Cerrar pestaña"
 }
