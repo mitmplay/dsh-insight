@@ -121,6 +121,13 @@ export function clampPanelWidth(width: number, kind?: DsiPanelEntry['kind']): nu
 	if (kind === 'workspace-file') {
 		return Math.max(PANEL_WORKSPACE_FILE_MIN_WIDTH, Math.min(PANEL_WORKSPACE_FILE_MAX_WIDTH, width));
 	}
+	// The glass band (operator request 2026-10-26): browser.defaultWidth /
+	// browser.maxWidth from settings.yaml — the page is the mirror's native
+	// scale, so the glass gets its OWN ceiling, not the conversation 860.
+	if (kind === 'browser') {
+		const { maxWidth: browserMax } = appConfig().browserWidths;
+		return Math.max(minWidth, Math.min(browserMax, width));
+	}
 	return Math.max(minWidth, Math.min(maxWidth, width));
 }
 
@@ -133,6 +140,11 @@ export function clampPanelZoom(zoom: number): number {
 /** Config-driven default width (clamped through the single bound site). */
 function defaultPanelWidth(): number {
 	return clampPanelWidth(appConfig().panel.defaultWidth);
+}
+/** The glass panel's config-driven default (browser.defaultWidth, clamped
+ *  through the browser band) — chip-spawned glasses mint at this width. */
+export function browserPanelWidth(): number {
+	return clampPanelWidth(appConfig().browserWidths.defaultWidth, 'browser');
 }
 
 /**

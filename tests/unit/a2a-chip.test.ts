@@ -191,14 +191,18 @@ describe('A2aChipStack — rendering the ledger honestly (Task 4.2-T)', () => {
 });
 
 describe('ConversationPanel — no new client timers (Task 4.2-T, BC-7)', () => {
-	it('mounting with a2a rows schedules ZERO setInterval — the page owns the spine cadence', async () => {
+	it('mounting with a2a rows adds NO a2a-owned interval — the only timer is the subagent anchor poll (BC-7)', async () => {
 		const intervals = vi.fn((...args: unknown[]) => setTimeout(args[0] as () => void, 1_000_000));
 		vi.stubGlobal('setInterval', intervals);
 		const { target, instance } = await mountPanel({
 			a2aRows: [row({ id: 'a2a-timer' })]
 		});
 		expect(chips(target)).toHaveLength(1); // chips ARE rendered…
-		expect(intervals).not.toHaveBeenCalled(); // …with no new timer.
+		// …with no a2a timer. The Subagent Anchor (2026-10-26) deliberately
+		// owns ONE poll interval of its own (ADR D3 — its spine tick); the
+		// a2a join adds ZERO beyond that pre-existing timer.
+		expect(intervals).toHaveBeenCalledTimes(1);
+		expect(intervals.mock.calls[0]?.[1]).toBe(4_000); // the anchor cadence, not an a2a cadence
 		unmount(instance);
 	});
 

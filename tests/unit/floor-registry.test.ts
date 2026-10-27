@@ -33,6 +33,7 @@ import {
 	makeWorkspaceExplorerPanel,
 	nextPanelId,
 	onPanelWindowMouseMove,
+	onPanelWindowMouseMoveCoalesced,
 	onPanelWindowMouseUp,
 	openExplorerTab,
 	openLoupe,
@@ -746,8 +747,61 @@ describe('resize gesture and resizeAll', () => {
 		expect(floor.panels[2].width).toBe(700);
 		expect((floor.panels[3] as DsiWorkspaceExplorerPanel).width).not.toBe(700); // fixed lane
 		// b's ORIGINAL entry object is untouched — the machine replaces entries
+		// b's ORIGINAL entry object is untouched — the machine replaces entries
 		expect(b.width).toBe(480);
 		expect(floor.panels[1].width).not.toBe(480);
+	});
+
+	it('coalesced move applies ONE width write per animation frame, using the LATEST event', () => {
+		vi.useFakeTimers();
+		try {
+			desk3();
+			const frames: FrameRequestCallback[] = [];
+			vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+				frames.push(cb);
+				return frames.length;
+			});
+			vi.stubGlobal('cancelAnimationFrame', () => {});
+			doStartPanelResize(ev(0), 1);
+			// Three mousemove events inside one frame window: the FIRST applies
+			// immediately, one frame is queued, and the frame applies the LAST
+			// event's clientX.
+			onPanelWindowMouseMoveCoalesced(ev(20));
+			onPanelWindowMouseMoveCoalesced(ev(40));
+			onPanelWindowMouseMoveCoalesced(ev(60));
+			expect(frames.length).toBe(1); // coalesced — no per-event frames
+			expect(floor.panels[1].width).toBe(520); // first move applied at once
+			frames[0]!(0); // the frame fires
+			expect(floor.panels[1].width).toBe(560); // latest event wins
+			// A move with no active drag queues no frame.
+			onPanelWindowMouseUp();
+			onPanelWindowMouseMoveCoalesced(ev(200));
+			expect(frames.length).toBe(1);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.useRealTimers();
+		}
+	});
+
+	it('disposeFloorGestures cancels a pending coalesced frame', () => {
+		desk3();
+		const frames: FrameRequestCallback[] = [];
+		const cancelled: number[] = [];
+		vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+			frames.push(cb);
+			return frames.length;
+		});
+		vi.stubGlobal('cancelAnimationFrame', (id: number) => cancelled.push(id));
+		try {
+			doStartPanelResize(ev(0), 1);
+			onPanelWindowMouseMoveCoalesced(ev(30));
+			disposeFloorGestures();
+			expect(cancelled).toEqual([1]); // the pending frame was cancelled
+			frames[0]!(0); // firing it anyway must NOT resize again (guard)
+			expect(floor.panels[1].width).toBe(530); // only the lead apply landed
+		} finally {
+			vi.unstubAllGlobals();
+		}
 	});
 });
 

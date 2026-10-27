@@ -79,7 +79,7 @@
 </script>
 
 <header
-	class="flex items-center gap-3 border-b border-surface-border px-2 py-1 {focused ? 'bg-header-wash' : 'bg-surface-elevated'}"
+	class="flex items-center gap-1 border-b border-surface-border px-2 py-1 {focused ? 'bg-header-wash' : 'bg-surface-elevated'}"
 	data-testid="conversation-header"
 	data-focused={focused ? 'true' : 'false'}
 >

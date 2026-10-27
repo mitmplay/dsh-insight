@@ -31,12 +31,12 @@ describe('foldedGlassRowsFor — ghost rows drop with the pruned slot (2.2)', ()
 		const depthOf = (id: string) => (id === "opener-a" ? 2 : 0);
 		const titleFor = (id: string) => "T-" + id;
 		const before = foldedGlassRowsFor(get(browserSlotStore), depthOf, titleFor);
-		expect(before.map((r) => r.panel.sessionId)).toEqual(["bs-1", "bs-2"]);
+		expect(before.map((r) => ('sessionId' in r.panel ? r.panel.sessionId : ''))).toEqual(["bs-1", "bs-2"]);
 		expect(before[0].depth).toBe(3); // opener depth + 1
 		expect(before[0].title).toBe("Browser — T-opener-a");
 		removeBrowserSlot("bs-1", st);
 		const after = foldedGlassRowsFor(get(browserSlotStore), depthOf, titleFor);
-		expect(after.map((r) => r.panel.sessionId)).toEqual(["bs-2"]);
+		expect(after.map((r) => ('sessionId' in r.panel ? r.panel.sessionId : ''))).toEqual(["bs-2"]);
 	});
 
 	it('unfolded or key-less slots never ship ghost rows', () => {

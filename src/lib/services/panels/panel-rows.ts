@@ -184,10 +184,8 @@ export function panelRowsFor(input: PanelRowsInput): PanelRow[] {
 			const title =
 				p.kind === 'terminal'
 					? 'Terminal'
-					: p.kind === 'browser'
-						? 'Browser'
-						: p.kind === 'prompt-manager'
-					? MANAGER_ROW_TITLE
+					: p.kind === 'prompt-manager'
+						? MANAGER_ROW_TITLE
 					: p.kind === 'skill-shelf'
 						? 'Skill Shelf'
 						: p.kind === 'plugin-rack'

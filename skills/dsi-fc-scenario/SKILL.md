@@ -1,6 +1,6 @@
 ---
-name: dsi-kb-scenario
-description: Use when asked to write a "feature, contract & scenario" KB note for a DSI surface under dev/kb/**, when asked how to derive such a note from the patterns shown in code and dev-docs, or when unsure where a KB note belongs or what its parts must contain
+name: dsi-fc-scenario
+description: Use when asked to write a "feature, contract & scenario" KB note for a DSI surface under dev/feature-contract-scenario/**, when asked how to derive such a note from the patterns shown in code and dev-docs, or when unsure where a KB note belongs or what its parts must contain
 ---
 
 # DSI KB Scenario — writing a feature / contract / scenario note
@@ -29,13 +29,18 @@ or a dated ADR/KB).
    surface → fold/close → recover), each step naming the VISIBLE artifact.
    Include the honest failure branches (prune, reaper, dead state). Replay
    the scenario LIVE before writing it — a step you have not run is a claim.
-5. **State table** — fact / authority home / who writes / who reads.
-6. **Open question** — a KB ends by naming what is still open.
+5. **Diagrams — REQUIRED, at least TWO** (between contract and scenario):
+   a **flowchart** (the surface's authority map — who writes what, where the
+   state homes sit) and a **sequence diagram** (one real gesture end-to-end
+   through its wire hops). Mermaid fenced blocks (` ```mermaid `). Draw only
+   facts sourced above — a diagram is a claim too.
+6. **State table** — fact / authority home / who writes / who reads.
+7. **Open question** — a KB ends by naming what is still open.
 
 ## Save path
 
-`dev/kb/<subject>/<subject>-<kind>.md` — the SUBJECT is the surface
-(e.g. `dev/kb/browser-manager/browser-manager-feature-contract-scenario.md`),
+`dev/feature-contract-scenario/<subject>.md` — the SUBJECT is the surface
+(e.g. `dev/feature-contract-scenario/browser-manager.md`),
 never a date. Cross-link companion ADRs and sibling KBs both ways; the ADR
 records the decision, the KB records the mechanics.
 

@@ -196,7 +196,7 @@ describe('ControlBar — the $effect tray-position clamp (TRAY_MIN = 272)', () =
 		Object.defineProperty(window, 'innerWidth', { configurable: true, value: innerWidth });
 		reveal(bar);
 		// Svelte renders the style attribute with a trailing semicolon.
-		return (trayFloat()?.getAttribute('style') ?? '').replace(/;$/, '');
+		const style = (trayFloat()?.getAttribute('style') ?? '').replace(/;$/, '');
 		unmount();
 		return style;
 	};

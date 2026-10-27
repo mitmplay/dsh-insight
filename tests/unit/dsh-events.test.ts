@@ -436,6 +436,98 @@ describe('entryForEvent — tool calls and results', () => {
 		});
 		expect(entry?.kind === 'tool-result' && entry.ok).toBe(false);
 	});
+
+	// ── The Honest Red Chip (ADR 2026-10-26, D3): the fixture below is CUT
+	// from a real ledger — session-39cad48f seq 850, the failed SubagentPopup
+	// edit program — not hand-shaped. It FAILS on the pre-fix mapper
+	// (probe 2026-10-26: ok=true, status='pass') — that failure is the gate.
+	const ledgerFailResult: DshRawEvent = {
+		type: 'tool/result',
+		seq: 850,
+		time: 1792971912000,
+		data: {
+			turn: 6,
+			step: 31,
+			message: {
+				role: 'tool',
+				source: { kind: 'tool', callId: 'call_8a60834f82734082b406d8be' },
+				toolCallId: 'call_8a60834f82734082b406d8be',
+				content: [
+					{
+						type: 'text',
+						text: 'Error: code run failed (exception): ToolCallError: cannot modify "SubagentPopup.svelte": file has not been read — read the file before overwriting it'
+					}
+				],
+				isError: true,
+				id: 'wire-id'
+			},
+			error: { name: 'CodeRunFailedError', code: 'CODE_RUN_FAILED' }
+		}
+	};
+	const ledgerCall: DshRawEvent = {
+		type: 'tool/call',
+		seq: 848,
+		time: 1792971911000,
+		data: {
+			turn: 6,
+			step: 31,
+			callId: 'call_8a60834f82734082b406d8be',
+			name: 'run_code',
+			arguments: '{"code":"...","description":"edit popup"}'
+		}
+	};
+
+	it('ledger-cut v4 failure (message.isError) maps ok:false', () => {
+		const entry = entryForEvent(ledgerFailResult);
+		expect(entry?.kind === 'tool-result' && entry.ok).toBe(false); // D1 seat (b)
+	});
+
+	it('ledger-cut v4 failure flips the paired call chip to fail', () => {
+		const merged = eventsToEntries([ledgerCall, ledgerFailResult]);
+		const call = merged.find((e) => e.kind === 'tool-call');
+		expect(call && call.kind === 'tool-call' && call.status).toBe('fail');
+	});
+
+	it('ledger-cut v4 failure keeps the refusal text as resultText (D2 fallback)', () => {
+		const merged = eventsToEntries([ledgerCall, ledgerFailResult]);
+		const result = merged.find((e) => e.kind === 'tool-result');
+		expect(result && result.kind === 'tool-result' && (result.resultText ?? '')).toContain('file has not been read');
+	});
+
+	it('data.error alone (no message.isError, no block) maps ok:false (D1 seat c)', () => {
+		const entry = entryForEvent({
+			...toolResultEvent,
+			data: {
+				turn: 3,
+				step: 1,
+				message: {
+					source: { kind: 'tool', callId: 'c10' },
+					content: [{ type: 'text', text: 'Error: code run failed (exception): boom' }],
+					role: 'tool',
+					id: 'm10'
+				},
+				error: { name: 'CodeRunFailedError', code: 'CODE_RUN_FAILED' }
+			}
+		});
+		expect(entry?.kind === 'tool-result' && entry.ok).toBe(false);
+	});
+
+	it('success text that merely SAYS error stays ok:true — no text sniffing (AC4)', () => {
+		const entry = entryForEvent({
+			...toolResultEvent,
+			data: {
+				turn: 3,
+				step: 1,
+				message: {
+					source: { kind: 'tool', callId: 'c11' },
+					content: [{ type: 'text', text: '0 errors found in 12 files' }],
+					role: 'tool',
+					id: 'm11'
+				}
+			}
+		});
+		expect(entry?.kind === 'tool-result' && entry.ok).toBe(true);
+	});
 });
 
 describe('entryForEvent — turn failure (2026-08-22 dead-turn bug)', () => {

@@ -419,6 +419,37 @@ export interface DsiSessionSummary {
 }
 
 /**
+ * One sub-agent ledger row, BROWSER VIEW (Subagent Anchor ADR D2/D7) — the
+ * read-only join surface GET /api/dsh/subagents serves per spawned session:
+ * spine facts (title, running, updatedAt) joined with the child's folded
+ * ledger projections. NOT the server row. `tokens` is null when either
+ * projection (sessionStats or tokenUsage) is absent or malformed — the
+ * honest unknown lane; the endpoint NEVER synthesizes a number.
+ */
+export interface DsiSubagentRow {
+	/** The sub-agent's session id — the row key and open target. */
+	sessionId: string;
+	/** Spine title; null when the host row has none. */
+	title: string | null;
+	/** The spawner's spine title (the family suffix); null when the parent
+	 *  row is absent from this feed snapshot. */
+	parentTitle: string | null;
+	/** Folded token totals — input = the three billed buckets summed
+	 *  (uncachedInput + cacheRead + cacheWrite), output = provider output.
+	 *  Null on any missing/malformed projection: renders a dash, and flips
+	 *  the popup footer to its Σ-incomplete marker (D7). */
+	tokens: { input: number; output: number } | null;
+	/** The ledger's accumulated LLM time (llmMs, the stats bar's 'LLM
+	 *  36m14s') — the honest operate time, settled rows included. Null on
+	 *  any missing/malformed projection: dash, and Σ-incomplete (D7). */
+	operateMs: number | null;
+	/** Live running flag from the spine row. */
+	running: boolean;
+	/** Spine updatedAt (ms epoch) — pass-through, display-order hint only. */
+	updatedAt: number;
+}
+
+/**
  * One delegation-ledger exchange, BROWSER VIEW (W4 4.2) — the read-only
  * join surface GET /api/a2a?from= serves per sender panel. NOT the
  * server row: browser code never imports $lib/server (BC-2), so the wire

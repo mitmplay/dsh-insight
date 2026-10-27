@@ -64,7 +64,10 @@ function make(initial = '', opts: { locked?: () => boolean; onrows?: (rows: Row[
 		{ active: () => true, locked: opts.locked ?? (() => false) },
 		{ focus, onrows: opts.onrows, onrunmacro: opts.onrunmacro }
 	);
-	const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ results: ROWS }) }) as Response);
+	const fetchMock = vi.fn(
+		async (_input: RequestInfo | URL, _init?: RequestInit) =>
+			({ ok: true, json: async () => ({ results: ROWS }) }) as Response
+	);
 	vi.stubGlobal('fetch', fetchMock);
 	const tick = async () => {
 		await vi.advanceTimersByTimeAsync(120);

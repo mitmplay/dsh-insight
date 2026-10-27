@@ -351,7 +351,10 @@ describe('+page.svelte — rendering from stubbed data', () => {
 		// Hosting moved to FloatingAnchorContainerPopup (Popup Shell W2) —
 		// the jumper's box carries the container's signature classes.
 		expect(popup?.className).toContain('pointer-events-auto');
-		expect(popup?.className).toContain('absolute right-full top-1/2');
+		expect(popup?.className).toContain('absolute');
+		expect(popup?.className).toContain('right-full');
+		expect(popup?.className).toContain('mr-2');
+		expect(popup?.className).toContain('top-1/2');
 		expect(popup?.className).toContain('overflow-y-auto');
 		unmount(target.firstElementChild as never);
 	});
@@ -1093,23 +1096,24 @@ describe('+page.svelte — a2a chip join on the spine cadence (W4 4.2-T)', () =>
 			trackPage(mount(Page, { target }));
 			await settle();
 			await settle();
-			// The PRE-EXISTING trio only (probe-verified 2026-08-25): the
-			// page's own spine effect (1x5s) + SidebarSessions' poll — TWO
-			// instances mount (2x5s). An a2a-owned timer would be a FOURTH;
-			// it does not exist — the join rides loadSpineRows.
-			// W8 (KB E4): the spine feed now lives in the ref-counted module
-		// store — the route no longer owns a spine interval. Two SEQUENTIAL
-		// mounts still show 2 spine-cadence timers (one per subscription
-		// lifetime; concurrent floors would SHARE one — the BC-7 win) plus
-		// the poll orchestrator below. An a2a-owned timer would be a FOURTH;
-		// it does not exist.
-		expect(intervals.length).toBe(3);
-			expect(intervals.every(([, ms]) => ms === 5_000)).toBe(true);
+			// The PRE-EXISTING trio plus the Subagent Anchor's own poll
+			// (2026-10-26, ADR D3 — the anchor button deliberately owns one
+			// 4s timer feeding the subagent-clock registry): the spine feed
+			// (2x5s, one per subscription lifetime; concurrent floors SHARE
+			// one — the BC-7 win) + the poll orchestrator (5s) + the anchor
+			// (4s). An A2A-owned timer does not exist — the join rides
+			// loadSpineRows.
+			expect(intervals.length).toBe(4);
+			const spineCadence = intervals.filter(([, ms]) => ms === 5_000);
+			expect(spineCadence.length).toBe(3); // the pre-existing spine trio, cadence untouched
+			expect(intervals.filter(([, ms]) => ms === 4_000).length).toBe(1); // the anchor poll only
 			// ADR-0018 W2: the spine subscription effect moved into
 			// services/workspace/page-feeds.svelte.ts — same single timer,
 			// new stack site. Route + feed service together = the one effect.
 			const pageOwned = stacks.filter(
-				(st) => st.includes('+page.svelte') || st.includes('page-feeds.svelte')
+				(st) =>
+					(st.includes('+page.svelte') || st.includes('page-feeds.svelte')) &&
+					!st.includes('SubagentAnchorButton')
 			);
 			expect(pageOwned.length).toBe(1); // the spine effect alone
 			// And with rows flowing, the chip rendered — zero new timers.

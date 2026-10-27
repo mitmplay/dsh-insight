@@ -19,6 +19,8 @@
 
 import {
 	DEFAULT_A2A_FAST_POLL_MS,
+	DEFAULT_BROWSER_MAX_WIDTH,
+	DEFAULT_BROWSER_WIDTH,
 	DEFAULT_A2A_RETENTION_DAYS,
 	DEFAULT_A2A_WATCH_TIMEOUT_MS,
 	DEFAULT_ACCESS_CONFIRM_TIMEOUT_MS,
@@ -91,6 +93,13 @@ export interface AppConfig {
 		/** Home list + spine refresh cadence. */
 		refreshMs: number;
 	};
+	/** The glass panel's width bounds (browser.defaultWidth / browser.maxWidth
+	 *  in settings.yaml, operator request 2026-10-26) — the client clamp reads
+	 *  these for kind='browser' panels. */
+	browserWidths: {
+		defaultWidth: number;
+		maxWidth: number;
+	};
 	a2a: {
 		/** LIST-lane tick (0 = fast lane off — spine cadence rules). */
 		fastPollMs: number;
@@ -153,6 +162,7 @@ function freshDefault(): AppConfig {
 			heartbeatType: DEFAULT_HEARTBEAT_TYPE
 		},
 		home: { refreshMs: DEFAULT_HOME_REFRESH_MS },
+		browserWidths: { defaultWidth: DEFAULT_BROWSER_WIDTH, maxWidth: DEFAULT_BROWSER_MAX_WIDTH },
 		a2a: {
 			fastPollMs: DEFAULT_A2A_FAST_POLL_MS,
 			watchTimeoutMs: DEFAULT_A2A_WATCH_TIMEOUT_MS,
@@ -255,6 +265,12 @@ function applyConfig(body: Record<string, unknown>): void {
 	// home
 	const home = isConfigRecord(body.home) ? body.home : {};
 	config.home.refreshMs = intWithin(home.refreshMs, 250, 60_000, config.home.refreshMs);
+
+	// browserWidths — the glass panel band (the same gates the server reader
+	// enforces; bad values keep the landed default)
+	const browserWidths = isConfigRecord(body.browserWidths) ? body.browserWidths : {};
+	config.browserWidths.defaultWidth = intWithin(browserWidths.defaultWidth, 200, 4_000, config.browserWidths.defaultWidth);
+	config.browserWidths.maxWidth = intWithin(browserWidths.maxWidth, 200, 4_000, config.browserWidths.maxWidth);
 
 	// a2a — the shared gate site ($lib/config resolveA2aConfig): the
 	// browser applies the EXACT gates the server reader enforces.

@@ -17,7 +17,7 @@ import RowSessionItem from '$lib/components/sessions/RowSessionItem.svelte';
 const calls: string[] = [];
 const summonOpts: Array<{ replace: boolean; keepSelection?: boolean }> = [];
 registerAddPanel((req) => {
-	calls.push('add:' + req.sessionId);
+	calls.push('add:' + ('sessionId' in req ? req.sessionId : ''));
 	return true;
 });
 registerSummonGlass((glass, opts) => {

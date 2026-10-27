@@ -99,17 +99,26 @@
 	.tabs {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.125rem;
+		/* Same gap as the toolbar row: flex gap does not inherit, so the
+		   tab chips restate it (2026-10-27 operator request — uniform
+		   gaps and heights across the explorer toolbar). */
+		gap: 0.25rem;
 		margin-right: 0.375rem;
 	}
 	.tab {
+		/* One uniform control height for the whole toolbar row — the tab
+		   chips and the action buttons share it (2026-10-27 operator
+		   request). */
+		height: 1.5rem;
+		display: inline-flex;
+		align-items: center;
 		border: 1px solid transparent;
 		border-radius: 0.25rem;
 		background: transparent;
 		color: var(--color-text-secondary, #6c757d);
 		font: inherit;
 		font-size: 0.75rem;
-		padding: 0.05rem 0.4rem;
+		padding: 0 0.4rem;
 		cursor: pointer;
 	}
 	.tab.active {

@@ -16,6 +16,7 @@ import Host from '../fixtures/FloatingAnchorPopupHost.svelte';
 interface HostProps {
 	title?: string;
 	titleTestId?: string;
+	placement?: 'left' | 'right';
 }
 
 function mountHost(props: HostProps = {}) {
@@ -122,8 +123,19 @@ describe('FloatingAnchorContainerPopup (Popup Shell W1 1.1-T)', () => {
 		h.open();
 		const el = h.popup() as HTMLElement;
 		expect(el.className).toContain('pointer-events-auto');
-		expect(el.className).toContain('absolute right-full top-1/2');
+		expect(el.className).toContain('absolute');
+		expect(el.className).toContain('right-full'); // default placement 'left' — box opens left of the trigger
+		expect(el.className).toContain('top-1/2');
 		expect(el.className).toContain('overflow-y-auto');
+		h.cleanup();
+	});
+
+	it('placement right — a left-edge trigger opens the box to its right (Subagent Anchor 2026-10-26)', () => {
+		const h = mountHost({ placement: 'right' });
+		h.open();
+		const el = h.popup() as HTMLElement;
+		expect(el.className).toContain('left-full ml-2');
+		expect(el.className).not.toContain('right-full');
 		h.cleanup();
 	});
 

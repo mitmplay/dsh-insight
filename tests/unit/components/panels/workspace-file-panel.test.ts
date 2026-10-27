@@ -13,6 +13,7 @@
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WorkspaceFilePanel from '$lib/components/workspace-file/WorkspaceFilePanel.svelte';
+import { reactiveProps } from '../../helpers/reactive-props.svelte.js';
 
 const glueCalls: Array<{ initial: string; language?: string }> = [];
 const glueDisposed: boolean[] = [];
@@ -167,7 +168,46 @@ describe('WorkspaceFilePanel — fetch (4.1-T)', () => {
 		view.cleanup();
 	});
 
-	it('a refusal renders the visible failure line with the mapped code — never blank', async () => {
+		it('the fetch-identity guard: a re-render with identical (sessionId, path, root) does NOT refetch or dispose the editor (floor-drag storm pin, 2026-10-27)', async () => {
+			fetchMock.mockResolvedValue(readBody(FILE));
+			// Reactive props: a $state object passed as props — parent-driven
+			// re-renders (a floor drag replacing the panel entry object) mutate
+			// it in place, exactly the live-surface repro.
+			const props = reactiveProps({ sessionId: 's1', path: 'README.md', root: '/ws/a' });
+			const target = document.createElement('div');
+			document.body.appendChild(target);
+			const instance = mount(WorkspaceFilePanel, { target, props });
+			await new Promise((r) => setTimeout(r, 0));
+			flushSync();
+			await new Promise((r) => setTimeout(r, 0));
+			flushSync();
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+			const editorBefore = glueCalls.length;
+
+			// THE FLOOR DRAG: the owner replaces the entry object every frame,
+			// the same primitive values land again. No refetch, no editor churn.
+			for (let frame = 0; frame < 5; frame++) {
+				props.sessionId = 's1';
+				props.path = 'README.md';
+				props.root = '/ws/a';
+				flushSync();
+			}
+			await new Promise((r) => setTimeout(r, 0));
+			flushSync();
+			expect(fetchMock).toHaveBeenCalledTimes(1); // the guard held
+			expect(glueCalls.length).toBe(editorBefore); // editor not rebuilt
+
+			// A REAL file switch refetches exactly once more.
+			props.path = 'docs/other.md';
+			flushSync();
+			await new Promise((r) => setTimeout(r, 0));
+			flushSync();
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+			unmount(instance);
+			target.remove();
+		});
+
+		it('a refusal renders the visible failure line with the mapped code — never blank', async () => {
 		fetchMock.mockResolvedValueOnce(
 			new Response(
 				JSON.stringify({ ok: false, error: { code: 'workspace-file/not-found', message: 'x' } }),
@@ -205,7 +245,69 @@ describe('WorkspaceFilePanel — tabs + Monaco gate (4.1-T)', () => {
 		view.cleanup();
 	});
 
-	it('a NON-markdown file opens the editor directly — no tab bar', async () => {
+	it('the toolbar reload affordance: sits BEFORE the copy slot, refetches the current file exactly once, never clobbers a draft (2026-10-27 operator request)', async () => {
+			fetchMock.mockResolvedValue(readBody(FILE));
+			const view = mountPanel();
+			await view.settle();
+			const reload = view.q<HTMLButtonElement>('[data-testid="file-reload"]');
+			expect(reload).not.toBeNull();
+			// placement contract: the reload icon is the toolbar's LAST-but-one
+			// control — immediately before the column-capture button's slot.
+			const toolbar = view.q('[data-testid="file-toolbar"]')!;
+			const children = [...toolbar.children].map((c) => c.querySelector('[data-testid]')?.dataset.testid ?? c.dataset.testid ?? c.className.split(' ')[0]);
+			const reloadIdx = children.indexOf('file-reload');
+			const copyIdx = children.findIndex((n) => n === 'copy-slot' || String(n).includes('copy'));
+			expect(copyIdx).toBeGreaterThan(-1);
+			expect(reloadIdx).toBe(copyIdx - 1);
+			// the verb: exactly one more fetch; the editor buffer survives.
+			const fetches = fetchMock.mock.calls.length;
+			const editorBefore = glueCalls.length;
+			reload!.click();
+			await view.settle();
+			expect(fetchMock.mock.calls.length).toBe(fetches + 1);
+			expect(glueCalls.length).toBe(editorBefore); // no editor rebuild
+			expect(glueDisposed.filter(Boolean).length).toBe(0);
+			view.cleanup();
+		});
+
+		it('the reload icon mirrors the CanvasCopyButton feedback: busy spinner while the refresh is in flight, check-mark after, back to idle (2026-10-27 UX parity)', async () => {
+			// A fetch WE control: hold it in flight to observe the busy state.
+			let release!: (v: Response) => void;
+			fetchMock.mockImplementationOnce(() => readBody(FILE)); // mount fetch
+			fetchMock.mockImplementationOnce(() => new Promise<Response>((res) => (release = res)));
+			fetchMock.mockResolvedValue(readBody(FILE));
+			const view = mountPanel();
+			await view.settle();
+			const reload = view.q<HTMLButtonElement>('[data-testid="file-reload"]')!;
+			expect(reload.dataset.state).toBe('idle');
+			// Fake timers FIRST so the done→idle timeout lands on the fake clock.
+			vi.useFakeTimers();
+			try {
+				// Click while the refresh is held in flight → the spinner state.
+				reload.click();
+				flushSync();
+				expect(reload.dataset.state).toBe('busy');
+				expect(view.q('[data-testid="file-reload"] svg.animate-spin')).not.toBeNull();
+				// Release the refresh → the check-mark state (promise drains on
+				// microtasks, which fake timers never block).
+				release(readBody(FILE));
+				// refreshFile awaits fetch + json + assignments — drain enough
+				// microtask hops for the whole chain to land.
+				for (let i = 0; i < 20; i++) await Promise.resolve();
+				flushSync();
+				expect(reload.dataset.state).toBe('done');
+				expect(reload.querySelector('svg.animate-spin')).toBeNull();
+				// Two seconds later the check dissolves back to the idle icon.
+				vi.advanceTimersByTime(2000);
+				flushSync();
+				expect(reload.dataset.state).toBe('idle');
+			} finally {
+				vi.useRealTimers();
+			}
+			view.cleanup();
+		});
+
+		it('a NON-markdown file opens the editor directly — no tab bar', async () => {
 		fetchMock.mockResolvedValueOnce(readBody(FILE));
 		const view = mountPanel({ path: 'notes/plain.txt' });
 		await view.settle();

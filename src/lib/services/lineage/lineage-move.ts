@@ -252,8 +252,8 @@ export function blockBounds(
 			let i = idx;
 			while (i > 0 && panels[i - 1].kind === 'browser') i--;
 			const head = panels[i - 1];
-			const inFamily = (id: string | undefined, root: string): boolean => {
-				if (id === undefined) return false;
+			const inFamily = (id: string | undefined, root: string | undefined): boolean => {
+				if (id === undefined || root === undefined) return false;
 				let cur: string | null = id;
 				for (let guard = 0; guard < panels.length + 1 && cur !== null; guard++) {
 					if (cur === root) return true;
@@ -280,7 +280,10 @@ export function blockBounds(
 			sessionId = head.sessionId;
 		}
 	}
-	// Climb to the family head (root ancestor on the floor).
+	// Climb to the family head (root ancestor on the floor). Every
+	// sessionId === null path above already returned — this guard only
+	// restores the narrowing the branch merge loses.
+	if (sessionId === null) return [idx, idx];
 	for (let guard = 0; guard < panels.length + 1; guard++) {
 		const parent = facts.parentOf.get(sessionId) ?? null;
 		if (parent === null) break;

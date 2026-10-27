@@ -197,7 +197,10 @@ export function registerSummonGlass(handler: SummonGlassHandler | null): void {
  * Ask the floor owner to summon a folded glass.
  * @returns true when a handler ran; false when the floor is not mounted.
  */
-export function summonGlassFromRegistry(glass: GlassSummon, opts: { replace: boolean }): boolean {
+export function summonGlassFromRegistry(
+	glass: GlassSummon,
+	opts: { replace: boolean; keepSelection?: boolean }
+): boolean {
 	if (summonGlassHandler === null) return false;
 	summonGlassHandler(glass, opts);
 	return true;

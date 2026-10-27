@@ -15,6 +15,7 @@
 	import DeliverablesButton from '$lib/components/anchor/deliverables-anchor/DeliverablesButton.svelte';
 	import JobsButton from '$lib/components/anchor/job-anchor/JobsButton.svelte';
 	import InjectedShelfButton from '$lib/components/anchor/inject-anchor/InjectedShelfButton.svelte';
+	import SubagentAnchorButton from '$lib/components/anchor/subagent-anchor/SubagentAnchorButton.svelte';
 	import { groupTurns } from '$lib/utils/turn-grouping';
 	import type { TodoItem } from '$lib/utils/todo-lists';
 	import type { DsiEntry } from '$lib/types';
@@ -78,6 +79,7 @@
 		<PlanButton todos={todos ?? []} />
 		<DeliverablesButton deliveries={deliverables} onfileopen={onfileopen} />
 		<JobsButton sessionId={jobsessionid} />
+		<SubagentAnchorButton sessionId={jobsessionid} />
 		{#if shelfentries !== undefined}
 			<InjectedShelfButton
 				entries={shelfentries}

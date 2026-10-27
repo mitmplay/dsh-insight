@@ -49,8 +49,8 @@ export function reaperEligible(
 }
 
 export class BrowserRegistryRefusal extends Error {
-	readonly code: 'NO_SESSION' | 'CLOSED' | 'NO_TARGET';
-	constructor(code: 'NO_SESSION' | 'CLOSED' | 'NO_TARGET', message: string) {
+	readonly code: 'NO_SESSION' | 'CLOSED' | 'NO_TARGET' | 'BUSY';
+	constructor(code: 'NO_SESSION' | 'CLOSED' | 'NO_TARGET' | 'BUSY', message: string) {
 		super(message);
 		this.name = 'BrowserRegistryRefusal';
 		this.code = code;
@@ -108,13 +108,27 @@ interface RegistryEntry {
 	context: BrowserContext;
 	/** Attached tab handles keyed by CDP targetId (ADR-0040 D2). */
 	tabs: Map<string, TabHandle>;
+	/** Creation order of the session's tabs — the strip's row order (D5
+	 *  amendment 2026-10-27): CDP's Target.getTargets order is NOT creation
+	 *  order, so the strip appended new tabs wherever Chrome listed them. */
+	tabOrder: string[];
 	/** The active-tab pointer — server-owned, never panel state (D2). */
 	activeTargetId: string | null;
+	/** D5 amendment 2026-10-27: stream subscribers re-bind when the pointer
+	 *  moves — a brain-driven activate() must repoint the SSE, not just the
+	 *  strip (the panel only reconnects itself on its OWN strip clicks). */
+	activeListeners?: Set<(targetId: string) => void>;
 	/** Last requested panel viewport, re-applied on every switch (D4). */
 	viewport: { width: number; height: number };
 	/** ADR-0041: headless glasses drive the page via Emulation (no real
 	 *  window to resize); headed ones via Browser.setWindowBounds. */
 	headless: boolean;
+	/** BUG 2026-10-26c: the LEARNED OS window chrome offset (outer − page).
+	 *  applyPanelViewport's one-shot evaluate can race out and answer 0,
+	 *  which strands the page 87px short of the request; the repair's
+	 *  feedback loop measures the truth off the surface frames and stores
+	 *  it here, so every later resize starts warm. */
+	chrome?: { w: number; h: number };
 	port: number;
 	/** The brain port this session's brain bound (config/env resolved at
 	 *  create — per-create read, ADR-0030 D3). */
@@ -378,6 +392,17 @@ class BrowserRegistry {
 		return h.relay;
 	}
 
+	/** D5 amendment 2026-10-27: watch the active pointer. The stream route
+	 *  re-binds its relay on every fire so a brain-driven activate (creation
+	 *  auto-focus) repoints the MIRROR, not just the strip highlight. */
+	onActiveChange(id: string, cb: (targetId: string) => void): () => void {
+		const e = this.peek(id);
+		(e.activeListeners ??= new Set()).add(cb);
+		return () => {
+			e.activeListeners?.delete(cb);
+		};
+	}
+
 	/** Resolve a verb's target handle: explicit targetId, else the active tab
 	 *  (ADR-0040 D3 — one verb seam, optional pointer). An ENUMERATED but
 	 *  not-yet-attached target attaches lazily here — attach is not stream
@@ -416,12 +441,58 @@ class BrowserRegistry {
 				await scdp.send('Page.enable').catch(() => undefined);
 				await this.applyPanelViewport(e, { cdp: scdp, relay: handle.relay, page }).catch(() => undefined);
 				e.tabs.set(tid, handle);
+				(e.tabOrder ??= []).push(tid); // self-heals hand-built test entries
 				if (tid === key) break;
 			}
 		}
 		const h = e.tabs.get(key);
 		if (!h) throw new BrowserRegistryRefusal('NO_TARGET', 'no such tab: ' + key);
 		return h;
+	}
+
+	/** BUG 2026-10-27 (brain churn leaves stale handles): the registry's
+	 *  cached CDP sessions can DIE while the pages live on (brain re-home,
+	 *  MCP client reconnect) — listTabs then answers empty, every verb
+	 *  NO_TARGETs, and the mirror starves on one frozen frame. Heal: re-probe
+	 *  every live page with a FRESH CDP session, replace dead handles, and
+	 *  remap the pointer when its target is gone. Called from listTabs when
+	 *  enumeration comes back empty — the panel's 2s poll then heals the
+	 *  whole session without operator action. */
+	private async healHandles(e: RegistryEntry): Promise<void> {
+		for (const page of e.context.pages()) {
+			let scdp: CDPSession | null = null;
+			let tid: string | null = null;
+			try {
+				scdp = await e.context.newCDPSession(page);
+				const info = (await scdp.send('Target.getTargetInfo')) as { targetInfo?: { targetId?: string } };
+				tid = info.targetInfo?.targetId ?? null;
+			} catch {
+				continue; // page unreachable — leave it to the next poll
+			}
+			if (!tid || !scdp) {
+				await scdp?.detach().catch(() => undefined);
+				continue;
+			}
+			const old = e.tabs.get(tid);
+			if (old) {
+				const dead = await old.cdp.send('Target.getTargetInfo').then(() => false).catch(() => true);
+				if (!dead) {
+					await scdp.detach().catch(() => undefined);
+					continue; // cached handle healthy — nothing to heal
+				}
+				old.relay.stop();
+				await old.cdp.detach().catch(() => undefined);
+				const cfg: BrowserConfig = readBrowserConfig();
+				e.tabs.set(tid, { targetId: tid, cdp: scdp, relay: new BrowserRelay(scdp, cfg.screencastQuality, cfg.screencastMaxFps), page });
+				if (!e.tabOrder.includes(tid)) e.tabOrder.push(tid);
+			} else {
+				// unknown live page — drop the probe; handleOf attaches lazily
+				await scdp.detach().catch(() => undefined);
+			}
+		}
+		if (e.activeTargetId && !e.tabs.has(e.activeTargetId)) {
+			e.activeTargetId = [...e.tabs.keys()][0] ?? null;
+		}
 	}
 
 	/** Enumerate the context's page targets (ADR-0040 D5 feed) — type:page
@@ -432,12 +503,27 @@ class BrowserRegistry {
 		const src = (e.activeTargetId ? e.tabs.get(e.activeTargetId) : null)?.cdp ?? [...e.tabs.values()][0]?.cdp;
 		if (!src) return [];
 		const res = (await src.send('Target.getTargets').catch(() => null)) as { targetInfos?: { targetId: string; type: string; url: string; title: string }[] } | null;
-		return (res?.targetInfos ?? [])
-			.filter((t) => t.type === 'page')
+		let infos = (res?.targetInfos ?? []).filter((t) => t.type === 'page');
+		if (infos.length === 0 && e.context.pages().length > 0) {
+			// stale-handle state (brain churn) — heal once, re-read
+			await this.healHandles(e);
+			const src2 = (e.activeTargetId ? e.tabs.get(e.activeTargetId) : null)?.cdp ?? [...e.tabs.values()][0]?.cdp;
+			const res2 = (await src2?.send('Target.getTargets').catch(() => null)) as { targetInfos?: { targetId: string; type: string; url: string; title: string }[] } | null;
+			infos = (res2?.targetInfos ?? []).filter((t) => t.type === 'page');
+		}
+		return infos
 			.map((t) => ({ targetId: t.targetId, url: t.url, title: t.title, active: t.targetId === e.activeTargetId }))
-			// CDP does NOT expose Chrome's window tab order (no public API) —
-			// sort by title so the strip is deterministic instead of creation-
-			// order arbitrary (operator round 3: 'order is not correct').;
+			// D5 amendment 2026-10-27: CDP does NOT expose Chrome's window tab
+			// order — sort by the registry's OWN creation record (tabOrder) so a
+			// created tab lands LAST like a real browser's. (The old comment
+			// promised a title sort that was never written; getTargets order is
+			// enumeration-arbitrary — the bug behind 'order is not correct'.)
+			.sort((a, b) => {
+				const order = e.tabOrder ?? [];
+				const ia = order.indexOf(a.targetId);
+				const ib = order.indexOf(b.targetId);
+				return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib);
+			});
 	}
 
 	/** Attach (lazily), seed the first frame, re-apply the viewport, and move
@@ -472,6 +558,13 @@ class BrowserRegistry {
 			if (shot?.data) h.relay.seed({ seq: 0, jpeg: shot.data, metadata: { seeded: true } });
 		}
 		e.activeTargetId = targetId;
+		for (const l of e.activeListeners ?? []) {
+			try {
+				l(targetId);
+			} catch {
+				// a dead listener must not break the switch
+			}
+		}
 		let url = '';
 		let title = '';
 		try {
@@ -593,6 +686,8 @@ const browser = context.browser();
 		if (cfg.enabled) this.ensureReaper(cfg.idleMs);
 		const entry: RegistryEntry = {
 			id, context, tabs, activeTargetId,
+			// the birth page is tab 0 (D5 amendment 2026-10-27: creation order)
+			tabOrder: activeTargetId ? [activeTargetId] : [],
 			// ADR-0041: the remembered viewport STARTS at the birth size — a
 			// 1920x1080 default made activate() resize the window to desktop
 			// scale before the panel's first viewport POST arrived.
@@ -610,6 +705,48 @@ const browser = context.browser();
 			createdAt: new Date().toISOString()
 		};
 		state().entries.set(id, entry);
+		// D5 amendment 2026-10-27 — a CREATED tab is followed. The brain creates
+		// pages through raw Playwright (browser_tabs new), bypassing openTab's
+		// activate — the operator asked for the strip to land the new tab LAST
+		// AND focus it: a newborn tab is the agent's new working surface. A
+		// brain tab SWITCH is still NOT followed (the original D5 rejection
+		// stands — the operator's view never moves under them mid-task).
+		// typeof-guard: real Playwright contexts always carry .on; the branch
+		// tests' minimal fake contexts do not, and the listener is not their subject.
+		if (typeof (context as unknown as { on?: unknown }).on === 'function') {
+		context.on('page', (page) => {
+			void (async () => {
+				for (let i = 0; i < 10; i += 1) {
+					await new Promise((r) => setTimeout(r, 300));
+					try {
+						const scdp = await context.newCDPSession(page);
+						const info = (await scdp.send('Target.getTargetInfo').catch(() => null)) as { targetInfo?: { targetId?: string } } | null;
+						await scdp.detach().catch(() => undefined);
+						const tid = info?.targetInfo?.targetId;
+						if (!tid) continue;
+						if (!entry.tabOrder.includes(tid)) entry.tabOrder.push(tid);
+						if (entry.activeTargetId !== tid && !entry.closed) await this.activate(id, tid);
+						return;
+					} catch {
+						// target not ready yet — retry inside the loop
+					}
+				}
+			})();
+		});
+		}
+		// BUG 2026-10-26c (the born-banded glass): the launch line guesses the
+		// chrome offset (+6/+70) and the REAL chrome costs more - the birth
+		// frame came back shorter than the panel and the bands were there
+		// from frame one. Measure and compensate exactly like the resize
+		// path (headed only; headless has no window to size).
+		if (!entry.headless) {
+			await this.applyPanelViewport(entry, { cdp, relay }).catch(() => undefined);
+			// the ring holds the PRE-resize birth frame and the starter page
+			// never repaints - reseed with a capture at the corrected size so
+			// the FIRST frame the panel ever paints is already native scale
+			const birthShot = (await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: cfg.screencastQuality }).catch(() => null)) as { data?: string } | null;
+			if (birthShot?.data) relay.reseed({ seq: 0, jpeg: birthShot.data, metadata: { seeded: true, birth: true } });
+		}
 
 		if (options.spawnMcp ?? true) {
 			if (process.env.DSI_MCP_IN_PROCESS === '1') {
@@ -784,24 +921,192 @@ const browser = context.browser();
 		// not count as a repaint (ADR-0041 D3)
 		const prevSeq = handle.relay.latestFrame()?.seq ?? -1;
 		await this.applyPanelViewport(e, handle);
-		await this.seedAfterResize(handle, prevSeq).catch(() => undefined);
+		await this.repairSurfaceAfterResize(e, handle, prevSeq).catch(() => undefined);
 	}
 
-	/** ADR-0041 D3: a resize must REPAINT, not wait for the next page
-	 *  change — the screencast speaks only on change, so a static page
-	 *  keeps the old-aspect frame letterboxed on the panel forever (the
-	 *  operator's black bands, 2026-10-25). Bounded grace for a FRESH
-	 *  frame (seq past prevSeq); silence answers with the deterministic
-	 *  captureScreenshot seed — activate()'s first-frame idiom re-fired
-	 *  for the resize path. Never hangs the verb past the grace. */
-	private async seedAfterResize(handle: { cdp: import('playwright-core').CDPSession; relay: BrowserRelay }, prevSeq: number): Promise<void> {
-		for (let i = 0; i < 10 && (handle.relay.latestFrame()?.seq ?? -1) === prevSeq; i += 1) {
+	/** The window id, retried — Target.getWindowForTarget on a Playwright
+	 *  page session races out on a COLD headed launch (measured in the
+	 *  surface-lag test: both resizes skipped, the birth window kept its
+	 *  size). Three bounded tries; the caller's race caps still apply. */
+	private async windowIdOf(
+		anyCdp: { send: (method: string, params?: unknown) => Promise<unknown> },
+		race: (p: Promise<unknown>, fb: unknown) => Promise<unknown>,
+		targetId?: string
+	): Promise<{ windowId?: number } | null> {
+		for (let i = 0; i < 3; i += 1) {
+			// Two protocol spellings: a Playwright page session does NOT carry
+			// Target.getWindowForTarget (measured — the method is missing), the
+			// flat browser-session attach does; Browser.getWindowForTarget is
+			// the inverse. Try both before giving up.
+			const t = (await race(anyCdp.send('Target.getWindowForTarget'), null)) as { windowId?: number } | null;
+			if (t && t.windowId) return t;
+			const b = (await race(anyCdp.send('Browser.getWindowForTarget', targetId ? { targetId } : {}), null)) as { windowId?: number } | null;
+			if (b && b.windowId) return b;
+			await new Promise((r) => setTimeout(r, 500));
+		}
+		return null;
+	}
+
+	/** ADR-0041 D3 + the surface-lag repair (BUG 2026-10-26): a resize must
+	 *  REPAINT at the REQUESTED size, not just emit SOME fresh frame. Two
+	 *  failure shapes live here:
+	 *  1. the SILENT page — the screencast speaks only on change, so a
+	 *     static page never repaints (the 2026-10-25 black bands);
+	 *  2. the STALE SURFACE — a headed off-screen window takes the new
+	 *     RENDERER size but macOS never reallocates the compositor surface:
+	 *     every frame (even captureScreenshot) keeps arriving at the OLD
+	 *     height, and the panel letterboxes it (the operator's top/bottom
+	 *     bands at every height grow). Measured: 53 frames over 6s all at
+	 *     the old 832 while innerHeight was 919; captureScreenshot agreed
+	 *     with the stale surface. A window-state BOUNCE (minimize ->
+	 *     normal — invisible at -32000,-32000) forces the window server to
+	 *     reallocate; frames then arrive at the requested size.
+	 *  Ladder: grace for a frame whose JPEG dims MATCH the request ->
+	 *  bounce (headed only) -> second grace -> deterministic
+	 *  captureScreenshot reseed (reseed: a stale REAL frame may sit atop
+	 *  the ring, and seed() refuses to cover one). Capped throughout —
+	 *  nothing here may hang the verb (the 2.5s rule). */
+	private async repairSurfaceAfterResize(e: RegistryEntry, handle: { cdp: import('playwright-core').CDPSession; relay: BrowserRelay }, prevSeq: number): Promise<void> {
+		const want = { w: e.viewport.width, h: e.viewport.height };
+		// JPEG SOF scan - every frame's true pixel dims, with or without
+		// screencast metadata. The first cut treated unknown dims as FRESH;
+		// the birth reseed (no deviceWidth in its metadata) then matched its
+		// own stale surface and the repair skipped itself (operator sc#3:
+		// surface 733x782 under inner 733x869).
+		const dimsOf = (f: ReturnType<BrowserRelay['latestFrame']>): { w: number; h: number } | null => {
+			if (!f) return null;
+			const md = f.metadata as { deviceWidth?: unknown; deviceHeight?: unknown } | undefined;
+			const mw = Number(md?.deviceWidth);
+			const mh = Number(md?.deviceHeight);
+			if (Number.isFinite(mw) && Number.isFinite(mh) && mw > 0 && mh > 0) return { w: mw, h: mh };
+			const b = Buffer.from(f.jpeg, 'base64');
+			let i = 2;
+			while (i < b.length - 9) {
+				if (b[i] !== 0xff) { i += 1; continue; }
+				const marker = b[i + 1];
+				if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+					return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) };
+				}
+				i += Math.max(2, b.readUInt16BE(i + 2));
+			}
+			return null;
+		};
+		// The match gate carries the SAME +-2px tolerance as the panel's
+		// viewport gate (BUGFIX 2026-10-26b, operator sc#1: a 1px width
+		// drift fired the bounce, and the minimize/restore came back SHORT —
+		// the cure became the cutoff). A resize is only 'stale' when the
+		// surface misses the request by a VISIBLE margin.
+		const matched = (): boolean => {
+			const f = handle.relay.latestFrame();
+			if (!f || f.seq === prevSeq) return false; // no fresh frame yet
+			const d = dimsOf(f);
+			return d !== null && Math.abs(d.w - want.w) < 3 && Math.abs(d.h - want.h) < 3; // unknown dims = NOT matched (never skip the repair)
+		};
+		for (let i = 0; i < 10 && !matched(); i += 1) {
 			await new Promise((r) => setTimeout(r, 100));
 		}
-		if ((handle.relay.latestFrame()?.seq ?? -1) !== prevSeq) return; // a fresh frame beat the seed
+		if (matched()) return;
+		if (e.headless) {
+			// HEADLESS backstop: no window to bounce or flash — the forcing
+			// move is the explicit override (see applyPanelViewport). Left in
+			// place; Playwright's own setViewportSize asserts the same size.
+			const raceH = async <T>(p: Promise<T>, fb: T): Promise<T> => {
+				const timeout = new Promise<T>((res) => setTimeout(() => res(fb), 2500));
+				return await Promise.race([p.catch(() => fb), timeout]);
+			};
+			const anyCdpH = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
+			await raceH(anyCdpH.send('Emulation.setDeviceMetricsOverride', { width: want.w, height: want.h, deviceScaleFactor: 1, mobile: false }).then(() => null as null), null);
+			await new Promise((r) => setTimeout(r, 400));
+			const shotH = (await raceH(handle.cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: readBrowserConfig().screencastQuality }).catch(() => null), null)) as { data?: string } | null;
+			if (shotH?.data) handle.relay.reseed({ seq: 0, jpeg: shotH.data, metadata: { seeded: true, resize: true } });
+			return;
+		}
+		if (!e.headless) {
+			const race = async <T>(p: Promise<T>, fb: T): Promise<T> => {
+				const timeout = new Promise<T>((res) => setTimeout(() => res(fb), 2500));
+				return await Promise.race([p.catch(() => fb), timeout]);
+			};
+			const anyCdp = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
+			const win = await this.windowIdOf(anyCdp, race, e.activeTargetId ?? undefined);
+			if (win?.windowId) {
+				// STEP 1 — the chrome-offset FEEDBACK loop (operator sc#4, the
+				// decisive find): bounds can already be CORRECT (733x869) while
+				// the surface shows 733x782 — the one-shot chrome measurement
+				// answered 0 and the window's PAGE area is 87px short. The
+				// renderer's innerHeight lies; the SURFACE frame is the truth.
+				// captureScreenshot forces a fresh surface read even on a static
+				// page, so the loop verifies against CAPTURES, not stream frames:
+				// adjust the learned offset by the miss and re-set, up to 3 times.
+				let cw = e.chrome?.w ?? 0;
+				let ch = e.chrome?.h ?? 0;
+				console.log('[surface] ladder start want', want.w + 'x' + want.h, 'learned chrome', cw + '/' + ch);
+				for (let i = 0; i < 3; i += 1) {
+					await race(anyCdp.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { width: Math.max(200, want.w + cw), height: Math.max(120, want.h + ch), windowState: 'normal' } }), null);
+					await new Promise((r) => setTimeout(r, 350));
+					const shot = (await race(anyCdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 60 }), null)) as { data?: string } | null;
+					const d = shot?.data ? dimsOf({ jpeg: shot.data, metadata: {} } as ReturnType<BrowserRelay['latestFrame']>) : null;
+					if (d && Math.abs(d.w - want.w) < 3 && Math.abs(d.h - want.h) < 3) {
+						console.log('[surface] iter', i, 'converged: capture', d.w + 'x' + d.h, 'chrome', cw + '/' + ch);
+						e.chrome = { w: cw, h: ch }; // learned — later resizes start warm
+						// a STATIC page never repaints: the ring still holds the
+						// pre-resize frame — reseed with the verified capture so the
+						// mirror actually shows the corrected surface
+						if (shot?.data) handle.relay.reseed({ seq: 0, jpeg: shot.data, metadata: { seeded: true, resize: true } });
+						return;
+					}
+					console.log('[surface] iter', i, 'miss: capture', d ? d.w + 'x' + d.h : 'null', 'at bounds', (want.w + cw) + 'x' + (want.h + ch));
+					if (!d) continue; // a failed capture must not end the loop
+					// ABSOLUTE correction (not accumulated deltas): the REAL chrome
+					// offset is exactly currentBounds − capturedSurface. Derive it
+					// and set want + realChrome in one shot — immune to compounding
+					// errors when a capture lags a beat behind the resize.
+					const cur = (await race(anyCdp.send('Browser.getWindowForTarget', { targetId: e.activeTargetId }), null)) as { bounds?: { width?: number; height?: number } } | null;
+					if (cur?.bounds?.width && cur?.bounds?.height) {
+						cw = Math.max(0, cur.bounds.width - d.w);
+						ch = Math.max(0, cur.bounds.height - d.h);
+					} else {
+						cw += Math.max(0, want.w - d.w);
+						ch += Math.max(0, want.h - d.h);
+					}
+				}
+				e.chrome = { w: cw, h: ch };
+				// STEP 2 — the surface BOUNCE: with the bounds correct and the
+				// surface still stale, force the window server to reallocate.
+				await race(anyCdp.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { windowState: 'minimized' } }), null);
+				await race(anyCdp.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { windowState: 'normal' } }), null);
+				// re-assert the exact bounds AFTER restore — the restore itself
+				// may have landed short
+				await race(anyCdp.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { width: Math.max(200, want.w + cw), height: Math.max(120, want.h + ch), windowState: 'normal' } }), null);
+				await new Promise((r) => setTimeout(r, 300));
+				for (let i = 0; i < 10 && !matched(); i += 1) {
+					await new Promise((r) => setTimeout(r, 100));
+				}
+				if (matched()) return;
+				// STEP 3 — the on-screen FLASH (operator sc#5): a window resized
+				// while parked at -32000 can leave even the PAINT stale — renderer
+				// and layout correct, compositor showing an old-era frame, and
+				// minimize/restore does not heal it (measured live: bounds and
+				// layout 859x905, the mirror painting a 500px-era page). macOS
+				// resizes reliably only what it can see: flash the window
+				// on-screen ~400ms, then re-park. LAST RESORT — it briefly shows
+				// a Chrome window, accepted only after steps 1-2 failed.
+				const parked = { width: Math.max(200, want.w + cw), height: Math.max(120, want.h + ch), windowState: 'normal' };
+				await race(anyCdp.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { ...parked, left: 10, top: 10 } }), null);
+				await new Promise((r) => setTimeout(r, 400));
+				await race(anyCdp.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { ...parked, left: -32000, top: -32000 } }), null);
+				await new Promise((r) => setTimeout(r, 300));
+				for (let i = 0; i < 10 && !matched(); i += 1) {
+					await new Promise((r) => setTimeout(r, 100));
+				}
+				if (matched()) return;
+				console.log('[surface] ladder exhausted: bounce+flash ran, stream frames still', (() => { const d = dimsOf(handle.relay.latestFrame()); return d ? d.w + 'x' + d.h : 'unknown'; })());
+			}
+		}
 		const cfg: BrowserConfig = readBrowserConfig();
 		const shot = (await handle.cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: cfg.screencastQuality }).catch(() => null)) as { data?: string } | null;
-		if (shot?.data) handle.relay.seed({ seq: 0, jpeg: shot.data, metadata: { seeded: true, resize: true } });
+		const fd = shot?.data ? dimsOf({ jpeg: shot.data, metadata: {} } as ReturnType<BrowserRelay['latestFrame']>) : null;
+		console.log('[surface] final reseed capture:', fd ? fd.w + 'x' + fd.h : 'null', 'want', want.w + 'x' + want.h);
+		if (shot?.data) handle.relay.reseed({ seq: 0, jpeg: shot.data, metadata: { seeded: true, resize: true } });
 	}
 
 	/** The navigate path's seed arm (ADR-0039 follow-up): same bounded grace,
@@ -965,17 +1270,29 @@ const browser = context.browser();
 				handle.page.setViewportSize({ width: e.viewport.width, height: e.viewport.height }).catch(() => undefined),
 				new Promise((res) => setTimeout(res, 2500))
 			]);
+			// BUG 2026-10-26 (operator sc#7, THE headless root cause): the
+			// compositor surface lags the emulation resize — inner said 869
+			// while every frame stayed 782, so the mirror letterboxed forever.
+			// Pin the override AT the requested size and LEAVE it: headless has
+			// no window to fight (the round-10 centered-render trap is headed-
+			// only), and CLEARING the override reverts to the stale surface.
+			const anyCdpH = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
+			await anyCdpH.send('Emulation.setDeviceMetricsOverride', { width: e.viewport.width, height: e.viewport.height, deviceScaleFactor: 1, mobile: false }).catch(() => undefined);
 			return;
 		}
 		const race = async (p: Promise<unknown>, fb: unknown): Promise<unknown> => await Promise.race([p.catch(() => fb), new Promise((res) => setTimeout(() => res(fb), 2500))]);
 		const anyCdp = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
 		const dims = (await race(anyCdp.send('Runtime.evaluate', { expression: 'JSON.stringify({ oh: window.outerHeight - window.innerHeight, ow: window.outerWidth - window.innerWidth })', returnByValue: true }), null)) as { result?: { value?: string } } | null;
-		let chromeH = 0, chromeW = 0;
-		try { const d = JSON.parse((dims && dims.result && dims.result.value) || '{}'); chromeH = Number(d.oh) || 0; chromeW = Number(d.ow) || 0; } catch { /* defaults */ }
+		// start from the LEARNED offset (the repair's feedback loop may have
+		// measured the real one) and refine with a live evaluate when it answers
+		let chromeH = e.chrome?.h ?? 0;
+		let chromeW = e.chrome?.w ?? 0;
+		try { const d = JSON.parse((dims && dims.result && dims.result.value) || '{}'); const oh = Number(d.oh) || 0; const ow = Number(d.ow) || 0; if (oh > 0 || ow > 0) { chromeH = oh; chromeW = ow; } } catch { /* keep learned */ }
 		const anyCdp2 = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
-		const win = (await race(anyCdp2.send('Target.getWindowForTarget'), null)) as { windowId?: number } | null;
+		const win = await this.windowIdOf(anyCdp2, race);
 		if (win && win.windowId) {
 			await race(anyCdp2.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { width: Math.max(200, e.viewport.width + chromeW), height: Math.max(120, e.viewport.height + chromeH), windowState: 'normal' } }), null);
+			if (chromeW > 0 || chromeH > 0) e.chrome = { w: chromeW, h: chromeH }; // remember the real offset
 			const check = (await race(anyCdp2.send('Browser.getWindowForTarget', { targetId: e.activeTargetId }), null)) as { bounds?: { width?: number; height?: number } } | null;
 			console.log('[window] resized ->', JSON.stringify(check && check.bounds ? check.bounds : check), 'want', e.viewport.width + chromeW, 'x', e.viewport.height + chromeH);
 		} else {

@@ -82,6 +82,10 @@ beforeEach(() => {
 	mockedToBlob.mockClear();
 });
 
+// The Subagent Anchor mount Wave-5 block is RETIRED (2026-10-26): the
+// anchor moved to the conversation page's FloatingAnchor stack (ADR D1
+// placement revision). Its coverage lives in subagent-anchor.test.ts.
+
 describe('AppSidebarHeaderAction — collapse button', () => {
 	it('onToggleCollapse provided: clicking fires it exactly once', () => {
 		const onToggleCollapse = vi.fn();

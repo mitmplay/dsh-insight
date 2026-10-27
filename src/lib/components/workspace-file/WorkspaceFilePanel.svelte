@@ -255,10 +255,24 @@
 		}
 	}
 
-	// Fetch once per mount — the reload story (Karpathy Layer 2.2): the
-	// panel REMOUNTS on F5, so the fetch reruns and the dirty draft dies
-	// by design (the indicator warned while it lived).
+	// Fetch once per FETCH IDENTITY, not once per effect run — the reload
+	// story (Karpathy Layer 2.2) stays: a real remount (F5) or a real file
+	// switch (the key changes) refetches and disposes the editor exactly
+	// once. Measured on the live floor (2026-10-27, headed drag): a floor
+	// gutter drag replaced the panel entry objects EVERY animation frame,
+	// and this effect re-ran per frame — each run refetched the file and
+	// rebuilt the markdown preview (renderMarkdown + mermaid pass, scroll
+	// lost). A floor drag may now re-run this effect with IDENTICAL
+	// sessionId/path/root values; the key guard makes that a NO-OP — no
+	// fetch, no editor dispose, no preview rebuild. ADR-0043's philosophy:
+	// the drag paints live; nothing re-derives until (and unless) the file
+	// identity actually settles somewhere else.
+	let fetchedKey = '';
+	const noopCleanup = () => {};
 	$effect(() => {
+		const key = sessionId + '\u0000' + path + '\u0000' + root;
+		if (key === fetchedKey) return noopCleanup;
+		fetchedKey = key;
 		void fetchFile();
 		return () => {
 			initSeq++;
@@ -547,6 +561,7 @@
 		readonly={gateOpen === false}
 		onViewChange={setView}
 		onSave={save}
+		onReload={refreshFile}
 		{saveError}
 		saveFailedNote={t(m.workspaceFileSaveFailed)}
 		loadingNote={t(m.workspaceExplorerLoading)}

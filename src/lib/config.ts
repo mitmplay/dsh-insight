@@ -205,6 +205,11 @@ export const DEFAULT_PROMPT_TAGS = ['session', 'git', 'plan', 'rca', 'kb'];
 export const DEFAULT_PANEL_WIDTH = 730;
 export const DEFAULT_PANEL_MIN_WIDTH = 480;
 export const DEFAULT_PANEL_MAX_WIDTH = 860;
+/** The glass panel's width bounds (browser.defaultWidth / browser.maxWidth
+ *  in settings.yaml, operator request 2026-10-26) — client mirror of the
+ *  server reader's defaults (insight-config BrowserConfig). */
+export const DEFAULT_BROWSER_WIDTH = 860;
+export const DEFAULT_BROWSER_MAX_WIDTH = 1024;
 export const DEFAULT_PANEL_MIN_ZOOM = 0.25;
 export const DEFAULT_PANEL_MAX_ZOOM = 1.25;
 

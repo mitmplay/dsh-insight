@@ -434,7 +434,7 @@ describe('BrowserPanel — context menu action fan-out', () => {
 	it('copy-image and copy-link ride the clipboard', async () => {
 		const { canvas, un } = await mountLive();
 		await openMenu(canvas);
-		const writeText = (navigator.clipboard as { writeText: ReturnType<typeof vi.fn> }).writeText;
+		const writeText = (navigator.clipboard as unknown as { writeText: ReturnType<typeof vi.fn> }).writeText;
 		ctxItems()[1].click(); // copy-image
 		await tick();
 		expect(writeText).toHaveBeenCalledWith('https://img.example/x.png');

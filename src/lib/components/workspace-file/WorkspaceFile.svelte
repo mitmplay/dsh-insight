@@ -32,6 +32,7 @@
 		readonly,
 		onViewChange,
 		onSave,
+		onReload,
 		saveError,
 		saveFailedNote,
 		loadingNote,
@@ -77,6 +78,8 @@
 		onViewChange: (view: 'edit' | 'diff') => void;
 		/** Save intent — the panel POSTs the buffer. */
 		onSave: () => void;
+		/** Reload intent (2026-10-27): the panel's draft-safe refreshFile. */
+		onReload?: () => void;
 		/** The failed save's error detail, when any. */
 		saveError: string | null;
 		/** The save-failed note's copy (owner-translated). */
@@ -131,6 +134,7 @@
 		{readonly}
 		onviewchange={onViewChange}
 		onsave={onSave}
+		onreload={onReload}
 	/>
 	{#if saveState === 'failed'}
 		<p class="note fail" data-testid="file-save-failed">{saveFailedNote}{saveError ? ' — ' + saveError : ''}</p>

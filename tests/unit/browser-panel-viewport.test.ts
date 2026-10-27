@@ -274,6 +274,34 @@ describe('BrowserPanel — syncViewport guard branches (viewport-follow)', () =>
 		view.un();
 	});
 
+	it('a FRAME STORM does not starve the resize POST (BUG 2026-10-26)', async () => {
+		// Live repro: a playing page streams ~15fps, every frame calls
+		// syncViewport, and a debounce that CLEARS on every call never
+		// expires - the gutter drag never posts. Contract: a viewport
+		// change must post within one debounce window EVEN WHILE frames
+		// keep arriving, carrying the LATEST seen size.
+		const view = mountPanel({ browserSessionId: SESSION_ID });
+		await settle();
+		const source = await goLive(view);
+		// the gutter drag lands mid-storm: the box grows while frames flow
+		sizeWrap(view.target, 400, 300);
+		fireFrame(source, 'storm-0');
+		await settle();
+		// ~15fps for 700ms: every frame re-enters syncViewport inside the
+		// debounce window - under the old clear-and-rearm debounce this
+		// starves the timer forever and ZERO posts land
+		for (let i = 1; i <= 7; i += 1) {
+			await new Promise((r) => setTimeout(r, 100));
+			fireFrame(source, 'storm-' + i);
+			roInstances.forEach((ro) => ro.callback());
+			await settle();
+		}
+		const calls = viewportCalls();
+		expect(calls.length).toBeGreaterThanOrEqual(1); // the starvation assert
+		expect(calls.at(-1)?.body).toEqual({ width: 400, height: 300 });
+		view.un();
+	});
+
 	it('two viewport changes inside the debounce window clear the first timer — exactly ONE POST, the LAST size wins', async () => {
 		const view = mountPanel({ browserSessionId: SESSION_ID });
 		await settle();
@@ -297,6 +325,27 @@ describe('BrowserPanel — syncViewport guard branches (viewport-follow)', () =>
 });
 
 describe('BrowserPanel — the zoom-honest measure (ADR-0041 D1/D2)', () => {
+	it('the canvas BITMAP uses the transform-true ruler too (BUG 2026-10-26) - a zoomed floor paints edge to edge', async () => {
+		// zoomed floor (0.853): layout 500x1000, seen 410x821. The POST
+		// carries the SEEN box, the frame returns SEEN-sized, so the
+		// bitmap must be SEEN-sized as well - the old clientWidth bitmap
+		// was ~17% larger and contain-fit letterboxed the frame (the
+		// operator's left/right black bands at zoom != 1).
+		const view = mountPanel({ browserSessionId: SESSION_ID });
+		await settle();
+		await goLive(view);
+		sizeWrap(view.target, 500, 1000, 410, 821);
+		frameSize.w = 410;
+		frameSize.h = 821;
+		const source = StubEventSource.instances[0];
+		fireFrame(source, 'zoomed');
+		await settle();
+		const canvas = view.target.querySelector('canvas') as HTMLCanvasElement;
+		expect(canvas.width).toBe(410); // not the 500 layout lie
+		expect(canvas.height).toBe(821);
+		view.un();
+	});
+
 	it('the viewport POST carries the transform-true rect, NOT clientWidth', async () => {
 		const view = mountPanel({ browserSessionId: SESSION_ID });
 		await settle();

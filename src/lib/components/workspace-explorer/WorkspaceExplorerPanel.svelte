@@ -26,7 +26,7 @@
 	 * floor owner owns dedupe, slots, and persistence.
 	 */
 	import { onDestroy } from 'svelte';
-	import { clampTreePct, TREE_PCT_DEFAULT, TREE_PCT_MAX, TREE_PCT_MIN } from '$lib/utils/panel-prefs';
+	import { clampTreePct, PANEL_WORKSPACE_EXPLORER_WIDTH, TREE_PCT_DEFAULT } from '$lib/utils/panel-prefs';
 	import WorkspaceExplorer from './WorkspaceExplorer.svelte';
 	import WorkspaceFilePanel from '../workspace-file/WorkspaceFilePanel.svelte';
 	import SettingsHomeFile from '../panels/SettingsHomeFile.svelte';
@@ -532,26 +532,62 @@
 		});
 	});
 
-	// ADR D4: the PANEL is the drag owner; dragPct bridges the live
-	// mousemove and dissolves once the owner prop catches up. The split
-	// ROOT is the measure (no wrapper regions — the components sit as
-	// direct flex children, gutter between them).
+	// ADR D4 AS AMENDED 2026-10-27 (operator request): the PANEL is still
+	// the drag owner and the PERSISTED fact is still treePct percent — but
+	// the tree lane RENDERS at a pixel basis, so a parent-driven panel
+	// resize grows/shrinks ONLY the file region. The percent converts to
+	// px ONCE on the first observed width; the gutter drag keeps D4's
+	// percent math (px delta → clampTreePct) and settles back into the
+	// re-derived px. The split ROOT is the measure (no wrapper regions —
+	// the components sit as direct flex children, gutter between them).
 	let splitRoot = $state<HTMLElement | null>(null);
-	// $state is REQUIRED: splitPct (and the style vars) must re-render on
+	// The settled lane width in px — null until the first ResizeObserver
+	// measurement (or the first drag). Until then the lane renders at
+	// PANEL_WORKSPACE_EXPLORER_WIDTH, the narrow-lane default.
+	let treePx = $state<number | null>(null);
+	// The measured split width — kept so a drag that starts before any
+	// observer fire still has a width to convert its percent against.
+	let panelW = $state<number | null>(null);
+	// $state is REQUIRED: dragPct (and the style vars) must re-render on
 	// EVERY mousemove — a plain let mutates silently, so the drag reads
 	// frozen until mouseup (operator-found regression).
 	let dragPct = $state<number | null>(null);
+	/** Width captured at mousedown — the percent→px denominator for this drag. */
+	let dragWidth: number | null = null;
+
+	// First observed width converts the persisted percent to the lane's
+	// px ONCE; later fires (a parent resizing the panel) update panelW
+	// but deliberately leave treePx alone — the tree lane is FIXED px,
+	// the file region absorbs the resize.
+	$effect(() => {
+		const el = splitRoot;
+		if (el === null || typeof ResizeObserver === 'undefined') return;
+		const ro = new ResizeObserver((entries) => {
+			const w = entries[0]?.contentRect.width || el.getBoundingClientRect().width;
+			if (w <= 0) return;
+			panelW = Math.round(w);
+			if (treePx === null && dragPct === null) {
+				treePx = Math.round((clampTreePct(treePct) / 100) * w);
+			}
+		});
+		ro.observe(el);
+		return () => ro.disconnect();
+	});
 
 	function startSplitDrag(event: MouseEvent): void {
 		const root = splitRoot;
 		if (root === null) return;
-		const width = root.getBoundingClientRect().width;
+		const width = panelW ?? root.getBoundingClientRect().width;
 		if (width <= 0) return;
 		const startX = event.clientX;
 		const startPct = dragPct ?? treePct;
+		dragWidth = width;
 		dragPct = startPct;
 		const onMove = (e: MouseEvent): void => {
 			dragPct = clampTreePct(startPct + ((e.clientX - startX) / width) * 100);
+			// Live px tracking: the lane moves WITH the mouse, in px, while
+			// the percent math above stays the persisted authority.
+			treePx = Math.round((dragPct / 100) * width);
 		};
 		const onUp = (): void => {
 			window.removeEventListener('mousemove', onMove);
@@ -562,14 +598,16 @@
 		window.addEventListener('mouseup', onUp);
 	}
 
-	const splitPct = $derived(dragPct ?? clampTreePct(treePct));
+	/** The rendered tree lane: the settled px, or the narrow-lane default
+	 *  before the first measurement. Percent lives only in treePct. */
+	const treeBasis = $derived(treePx === null ? PANEL_WORKSPACE_EXPLORER_WIDTH : treePx);
 </script>
 
 <div
 	data-testid="workspace-explorer"
 	class="split"
 	bind:this={splitRoot}
-	style="--tree-basis: {splitPct}%; --file-basis: {100 - splitPct}%"
+	style="--tree-basis: {treeBasis}px"
 >
 	<!-- NO wrapper regions: the explorer, the gutter, and the file tabs sit
 	     as DIRECT flex children of .split, so the gutter is genuinely
@@ -630,8 +668,10 @@
 </div>
 
 <style>
-	/* The Explorer Layout split (ADR D4): tree : gutter : file tabs as
-	   proportions of THIS panel's width. NO wrapper regions — the three
+	/* The Explorer Layout split (ADR D4 as amended 2026-10-27): the tree
+	   lane is a FIXED PIXEL region (--tree-basis in px) — a parent-driven
+	   panel resize grows/shrinks ONLY the file tabs; the gutter drag is
+	   the only thing that moves the seam. NO wrapper regions — the three
 	   are direct flex children (.explorer, .gutter, .file-tabs), so the
 	   gutter physically sits between tree and file. In 'panels' layout
 	   the wrapper keeps its block flow — these rules never apply. */
@@ -641,16 +681,17 @@
 		min-height: 0;
 		overflow: hidden;
 	}
-	/* The tree: fixed basis from the custom property, no grow/shrink —
-	   the gutter drag is the only thing that moves it. */
+	/* The tree: fixed px basis, no grow/shrink — a panel resize and the
+	   gutter drag are the only things that move it. */
 	.split > :global(.explorer) {
-		flex: 0 0 var(--tree-basis, 100%);
+		flex: 0 0 var(--tree-basis, 280px);
 		min-width: 0;
 		overflow: hidden;
 	}
-	/* The file tabs: take the rest of the split. */
+	/* The file tabs: absorb whatever the panel has left — every
+	   parent-driven resize lands here, never on the tree. */
 	.split > :global(.file-tabs) {
-		flex: 1 1 var(--file-basis, 0%);
+		flex: 1 1 auto;
 		min-width: 0;
 		overflow: hidden;
 	}

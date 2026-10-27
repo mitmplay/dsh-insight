@@ -6,6 +6,7 @@
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
 import ConversationHeaderHost from './ConversationHeaderHost.svelte';
+import headerSrc from '$lib/components/conversation/header/ConversationHeader.svelte?raw';
 
 function render(props: Record<string, unknown> = {}) {
 	const target = document.createElement('div');
@@ -85,5 +86,10 @@ describe('ConversationHeader', () => {
 			'ses_test'
 		);
 		cleanup(h.instance, h.target);
+	});
+
+	it('speaks one spacing grammar — row gap is 0.25rem (gap-1), no wider gap remnant', () => {
+		expect(headerSrc).toContain('gap-1');
+		expect(headerSrc).not.toContain('gap-3');
 	});
 });

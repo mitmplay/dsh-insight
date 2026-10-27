@@ -238,6 +238,12 @@
 		}
 	});
 	$effect(() => {
+		// The Drag Frame ADR 2026-10-27: a gutter drag rewrites `panels` on
+		// every coalesced frame — persisting here would JSON.stringify the
+		// whole blob + localStorage.setItem per frame (synchronous, the drag
+		// stall). Reading `floor.drag` gates the save AND re-arms it at
+		// mouseup: drag → null re-runs this effect with the settled widths.
+		if (floorApi.floor.drag !== null) return;
 		savePanelPrefs(
 			{
 				panels: panels.map((p) =>
@@ -337,7 +343,9 @@
 
 <svelte:window
 	onmousemove={(e) => {
-		floorApi.onPanelWindowMouseMove(e);
+		// The Drag Frame ADR 2026-10-27: coalesce the floor drag to ONE
+		// width write per animation frame (mousemove outruns the display).
+		floorApi.onPanelWindowMouseMoveCoalesced(e);
 		onSidebarMouseMove(e);
 	}}
 	onmouseup={() => {

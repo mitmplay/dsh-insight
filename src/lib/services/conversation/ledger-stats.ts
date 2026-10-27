@@ -18,13 +18,19 @@
 
 import type { DsiLedgerStats } from '$lib/types';
 
-/** Non-negative finite number guard (projection values are JSON). */
-function nn(v: unknown): number | null {
+/** Non-negative finite number guard (projection values are JSON).
+ *  Exported (Subagent Anchor ADR D2) so the /api/dsh/subagents join
+ *  validates the same JSON projection values with the same guard —
+ *  behavior byte-identical, one validator per house. */
+export function nn(v: unknown): number | null {
 	return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
 }
 
-/** Validate one projection record field-by-field; null on any miss. */
-function statsRecord(raw: unknown, fields: readonly string[]): Record<string, number> | null {
+/** Validate one projection record field-by-field; null on any miss.
+ *  Exported (Subagent Anchor ADR D2) alongside `nn` for the subagents
+ *  endpoint — the SAME validator, so the popup's numbers and the panel's
+ *  stats bar can never disagree on what counts as present. */
+export function statsRecord(raw: unknown, fields: readonly string[]): Record<string, number> | null {
 	if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null;
 	const o = raw as Record<string, unknown>;
 	const out: Record<string, number> = {};

@@ -49,7 +49,7 @@ describe('familyRenderOrder — the glass ghost flushes first (ADR-0037 D4)', ()
 		// reached a ghost whose parent is not a panel member. The ghost
 		// grammar owns the bring-back (ADR-0037 D4), so the orphan cluster
 		// heads its own block.
-		const panels = [];
+		const panels: ReturnType<typeof mk>[] = [];
 		const ghosts = [
 			{ ...mk('glass-x', 'opener', -1), row: { ...mk('glass-x', 'opener', -1).row, kind: 'ghost' as const } },
 			{ ...mk('ghost-a', 'opener', 0), row: { ...mk('ghost-a', 'opener', 0).row, kind: 'ghost' as const } }

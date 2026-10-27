@@ -40,6 +40,13 @@ function changedBadgeIds(): SvelteSet<string> {
 }
 
 export function doStartPanelResize(e: MouseEvent, index: number): void {
+	// A new gesture opens a FRESH frame window — a frame still queued from
+	// the previous drag must not swallow this drag's first move.
+	if (moveFrame !== null) {
+		cancelAnimationFrame(moveFrame);
+		moveFrame = null;
+	}
+	pendingMove = null;
 	dragRefs.startIndex = index;
 	st.drag = { startX: e.clientX, widths: st.panels.map((p) => p.width), shift: e.shiftKey };
 	// A new drag cancels any afterglow — badges go LIVE again (or hide
@@ -50,6 +57,34 @@ export function doStartPanelResize(e: MouseEvent, index: number): void {
 	}
 	st.widthBadgeFading = false;
 	dragRefs.ids.clear();
+}
+
+// ── Coalesced move (The Drag Frame ADR 2026-10-27) ───────────────────
+// Mousemove fires at input-device rate (often faster than the display);
+// the coalescer keeps ONE pending frame and applies only the LATEST
+// event, so the floor does at most one width write + one relayout per
+// animation frame. The machine below stays synchronous — the route's
+// <svelte:window onmousemove> calls the coalescer; the unit tests call
+// the raw machine.
+let pendingMove: MouseEvent | null = null;
+let moveFrame: number | null = null;
+
+export function onPanelWindowMouseMoveCoalesced(e: MouseEvent): void {
+	if (st.drag === null) return; // no active drag — drop, never queue a frame
+	if (moveFrame !== null) {
+		pendingMove = e; // a frame is already queued — just refresh the latest
+		return;
+	}
+	// First move of a frame window applies IMMEDIATELY (instant feedback at
+	// drag start; a test environment with an unpumped rAF still sees the
+	// write), then the frame coalesces every later move into one apply.
+	onPanelWindowMouseMove(e);
+	moveFrame = requestAnimationFrame(() => {
+		moveFrame = null;
+		const ev = pendingMove;
+		pendingMove = null;
+		if (ev !== null) onPanelWindowMouseMove(ev);
+	});
 }
 
 export function onPanelWindowMouseMove(e: MouseEvent): void {
@@ -67,6 +102,17 @@ export function onPanelWindowMouseMove(e: MouseEvent): void {
 
 export function onPanelWindowMouseUp(): void {
 	if (st.drag === null) return;
+	// Flush the coalesced frame: the drag's FINAL position must land before
+	// the badge set freezes against the snapshot.
+	if (moveFrame !== null) {
+		cancelAnimationFrame(moveFrame);
+		moveFrame = null;
+	}
+	if (pendingMove !== null) {
+		const ev = pendingMove;
+		pendingMove = null;
+		onPanelWindowMouseMove(ev);
+	}
 	// Arm the afterglow BEFORE clearing the snapshot: the changed set
 	// (computed against `drag`) freezes into the fading ids.
 	const frozen = changedBadgeIds();
@@ -86,8 +132,14 @@ export function onPanelWindowMouseUp(): void {
 	if (isUniformRow(st.panels)) d().setPanelWidthPreset(st.panels[0].width);
 }
 
-/** Mount cleanup — the drag afterglow timer dies with the page. */
+/** Mount cleanup — the drag afterglow timer and any pending coalesced
+ *  move frame die with the page. */
 export function disposeFloorGestures(): void {
+	if (moveFrame !== null) {
+		cancelAnimationFrame(moveFrame);
+		moveFrame = null;
+		pendingMove = null;
+	}
 	if (dragRefs.timer !== null) {
 		clearTimeout(dragRefs.timer);
 		dragRefs.timer = null;

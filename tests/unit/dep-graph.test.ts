@@ -24,7 +24,7 @@ function runGraphExpectFailure(args: string[]): number {
 
 function liveCrossings(): Crossing[] {
   runGraph([]); // writes tmp/dep-graph.json
-  const g = JSON.parse(readFileSync(resolve(ROOT, 'tmp/dep-graph.json'), 'utf8'));
+  const g: { crossDomain: Crossing[] } = JSON.parse(readFileSync(resolve(ROOT, 'tmp/dep-graph.json'), 'utf8'));
   // SORTED compare: the scanner's emission order follows fs-walk order
   // (it moved when RowGlassItem was deleted) — the gate pins the SET of
   // crossings, never their sequence.

@@ -16,19 +16,19 @@ import { resetSpineFeedForTests } from '$lib/services/conversation/spine-feed.sv
 
 /** Minimal EventSource stub: the explorer opens a git-events stream. */
 class StubEventSource {
-	static instances = [];
-	url;
+	static instances: StubEventSource[] = [];
+	url: string;
 	closed = false;
 	readyState = 1;
-	handlers = new Map();
-	onerror = null;
-	constructor(url) {
+	handlers = new Map<string, Set<(ev: MessageEvent) => void>>();
+	onerror: ((ev: MessageEvent) => void) | null = null;
+	constructor(url: string) {
 		this.url = url;
 		StubEventSource.instances.push(this);
 	}
-	addEventListener(type, cb) {
+	addEventListener(type: string, cb: (ev: MessageEvent) => void) {
 		if (!this.handlers.has(type)) this.handlers.set(type, new Set());
-		this.handlers.get(type).add(cb);
+		this.handlers.get(type)!.add(cb);
 	}
 	close() {
 		this.closed = true;
@@ -46,7 +46,7 @@ const SESSION_ROW = {
 	turns: null
 };
 
-let browserBody = { ok: true, sessions: [] };
+let browserBody: { ok: boolean; sessions: Array<{ id: string }> } = { ok: true, sessions: [] };
 
 function installFetch() {
 	vi.stubGlobal(
@@ -94,7 +94,7 @@ async function settle() {
 	flushSync();
 }
 
-async function waitFor(selector, scope, timeoutMs = 3000) {
+async function waitFor(selector: string, scope: ParentNode, timeoutMs = 3000): Promise<Element> {
 	const started = Date.now();
 	for (;;) {
 		const el = scope.querySelector(selector);
@@ -156,7 +156,7 @@ afterEach(() => {
 describe('+page.svelte — boot browser auto-restore ladder', () => {
 	it('a persisted id with a failing probe declines quietly (res not ok)', async () => {
 		localStorage.setItem('dsi.browser.sessionId', 'b-live');
-		browserBody = { ok: false };
+		browserBody = { ok: false, sessions: [] };
 		const { instance } = await mountBare();
 		expect(document.querySelector('[data-testid="panel-browser-slot"]')).toBeNull();
 		unmount(instance);
@@ -230,7 +230,8 @@ describe('+page.svelte — injected-doc cold-cache arms + loupe hostClose', () =
 			(h) => h.getAttribute('title') === 'notes/x.md' || h.getAttribute('title') === 'other/y.md'
 		);
 		expect(docHeaders.length).toBe(2);
-		const hitColumn = docHeaders[0].closest('[data-testid="panel-column"]');
+		const hitColumn = docHeaders[0].closest<HTMLElement>('[data-testid="panel-column"]');
+		if (!hitColumn) throw new Error('panel column for injected-doc header not found');
 		hitColumn.dispatchEvent(new Event('pointerdown', { bubbles: true }));
 		hitColumn.dispatchEvent(new MouseEvent('click', { bubbles: true, altKey: true }));
 		await settle();
@@ -248,23 +249,24 @@ describe('+page.svelte — explorer open-file arms (home vs session)', () => {
 		const homeCol = [...target.querySelectorAll('[data-testid="panel-column"]')].find((c) =>
 			c.querySelector('[data-testid="workspace-explorer"]')
 		);
-		expect(homeCol).toBeDefined();
-		const homeFile = homeCol.querySelector('[data-testid="tree-file"]');
+		if (!homeCol) throw new Error('home explorer column not rendered');
+		const homeFile = homeCol.querySelector<HTMLElement>('[data-testid="tree-file"]');
 		// The stub must serve /api/settings-home/tree (see installFetch
 		// verdict note) or this element never renders.
-		expect(homeFile).not.toBeNull();
+		if (!homeFile) throw new Error('home tree-file row not rendered');
 		homeFile.click();
 		await settle();
 		expect(target.querySelector('[data-testid^="workspace-file-tab-"]')).not.toBeNull();
-		target.querySelector('[data-testid="session-workspace"]').click();
+		const workspaceChip = target.querySelector<HTMLElement>('[data-testid="session-workspace"]');
+		if (!workspaceChip) throw new Error('session-workspace chip not rendered');
+		workspaceChip.click();
 		await settle();
 		const explorers = [...target.querySelectorAll('[data-testid="panel-column"]')].filter((c) =>
 			c.querySelector('[data-testid="workspace-explorer"]')
 		);
 		expect(explorers.length).toBeGreaterThanOrEqual(2);
 		const sessionCol = explorers[explorers.length - 1];
-		const file = sessionCol.querySelector('[data-testid="tree-file"]');
-		expect(file).not.toBeNull();
+		const file = sessionCol.querySelector<HTMLElement>('[data-testid="tree-file"]');
 		// VERDICT (systematic-debugging, 2026-10-20): the session arm no
 		// longer opens the standalone workspace-file panel. The Settings
 		// Tree ADR D1 (2026-09-18) made 'explorer is the only behavior —
@@ -274,6 +276,7 @@ describe('+page.svelte — explorer open-file arms (home vs session)', () => {
 		// on the explorer itself. The page's onOpenFile session arm
 		// (openWorkspaceFile) survives only as the prop contract, not a
 		// click path. The test was pinning the pre-amendment shape.
+		if (!file) throw new Error('session tree-file row not rendered');
 		file.click();
 		await settle();
 		const sessionTabs = sessionCol.querySelectorAll('[data-testid^="workspace-file-tab-"]');

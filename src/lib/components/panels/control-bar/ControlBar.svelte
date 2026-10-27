@@ -178,11 +178,8 @@
 </div>
 
 <style>
-	.controlbar {
-		/* Flows inline where hosted (sidebar header action cluster /
-		   collapsed stub, 2026-10-22) — no fixed pinning. */
-	}
-
+	/* .controlbar flows inline where hosted (sidebar header action
+	   cluster / collapsed stub, 2026-10-22) — no fixed pinning. */
 	.trigger {
 		display: inline-flex;
 		align-items: center;

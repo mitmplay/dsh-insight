@@ -401,13 +401,26 @@ export function entryForEvent(event: DshRawEvent): DsiEntry | null {
 
 		case 'tool/result': {
 			const message = data?.message as
-				| { source?: { callId?: unknown }; content?: unknown }
+				| { source?: { callId?: unknown }; content?: unknown; isError?: unknown }
 				| undefined;
 			const callId = readStr(message?.source?.callId) ?? `seq:${event.seq}`;
 			const resultPart = firstOfType(message?.content, 'tool-result') as
 				| { content?: unknown; isError?: unknown }
 				| undefined;
-			const resultText = textOfContent(resultPart?.content) || undefined;
+			// The Honest Red Chip (ADR 2026-10-26, D1): the failure fact has lived
+			// in three wire seats across eras — a legacy tool-result block flag
+			// (pre-v4 logs), the v4 message-level isError, and the v4 data.error
+			// object beside the message. ok is the OR of all three, oldest first;
+			// a missing block on the v4 wire must never read as success.
+			const blockIsError = resultPart?.isError === true;
+			const messageIsError = message?.isError === true;
+			const dataHasError = (data as { error?: unknown } | undefined)?.error !== undefined;
+			// D2: when the legacy block is absent (the v4 shape), the message's
+			// plain text blocks ARE the result text — the card keeps the refusal.
+			const resultText =
+				(resultPart ? textOfContent(resultPart.content) : '') ||
+				(!resultPart ? textOfContent(message?.content) : '') ||
+				undefined;
 			return {
 				kind: 'tool-result',
 				id: `tr:${callId}`,
@@ -415,7 +428,7 @@ export function entryForEvent(event: DshRawEvent): DsiEntry | null {
 				time: event.time,
 				callId,
 				toolName: '', // paired from the tool-call entry at merge time
-				ok: !resultPart || resultPart.isError !== true,
+				ok: !(blockIsError || messageIsError || dataHasError),
 				summary: resultText,
 				resultText, // wire: tool-result block's text — full, untruncated
 				...readViewFrom(event.view) !== undefined ? { readView: readViewFrom(event.view) } : {}

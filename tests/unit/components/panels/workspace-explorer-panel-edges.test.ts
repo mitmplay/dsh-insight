@@ -285,8 +285,9 @@ describe('WorkspaceExplorerPanel edges — split drag owner', () => {
 		flushSync();
 		window.dispatchEvent(new MouseEvent('mousemove', { clientX: 200 }));
 		flushSync();
-		// 40% + (200-160)/400*100 = 50%
-		expect(view.q<HTMLElement>('.split')!.getAttribute('style')).toContain('--tree-basis: 50%');
+		// 40% + (200-160)/400*100 = 50% of the 400px split = 200px — the drag
+		// stays percent-math (the persisted authority) and renders px live.
+		expect(view.q<HTMLElement>('.split')!.getAttribute('style')).toContain('--tree-basis: 200px');
 		window.dispatchEvent(new MouseEvent('mouseup', { clientX: 200 }));
 		flushSync();
 		expect(view.onTreePctChange).toHaveBeenCalledWith(50);

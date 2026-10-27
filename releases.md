@@ -1,11 +1,29 @@
-# Releases
-
 ## 0.8.5
 
-Bumped from 0.8.4 — a knowledge-keeping release: the ADR-0042 + chip mechanics land as a KB walkthrough.
+Bumped from 0.8.4 — the glass tab strip heals itself (created tabs land last, focus, and the mirror follows), the floor grows the Subagent Anchor popup, and the toolbar + conversation header speak one spacing grammar.
 
 ### Features
-- **KB — the + chip mechanics, an ADR-0042 walkthrough** — the blank signal, createTarget-only birth, boundary via activate(), and the blank-tab lifecycle narrated end-to-end with the e2e proof, so the operator's blank page is documented beyond the ADR itself. `d33719e7`.
+- **The Subagent Anchor Popup (ADR, Accepted)** — one anchor button with a live badge opens every sub-agent's ledger as a popup: endpoint join, first-sight clock, header + token-sum footer, row click adopts the helper onto the floor, close-all red trash-bin. ADR amendments (a)–(f) through three review rounds; unit suites + header regression; i18n Total Tokens via paraglide (en/zh/es/id). `44872899`, `a023e8d6`, `bdc9baf0`, `1c1d9402`, `afab3175`, `208dd912`, `3fd0e7d7`, `587da498`.
+- **Glass tab strip: created tabs land LAST, focus, and the mirror follows** — registry `tabOrder` (creation order; the phantom title-sort comment replaced), `context.on('page')` auto-activates newborn tabs (ADR-0040 D5 narrowed: CREATION followed, brain SWITCHES still not), the stream route re-binds via the new `onActiveChange` seam (boundary frame pushed), and the panel's 2s strip poll re-attaches on external pointer drift (zombie SSE self-heal). ADR-0040 amendment 2, PRD §8, Tasks wave A. `b7fd7adf`.
+- **Glass registry self-heals stale CDP handles** — `healHandles`: when `listTabs` enumerates empty over live pages (brain churn), fresh sessions replace dead handles and the pointer remaps; the strip poll triggers it with no operator action. Tasks A.6. `fc41c239`.
+- **Workspace-file toolbar reload verb + icon UX** — draft-safe `refreshFile` behind a reload icon before the capture slot; busy spinner in flight, check-mark after, idle decay (CanvasCopyButton parity). `1b611dfe`, `a08cfee0`.
+- **Operator-configurable glass width bounds** — the browser panel honors configured min/max widths. `e6526774`.
+- **Explorer drag frame (ADR-0043)** — floor drag paints once per rAF frame and settles into panel-prefs at mouseup; the explorer tree lane is fixed-px and the parent resizes only the file region. `fa66e4ad`, `0146f2e0`.
+
+### Bug fixes
+- **ConversationHeader joins the spacing grammar** — row `gap-3` → `gap-1` (0.25rem) matching the toolbar grammar and both clusters' internal gaps; raw-source pin test (gap-1 present, no gap-3 remnant); glass-verified. `627f3d94`.
+- **File toolbar spacing grammar** — uniform 0.25rem row gap restated in tablists, 1.5rem control height, bordered-chip icon buttons across file + explorer toolbars; raw-source pin test. `c1be548e`.
+- **Identity-guarded file fetch** — a floor drag no longer refetches/re-parses the open file per width write. `b38010f7`.
+- **The honest red chip** — a tool result reads its own wire (mapper three-seat ok + resultText fallback; ledger-cut fixture gate). `d79280c8`.
+- **i18n Total Tokens** — the footer invoked the getter as a string; paraglide `totalTokens` now actually renders (unit asserts invocation). `587da498`.
+- **svelte-check clean** — 62 type errors → 0. `b447933e`.
+- **Coverage floor cleared** — SubagentPopup branches 60.78→88.23, settings-monaco →100; five new suites, 56 tests. `9cabfbf3`.
+
+### Docs & skills
+- **dsi-gb-verifier skill** (new) — drive the operator's own Glass Browser over MCP; carries the circularity rule and the one-correct-open-flow lessons. `a08cfee0`, `b7fd7adf`.
+- **KB**: glass-browser verification surface rewrite; browser-manager + chip mechanics walkthrough; explorer split mechanics; sub-agent feature-contract-scenario. `4f8eff12`, `d33719e7`, `f199fc08`, `1e2335ef`.
+
+# Releases
 
 ## 0.8.4
 

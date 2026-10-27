@@ -9,6 +9,7 @@
  * imports another sibling; shared needs come from the state home.
  */
 import {
+	browserPanelWidth,
 	clampPanelWidth,
 	PANEL_WORKSPACE_FILE_WIDTH,
 	shelfPanelWidth
@@ -46,7 +47,7 @@ export function makeBrowserPanel(width?: number, openedBy?: string, sessionId?: 
 	return {
 		id: nextPanelId(),
 		kind: 'browser',
-		width: clampPanelWidth(width ?? d().getPanelWidth()),
+		width: clampPanelWidth(width ?? browserPanelWidth(), 'browser'),
 		...(openedBy !== undefined ? { openedBy } : {}),
 		...(sessionId !== undefined ? { browserSessionId: sessionId } : {})
 	};

@@ -10,6 +10,7 @@
 -->
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { persistId } from '$lib/services/panels/browser-session-resolver.js';
 	import BrowserHeader from './BrowserHeader.svelte';
@@ -71,6 +72,10 @@
 	 *  the SERVER stays the authority (activeTargetId), this is a view. */
 	let tabs = $state<{ targetId: string; url: string; title: string; active: boolean }[]>([]);
 	let switching = $state(false);
+	/** The last active tab the strip poll saw — an EXTERNAL activate (the
+	 *  brain's, D5 amendment 2026-10-27) must re-attach the SSE or the mirror
+	 *  keeps painting the old face while the strip highlights the new one. */
+	let lastSeenActive: string | null = null;
 
 	async function refreshTabs(): Promise<void> {
 		if (!sessionId) return;
@@ -81,6 +86,15 @@
 				// drift) degrades to 'no tabs', never a render throw on tabs.length
 				const data = (await res.json().catch(() => null)) as { tabs?: typeof tabs } | null;
 				tabs = Array.isArray(data?.tabs) ? data.tabs : [];
+				const act = tabs.find((t) => t.active)?.targetId ?? null;
+				if (act && act !== lastSeenActive) {
+					const firstRead = lastSeenActive === null;
+					lastSeenActive = act;
+					// the panel's OWN activateTab re-attaches itself (switching guard);
+					// this arm catches a REGISTRY-SIDE activate — brain tab creation
+					// (D5 amendment) — so the mirror follows without a page reload
+					if (!firstRead && !switching) attachStream(0);
+				}
 			}
 		} catch {
 			/* transient — the strip refetches on the next switch */
@@ -132,7 +146,10 @@
 	}
 	/** Viewport-follow (ADR-0031 amendment 2): the glass box size IS the
 	 *  page viewport — the frame comes back at panel size, so content
-	 *  renders at native scale. Debounced; one POST per settle. */
+	 *  renders at native scale. A TRAILING THROTTLE (250ms, latest size
+	 *  wins): the SSE frame handler calls this every frame, so a
+	 *  clear-and-rearm debounce was reset ~15x/s on a playing page and
+	 *  never fired (the starved-resize bug, 2026-10-26). */
 	let viewportTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastViewport = { w: 0, h: 0 };
 	/** ADR-0041 D1: the eye's ruler — the transform-true rect (visual px).
@@ -149,13 +166,26 @@
 		const { w, h } = measureWrap();
 		if (w < 100 || h < 80) return; // collapsed/hidden — nothing honest to send
 		if (Math.abs(w - lastViewport.w) < 2 && Math.abs(h - lastViewport.h) < 2) return;
-		if (viewportTimer) clearTimeout(viewportTimer);
+		// BUGFIX 2026-10-26 (operator: the glass never followed a gutter drag):
+		// this was a clear-and-rearm debounce, and the SSE frame handler calls
+		// it on EVERY screencast frame (~15fps on a playing page) — the timer
+		// was reset every ~66ms, never expired, and the resize POST never
+		// left. It is a TRAILING THROTTLE now: once armed the timer is never
+		// cleared; it fires on schedule and re-measures so the LATEST box
+		// wins. A stale POST is harmless (idempotent setViewport); a starved
+		// one left the mirror letterboxed forever.
+		if (viewportTimer) return;
 		viewportTimer = setTimeout(() => {
-			lastViewport = { w, h };
+			viewportTimer = null;
+			if (!sessionId || !wrap) return;
+			const m = measureWrap();
+			if (m.w < 100 || m.h < 80) return;
+			if (Math.abs(m.w - lastViewport.w) < 2 && Math.abs(m.h - lastViewport.h) < 2) return;
+			lastViewport = { w: m.w, h: m.h };
 			void fetch(apiBase + '/api/browser/' + sessionId + '/viewport', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ width: w, height: h })
+				body: JSON.stringify({ width: m.w, height: m.h })
 			}).catch(() => undefined);
 		}, 250);
 	}
@@ -426,8 +456,14 @@
 			// is ALWAYS the wrap box (CSS 1:1, no object-fit dependence) and the
 			// frame is contain-fit into it with manual letterboxing — any frame
 			// size renders identically, native scale when sizes match.
-			const cw = Math.max(1, Math.round(wrap.clientWidth));
-			const ch = Math.max(1, Math.round(wrap.clientHeight));
+			// BUGFIX 2026-10-26 (operator: black bands at floor zoom 0.853): the
+			// bitmap ruler must be the SAME transform-true rect the viewport POST
+			// uses (ADR-0041 D1). clientWidth is layout px — at zoom z the bitmap
+			// was 1/z bigger than the (visual-sized) frame, and contain-fit
+			// letterboxed it: black bands left/right AND top/bottom.
+			const box = measureWrap();
+			const cw = Math.max(1, box.w);
+			const ch = Math.max(1, box.h);
 			if (canvas.width !== cw || canvas.height !== ch) {
 				canvas.width = cw;
 				canvas.height = ch;
@@ -625,8 +661,8 @@
 			<button
 				type="button"
 				class="shrink-0 rounded px-1.5 leading-none text-zinc-500 hover:bg-zinc-100 disabled:opacity-40"
-				title="New tab"
-				aria-label="New tab"
+				title={t(m.browserNewTab)}
+				aria-label={t(m.browserNewTab)}
 				data-testid="browser-tab-new"
 				disabled={switching || status !== 'live'}
 				onclick={() => void openTab('')}

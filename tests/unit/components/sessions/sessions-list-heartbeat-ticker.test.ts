@@ -25,8 +25,11 @@ import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
 // Test-only reactive props: the same $state proxy factory Svelte's
 // compiler emits, so the component's tracked read of `visible` sees the
 // splice below (plain .ts tests can't invoke runes directly).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-import { proxy } from 'svelte/internal/client';
+import * as svelteInternal from 'svelte/internal/client';
+// `proxy` is the $state proxy factory the compiler emits; it exists at
+// runtime but is not in the published .d.ts, so bind it through one
+// typed view instead of a bare named import.
+const proxy = (svelteInternal as unknown as { proxy: <T>(value: T) => T }).proxy;
 
 vi.mock('$lib/services/jobs/heartbeat-scope.svelte', () => ({
 	heartbeatScope: {

@@ -561,6 +561,11 @@ export interface BrowserConfig {
 	/** Screencast target fps 1..60 (ADR-0039 D1) — intent knob; the relay
 	 *  derives CDP's everyNthFrame from a nominal 30 Hz paint clock. */
 	screencastMaxFps: number;
+	/** The glass panel's width bounds on the floor (operator request
+	 *  2026-10-26): defaultWidth for a chip-spawned glass, maxWidth the
+	 *  gutter/restore cap. Rides /api/config to the client clamp. */
+	defaultWidth: number;
+	maxWidth: number;
 }
 
 export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
@@ -572,7 +577,9 @@ export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
 	maxSessions: 4,
 	idleMs: 600_000,
 	screencastQuality: 90,
-	screencastMaxFps: 15
+	screencastMaxFps: 15,
+	defaultWidth: 860,
+	maxWidth: 1024
 };
 
 function strOr(v: unknown, fallback: string): string {
@@ -593,6 +600,8 @@ export function readBrowserConfig(configPath?: string): BrowserConfig {
 		maxSessions: intWithin(section.maxSessions, 1, 32, DEFAULT_BROWSER_CONFIG.maxSessions),
 		idleMs: intWithin(section.idleMs, 10_000, 86_400_000, DEFAULT_BROWSER_CONFIG.idleMs),
 		screencastQuality: intWithin(section.screencastQuality, 10, 100, DEFAULT_BROWSER_CONFIG.screencastQuality),
-		screencastMaxFps: intWithin(section.screencastMaxFps, 1, 60, DEFAULT_BROWSER_CONFIG.screencastMaxFps)
+		screencastMaxFps: intWithin(section.screencastMaxFps, 1, 60, DEFAULT_BROWSER_CONFIG.screencastMaxFps),
+		defaultWidth: intWithin(section.defaultWidth, 200, 4_000, DEFAULT_BROWSER_CONFIG.defaultWidth),
+		maxWidth: intWithin(section.maxWidth, 200, 4_000, DEFAULT_BROWSER_CONFIG.maxWidth)
 	};
 }

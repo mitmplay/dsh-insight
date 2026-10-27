@@ -18,6 +18,7 @@ import {
 	readConversationConfig,
 	readHomeConfig,
 	readJobsConfig,
+	readBrowserConfig,
 	readPanelConfig,
 	readPromptsConfig,
 	readSidebarConfig,
@@ -45,6 +46,9 @@ export const GET: RequestHandler = async () => {
 		a2a: readA2aConfig(),
 		panel: readPanelConfig(),
 		sidebar: readSidebarConfig(),
+		// The glass panel's width bounds (operator request 2026-10-26):
+		// browser.defaultWidth / browser.maxWidth from settings.yaml.
+		browserWidths: (() => { const b = readBrowserConfig(); return { defaultWidth: b.defaultWidth, maxWidth: b.maxWidth }; })(),
 		// The browser-relevant half of the prompts section. dbPath crosses
 		// since 2026-09-19: the manager toolbar LABELS the library with its
 		// full file path — resolvePromptsDbPath, the exact path db.ts reads

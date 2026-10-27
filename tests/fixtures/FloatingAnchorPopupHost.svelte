@@ -9,11 +9,13 @@
 	let {
 		open = $bindable(false),
 		title = undefined,
-		titleTestId = undefined
+		titleTestId = undefined,
+		placement = undefined
 	}: {
 		open?: boolean;
 		title?: string;
 		titleTestId?: string;
+		placement?: 'left' | 'right';
 	} = $props();
 
 	let triggerEl: HTMLElement | undefined = $state(undefined);
@@ -27,7 +29,7 @@
 	>
 		toggle
 	</button>
-	<FloatingAnchorContainerPopup bind:open {triggerEl} {title} {titleTestId}>
+	<FloatingAnchorContainerPopup bind:open {triggerEl} {title} {titleTestId} {placement}>
 		<div data-testid="probe-row">a row</div>
 	</FloatingAnchorContainerPopup>
 </div>

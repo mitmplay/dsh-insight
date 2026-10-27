@@ -176,7 +176,12 @@ describe('InjectedShelfButton (Loadinjected W4 4.4-T)', () => {
 		flushSync();
 		const popup = h.target.querySelector('[data-testid="injected-shelf-popup"]') as HTMLElement;
 		expect(popup.className).toContain('pointer-events-auto');
-		expect(popup.className).toContain('absolute right-full top-1/2');
+		// Token-wise (the shell's placement grammar interleaves tokens —
+		// 'right-full mr-2 top-1/2 -translate-y-1/2'): the signature is the
+		// tokens, not one literal substring.
+		expect(popup.className).toContain('absolute');
+		expect(popup.className).toContain('right-full');
+		expect(popup.className).toContain('top-1/2');
 		expect(popup.className).toContain('overflow-y-auto');
 		expect(
 			h.target.querySelector('[data-testid="injected-shelf-popup-header"]')?.textContent

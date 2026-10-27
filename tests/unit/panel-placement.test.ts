@@ -28,7 +28,8 @@ import type {
 	DsiInjectedDocPanel,
 	DsiSessionSummary,
 	DsiWorkspaceExplorerPanel,
-	DsiWorkspaceFilePanel
+	DsiWorkspaceFilePanel,
+	DsiPanelEntry
 } from '$lib/types';
 
 function conv(id: string, sessionId: string): DsiConversationPanel {

@@ -43,7 +43,8 @@ const serverOnlyTestFiles = [
 	'tests/unit/dsh-connection-gaps.test.ts',
 	'tests/unit/browser-viewport-route.test.ts',
 	'tests/unit/browser-session-routes.test.ts',
-	'tests/unit/browser-tab-element-routes.test.ts'
+	'tests/unit/browser-tab-element-routes.test.ts',
+	'tests/unit/subagents-route.test.ts'
 ];
 
 // Vitest 4 inline test.projects entries do NOT inherit the root vite

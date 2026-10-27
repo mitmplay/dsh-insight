@@ -432,16 +432,62 @@ describe('workspace-explorer persisted shape restore (Shared Tree D4)', () => {
 			view.cleanup();
 		});
 
-		it('the split honors the persisted treePct and clamps junk', () => {
+		it('the split renders the FIXED px lane: default 280 before measurement, then treePct converted once (ADR D4 amendment 2026-10-27)', () => {
+			// Before any ResizeObserver measurement the lane renders at
+			// PANEL_WORKSPACE_EXPLORER_WIDTH — a specific number, not a %.
 			const view = mountExplorerLayout({ treePct: 44 });
 			const split = view.q<HTMLElement>('.split');
-			expect(split?.getAttribute('style')).toContain('--tree-basis: 44%');
+			expect(split?.getAttribute('style')).toContain('--tree-basis: 280px');
 			view.cleanup();
-			const junked = mountExplorerLayout({ treePct: 999 });
-			const split2 = junked.q<HTMLElement>('.split');
-			// clampTreePct(999) → TREE_PCT_MAX 70.
-			expect(split2?.getAttribute('style')).toContain('--tree-basis: 70%');
-			junked.cleanup();
+
+			// With a measured width, the persisted percent converts to px ONCE.
+			class FakeRO {
+				static last: FakeRO | null = null;
+				cb: ResizeObserverCallback;
+				constructor(cb: ResizeObserverCallback) {
+					this.cb = cb;
+					FakeRO.last = this;
+				}
+				observe(): void {}
+				disconnect(): void {}
+				unobserve(): void {}
+				fire(width: number): void {
+					this.cb(
+						[{ contentRect: { width } } as ResizeObserverEntry],
+						this as unknown as ResizeObserver
+					);
+				}
+			}
+			vi.stubGlobal('ResizeObserver', FakeRO as unknown as typeof ResizeObserver);
+			try {
+				const measured = mountExplorerLayout({ treePct: 44 });
+				FakeRO.last!.fire(800);
+				flushSync();
+				// 44% of 800px = 352px
+				expect(measured.q<HTMLElement>('.split')!.getAttribute('style')).toContain('--tree-basis: 352px');
+
+				// A PARENT resize (observer fires again, no drag) leaves the lane
+				// fixed — only the file region absorbs the change.
+				FakeRO.last!.fire(400);
+				flushSync();
+				expect(measured.q<HTMLElement>('.split')!.getAttribute('style')).toContain('--tree-basis: 352px');
+
+				// The old percent twin var is gone — the file region is plain
+				// `flex: 1 1 auto` in the style block (happy-dom can't resolve
+				// computed flex, so the pin is on the removed custom property).
+				expect(measured.q<HTMLElement>('.split')!.getAttribute('style')).not.toContain('--file-basis');
+				measured.cleanup();
+
+				// Junk percent still clamps through the same single bound site
+				// before conversion — clampTreePct(999) → 70 → 70% of 800px.
+				const junked = mountExplorerLayout({ treePct: 999 });
+				FakeRO.last!.fire(800);
+				flushSync();
+				expect(junked.q<HTMLElement>('.split')!.getAttribute('style')).toContain('--tree-basis: 560px');
+				junked.cleanup();
+			} finally {
+				vi.unstubAllGlobals();
+			}
 		});
 	});
 });

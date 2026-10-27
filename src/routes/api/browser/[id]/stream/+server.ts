@@ -8,7 +8,7 @@
 import { json } from '@sveltejs/kit';
 
 import { browserRegistry, BrowserRegistryRefusal } from '$lib/server/browser/registry.js';
-import type { RelayFrame } from '$lib/server/browser/relay.js';
+import type { BrowserRelay, RelayFrame } from '$lib/server/browser/relay.js';
 
 const SSE_HEADERS: Record<string, string> = {
 	'content-type': 'text/event-stream',
@@ -35,7 +35,6 @@ export const GET = (ctx: { params: { id: string }; url: URL }): Response => {
 		throw err;
 	}
 	const fromSeq = Number(ctx.url.searchParams.get('fromSeq') ?? '0');
-	const relay = browserRegistry.relay(id);
 	// Reaper liveness (ADR-0030 D2): a watched stream is never reaper-
 	// eligible; the cancel arm drops the count (crash-safe either way).
 	browserRegistry.noteStreamOpen(id);
@@ -43,6 +42,7 @@ export const GET = (ctx: { params: { id: string }; url: URL }): Response => {
 	const encoder = new TextEncoder();
 	const state = { closed: false };
 	let off: (() => void) | null = null;
+	let offActive: (() => void) | null = null;
 
 	const stream = new ReadableStream<Uint8Array>({
 		start(controller) {
@@ -53,15 +53,38 @@ export const GET = (ctx: { params: { id: string }; url: URL }): Response => {
 				} catch {
 					state.closed = true;
 					off?.();
+					offActive?.();
 				}
 			};
-			const latest = relay.latestFrame();
-			if (latest && Number.isFinite(fromSeq) && latest.seq > fromSeq) push(sse('frame', latest));
-			off = relay.subscribe((f: RelayFrame) => push(sse('frame', f)));
+			// D5 amendment 2026-10-27: the stream follows the ACTIVE pointer.
+			// The old code bound ONE relay at connect — a brain-driven activate
+			// (creation auto-focus) moved the strip but the mirror kept painting
+			// the old tab. The panel reconnects only on its OWN strip clicks;
+			// registry-side switches re-bind here, pushing the new face's latest
+			// frame as the boundary so the mirror flips immediately.
+			let current: BrowserRelay | null = null;
+			const bind = () => {
+				let relay: BrowserRelay;
+				try {
+					relay = browserRegistry.relay(id);
+				} catch {
+					return; // closing / no handle yet — keep the old face
+				}
+				if (relay === current) return;
+				off?.();
+				off = null;
+				current = relay;
+				const latest = relay.latestFrame();
+				if (latest && (Number.isNaN(fromSeq) || latest.seq > fromSeq)) push(sse('frame', latest));
+				off = relay.subscribe((f: RelayFrame) => push(sse('frame', f)));
+			};
+			bind();
+			offActive = browserRegistry.onActiveChange(id, () => bind());
 		},
 		cancel() {
 			state.closed = true;
 			off?.();
+			offActive?.();
 			browserRegistry.noteStreamClose(id);
 		}
 	});

@@ -27,6 +27,14 @@
 		titleTestId = undefined,
 		popupTestId = 'floating-anchor-popup',
 		fitWidth = false,
+		/** Which side of the trigger the box opens on ('left' = the
+		 *  historical right-full placement for right-edge anchors;
+		 *  'right' = left-full for LEFT-edge triggers; 'below' = a
+		 *  dropdown under a header trigger, right-aligned so a sidebar
+		 *  column never clips it — the Subagent Anchor's grammar).
+		 *  Default 'left' keeps every existing leaf byte-identical
+		 *  (Popup Shell ADR amendment, 2026-10-26). */
+		placement = 'left',
 		children
 	}: {
 		/** Popup open state — bindable, the leaf owns the toggle button. */
@@ -42,6 +50,7 @@
 		 *  user-message-jumper, injected-shelf-popup); default is the
 		 *  container's own id for leaf-less hosts. */
 		popupTestId?: string | undefined;
+		placement?: 'left' | 'right' | 'below' | undefined;
 		/** Shrink the box to its content instead of the fixed w-96 one-liner
 		 *  inventory leaves (ADR-0027f, 2026-10-19) — the 80vw cap stays. */
 		fitWidth?: boolean;
@@ -86,7 +95,11 @@
 	<div
 		bind:this={popupEl}
 		tabindex="-1"
-		class="pointer-events-auto absolute right-full top-1/2 z-50 mr-2 max-h-[60vh] max-w-[80vw] -translate-y-1/2 overflow-y-auto rounded-lg border border-surface-border bg-surface-elevated py-1 shadow-xl outline-none focus:outline-none {fitWidth
+		class="pointer-events-auto absolute {placement === 'right'
+			? 'left-full ml-2'
+			: placement === 'below'
+				? 'right-0 top-full mt-2'
+				: 'right-full mr-2'} {placement === 'below' ? '' : 'top-1/2 -translate-y-1/2'} z-50 max-h-[60vh] max-w-[80vw] overflow-y-auto rounded-lg border border-surface-border bg-surface-elevated py-1 shadow-xl outline-none focus:outline-none {fitWidth
 			? 'w-fit'
 			: 'w-96'}"
 		data-testid={popupTestId}

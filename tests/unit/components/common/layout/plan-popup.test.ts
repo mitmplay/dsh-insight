@@ -115,7 +115,10 @@ describe('PlanPopup — render', () => {
 		const { target } = mountPopup();
 		const el = popupEl(target) as HTMLElement;
 		expect(el.className).toContain('pointer-events-auto');
-		expect(el.className).toContain('absolute right-full top-1/2');
+		expect(el.className).toContain('absolute');
+		expect(el.className).toContain('right-full');
+		expect(el.className).toContain('mr-2');
+		expect(el.className).toContain('top-1/2');
 		expect(el.className).toContain('overflow-y-auto');
 	});
 

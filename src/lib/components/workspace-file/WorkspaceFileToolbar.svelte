@@ -14,6 +14,7 @@
 	 * ($bindable — the panel's render ladder reads it).
 	 */
 		import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+		import { Check, Loader2, RotateCw } from '@lucide/svelte';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import WorkspaceFileTabGroup from './WorkspaceFileTabGroup.svelte';
@@ -25,6 +26,21 @@
 	// data-testid marker — no new prop threading through
 	// WorkspaceFilePanel just to name an ancestor.
 	let toolbarEl = $state<HTMLDivElement>();
+	/** The reload icon's feedback state — the CanvasCopyButton machine
+	 *  (idle → busy spinner → done check → idle), mirrored per the 2026-10-27
+	 *  UX-parity operator request: a click that shows nothing happening "sucks". */
+	let reloadState = $state<'idle' | 'busy' | 'done'>('idle');
+	async function handleReload(): Promise<void> {
+		if (reloadState === 'busy' || !onreload) return;
+		reloadState = 'busy';
+		try {
+			await onreload();
+			reloadState = 'done';
+			setTimeout(() => (reloadState = 'idle'), 2000);
+		} catch {
+			reloadState = 'idle';
+		}
+	}
 	let columnEl = $state<HTMLElement | null>(null);
 	$effect.pre(() => {
 		columnEl = toolbarEl?.closest<HTMLElement>('[data-testid="panel-column"]') ?? null;
@@ -56,6 +72,7 @@
 		onviewchange,
 		/** Save intent — the panel POSTs the save. */
 		onsave,
+		onreload,
 		/** The FULL display path (root + relative path, owner-composed) —
 		 *  the left-side readout; everything else right-aligns after it. */
 		path
@@ -72,11 +89,15 @@
 		readonly?: boolean;
 		onviewchange?: (view: 'edit' | 'diff') => void;
 		onsave: () => void;
+		/** Reload intent (2026-10-27 operator request): silently refetch the
+		 *  current file (draft-safe — the panel's refreshFile). Optional;
+		 *  absent renders nothing. */
+		onreload?: () => void | Promise<void>;
 		path: string;
 	} = $props();
 </script>
 
-<div class="file-toolbar" bind:this={toolbarEl}>
+<div class="file-toolbar" data-testid="file-toolbar" bind:this={toolbarEl}>
 	<!-- Left side: the full-path readout (flex:1) — every control to
 	     its right (save, File Eye, chips, tabs, capture) right-aligns. -->
 	<span class="path" title={path}>{path}</span>
@@ -107,6 +128,29 @@
 			<button role="tab" aria-selected={tab === 'edit'} class:active={tab === 'edit'} data-testid="tab-edit" onclick={() => (tab = 'edit')}>{t(m.workspaceFileEdit)}</button>
 		</div>
 	{/if}
+	{#if onreload}
+		<!-- Manual reload (2026-10-27): the freshness valve for surfaces the
+		     Index Pulse cannot see (gateless desk, non-repo files) — the
+		     panel's refreshFile is draft-safe and silent. Placed BEFORE the
+		     capture button per operator decision. -->
+		<button
+			type="button"
+			class="reload-btn"
+			data-testid="file-reload"
+			data-state={reloadState}
+			title={t(m.refresh)}
+			aria-label={t(m.refresh)}
+			onclick={handleReload}
+		>
+			{#if reloadState === 'done'}
+				<Check size={14} class="text-status-pass" />
+			{:else if reloadState === 'busy'}
+				<Loader2 size={14} class="animate-spin" />
+			{:else}
+				<RotateCw size={14} />
+			{/if}
+		</button>
+	{/if}
 	<!-- Capture the whole panel column (the toolbar's nearest
 	     data-testid="panel-column" ancestor) as a PNG: click copies,
 	     Shift+Click saves. Null container before mount = no-op. The
@@ -125,7 +169,7 @@
 	.file-toolbar {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.25rem;
 	}
 	/* The left-side full-path readout: fills the slack so every control
 	   right-aligns (the SettingsHomeToolbar pattern). */
@@ -145,18 +189,46 @@
 	}
 	/* The delegated save's verb: same chip grammar as the tabs; disabled
 	   while clean or in-flight (ADR D4 — save is explicit, never automatic). */
+	/* One uniform control height for the whole row — chips, tabs, and
+	   both icon buttons share it (2026-10-27 operator request: the
+	   buttons read uneven when each carries its own padding box). */
 	.save-btn {
 		flex-shrink: 0;
+		height: 1.5rem;
+		display: inline-flex;
+		align-items: center;
 		border: 1px solid var(--color-border, #d0d7de);
 		border-radius: 0.25rem;
 		background: transparent;
-		padding: 0.1rem 0.5rem;
+		padding: 0 0.5rem;
 		font-size: 0.6875rem;
 		cursor: pointer;
 	}
 	.save-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+	/* The reload icon: same right-aligned chip grammar as the capture
+	   button beside it — ghost until hover, never steals flex slack. */
+	.reload-btn {
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.5rem;
+		height: 1.5rem;
+		/* Same bordered-chip grammar as the tabs / Save verb (2026-10-27
+		   operator request: the borderless ghost icons read as uneven
+		   against the bordered chips beside them). */
+		border: 1px solid var(--color-border, #d0d7de);
+		border-radius: 0.25rem;
+		background: transparent;
+		color: var(--color-text-secondary, #6c757d);
+		cursor: pointer;
+	}
+	.reload-btn:hover {
+		background: var(--color-surface-hover, rgba(0, 0, 0, 0.06));
+		color: var(--color-text-primary, #212529);
 	}
 	.stale {
 		flex-shrink: 0;
@@ -167,16 +239,35 @@
 		display: inline-flex;
 		align-items: center;
 		flex-shrink: 0;
+		height: 1.5rem;
+		box-sizing: border-box;
+		/* The capture button's bordered chip shell — same grammar and
+		   uniform height as the reload button beside it (2026-10-27
+		   operator request). */
+		border: 1px solid var(--color-border, #d0d7de);
+		border-radius: 0.25rem;
+	}
+	.copy-slot :global(button) {
+		height: 100%;
+		display: inline-flex;
+		align-items: center;
 	}
 	.tabs {
 		display: inline-flex;
-		gap: 0.125rem;
+		/* Same gap as the toolbar row: flex gap does not inherit, so the
+		   tab chips must restate it — uniform spacing across Save / tabs /
+		   reload / capture (2026-10-27 operator request — inconsistent
+		   gaps between buttons; tightened to 0.25rem same day). */
+		gap: 0.25rem;
 	}
 	.tabs button {
+		height: 1.5rem;
+		display: inline-flex;
+		align-items: center;
 		border: 1px solid var(--color-border, #d0d7de);
 		border-radius: 0.25rem;
 		background: transparent;
-		padding: 0.1rem 0.5rem;
+		padding: 0 0.5rem;
 		font-size: 0.6875rem;
 		cursor: pointer;
 	}

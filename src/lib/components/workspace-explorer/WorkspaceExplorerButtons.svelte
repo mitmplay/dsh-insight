@@ -57,8 +57,8 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 1.25rem;
-		height: 1.25rem;
+		width: 1.5rem;
+		height: 1.5rem;
 		border: 1px solid var(--color-border, #d0d7de);
 		border-radius: 0.25rem;
 		background: transparent;

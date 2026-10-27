@@ -1,6 +1,6 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
-import { browserRegistry } from '$lib/server/browser/registry.js';
+import { browserRegistry, BrowserRegistryRefusal } from '$lib/server/browser/registry.js';
 
 /** ADR-0040 D3 — every verb keeps ONE seam: optional targetId, absent means
  *  active; an unknown target raises the NO_TARGET refusal. */
@@ -48,12 +48,30 @@ describe('registry verbs accept targetId (ADR-0040 D3)', () => {
 		const info = await browserRegistry.open({ spawnMcp: false, port: 9446 + opened.length * 3, url: 'data:text/html,<title>t1</title>one' });
 		opened.push(info.id);
 		const BOGUS = 'no-such-target';
-		await expect(browserRegistry.pageInfo(info.id, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
-		await expect(browserRegistry.navigate(info.id, 'data:text/html,<title>x</title>x', { targetId: BOGUS })).rejects.toMatchObject({ code: 'NO_TARGET' });
-		await expect(browserRegistry.reload(info.id, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
-		await expect(browserRegistry.navInfo(info.id, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
-		await expect(browserRegistry.setViewport(info.id, 800, 600, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
-		await expect(browserRegistry.pageHistory(info.id, 'back', BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
-		await expect(browserRegistry.dispatch(info.id, { kind: 'text', text: 'x' }, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
-	}, 240_000); // full-suite parallel chromium load can starve this box — 120s was observed to time out (2026-10-26)
+		// Deterministic stub: handleOf's unmapped-target retry loop (5 attempts
+		// x 400ms sleep + a real CDP probe session per page per attempt) costs
+		// ~1.9s PER VERB against a target that can never appear — ~13s for this
+		// test alone. A bogus targetId can never win that race (it is not a
+		// Playwright-lagged real tab), so refuse immediately and skip the wait;
+		// every verb still runs its real body and the NO_TARGET assertion is
+		// unchanged. Non-bogus targets delegate to the real seam.
+		const realHandleOf = (browserRegistry as unknown as { handleOf: (e: unknown, t?: string) => Promise<unknown> }).handleOf.bind(browserRegistry);
+		const stub = vi.fn((e: unknown, t?: string) => (t === BOGUS ? Promise.reject(new BrowserRegistryRefusal('NO_TARGET', 'no such tab: ' + t)) : realHandleOf(e, t)));
+		(browserRegistry as unknown as { handleOf: unknown }).handleOf = stub;
+		const restore = () => {
+			(browserRegistry as unknown as { handleOf: unknown }).handleOf = realHandleOf;
+		};
+		try {
+			await expect(browserRegistry.pageInfo(info.id, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
+			await expect(browserRegistry.navigate(info.id, 'data:text/html,<title>x</title>x', { targetId: BOGUS })).rejects.toMatchObject({ code: 'NO_TARGET' });
+			await expect(browserRegistry.reload(info.id, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
+			await expect(browserRegistry.navInfo(info.id, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
+			await expect(browserRegistry.setViewport(info.id, 800, 600, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
+			await expect(browserRegistry.pageHistory(info.id, 'back', BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
+			await expect(browserRegistry.dispatch(info.id, { kind: 'text', text: 'x' }, BOGUS)).rejects.toMatchObject({ code: 'NO_TARGET' });
+		} finally {
+			restore();
+		}
+		expect(stub).toHaveBeenCalledTimes(7); // every verb routed through the stubbed seam
+	}, 30_000);
 });

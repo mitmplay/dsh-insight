@@ -7,10 +7,13 @@
 	import RowJobBadge from '../../src/lib/components/sessions/RowJobBadge.svelte';
 
 	let { initial = [] }: { initial: { sessionId: string }[] } = $props();
-	let items = $state<{ sessionId: string }[]>(initial);
+	// Override state + $derived: the prop is read reactively (no
+	// state_referenced_locally initial-capture), setList wins once called.
+	let override = $state<{ sessionId: string }[] | undefined>(undefined);
+	let items = $derived(override ?? initial);
 
 	export function setList(next: { sessionId: string }[]): void {
-		items = next;
+		override = next;
 	}
 </script>
 

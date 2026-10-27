@@ -17,6 +17,7 @@ vi.mock('$lib/components/monaco/settings-monaco', () => ({
 }));
 
 import WorkspaceFilePanel from '$lib/components/workspace-file/WorkspaceFilePanel.svelte';
+import toolbarSrc from '$lib/components/workspace-file/WorkspaceFileToolbar.svelte?raw';
 import { PANEL_PREFS_KEY, loadPanelPrefs } from '$lib/utils/panel-prefs';
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -168,5 +169,18 @@ describe('WorkspaceFileToolbar grammar — via the panel (File Eye 2.2-T)', () =
 		flushSync();
 		expect(target!.querySelector('[data-testid="file-view-toggle"]')).toBeNull();
 		expect(target!.querySelector('[data-testid="file-save"]')).toBeNull();
+	});
+
+	it('toolbar spacing is uniform: tabs restate the row gap, one control height (2026-10-27 operator request)', () => {
+		// Vite ?raw import — the head-injection read is empty under the
+		// vitest dom env, so the pin reads the compiled source instead.
+		// Contract: the .tabs rule restates the toolbar row's 0.25rem
+		// gap (flex gap does not inherit), the old 0.125rem override is
+		// gone, and every control shares the one 1.5rem height.
+		expect(toolbarSrc).toMatch(/\.file-toolbar[^{]*\{[^}]*gap:\s*0\.25rem/s);
+		expect(toolbarSrc).toMatch(/\.tabs[^{]*\{[^}]*gap:\s*0\.25rem/s);
+		expect(toolbarSrc).not.toMatch(/gap:\s*0\.125rem/);
+		const heights = toolbarSrc.match(/height:\s*1\.5rem/g) ?? [];
+		expect(heights.length).toBeGreaterThanOrEqual(3);
 	});
 });

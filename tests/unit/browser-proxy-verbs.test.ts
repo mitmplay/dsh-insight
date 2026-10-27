@@ -13,22 +13,39 @@ import { POST as navigate } from '../../src/routes/api/browser/[id]/navigate/+se
 import { POST as viewport } from '../../src/routes/api/browser/[id]/viewport/+server';
 
 const opened: string[] = [];
-const kill = () => import('node:child_process').then(({ spawnSync }) => spawnSync);
-afterAll(async () => {
-	for (const id of opened) {
-		const verdict = await Promise.race([
-			browserRegistry.close(id),
-			new Promise((r) => setTimeout(() => r('WEDGED'), 15_000))
-		]);
-		if (verdict === 'WEDGED') {
-			// a chromium shutdown wave can wedge context.close() — hard-kill the
-			// session's own port owner so a test run never leaks a glass
-			const spawnSync = await kill();
-			const s = browserRegistry.list().find((x) => x.id === id);
-			if (s?.pid) spawnSync('kill', ['-9', String(s.pid)]);
+type Session = { id: string; pid: number | null };
+/** Close raced against a hard cap: a wedged chromium shutdown must never
+ *  hold the hook (8 sequential 15s races == the 120s hook timeout exactly —
+ *  registry.close() can hang in context.close()). */
+const bounded = (p: Promise<unknown>, ms: number): Promise<unknown | 'WEDGED'> => {
+	let t: ReturnType<typeof setTimeout>;
+	return Promise.race([p, new Promise((r) => ((t = setTimeout(() => r('WEDGED'), ms))))]).finally(() => clearTimeout(t!));
+};
+/** Hard-kill the session's own port owner (process group first, then the
+ *  pid) so a wedged glass never outlives the run. SIGKILL cannot wedge. */
+const hardKill = (pid: number): void => {
+	for (const target of [-pid, pid]) {
+		try {
+			process.kill(target, 'SIGKILL');
+			return;
+		} catch {
+			// ESRCH/EPERM on one form — try the next
 		}
 	}
-}, 120_000); // 8 live chromium sessions close sequentially — 10s default is too tight
+};
+const reap = async (id: string): Promise<void> => {
+	if ((await bounded(browserRegistry.close(id), 5_000)) !== 'WEDGED') return;
+	// wedged: SIGKILL the port owner, then a second bounded close to release
+	// registry state and remove the profile dir (the wedged close died
+	// before rmSync)
+	const s = (browserRegistry.list() as Session[]).find((x) => x.id === id);
+	if (s?.pid) hardKill(s.pid);
+	await bounded(browserRegistry.close(id), 5_000).catch(() => undefined);
+};
+afterAll(async () => {
+	// sessions are independent (own port, own profile dir) — reap in parallel
+	await Promise.allSettled(opened.map(reap));
+}, 30_000); // worst case per session is 2x5s, in parallel — far under the cap
 const post = (body: unknown) => new Request('http://x', { method: 'POST', body: JSON.stringify(body) });
 const ctx = (id: string) => ({ params: { id } });
 const page = (t: string) => 'data:text/html,<title>' + t + '</title><h1>' + t + '</h1>';

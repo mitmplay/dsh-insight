@@ -153,14 +153,20 @@ async function settle(times = 4): Promise<void> {
 }
 
 /**
- * Stub the glass wrap box (BUGFIX round 8b contract): draw() sizes the canvas
- * BITMAP from wrap.clientWidth/Height — happy-dom layouts are always 0, so a
- * test that wants a realistic bitmap pins the wrap box explicitly.
+ * Stub the glass wrap box (BUGFIX round 8b contract, re-ruled 2026-10-26):
+ * draw() sizes the canvas BITMAP from the TRANSFORM-TRUE rect now (the same
+ * ruler as the viewport POST - the zoom letterbox fix), so a test that wants
+ * a realistic bitmap pins BOTH rulers. rect defaults to clientWidth/Height
+ * (zoom-1 semantics: the visual box equals the layout box).
  */
-function stubWrapBox(view: { target: HTMLElement }, w: number, h: number): void {
+function stubWrapBox(view: { target: HTMLElement }, w: number, h: number, rectW = w, rectH = h): void {
 	const glass = view.target.querySelector('[data-testid="browser-glass"]') as HTMLElement;
 	Object.defineProperty(glass, 'clientWidth', { value: w, configurable: true });
 	Object.defineProperty(glass, 'clientHeight', { value: h, configurable: true });
+	Object.defineProperty(glass, 'getBoundingClientRect', {
+		value: () => ({ width: rectW, height: rectH, x: 0, y: 0, top: 0, left: 0, right: rectW, bottom: rectH }),
+		configurable: true
+	});
 }
 
 function statusOf(target: HTMLElement): string {

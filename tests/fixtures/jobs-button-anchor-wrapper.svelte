@@ -7,10 +7,13 @@
 	import JobsButton from '../../src/lib/components/anchor/job-anchor/JobsButton.svelte';
 
 	let { initial = 'sid-a' }: { initial?: string } = $props();
-	let sid = $state<string>(initial);
+	// Override state + $derived: the prop is read reactively (no
+	// state_referenced_locally initial-capture), setSid wins once called.
+	let override = $state<string | undefined>(undefined);
+	let sid = $derived(override ?? initial);
 
 	export function setSid(next: string): void {
-		sid = next;
+		override = next;
 	}
 </script>
 
