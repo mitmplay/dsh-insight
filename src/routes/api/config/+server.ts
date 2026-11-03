@@ -20,6 +20,7 @@ import {
 	readJobsConfig,
 	readBrowserConfig,
 	readPanelConfig,
+	readPanelPresets,
 	readPromptsConfig,
 	readSidebarConfig,
 	readSettingsHomes
@@ -44,7 +45,9 @@ export const GET: RequestHandler = async () => {
 		conversation: readConversationConfig(),
 		home: readHomeConfig(),
 		a2a: readA2aConfig(),
-		panel: readPanelConfig(),
+		// Width Preset Chord (ADR-0006a): the Alt+S layout presets ride the
+		// same panel section — the browser re-runs the shared gate on arrival.
+		panel: { ...readPanelConfig(), presets: readPanelPresets() },
 		sidebar: readSidebarConfig(),
 		// The glass panel's width bounds (operator request 2026-10-26):
 		// browser.defaultWidth / browser.maxWidth from settings.yaml.

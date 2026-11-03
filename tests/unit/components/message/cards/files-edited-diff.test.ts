@@ -9,7 +9,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import FilesEditedDiff from '$lib/components/message/cards/FilesEditedDiff.svelte';
-import type { TextFileDiff } from '$lib/components/message/cards/FilesEditedDiff.svelte';
+import type { TextFileDiff } from '$lib/components/message/cards/files-edited-diff-types';
 
 function mountDiff(diff: TextFileDiff): { box: () => HTMLElement; cleanup: () => void } {
 	const target = document.body.appendChild(document.createElement('div'));

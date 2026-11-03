@@ -15,9 +15,8 @@
  * This module is the WIRING POINT: transport routes import the singleton;
  * nothing imports a route or a component.
  */
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -34,6 +33,31 @@ export const PLAYWRIGHT_MCP_PIN = '0.0.83';
  *  moves. One brain at a time (the browser panel is a floor singleton). */
 export const MCP_BRAIN_PORT = Number(process.env.DSI_MCP_PORT ?? 9515);
 
+/** Layout-scale zoom (ADR-0041 amendment, 2026-10-31): the zoom knob is
+ *  LAYOUT SCALE — the emulated viewport is the panel box divided by the
+ *  zoom, and the mirror's contain-fit does the visual shrinking. The page
+ *  keeps ONE coordinate space (no CSS zoom), so every consumer's own
+ *  geometry math — YouTube's seek preview included — stays truthful.
+ *  Rejected: documentElement CSS zoom (the 2026-10-28..31 implementation) —
+ *  Chromium hit-testing stayed correct but the PAGE's own width perception
+ *  split in two, and YouTube's player computed seek previews at exactly
+ *  the zoom factor off (54:58 vs 1:08:44 at 0.8). */
+export function layoutViewport(width: number, height: number, zoom: number): { width: number; height: number } {
+	const z = zoom > 0 ? zoom : 1;
+	return {
+		width: Math.max(200, Math.min(8192, Math.round(width / z))),
+		height: Math.max(120, Math.min(8192, Math.round(height / z)))
+	};
+}
+
+/** Live zoom slider (2026-10-28): the slider's wire bounds — null when the
+ *  value is not a finite number in 0.5..1.25 (the route answers 400). */
+export function clampZoom(z: unknown): number | null {
+	if (typeof z !== 'number' || !Number.isFinite(z)) return null;
+	if (z < 0.5 || z > 1.25) return null;
+	return z;
+}
+
 import { BrowserRelay, type InputDispatch } from './relay.js';
 
 /** The reaper's ONLY test — pure: a session is reaper-eligible when nobody
@@ -46,6 +70,108 @@ export function reaperEligible(
 ): boolean {
 	if (e.streamSubscribers > 0) return false;
 	return now - e.lastMcpActivity >= idleMs;
+}
+
+/** Glass-tab-ids task 1: per-session ordinal tab id seams. Pure map
+ *  surgery over RegistryEntry — no CDP, no I/O — so the whole lifecycle
+ *  (mint → heal-preserve → retire) is unit-testable without a browser.
+ *  Ordinals start at 1 and are NEVER reused within a session. */
+export type TabRef = number | 'active' | string;
+export type TabIdResolution = { ok: true; targetId: string; tabId: number } | { ok: false; error: string };
+
+type OrdinalEntry = Pick<RegistryEntry, 'tabIds' | 'nextTabId' | 'activeTargetId'>;
+
+/** Mint the next ordinal for targetId (idempotent: an already-minted
+ *  targetId returns its existing ordinal — lazy attach and heal re-enter). */
+export function mintTabId(entry: OrdinalEntry, targetId: string): number {
+	// Lazy init: hand-built test entries and pre-task live entries may not
+	// carry the map yet — mint is the seam that creates it, so the other
+	// helpers can rely on it existing (empty = no ordinals minted).
+	const tabIds = (entry.tabIds ??= new Map<number, string>());
+	for (const [ord, tid] of tabIds) {
+		if (tid === targetId) return ord;
+	}
+	entry.nextTabId ??= 1; // hand-built test entries may not carry the counter
+	const ord = entry.nextTabId;
+	entry.nextTabId = ord + 1;
+	entry.tabIds.set(ord, targetId);
+	return ord;
+}
+
+/** ADR-0040 Amendment 4 (D-A5): the OWNER hand claims a newborn. Called
+ *  from the entry's own context 'page' listener — a claimed targetId is
+ *  owner-born no matter what the browser-level watcher saw first. Pure. */
+export function claimOwnerBirth(entry: RegistryEntry, targetId: string): void {
+	(entry.ownBirths ??= new Set<string>()).add(targetId);
+}
+
+/** ADR-0040 Amendment 4 (D-A6): a GUEST birth is a citizen without the
+ *  throne — mint an ordinal, append tabOrder (lands LAST), and NEVER move
+ *  the active pointer (appear without stealing focus). Guards: closed
+ *  sessions refuse; a target the entry already knows (or the owner hand
+ *  claimed) is a no-op. Pure. Returns true when the guest was admitted. */
+export function admitGuestBirth(
+	e: Pick<RegistryEntry, 'tabOrder' | 'tabs' | 'closed'> & Partial<Pick<RegistryEntry, 'ownBirths'>>,
+	targetId: string
+): boolean {
+	if (e.closed) return false;
+	if (e.ownBirths?.has(targetId)) return false;
+	if (e.tabOrder.includes(targetId) || e.tabs.has(targetId)) return false;
+	e.tabOrder.push(targetId);
+	mintTabId(e as unknown as OrdinalEntry, targetId);
+	return true;
+}
+
+/** Retire a closed tab: drop both map sides. The ordinal itself is gone —
+ *  mintTabId never hands it out again. */
+export function retireTabId(entry: OrdinalEntry, targetId: string): void {
+	if (!entry.tabIds) return;
+	for (const [ord, tid] of entry.tabIds) {
+		if (tid === targetId) {
+			entry.tabIds.delete(ord);
+			return;
+		}
+	}
+}
+
+/** HEAL PRESERVES ORDINALS: healHandles swaps a dead CDP handle for a
+ *  fresh session — the tab's ordinal must survive with its value
+ *  rewritten to the new targetId. An unknown page (first sight during
+ *  heal) falls back to a fresh mint. */
+export function healPreserveOrdinal(entry: OrdinalEntry, oldTargetId: string, newTargetId: string): number {
+	const tabIds = (entry.tabIds ??= new Map<number, string>());
+	for (const [ord, tid] of tabIds) {
+		if (tid === oldTargetId) {
+			entry.tabIds.set(ord, newTargetId);
+			return ord;
+		}
+	}
+	return mintTabId(entry, newTargetId);
+}
+
+/** Resolve a tab reference — ordinal (number / numeric string), the
+ *  'active' pointer, or a raw targetId — to { targetId, tabId }. A
+ *  retired or unknown ordinal is an EXPLICIT error: no silent
+ *  nearest-match (glass-tab-ids global constraint). */
+export function resolveTab(entry: OrdinalEntry, ref: TabRef): TabIdResolution {
+	if (ref === 'active') {
+		if (!entry.activeTargetId) return { ok: false, error: 'no active tab' };
+		for (const [ord, tid] of entry.tabIds ?? []) {
+			if (tid === entry.activeTargetId) return { ok: true, targetId: tid, tabId: ord };
+		}
+		return { ok: false, error: 'active tab has no ordinal: ' + entry.activeTargetId };
+	}
+	if (typeof ref === 'number' || /^\d+$/.test(ref)) {
+		const ord = Number(ref);
+		const tid = entry.tabIds?.get(ord);
+		if (tid === undefined) return { ok: false, error: 'unknown or retired tab ordinal: ' + ord };
+		return { ok: true, targetId: tid, tabId: ord };
+	}
+	// raw targetId
+	for (const [ord, tid] of entry.tabIds ?? []) {
+		if (tid === ref) return { ok: true, targetId: tid, tabId: ord };
+	}
+	return { ok: false, error: 'unknown tab: ' + ref };
 }
 
 export class BrowserRegistryRefusal extends Error {
@@ -70,6 +196,9 @@ export interface BrowserSessionInfo {
 	mcpHealth: 'up' | 'down';
 	/** Brain failure reason when health is 'down'; null otherwise. */
 	mcpError: string | null;
+	/** ADR-0045 amendment 3 D7 — owning harness conversation session id;
+	 *  null for legacy sessions. The driver's identity match key. */
+	ownerSessionId: string | null;
 }
 
 export interface OpenOptions {
@@ -87,12 +216,18 @@ export interface OpenOptions {
 	/** Initial page URL — navigating paints the page, which is what makes
 	 *  screencast emit its first frame (a blank page paints nothing). */
 	url?: string;
+	/** ADR-0045 amendment 3 D7 — the opener panel's harness session id;
+	 *  recorded so drivers can claim their OWN glass. */
+	ownerSessionId?: string;
 }
 
 /** One attached page of the glass context: its own CDP session + relay
  *  (ADR-0040 D1 — one relay per page; only the ACTIVE tab streams). */
 export interface TabHandle {
 	targetId: string;
+	/** Glass-tab-ids task 1: the session-stable ordinal minted by
+	 *  mintTabId — the panel-facing tab id (never reused in a session). */
+	tabId: number;
 	cdp: CDPSession;
 	relay: BrowserRelay;
 	/** ADR-0041: the Playwright page — headless viewport changes MUST go
@@ -102,7 +237,7 @@ export interface TabHandle {
 	page: Page;
 }
 
-interface RegistryEntry {
+export interface RegistryEntry {
 	id: string;
 	createdAt: string;
 	context: BrowserContext;
@@ -112,14 +247,35 @@ interface RegistryEntry {
 	 *  amendment 2026-10-27): CDP's Target.getTargets order is NOT creation
 	 *  order, so the strip appended new tabs wherever Chrome listed them. */
 	tabOrder: string[];
+	/** Glass-tab-ids task 1: ordinal → targetId. Stable per-session tab
+	 *  ids the panel can address: minted on attach, retired on close,
+	 *  NEVER reused (resolveTab is the only reader seam). */
+	tabIds: Map<number, string>;
+	/** Next ordinal mintTabId hands out (starts at 1; only grows). */
+	nextTabId: number;
 	/** The active-tab pointer — server-owned, never panel state (D2). */
 	activeTargetId: string | null;
 	/** D5 amendment 2026-10-27: stream subscribers re-bind when the pointer
 	 *  moves — a brain-driven activate() must repoint the SSE, not just the
 	 *  strip (the panel only reconnects itself on its OWN strip clicks). */
 	activeListeners?: Set<(targetId: string) => void>;
+	/** ADR-0040 Amendment 4 (D-A4): browser-scoped birth discovery — one
+	 *  browser-level CDP session watching Target.targetCreated for THIS
+	 *  Chrome only. Optional: hand-built test entries lack it. */
+	browserCdp?: CDPSession;
+	/** ADR-0040 Amendment 4 (D-A5): targetIds the OWNER hand (the entry's
+	 *  own context 'page' event) has claimed. A browser-level birth that
+	 *  matches a claim within the grace window is owner-born (follows);
+	 *  an unclaimed one is a GUEST — mints WITHOUT moving the pointer
+	 *  (appear without stealing focus, operator ruling 2026-10-31). */
+	ownBirths?: Set<string>;
 	/** Last requested panel viewport, re-applied on every switch (D4). */
 	viewport: { width: number; height: number };
+	/** Live zoom slider (2026-10-28, operator-approved): the SESSION's
+	 *  content zoom — starts at the config default (browser.contentZoom),
+	 *  superseded per-session by setZoom(). Hand-built test entries may
+	 *  lack it; readers fall back via "e.zoom ?? cfg.contentZoom". */
+	zoom: number;
 	/** ADR-0041: headless glasses drive the page via Emulation (no real
 	 *  window to resize); headed ones via Browser.setWindowBounds. */
 	headless: boolean;
@@ -148,7 +304,18 @@ interface RegistryEntry {
 	/** Why the brain is down (spawn/connect/bind failure) — surfaces in the
 	 *  status strip and list(); null when up or never attempted. */
 	mcpError: string | null;
+	/** ADR-0045 amendment 3 D7/D8 — the owning harness conversation's session
+	 *  id (DSH_SESSION_ID shape, "session-<uuid>"). The OWNERSHIP authority:
+	 *  drivers resolve their own glass by this, never by registry index.
+	 *  Null for legacy sessions opened before the field existed. */
+	ownerSessionId: string | null;
 	closed: boolean;
+	/** Ghost Glass Fix 2 (RCA 2026-10-31): death-broadcast subscribers —
+	 *  the stream route pushes one 'died' SSE event through these before
+	 *  teardown. Lives ON the process-global entry, so an HMR reload of
+	 *  browser modules (the very thing that severed SSEs this RCA chased)
+	 *  cannot strand the registry-side half of the handshake. */
+	deathListeners?: Set<(reason: string) => void>;
 }
 
 function state(): { entries: Map<string, RegistryEntry>; closed: Set<string> } {
@@ -168,10 +335,71 @@ function sweepOrphanProfiles(keep: Set<string>): void {
 	try {
 		const root = readBrowserConfig().profileRoot;
 		for (const name of readdirSync(root)) {
-			if (!keep.has(name)) rmSync(join(root, name), { recursive: true, force: true });
+			if (keep.has(name)) continue;
+			// Ghost Glass Fix 3 (RCA 2026-10-31 Bug 3): sweeping the fingerprint
+			// is not removing the body — an orphan Chrome keeps a live CDP port
+			// forever (proven: PID 3462, port 9549, dir swept, process immortal).
+			// Kill the holder BEFORE the dir goes, so the reaper contract ("an
+			// invisible browser must not outlive its last driver") holds even on
+			// this abnormal-death path.
+			// The kill arm is gated off under vitest: each test worker is a
+			// legitimate sibling holder — this worker's keep-set cannot see
+			// another worker's LIVE sessions, and killing them is the sweep
+			// overreaching its per-process authority (observed live: workers
+			// SIGKILLed each other's Chromes mid-suite). Production boots have
+			// ONE registry; the injected-deps pins carry the correctness proof.
+			if (!process.env.VITEST) {
+				killOrphanChrome(name, {
+					listPids: () => spawnSync('ps', ['axo', 'pid=,command='], { encoding: 'utf8', timeout: 5000 }).stdout ?? '',
+					killPid: (pid, sig) => process.kill(pid, sig)
+				});
+			}
+			rmSync(join(root, name), { recursive: true, force: true });
 		}
 	} catch {
 		// no config / no dir / nothing sweepable — a sweep is best-effort
+	}
+}
+
+/** Ghost Glass Fix 3 (RCA 2026-10-31 Bug 3): PURE matcher — which process
+ *  rows hold a Chrome --user-data-dir that ENDS at the swept profile name?
+ *  The name must terminate the dir (path separator before it, end/space
+ *  after it), so a PREFIX-sharing sibling profile never matches. */
+export function orphanChromePids(psOutput: string, profileName: string): number[] {
+	const needle = '--user-data-dir=';
+	const pids: number[] = [];
+	for (const line of psOutput.split('\n')) {
+		const at = line.indexOf(needle);
+		if (at === -1) continue;
+		const rest = line.slice(at + needle.length);
+		const end = rest.search(/[\s"']/);
+		const dir = (end === -1 ? rest : rest.slice(0, end)).replace(/\/+$/, '');
+		if (!dir.endsWith('/' + profileName)) continue;
+		const pid = Number.parseInt(line.trimStart(), 10);
+		if (Number.isFinite(pid)) pids.push(pid);
+	}
+	return pids;
+}
+
+/** Ghost Glass Fix 3: the sweep kill arm with the OS injected — SIGKILL
+ *  every holder of the profile dir. Best-effort both ways: a failed ps
+ *  listing or an already-dead pid (ESRCH) never blocks the dir sweep. */
+export function killOrphanChrome(
+	profileName: string,
+	deps: { listPids: () => string; killPid: (pid: number, signal: NodeJS.Signals) => void }
+): void {
+	let out: string;
+	try {
+		out = deps.listPids();
+	} catch {
+		return;
+	}
+	for (const pid of orphanChromePids(out, profileName)) {
+		try {
+			deps.killPid(pid, 'SIGKILL');
+		} catch {
+			// ESRCH / EPERM — the orphan already died or is unkillable; sweep on
+		}
 	}
 }
 
@@ -313,6 +541,7 @@ class BrowserRegistry {
 			pid: e.pid,
 			profileDir: e.profileDir,
 			createdAt: e.createdAt,
+			ownerSessionId: e.ownerSessionId ?? null,
 			mcp: e.mcpChild ? ('child' as const) : e.mcpInProcess ? ('in-process' as const) : ('none' as const),
 			mcpHealth: e.mcpHealth,
 			mcpError: e.mcpError
@@ -376,7 +605,7 @@ class BrowserRegistry {
 				const now = Date.now();
 				for (const e of state().entries.values()) {
 					if (!reaperEligible(e, idleMs, now)) continue;
-					void this.close(e.id).catch(() => undefined);
+					void this.close(e.id, 'reaped').catch(() => undefined);
 				}
 			},
 			Math.min(idleMs / 2, 30_000)
@@ -395,6 +624,22 @@ class BrowserRegistry {
 	/** D5 amendment 2026-10-27: watch the active pointer. The stream route
 	 *  re-binds its relay on every fire so a brain-driven activate (creation
 	 *  auto-focus) repoints the MIRROR, not just the strip highlight. */
+	/** Ghost Glass Fix 2 (RCA 2026-10-31): the death handshake's registry
+	 *  side. Subscribers hear ONE reason ('closed' human, 'reaped' reaper);
+	 *  subscribing to an already-dead id hears the truth immediately instead
+	 *  of polling a ghost. Same shape as onActiveChange. */
+	onDeath(id: string, cb: (reason: string) => void): () => void {
+		const e = state().entries.get(id);
+		if (!e || e.closed) {
+			cb('closed');
+			return () => undefined;
+		}
+		(e.deathListeners ??= new Set()).add(cb);
+		return () => {
+			e.deathListeners?.delete(cb);
+		};
+	}
+
 	onActiveChange(id: string, cb: (targetId: string) => void): () => void {
 		const e = this.peek(id);
 		(e.activeListeners ??= new Set()).add(cb);
@@ -440,7 +685,8 @@ class BrowserRegistry {
 				// launch default and the mirror showed them small and cut off
 				await scdp.send('Page.enable').catch(() => undefined);
 				await this.applyPanelViewport(e, { cdp: scdp, relay: handle.relay, page }).catch(() => undefined);
-				e.tabs.set(tid, handle);
+				const ord = mintTabId(e, tid);
+				e.tabs.set(tid, { ...handle, tabId: ord });
 				(e.tabOrder ??= []).push(tid); // self-heals hand-built test entries
 				if (tid === key) break;
 			}
@@ -483,7 +729,10 @@ class BrowserRegistry {
 				old.relay.stop();
 				await old.cdp.detach().catch(() => undefined);
 				const cfg: BrowserConfig = readBrowserConfig();
-				e.tabs.set(tid, { targetId: tid, cdp: scdp, relay: new BrowserRelay(scdp, cfg.screencastQuality, cfg.screencastMaxFps), page });
+				// Glass-tab-ids: the fresh handle keeps the tab's ordinal — the
+				// value is rewritten to the new targetId, the key never moves.
+				const ord = healPreserveOrdinal(e, tid, tid);
+				e.tabs.set(tid, { targetId: tid, tabId: ord, cdp: scdp, relay: new BrowserRelay(scdp, cfg.screencastQuality, cfg.screencastMaxFps), page });
 				if (!e.tabOrder.includes(tid)) e.tabOrder.push(tid);
 			} else {
 				// unknown live page — drop the probe; handleOf attaches lazily
@@ -497,22 +746,81 @@ class BrowserRegistry {
 
 	/** Enumerate the context's page targets (ADR-0040 D5 feed) — type:page
 	 *  only; iframes/omnibox/service workers are chrome noise (wire capture
-	 *  2026-10-24). Read-only: never attaches, never streams (D1). */
-	async listTabs(id: string): Promise<{ targetId: string; url: string; title: string; active: boolean }[]> {
+	 *  2026-10-24). Mirror-lifecycle (ADR "The Mirror Must Face a Living
+	 *  Tab", D1/D2): enumeration ADOPTS unknown live pages (mint + lazy
+	 *  seam — survivors' ordinals never move) and RE-POINTS the active
+	 *  pointer when its target is gone, re-seeding the mirror through
+	 *  activate's idiom — the panel never faces a corpse (the 2026-10-28
+	 *  frozen-frame bug). */
+	async listTabs(id: string): Promise<{ tabId: number; targetId: string; url: string; title: string; active: boolean }[]> {
 		const e = this.peek(id);
-		const src = (e.activeTargetId ? e.tabs.get(e.activeTargetId) : null)?.cdp ?? [...e.tabs.values()][0]?.cdp;
-		if (!src) return [];
-		const res = (await src.send('Target.getTargets').catch(() => null)) as { targetInfos?: { targetId: string; type: string; url: string; title: string }[] } | null;
-		let infos = (res?.targetInfos ?? []).filter((t) => t.type === 'page');
-		if (infos.length === 0 && e.context.pages().length > 0) {
-			// stale-handle state (brain churn) — heal once, re-read
+		const pickSrc = (): CDPSession | null =>
+			(e.activeTargetId ? e.tabs.get(e.activeTargetId) : null)?.cdp ?? [...e.tabs.values()][0]?.cdp ?? null;
+		const readTargets = async (h: CDPSession): Promise<{ targetId: string; type: string; url: string; title: string }[] | null> => {
+			const res = (await h.send('Target.getTargets').catch(() => null)) as { targetInfos?: { targetId: string; type: string; url: string; title: string }[] } | null;
+			return res?.targetInfos ?? null; // null = the handle itself is dead
+		};
+		let src = pickSrc();
+		let infos = (src ? await readTargets(src) : null) ?? [];
+		if (infos === null || (infos.length === 0 && e.context.pages().length > 0)) {
+			// stale-handle state (brain churn, target death) — heal known
+			// handles once, then re-read; adoption below covers survivors the
+			// map never knew (the 2026-10-28 gap: heal dropped unknowns).
 			await this.healHandles(e);
-			const src2 = (e.activeTargetId ? e.tabs.get(e.activeTargetId) : null)?.cdp ?? [...e.tabs.values()][0]?.cdp;
-			const res2 = (await src2?.send('Target.getTargets').catch(() => null)) as { targetInfos?: { targetId: string; type: string; url: string; title: string }[] } | null;
-			infos = (res2?.targetInfos ?? []).filter((t) => t.type === 'page');
+			src = pickSrc();
+			infos = (src ? await readTargets(src) : null) ?? [];
 		}
-		return infos
-			.map((t) => ({ targetId: t.targetId, url: t.url, title: t.title, active: t.targetId === e.activeTargetId }))
+		let pages = infos.filter((t) => t.type === 'page');
+		if (pages.length === 0 && e.context.pages().length > 0) {
+			// D1's source of truth when enumeration cannot see: probe the
+			// context's LIVE pages directly — a dead-faced session must still
+			// learn who survives (the 2026-10-28 frozen-frame gap).
+			const probed: { targetId: string; type: string; url: string; title: string }[] = [];
+			for (const page of e.context.pages()) {
+				try {
+					const scdp = await e.context.newCDPSession(page);
+					const info = (await scdp.send('Target.getTargetInfo')) as { targetInfo?: { targetId?: string; url?: string; title?: string } };
+					await scdp.detach().catch(() => undefined);
+					if (info.targetInfo?.targetId) {
+						probed.push({ targetId: info.targetInfo.targetId, type: 'page', url: info.targetInfo.url ?? page.url(), title: info.targetInfo.title ?? '' });
+					}
+				} catch {
+					continue; // unreachable this poll — the next poll retries
+				}
+			}
+			pages = probed;
+		}
+		// D1: ADOPT unknown live pages — a page the glass holds that the map
+		// never minted (fixture tabs, post-churn births) joins the strip with
+		// the next ordinal; survivors' ordinals never move.
+		const known = new Set(e.tabs.keys());
+		const unknown = pages.filter((t) => !known.has(t.targetId));
+		if (unknown.length > 0) {
+			const cfg: BrowserConfig = readBrowserConfig();
+			for (const page of e.context.pages()) {
+				let tid: string | null = null;
+				let scdp: CDPSession | null = null;
+				try {
+					scdp = await e.context.newCDPSession(page);
+					const info = (await scdp.send('Target.getTargetInfo')) as { targetInfo?: { targetId?: string } };
+					tid = info.targetInfo?.targetId ?? null;
+				} catch {
+					continue; // unreachable this poll — the next poll retries
+				}
+				if (!tid || !unknown.some((u) => u.targetId === tid)) {
+					await scdp.detach().catch(() => undefined);
+					continue;
+				}
+				const ord = mintTabId(e, tid);
+				if (!e.tabOrder.includes(tid)) e.tabOrder.push(tid);
+				e.tabs.set(tid, { targetId: tid, tabId: ord, cdp: scdp, relay: new BrowserRelay(scdp, cfg.screencastQuality, cfg.screencastMaxFps), page });
+			}
+		}
+		const out = pages
+			// Glass-tab-ids: every listed row is addressable by its session-stable
+			// ordinal — mint is idempotent, so first-sight here is the same lazy
+			// seam handleOf uses (no CDP attach happens in this read-only path).
+			.map((t) => ({ tabId: mintTabId(e, t.targetId), targetId: t.targetId, url: t.url, title: t.title, active: t.targetId === e.activeTargetId }))
 			// D5 amendment 2026-10-27: CDP does NOT expose Chrome's window tab
 			// order — sort by the registry's OWN creation record (tabOrder) so a
 			// created tab lands LAST like a real browser's. (The old comment
@@ -524,6 +832,21 @@ class BrowserRegistry {
 				const ib = order.indexOf(b.targetId);
 				return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib);
 			});
+		// D2: the pointer must face a target getTargets still lists. A dead
+		// face re-points to the birth-ordered first survivor, re-seeded through
+		// activate's own idiom (viewport, zoom, boundary frame) — the operator
+		// sees a tab switch, never a corpse. Zero survivors: pointer null, the
+		// empty strip is the honest answer.
+		if (e.activeTargetId && !out.some((r) => r.targetId === e.activeTargetId)) {
+			const survivor = out[0]?.targetId ?? null;
+			if (survivor) {
+				await this.activate(id, survivor).catch(() => undefined);
+				for (const r of out) r.active = r.targetId === e.activeTargetId;
+			} else {
+				e.activeTargetId = null;
+			}
+		}
+		return out;
 	}
 
 	/** Attach (lazily), seed the first frame, re-apply the viewport, and move
@@ -592,29 +915,35 @@ class BrowserRegistry {
 		// Google Chrome (channel: 'chrome' — full codecs/Widevine; Chrome for
 		// Testing lacks them). Falls back to the bundled chromium if no
 		// system Chrome exists.
-		const ignoreDefaultArgs = ['--enable-automation', '--mute-audio'];
+		// RCA 2026-10-28 (The Scrollbars Playwright Silenced): Playwright's
+		// headless branch appends --hide-scrollbars to EVERY headless launch
+		// (playwright-core coreBundle.js:42534) — the mirror keeps its scroll
+		// behavior but loses every bar visual, and app.css's themed rails
+		// cannot paint over a hidden bar. Veto it by name; the launch gate
+		// below proves the veto landed.
+		const ignoreDefaultArgs = ['--enable-automation', '--mute-audio', '--hide-scrollbars'];
 		const launch = (useChrome: boolean) => chromium.launchPersistentContext(profileDir, {
 	...(useChrome ? { channel: 'chrome' as const } : {}),
 	headless: options.headless ?? cfg.headless,
 	ignoreDefaultArgs,
 	args: [
-		'--remote-debugging-port=' + port,
 		'--no-first-run',
+		'--remote-debugging-port=' + port,
 		// occlusion kills compositing — a covered window stops painting,
 		// and the screencast (and the glass) freezes: keep it compositing.
 		// OFF-screen parking: the panel is the browser's face, the OS window
 		// is the chassis
-		'--disable-blink-features=AutomationControlled',
-		'--disable-features=IsolateOrigins,site-per-process',
 		'--disable-dev-shm-usage',
-		'--disable-backgrounding-occluded-windows',
 		'--disable-renderer-backgrounding',
 		'--disable-background-timer-throttling',
+		'--disable-backgrounding-occluded-windows',
+		'--disable-blink-features=AutomationControlled',
+		'--disable-features=IsolateOrigins,site-per-process',
 		// the glass has no physical keys: page media must autoplay WITH
 		// sound (operator report 2026-10-20 — silent headless YouTube)
 		'--autoplay-policy=no-user-gesture-required',
-		'--window-position=-32000,-32000',
-						'--window-size=' + (Math.max(200, Math.min(1920, options.width ?? 730)) + 6) + ',' + (Math.max(120, Math.min(1080, options.height ?? 830)) + 70)
+		// '--window-position=-32000,-32000', //# if on will failed the yt video
+		'--window-size=' + (Math.max(200, Math.min(1920, options.width ?? 730)) + 6) + ',' + (Math.max(120, Math.min(1080, options.height ?? 830)) + 70)
 	],
 	// ADR-0041 root-cause fix (2026-10-25, the black bands): a FIXED context
 	// viewport is a per-session emulation override Playwright owns and
@@ -652,7 +981,16 @@ const browser = context.browser();
 		} catch {
 			// best-effort — listTabs/activate recover ids via Target.getTargets later
 		}
-		if (activeTargetId) tabs.set(activeTargetId, { targetId: activeTargetId, cdp, relay, page: context.pages()[0]! });
+		// Glass-tab-ids (fix round 1): mint the birth ordinal BEFORE the handle
+		// literal — the handle carries tabId from birth (never transiently
+		// tabId-less, tsc-clean) and the maps flow straight into the entry.
+		const tabIds = new Map<number, string>();
+		let nextTabId = 1;
+		if (activeTargetId) {
+			tabIds.set(1, activeTargetId);
+			nextTabId = 2;
+			tabs.set(activeTargetId, { targetId: activeTargetId, tabId: 1, cdp, relay, page: context.pages()[0]! });
+		}
 		await relay.start();
 		// A fresh profile window often shows NO first paint until interaction —
 		// and screencast emits only on paint. Guarantee the first frame (and
@@ -678,6 +1016,35 @@ const browser = context.browser();
 			const shot = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: cfg.screencastQuality }).catch(() => null);
 			if (shot) relay.seed({ seq: 0, jpeg: shot.data, metadata: { seeded: true } });
 		}
+		// Scrollbar-visibility gate (RCA 2026-10-28 — The Scrollbars Playwright
+		// Silenced): ignoreDefaultArgs vetoes --hide-scrollbars, but that veto
+		// matches by exact flag string — a Playwright rename or bundling would
+		// re-hide every bar in the mirror with no error anywhere. Prove the
+		// veto landed: a bare overflow:auto probe div must carry a real
+		// scrollbar footprint in a HEADLESS launch (headed launches never get
+		// the flag). Evaluate failures are skipped — this gate judges paint,
+		// not page health; only a DEFINITIVE zero footprint throws.
+		if (options.headless ?? cfg.headless) {
+			const birth = context.pages()[0];
+			if (birth && typeof (birth as unknown as { evaluate?: unknown }).evaluate === 'function') {
+				const foot = await birth.evaluate(
+					() => {
+						const d = document.createElement('div');
+						d.style.cssText = 'position:fixed;left:-100px;top:0;width:50px;height:50px;overflow:auto';
+						d.innerHTML = '<div style="width:200px;height:200px"></div>';
+						document.body.appendChild(d);
+						const f = d.offsetHeight - d.clientHeight;
+						d.remove();
+						return f;
+					}
+				).catch(() => null);
+				if (foot === 0) {
+					throw new Error(
+						'glass scrollbar gate: bar footprint is 0 in a headless launch — --hide-scrollbars leaked past ignoreDefaultArgs (RCA 2026-10-28)'
+					);
+				}
+			}
+		}
 
 		// Env override beats the yaml default (DSI_MCP_PORT; tests live in the
 		// isolated 19515 range) — the operator's explicit env is still the
@@ -688,10 +1055,19 @@ const browser = context.browser();
 			id, context, tabs, activeTargetId,
 			// the birth page is tab 0 (D5 amendment 2026-10-27: creation order)
 			tabOrder: activeTargetId ? [activeTargetId] : [],
+			// Glass-tab-ids: the birth page's ordinal was minted pre-literal
+			tabIds,
+			nextTabId,
 			// ADR-0041: the remembered viewport STARTS at the birth size — a
 			// 1920x1080 default made activate() resize the window to desktop
 			// scale before the panel's first viewport POST arrived.
+			// 2026-10-28 revert (operator screenshot): the acae5c47 1280x800
+			// downscale default LETTERBOXED portrait panels — the viewport
+			// follows the panel box (syncViewport); the birth default is back
+			// at the 730x830 clamps.
 			viewport: { width: Math.max(200, Math.min(1920, options.width ?? 730)), height: Math.max(120, Math.min(1080, options.height ?? 830)) },
+			// zoom slider: the session starts at the config knob (superseded by setZoom)
+			zoom: cfg.contentZoom,
 			headless: options.headless ?? cfg.headless,
 			port, pid, profileDir,
 			brainPort,
@@ -702,6 +1078,10 @@ const browser = context.browser();
 			mcpHealth: 'up',
 			mcpError: null,
 			closed: false,
+			ownerSessionId: options.ownerSessionId ?? null,
+			// ADR-0040 Amendment 4 (D-A5): the owner-hand claim set — targetIds
+			// born through THIS entry's own context (the 'page' listener below).
+			ownBirths: new Set<string>(),
 			createdAt: new Date().toISOString()
 		};
 		state().entries.set(id, entry);
@@ -725,7 +1105,16 @@ const browser = context.browser();
 						const tid = info?.targetInfo?.targetId;
 						if (!tid) continue;
 						if (!entry.tabOrder.includes(tid)) entry.tabOrder.push(tid);
-						if (entry.activeTargetId !== tid && !entry.closed) await this.activate(id, tid);
+						mintTabId(entry, tid);
+						// Amendment 4 (D-A5): the owner hand claims its birth — the
+						// browser-level watcher must not re-classify it as a guest.
+						claimOwnerBirth(entry, tid);
+						// ADR-0040 D2/D3: the follow follows only UNENGAGED tabs. If the
+						// operator (or a verb) already attached this tab via handleOf and
+						// moved the pointer elsewhere, the pointer must NOT be yanked back
+						// when this late retry loop lands. A raw brain-created tab is never
+						// pre-attached, so the original D5 amendment intent is unchanged.
+						if (entry.activeTargetId !== tid && !entry.closed && !entry.tabs.has(tid)) await this.activate(id, tid);
 						return;
 					} catch {
 						// target not ready yet — retry inside the loop
@@ -733,6 +1122,45 @@ const browser = context.browser();
 				}
 			})();
 		});
+		}
+		// ADR-0040 Amendment 4 (D-A4/D-A5) — browser-scoped birth discovery:
+		// Target.targetCreated on THIS entry's browser sees pages born through
+		// ANY CDP connection (glass-url driver, future tools). A birth the
+		// owner hand claims within the grace window is owner-born (the
+		// 'page' listener above minted + activated it); an unclaimed birth is
+		// a GUEST: mint + tabOrder append, pointer NEVER moves (appear
+		// without stealing focus — operator ruling 2026-10-31). typeof-guards
+		// keep the tests' fake contexts (no .browser()) on the old path.
+		try {
+			const browser = (context as { browser?: () => unknown }).browser?.() as
+				| { newBrowserCDPSession?: () => Promise<CDPSession> }
+				| undefined;
+			if (browser && typeof browser.newBrowserCDPSession === 'function') {
+				const bcdp = await browser.newBrowserCDPSession();
+				entry.browserCdp = bcdp;
+				await bcdp.send('Target.setDiscoverTargets', { discover: true }).catch(() => undefined);
+				bcdp.on(
+					'Target.targetCreated',
+					(evt: { targetInfo?: { targetId?: string; type?: string } }) => {
+						const tid = evt?.targetInfo?.targetId;
+						if (!tid || evt.targetInfo?.type !== 'page') return;
+						if (entry.tabOrder.includes(tid) || entry.tabs.has(tid)) return;
+						void (async () => {
+							// grace match: give the owner hand its bounded window to
+							// claim the birth (the 300ms x 10 retry idiom).
+							for (let g = 0; g < 10; g += 1) {
+								await new Promise((r) => setTimeout(r, 300));
+								if (entry.closed) return;
+								if (entry.ownBirths?.has(tid)) return; // owner path won
+								if (entry.tabOrder.includes(tid) || entry.tabs.has(tid)) return;
+							}
+							admitGuestBirth(entry, tid);
+						})();
+					}
+				);
+			}
+		} catch {
+			// discovery is best-effort — listTabs' poll adoption remains the net
 		}
 		// BUG 2026-10-26c (the born-banded glass): the launch line guesses the
 		// chrome offset (+6/+70) and the REAL chrome costs more - the birth
@@ -773,6 +1201,7 @@ const browser = context.browser();
 		}
 		return {
 			id, port, pid, profileDir, createdAt: entry.createdAt,
+			ownerSessionId: entry.ownerSessionId,
 			mcp: entry.mcpChild ? 'child' : entry.mcpInProcess ? 'in-process' : 'none',
 			mcpHealth: entry.mcpHealth,
 			mcpError: entry.mcpError
@@ -801,7 +1230,7 @@ const browser = context.browser();
 	}
 
 	/** D8 owner-release. Idempotent: closing a closed id resolves cleanly. */
-	async close(id: string): Promise<{ ok: boolean; alreadyClosed: boolean }> {
+	async close(id: string, reason = 'closed'): Promise<{ ok: boolean; alreadyClosed: boolean }> {
 		const entry = state().entries.get(id);
 		if (!entry) return { ok: true, alreadyClosed: true };
 		if (entry.closed) {
@@ -810,6 +1239,21 @@ const browser = context.browser();
 		}
 		entry.closed = true;
 		state().closed.add(id);
+		// Ghost Glass Fix 2 (RCA 2026-10-31): a death decided server-side is a
+		// death nobody believes until it is ANNOUNCED. Fire the death broadcast
+		// FIRST — before any teardown — so the stream route can deliver one
+		// honest 'died' SSE event to the operator's panel. A listener bomb
+		// must never break the close path.
+		for (const cb of entry.deathListeners ?? []) {
+			try {
+				cb(reason);
+			} catch {
+				// the broadcast is best-effort; the teardown below is not optional
+			}
+		}
+		// Amendment 4: the browser-level birth watcher dies with the session
+		// (best-effort — the browser itself is about to close anyway).
+		await entry.browserCdp?.detach().catch(() => undefined);
 		if (state().closed.size > 256) state().closed.delete(state().closed.values().next().value as string);
 		const errs: unknown[] = [];
 		// D8 close ORDER: brain first (it holds the cdpEndpoint), then the
@@ -924,6 +1368,20 @@ const browser = context.browser();
 		await this.repairSurfaceAfterResize(e, handle, prevSeq).catch(() => undefined);
 	}
 
+	/** Layout-scale zoom (ADR-0041 amendment, 2026-10-31): store the session
+	 *  scale and re-apply the panel viewport — the emulation is box/zoom, so
+	 *  the slider's LIVE effect rides the resize. Bad input (clampZoom null)
+	 *  KEEPS the current zoom and returns silently: unreachable from the wire
+	 *  (the route's clampZoom already answered 400) — documented keep. */
+	async setZoom(id: string, zoom: number): Promise<void> {
+		const e = this.peek(id);
+		if (e.closed) throw new BrowserRegistryRefusal('CLOSED', 'session is closing');
+		const clamped = clampZoom(zoom);
+		if (clamped === null) return; // bad input — keep the current zoom
+		e.zoom = clamped;
+		const handle = await this.handleOf(e);
+		await this.applyPanelViewport(e, handle);
+	}
 	/** The window id, retried — Target.getWindowForTarget on a Playwright
 	 *  page session races out on a COLD headed launch (measured in the
 	 *  surface-lag test: both resizes skipped, the birth window kept its
@@ -966,8 +1424,18 @@ const browser = context.browser();
 	 *  captureScreenshot reseed (reseed: a stale REAL frame may sit atop
 	 *  the ring, and seed() refuses to cover one). Capped throughout —
 	 *  nothing here may hang the verb (the 2.5s rule). */
-	private async repairSurfaceAfterResize(e: RegistryEntry, handle: { cdp: import('playwright-core').CDPSession; relay: BrowserRelay }, prevSeq: number): Promise<void> {
-		const want = { w: e.viewport.width, h: e.viewport.height };
+	private async repairSurfaceAfterResize(e: RegistryEntry, handle: { cdp: import('playwright-core').CDPSession; relay: BrowserRelay; page?: Page }, prevSeq: number): Promise<void> {
+		const want0 = { w: e.viewport.width, h: e.viewport.height };
+		// BUG 2026-11-02b (live glass, RCA Bug 3 round 2): the frames that
+		// arrive are the EMULATED viewport's size (layoutViewport = box/zoom,
+		// ADR-0041 amendment 2) — comparing them against the raw BOX made
+		// matched() impossible under contentZoom != 1: the ladder exhausted
+		// on every resize, its chrome learning never stuck (observed: bounds
+		// frozen at lv+15 while the real chrome is 87), and the mirror
+		// letterboxed forever. The ladder speaks the emulation's units: want
+		// IS the layout viewport now (bounds math, match gate, learning).
+		const lvw = layoutViewport(want0.w, want0.h, e.zoom ?? readBrowserConfig().contentZoom);
+		const want = { w: lvw.width, h: lvw.height };
 		// JPEG SOF scan - every frame's true pixel dims, with or without
 		// screencast metadata. The first cut treated unknown dims as FRESH;
 		// the birth reseed (no deviceWidth in its metadata) then matched its
@@ -1014,8 +1482,14 @@ const browser = context.browser();
 				const timeout = new Promise<T>((res) => setTimeout(() => res(fb), 2500));
 				return await Promise.race([p.catch(() => fb), timeout]);
 			};
-			const anyCdpH = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
-			await raceH(anyCdpH.send('Emulation.setDeviceMetricsOverride', { width: want.w, height: want.h, deviceScaleFactor: 1, mobile: false }).then(() => null as null), null);
+			// Pin through PLAYWRIGHT only (BUG 2026-11-01): the raw sibling-
+			// session Emulation override this used to send races the Playwright
+			// connection's own writes — cross-connection CDP order is not
+			// guaranteed, and under full-suite load the stale zoom-scaled size
+			// (box/zoom = 625x500 for a 500x400 box at contentZoom 0.8)
+			// executed last, settling innerWidth at 625 forever. One writer
+			// (Playwright) makes the final state deterministic: 500x400.
+			if (handle.page) await raceH(handle.page.setViewportSize({ width: want.w, height: want.h }).catch(() => undefined).then(() => null as null), null);
 			await new Promise((r) => setTimeout(r, 400));
 			const shotH = (await raceH(handle.cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: readBrowserConfig().screencastQuality }).catch(() => null), null)) as { data?: string } | null;
 			if (shotH?.data) handle.relay.reseed({ seq: 0, jpeg: shotH.data, metadata: { seeded: true, resize: true } });
@@ -1044,7 +1518,12 @@ const browser = context.browser();
 					await race(anyCdp.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { width: Math.max(200, want.w + cw), height: Math.max(120, want.h + ch), windowState: 'normal' } }), null);
 					await new Promise((r) => setTimeout(r, 350));
 					const shot = (await race(anyCdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 60 }), null)) as { data?: string } | null;
-					const d = shot?.data ? dimsOf({ jpeg: shot.data, metadata: {} } as ReturnType<BrowserRelay['latestFrame']>) : null;
+					// FALLBACK: a failed/timed-out capture on this connection must
+					// not corrupt the chrome learning (observed: ch frozen at 15
+					// while the real chrome is 87) — the relay's latest STREAM
+					// frame is the same surface truth.
+					let d = shot?.data ? dimsOf({ jpeg: shot.data, metadata: {} } as ReturnType<BrowserRelay['latestFrame']>) : null;
+					if (!d) d = dimsOf(handle.relay.latestFrame());
 					if (d && Math.abs(d.w - want.w) < 3 && Math.abs(d.h - want.h) < 3) {
 						console.log('[surface] iter', i, 'converged: capture', d.w + 'x' + d.h, 'chrome', cw + '/' + ch);
 						e.chrome = { w: cw, h: ch }; // learned — later resizes start warm
@@ -1134,6 +1613,47 @@ const browser = context.browser();
 			entries: unknown[];
 		};
 		return { currentIndex: hist.currentIndex, entryCount: hist.entries.length };
+	}
+
+	/** The FULL navigation history of one tab (long-press dropdown,
+	 *  operator-approved 2026-10-28): the attached CDP session's
+	 *  Page.getNavigationHistory, entries as { index, url, title } — index
+	 *  is the LIST position the UI filters by, id is the CDP entryId the
+	 *  travel verb needs. Read-only; the same handleOf refusals as navInfo. */
+	async navEntries(id: string, targetId?: string): Promise<{ currentIndex: number; entries: { index: number; url: string; title: string }[] }> {
+		const e = this.peek(id);
+		const h = await this.handleOf(e, targetId);
+		await h.cdp.send('Page.enable').catch(() => undefined);
+		const hist = (await h.cdp.send('Page.getNavigationHistory', {})) as unknown as {
+			currentIndex: number;
+			entries: { id: number; url: string; title: string }[];
+		};
+		return {
+			currentIndex: hist.currentIndex,
+			entries: hist.entries.map((en, index) => ({ index, url: en.url, title: en.title }))
+		};
+	}
+
+	/** TRUE history travel (long-press dropdown, operator-approved
+	 *  2026-10-28): Page.navigateToHistoryEntry to the entry AT the list
+	 *  position — never a fresh navigate, which would append a new entry
+	 *  and desync the dropdown from Chrome's own back/forward list. A
+	 *  position outside the list is an explicit refusal. */
+	async historyTravel(id: string, index: number, targetId?: string): Promise<{ currentIndex: number; entryCount: number }> {
+		const e = this.peek(id);
+		const h = await this.handleOf(e, targetId);
+		await h.cdp.send('Page.enable').catch(() => undefined);
+		const hist = (await h.cdp.send('Page.getNavigationHistory', {})) as unknown as {
+			currentIndex: number;
+			entries: { id: number }[];
+		};
+		if (!Number.isInteger(index) || index < 0 || index >= hist.entries.length) {
+			throw new BrowserRegistryRefusal('NO_TARGET', 'HISTORY_INDEX — no entry at index ' + index + ' of ' + hist.entries.length);
+		}
+		const loaded = this.waitLoad(h);
+		await h.cdp.send('Page.navigateToHistoryEntry', { entryId: hist.entries[index].id });
+		await loaded;
+		return { currentIndex: index, entryCount: hist.entries.length };
 	}
 
 	/** Reload the session's active page (ADR-0031 D4): Page.reload keeps
@@ -1226,7 +1746,7 @@ const browser = context.browser();
 	 *  again, no navigation. Either way activate() applies the first-frame
 	 *  contract (ADR-0040 D4 / ADR-0042 D4: grace, then a captureScreenshot
 	 *  seed) and returns the boundary payload the caller paints. */
-	async openTab(id: string, url?: string, opts?: { activate?: boolean }): Promise<{ targetId: string; seq: number; jpeg: string | null; url: string; title: string }> {
+	async openTab(id: string, url?: string, opts?: { activate?: boolean }): Promise<{ tabId: number; targetId: string; seq: number; jpeg: string | null; url: string; title: string }> {
 		const e = this.peek(id);
 		if (e.closed) throw new BrowserRegistryRefusal('CLOSED', 'session is closing');
 		const src = (e.activeTargetId ? e.tabs.get(e.activeTargetId) : null)?.cdp ?? [...e.tabs.values()][0]?.cdp;
@@ -1235,13 +1755,16 @@ const browser = context.browser();
 		const targetId = res?.targetId;
 		if (!targetId) throw new BrowserRegistryRefusal('NO_TARGET', 'Target.createTarget returned no id');
 		if (url) await this.navigate(id, url, { waitLoad: true, targetId });
+		// Glass-tab-ids: the ordinal is minted by activate's attach (idempotent
+		// re-mint here is free) — the wire contract says the opener learns tabId.
+		const tabId = mintTabId(e, targetId);
 		if (opts?.activate ?? true) {
 			const b = await this.activate(id, targetId);
-			return { ...b, targetId };
+			return { ...b, targetId, tabId };
 		}
 		// no-activate caller: report whatever the fresh face has so far
 		const h = e.tabs.get(targetId);
-		return { targetId, seq: h?.relay.latestFrame()?.seq ?? 0, jpeg: h?.relay.latestFrame()?.jpeg ?? null, url: url ?? 'about:blank', title: '' };
+		return { tabId, targetId, seq: h?.relay.latestFrame()?.seq ?? 0, jpeg: h?.relay.latestFrame()?.jpeg ?? null, url: url ?? 'about:blank', title: '' };
 	}
 
 	/** Apply the remembered panel viewport by RESIZING THE WINDOW (round 10:
@@ -1266,18 +1789,55 @@ const browser = context.browser();
 		// through the Playwright API on the handle, whose state stays
 		// authoritative - no fight, no re-assert.
 		if (e.headless && handle.page) {
-			await Promise.race([
-				handle.page.setViewportSize({ width: e.viewport.width, height: e.viewport.height }).catch(() => undefined),
-				new Promise((res) => setTimeout(res, 2500))
-			]);
+			// Layout-scale zoom (ADR-0041 amendment): emulate box/zoom — the
+			// mirror's contain-fit does the visual shrinking; the page keeps ONE
+			// coordinate space (no CSS zoom to split its geometry math).
+			const lv = layoutViewport(e.viewport.width, e.viewport.height, e.zoom ?? readBrowserConfig().contentZoom);
+			// BUG 2026-11-01 (full-suite only): the 2.5s race below ABANDONED a
+			// slow setViewportSize — but the call keeps flying and its own
+			// internal Emulation.setDeviceMetricsOverride then lands OVER the
+			// pinned override the resize repair sets next. Under CPU load
+			// innerWidth settled at 625 = 500/0.8 (the layout viewport) instead
+			// of the requested 500. Hold the promise and drain the straggler
+			// (bounded ceiling) before this method returns.
+			const resized = handle.page.setViewportSize({ width: lv.width, height: lv.height }).catch(() => undefined);
+			await Promise.race([resized, new Promise((res) => setTimeout(res, 2500))]);
+			await Promise.race([resized, new Promise((res) => setTimeout(res, 5000))]);
 			// BUG 2026-10-26 (operator sc#7, THE headless root cause): the
 			// compositor surface lags the emulation resize — inner said 869
 			// while every frame stayed 782, so the mirror letterboxed forever.
-			// Pin the override AT the requested size and LEAVE it: headless has
-			// no window to fight (the round-10 centered-render trap is headed-
-			// only), and CLEARING the override reverts to the stale surface.
-			const anyCdpH = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
-			await anyCdpH.send('Emulation.setDeviceMetricsOverride', { width: e.viewport.width, height: e.viewport.height, deviceScaleFactor: 1, mobile: false }).catch(() => undefined);
+			// The raw sibling-session override this arm used to also send is
+			// GONE as of 2026-11-01: it rode a SECOND CDP connection, and
+			// cross-connection ordering is not guaranteed — under full-suite
+			// load it landed AFTER the repair's pin and rolled the page back
+			// (innerWidth settled at 625 = 500/0.8).
+			// BUG 2026-11-02 (live glass, RCA Bug 3): setViewportSize alone is
+			// NOT enough — measured live, the surface stayed 87px short of the
+			// metrics (inner 552x698, frames 552x611) across every resize, the
+			// headed ladder cannot run here (headless window bounds are PINNED
+			// to the emulated viewport — setWindowBounds past it is refused),
+			// and the bounce does not heal it. The cure, re-proven live:
+			// re-assert Emulation.setDeviceMetricsOverride after the drained
+			// resize — the surface repaints at the requested size on the next
+			// capture. Sent on a PAGE-SCOPED session (one connection, ordered
+			// with Playwright's own writes), never the sibling connection —
+			// the 2026-11-01 ordering trap does not apply.
+			try {
+				const cdp = await handle.page.context().newCDPSession(handle.page);
+				const dprEval = await Promise.race([
+					handle.page.evaluate('devicePixelRatio').catch(() => 1),
+					new Promise((res) => setTimeout(() => res(1), 500))
+				]);
+				await cdp.send('Emulation.setDeviceMetricsOverride', {
+					width: lv.width,
+					height: lv.height,
+					deviceScaleFactor: typeof dprEval === 'number' && dprEval > 0 ? dprEval : 1,
+					mobile: false
+				}).catch(() => undefined);
+			} catch {
+				// best-effort: a unit-mock page has no context(), a dead page has
+				// no surface — setViewportSize already ran, the verb still holds
+			}
 			return;
 		}
 		const race = async (p: Promise<unknown>, fb: unknown): Promise<unknown> => await Promise.race([p.catch(() => fb), new Promise((res) => setTimeout(() => res(fb), 2500))]);
@@ -1291,10 +1851,11 @@ const browser = context.browser();
 		const anyCdp2 = handle.cdp as { send: (method: string, params?: unknown) => Promise<unknown> };
 		const win = await this.windowIdOf(anyCdp2, race);
 		if (win && win.windowId) {
-			await race(anyCdp2.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { width: Math.max(200, e.viewport.width + chromeW), height: Math.max(120, e.viewport.height + chromeH), windowState: 'normal' } }), null);
+			const lv = layoutViewport(e.viewport.width, e.viewport.height, e.zoom ?? readBrowserConfig().contentZoom);
+			await race(anyCdp2.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { width: Math.max(200, lv.width + chromeW), height: Math.max(120, lv.height + chromeH), windowState: 'normal' } }), null);
 			if (chromeW > 0 || chromeH > 0) e.chrome = { w: chromeW, h: chromeH }; // remember the real offset
 			const check = (await race(anyCdp2.send('Browser.getWindowForTarget', { targetId: e.activeTargetId }), null)) as { bounds?: { width?: number; height?: number } } | null;
-			console.log('[window] resized ->', JSON.stringify(check && check.bounds ? check.bounds : check), 'want', e.viewport.width + chromeW, 'x', e.viewport.height + chromeH);
+			console.log('[window] resized ->', JSON.stringify(check && check.bounds ? check.bounds : check), 'want', lv.width + chromeW, 'x', lv.height + chromeH);
 		} else {
 			console.log('[window] no windowId — resize skipped (raced out)');
 		}
@@ -1305,14 +1866,29 @@ const browser = context.browser();
 	 *  to the first surviving tab (re-activated, first-frame contract
 	 *  re-fired). Closing the LAST tab is refused: the kill ladder owns
 	 *  session death (the trash is the operator-facing kill). */
-	async closeTab(id: string, targetId: string): Promise<{ ok: boolean; activeTargetId: string | null }> {
+	async closeTab(id: string, ref: TabRef): Promise<{ ok: boolean; activeTargetId: string | null }> {
 		const e = this.peek(id);
 		if (e.closed) throw new BrowserRegistryRefusal('CLOSED', 'session is closing');
+		// Glass-tab-ids: the ref may be a session ordinal. An ordinal MUST
+		// resolve — retired/unknown is an EXPLICIT NO_TARGET, never a silent
+		// nearest-match (global constraint). A non-numeric string stays the
+		// raw-targetId path (hand-built test entries and legacy callers).
+		let targetId = ref as string;
+		if (typeof ref === 'number' || /^\d+$/.test(ref as string)) {
+			const r = resolveTab(e, ref);
+			if (!r.ok) throw new BrowserRegistryRefusal('NO_TARGET', r.error);
+			targetId = r.targetId;
+		}
 		if (e.tabs.size <= 1) throw new BrowserRegistryRefusal('NO_TARGET', 'cannot close the last tab — use the trash to close the glass');
 		const victim = e.tabs.get(targetId);
 		if (!victim) throw new BrowserRegistryRefusal('NO_TARGET', 'no such tab: ' + targetId);
 		victim.relay.stop();
 		e.tabs.delete(targetId);
+		// Glass-tab-ids: retire the ordinal (never reused) and drop the
+		// creation-order record so the strip sorts the survivors cleanly.
+		retireTabId(e, targetId);
+		const ordIdx = (e.tabOrder ?? []).indexOf(targetId);
+		if (ordIdx !== -1) e.tabOrder.splice(ordIdx, 1);
 		await victim.cdp.send('Target.closeTarget', { targetId }).catch(() => undefined);
 		await victim.cdp.detach().catch(() => undefined);
 		if (e.activeTargetId === targetId) {

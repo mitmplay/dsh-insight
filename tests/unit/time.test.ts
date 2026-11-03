@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { relativeTime } from '$lib/utils/time';
+import { formatRunDuration, relativeTime } from '$lib/utils/time';
 
 describe('relativeTime', () => {
 	const now = 1_800_000_000_000; // fixed clock
@@ -30,5 +30,21 @@ describe('relativeTime', () => {
 
 	it('falls back to YYYY-MM-DD after a week', () => {
 		expect(relativeTime(now - 8 * 86_400_000, now)).toBe('2027-01-07');
+	});
+});
+
+describe('formatRunDuration (DSH formatRunDuration parity)', () => {
+	it('formats sub-minute wall time as bare seconds', () => {
+		expect(formatRunDuration(19_400)).toBe('19s');
+		expect(formatRunDuration(0)).toBe('0s');
+	});
+	it('pads seconds past a minute: "2m 08s"', () => {
+		expect(formatRunDuration(128_000)).toBe('2m 08s');
+		expect(formatRunDuration(2 * 60_000 + 8_000)).toBe('2m 08s');
+		expect(formatRunDuration(60_000)).toBe('1m 00s');
+		expect(formatRunDuration(3_599_000)).toBe('59m 59s');
+	});
+	it('clamps negative durations to zero', () => {
+		expect(formatRunDuration(-5_000)).toBe('0s');
 	});
 });

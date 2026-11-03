@@ -233,6 +233,7 @@
 		});
 	}
 
+	let lastMirrorJson: string | null = null;
 	$effect(() => {
 		if (restoring) return;
 		// Job tabs ride the mirror too (D5 amendment): remembered -J tabs
@@ -241,11 +242,15 @@
 		const jobs = jobTabs.map((j) => ({ owner: j.owner, jobId: j.jobId }));
 		const shells = tabs.map((t) => ({ sessionIds: t.rows.map((r) => r.assigned?.sessionId ?? '').filter((id) => id !== '') }));
 		if (shells.length === 0 && jobs.length === 0) return;
-		onMirror?.({
-			tabs: shells,
-			selectedTab,
-			...(jobs.length > 0 ? { jobs } : {})
-		});
+		// Publish only on CONTENT change (2026-11-03): the effect re-runs on
+		// unrelated churn (prop identity from the owner's re-render), and the
+		// owner's sink writes reactive state — publishing identical mirrors
+		// every run fed a write→flush cycle to infinite depth.
+		const mirror = { tabs: shells, selectedTab, ...(jobs.length > 0 ? { jobs } : {}) };
+		const json = JSON.stringify(mirror);
+		if (json === lastMirrorJson) return;
+		lastMirrorJson = json;
+		onMirror?.(mirror);
 	});
 
 	/** Mint a fresh session server-side and hand it to a new row (row
@@ -311,6 +316,42 @@
 			return;
 		}
 		selectedTab = Math.min(tabIndex, tabs.length - 1);
+	}
+
+	/** Ladder-close ONE row's session without touching the tab arrays —
+	 *  the clear verb's per-session half (ADR D5c amendment 2026-11-03). */
+	function killRow(row: Row): void {
+		if (!row.assigned) return;
+		void fetch('/api/terminal/' + row.assigned.sessionId + '/send', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ token: row.assigned.token, action: 'close' }),
+			keepalive: true
+		}).catch(() => undefined);
+	}
+
+	/** The clear verb's scope resolution (ADR D5b/D5c amendment 2026-11-03):
+	 *  jobs ⇒ close every job-follower tab (roster unwatch, PTYs untouched);
+	 *  terminals ⇒ ladder-close every shell session, then mint ONE fresh T1
+	 *  and select it — the fresh-T1 rule: the desk slot is NEVER removed by
+	 *  a clear verb, so D5's last-shell onShellExit cascade does not run
+	 *  here. all ⇒ both, ending in fresh T1. */
+	function clearScope(scope: 'all' | 'jobs' | 'terminals'): void {
+		if (scope === 'jobs' || scope === 'all') {
+			for (const job of [...jobTabs]) closeJobTab(job);
+		}
+		if (scope === 'terminals' || scope === 'all') {
+			for (const tab of tabs) {
+				for (const row of tab.rows) killRow(row);
+			}
+			tabs.splice(0, tabs.length);
+			void (async () => {
+				const row = await mintSession();
+				if (!row) return;
+				tabs.push({ key: mkKey(), rows: [row] });
+				selectedTab = 0;
+			})();
+		}
 	}
 
 	/** Shell exit in a row (D5): the session is already dead — shrink the
@@ -394,7 +435,7 @@ the rows. Restoring shows a quiet placeholder until the ladder settles.
 	{#if restoring}
 		<div class="p-3 text-xs text-slate-500" data-testid="terminal-desk-restoring">...</div>
 	{:else}
-		<TerminalTabHeader>
+		<TerminalTabHeader selectedIndex={selectedTab} onClear={clearScope}>
 			{#each tabs as tab, i (tab.key)}
 				<TerminalTabButton
 					index={i}
@@ -403,6 +444,10 @@ the rows. Restoring shows a quiet placeholder until the ladder settles.
 					onSelect={() => (selectedTab = i)}
 					onClose={() => closeTab(i)}
 				/>
+			{/each}
+			<!-- ADR D5d amendment 2026-11-03: the job loop is a SIBLING of the
+			     shell loop — the shipped nesting rendered each job tab once
+			     per shell tab (two shells + one job ⇒ the job tab twice). -->
 			{#each jobTabs as job, ji (job.key)}
 				<TerminalTabButton
 					index={tabs.length + ji}
@@ -412,7 +457,6 @@ the rows. Restoring shows a quiet placeholder until the ladder settles.
 					onSelect={() => (selectedTab = tabs.length + ji)}
 					onClose={() => closeJobTab(job)}
 				/>
-			{/each}
 			{/each}
 		</TerminalTabHeader>
 		{#each tabs as tab, i (tab.key)}

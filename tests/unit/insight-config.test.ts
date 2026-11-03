@@ -221,18 +221,17 @@ describe('readA2aConfig — the a2a.* section (W4 4.1)', () => {
 
 	it('reads the shipped defaults from a real config file', () => {
 		const cfg = readA2aConfig(writeConfig({ a2a: { fastPollMs: 1000, watchTimeoutMs: 600000, retentionDays: 90 } }));
-		expect(cfg).toEqual({ fastPollMs: 1000, watchTimeoutMs: 600_000, retentionDays: 90 });
 		expect(cfg).toEqual(DEFAULT_A2A_CONFIG);
 	});
 
 	it('applies the shared gates: out-of-range reverts per key', () => {
 		expect(readA2aConfig(writeConfig({ a2a: { fastPollMs: 500 } })).fastPollMs).toBe(500);
 		for (const fastPollMs of [-1, 60_001, 500.5, '1000']) {
-			expect(readA2aConfig(writeConfig({ a2a: { fastPollMs } })).fastPollMs).toBe(1000);
+			expect(readA2aConfig(writeConfig({ a2a: { fastPollMs } })).fastPollMs).toBe(DEFAULT_A2A_CONFIG.fastPollMs);
 		}
 		expect(readA2aConfig(writeConfig({ a2a: { fastPollMs: 0 } })).fastPollMs).toBe(0);
-		expect(readA2aConfig(writeConfig({ a2a: { watchTimeoutMs: 59_999 } })).watchTimeoutMs).toBe(600_000);
-		expect(readA2aConfig(writeConfig({ a2a: { retentionDays: 3651 } })).retentionDays).toBe(90);
+		expect(readA2aConfig(writeConfig({ a2a: { watchTimeoutMs: 59_999 } })).watchTimeoutMs).toBe(DEFAULT_A2A_CONFIG.watchTimeoutMs);
+		expect(readA2aConfig(writeConfig({ a2a: { retentionDays: 3651 } })).retentionDays).toBe(DEFAULT_A2A_CONFIG.retentionDays);
 	});
 });
 

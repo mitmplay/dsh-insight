@@ -20,6 +20,7 @@
 import * as m from '$lib/paraglide/messages';
 	import PanelHeader from './PanelHeader.svelte';
 	import ResizeGutter from './ResizeGutter.svelte';
+	import WidthBadge from '../common/WidthBadge.svelte';
 
 	let {
 		panel,
@@ -135,17 +136,10 @@ import * as m from '$lib/paraglide/messages';
 		{onremove}
 	/>
 	{#if widthBadge !== null}
-		<!-- Visual aid for a pointer drag: duplicates no unique info to AT
-		     (the width is a layout fact), and never intercepts pointers. -->
-		<span
-			class="width-badge"
-			class:fading={widthBadge === 'fading'}
-			data-testid="panel-width-badge"
-			data-badge-phase={widthBadge}
-			aria-hidden="true"
-		>
-			{Math.round(panel.width)}px
-		</span>
+		<!-- Width badge (extracted 2026-10-30, Movable Rail ADR D1): the
+		     shared chip — same markup, styles and testid as the inline
+		     version it replaced (pixel-identical). -->
+		<WidthBadge phase={widthBadge} width={panel.width} />
 	{/if}
 	<div class="body">
 		{@render children()}
@@ -165,43 +159,9 @@ import * as m from '$lib/paraglide/messages';
 		flex-shrink: 0;
 	}
 
-	/* Width badge (2026-08-28): the drag's live width readout at the
-	   column's top right, BELOW the header row so it never covers the
-	   move/close controls; pointer-transparent (the drag owns the
-	   pointer anyway, and the afterglow must not block clicks). Chip
-	   grammar (border + 10% tint + deepened text, tabular-nums — the
-	   title-chip family; its mix measured AA 4.94:1 on white). */
-	.width-badge {
-		position: absolute;
-		top: 2.5rem;
-		right: 0.875rem;
-		z-index: 5;
-		pointer-events: none;
-		padding: 0.125rem 0.375rem;
-		border: 1px solid color-mix(in srgb, var(--color-accent-blue, #3b82f6) 50%, var(--color-navy-focus));
-		border-radius: 0.375rem;
-		background: color-mix(in srgb, var(--color-accent-blue, #3b82f6) 10%, var(--color-surface-elevated));
-		color: color-mix(in srgb, var(--color-accent-blue, #3b82f6) 30%, var(--color-navy-focus));
-		font-size: 0.6875rem;
-		line-height: 1.25;
-		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
-		opacity: 1;
-	}
-
-	/* Afterglow: after mouseup the badge fades out over 10s. The
-	   transition rides ONLY this class — a new drag snapping the badge
-	   back to live (or re-showing it) is instant, never a 10s fade-in. */
-	.width-badge.fading {
-		opacity: 0;
-		transition: opacity 10s linear;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.width-badge.fading {
-			transition: none; /* honor the preference: hide at once */
-		}
-	}
+	/* Width badge styles moved into WidthBadge.svelte (2026-10-30, the
+	   shared chip — Movable Rail ADR D1); .column stays the absolute
+	   anchor via its position:relative above. */
 
 	/* Selection ring — a rounded gradient drawn OUTSIDE the column (same
 	   geometry the flat outline had: inset -2px + 2px ring thickness puts

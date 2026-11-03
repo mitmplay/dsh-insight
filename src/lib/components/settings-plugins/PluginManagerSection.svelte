@@ -28,7 +28,6 @@
 	import * as m from '$lib/paraglide/messages';
 	import { ChevronDown, ChevronRight } from '@lucide/svelte';
 	import PluginManagerStars from './PluginManagerStars.svelte';
-	import PluginManagerUninstall from './PluginManagerUninstall.svelte';
 
 	interface Props {
 		/** One source (repo group) with its already tab/search-filtered rows. */
@@ -37,17 +36,18 @@
 		collapsed: boolean;
 		/** GitHub stargazers per plugin id (best-effort; absent = badge off). */
 		stars: Record<string, number>;
-		/** The shelf's tab grammar: install rows get a select checkbox. */
+		/** The shelf's tab grammar: BOTH doors speak the selection grammar
+		 *  (Plugin Rack amendment IV 2026-10-31) — install rows select for
+		 *  install, installed rows select for remove; the per-row verb and
+		 *  the Installed badge are deleted (the badge only ever rendered on
+		 *  the tab where every row is installed). */
 		tab: 'install' | 'uninstall';
 		/** Shelf selection grammar (3.3): one Set keyed by row n. */
 		selected: ReadonlySet<string>;
-		busyId: string | null;
-		floorBounce: boolean;
 		ontoggle: () => void;
 		ontoggleselect: (n: string) => void;
-		onremove: (id: string) => void;
 	}
-	let { source, collapsed, stars, tab, selected, busyId, floorBounce, ontoggle, ontoggleselect, onremove }: Props = $props();
+	let { source, collapsed, stars, tab, selected, ontoggle, ontoggleselect }: Props = $props();
 </script>
 
 <div class="rack-source" data-testid={'rack-source-' + source.id.replace(/[^a-zA-Z0-9-]/g, '-')}>
@@ -71,7 +71,7 @@
 		<ul class="rack-rows" data-testid={'rack-rows-' + source.id.replace(/[^a-zA-Z0-9-]/g, '-')}>
 			{#each source.plugins as plugin (plugin.n)}
 				<li class="rack-row" class:rack-row-selected={selected.has(plugin.n)} data-testid={'rack-row-' + plugin.id}>
-					{#if tab === 'install' && !plugin.installed}
+					{#if tab === 'uninstall' || !plugin.installed}
 						<input
 							type="checkbox"
 							class="rack-check"
@@ -87,7 +87,6 @@
 					{#if plugin.description}
 						<span class="rack-desc">{plugin.description}</span>
 					{/if}
-					<PluginManagerUninstall {plugin} {busyId} {floorBounce} onremove={onremove} />
 				</li>
 			{/each}
 		</ul>

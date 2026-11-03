@@ -280,6 +280,7 @@
 					time={group.kind === 'prompt' ? group.entry.time : group.entries[0]?.time}
 					tone={group.kind === 'prompt' ? 'prompt' : 'context'}
 					imageRefs={group.kind === 'prompt' ? group.entry.imageRefs : undefined}
+				meta={group.kind === 'prompt' ? group.entry.meta : undefined}
 					{sessionId}
 					{onFileLink}
 				>

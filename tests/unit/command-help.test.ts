@@ -341,7 +341,9 @@ describe('COMMAND_HELP — /workspace (W3 3.1-T)', () => {
 
 describe('COMMAND_HELP — /new copy for the workspace slot (W3 3.1-T)', () => {
 	it('the usage carries the [workspace] slot (matches the executor\u2019s usage string grammar)', () => {
-		expect(COMMAND_HELP.new.usage).toBe('/new [@agent] [workspace] [--add]');
+		// 2026-10-29, Workspace Command ADR amendment D7/D8: the --title
+		// flag joins the grammar — the usage string moves in lockstep.
+		expect(COMMAND_HELP.new.usage).toBe('/new [@agent] [workspace] [--title <title>] [--add]');
 	});
 
 	it('the workspace param documents title-or-path matching and the no-guess rule', () => {
@@ -358,8 +360,8 @@ describe('COMMAND_HELP — /new copy for the workspace slot (W3 3.1-T)', () => {
 	it('/new ? card reflects the new usage through the card view', () => {
 		expect(commandHelpTopic('/new ?')).toBe('new');
 		const view = gestureHelpCardView('new');
-		expect(view.usage).toBe('/new [@agent] [workspace] [--add]');
-		expect(view.params.map((p) => p.name)).toEqual(['@agent', 'workspace', '--add']);
+		expect(view.usage).toBe('/new [@agent] [workspace] [--title <title>] [--add]');
+		expect(view.params.map((p) => p.name)).toEqual(['@agent', 'workspace', '--title <title>', '--add']);
 	});
 });
 

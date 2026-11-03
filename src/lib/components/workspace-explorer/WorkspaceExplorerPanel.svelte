@@ -32,7 +32,7 @@
 	import SettingsHomeFile from '../panels/SettingsHomeFile.svelte';
 	import WorkspaceFileTabs from '../workspace-file/WorkspaceFileTabs.svelte';
 	import ResizeGutter from '../panels/ResizeGutter.svelte';
-	import type { DirEntry, Level } from './WorkspaceExplorerTree.svelte';
+	import type { DirEntry, Level } from './workspace-explorer-tree-types';
 	import type { ChangeStatus } from './WorkspaceExplorerRepo.svelte';
 
 
@@ -60,7 +60,9 @@
 		activeFile = null,
 		onOpenTab,
 		onCloseTab,
-		onActivateTab
+		onActivateTab,
+		ontoggleexplorer,
+		explorerHidden = false
 	}: {
 		/** The owning session — provenance for the level fetches. NULL for a
 		 *  session-less settings-home explorer (The Settings Tree ADR
@@ -123,6 +125,12 @@
 		 *  toolbar's collapse-all collapses EVERY known repo instead — the
 		 *  owner persists the resulting collapsed list. */
 		onCollapseAllRepos?: (repos: readonly string[]) => void;
+		/** Explorer hide/show intent (2026-10-31) — forwarded into the file
+		 *  toolbar's toggle button; absent renders no toggle icon there. */
+		ontoggleexplorer?: () => void;
+		/** The tree lane's current visibility — true collapses the lane
+		 *  (tree + gutter unmount, the file region takes the full width). */
+		explorerHidden?: boolean;
 	} = $props();
 
 
@@ -601,18 +609,37 @@
 	/** The rendered tree lane: the settled px, or the narrow-lane default
 	 *  before the first measurement. Percent lives only in treePct. */
 	const treeBasis = $derived(treePx === null ? PANEL_WORKSPACE_EXPLORER_WIDTH : treePx);
+	/** Hide/show (2026-10-31): a hidden lane collapses the basis to zero —
+	 *  the tree and the gutter unmount, the file region takes the width. */
+	const laneBasis = $derived(explorerHidden ? 0 : treeBasis);
+
+	// Stranded-state recovery (review 2026-10-31): the ONLY toggle lives in
+	// the file toolbar, which mounts only when a session file is active. A
+	// hidden lane with no file surface (all tabs closed, or a settings-home
+	// file that never receives the handler) could never be revealed — so the
+	// panel reveals ITSELF: one intent fires, the owner persists shown, and
+	// the effect goes quiet once the prop catches up.
+	$effect(() => {
+		if (explorerHidden && (activeFile === null || home !== undefined)) ontoggleexplorer?.();
+	});
+
+	// Per-path dirty map (ADR D5c/D5d amendment 2026-11-03): only the ACTIVE
+	// file is mounted, so one report line keeps the map honest; closing a
+	// tab (per-tab or via the clear popover) deletes its entry.
+	let dirtyMap = $state<Record<string, boolean>>({});
 </script>
 
 <div
 	data-testid="workspace-explorer"
 	class="split"
 	bind:this={splitRoot}
-	style="--tree-basis: {treeBasis}px"
+	style="--tree-basis: {laneBasis}px"
 >
 	<!-- NO wrapper regions: the explorer, the gutter, and the file tabs sit
 	     as DIRECT flex children of .split, so the gutter is genuinely
 	     between them and the drag reads on the seam. Sizing rides the CSS
 	     custom properties set above (inherited by the component roots). -->
+	{#if !explorerHidden}
 	<WorkspaceExplorer
 		activeFile={activeFile}
 		{root}
@@ -638,13 +665,27 @@
 	/>
 	<!-- The Explorer Layout (ADR D4), unconditional since The Settings
 	     Tree ADR 2026-09-18 D1: the PANEL owns the drag; the gutter's
-	     local owner path fires instead of the registry. -->
+	     local owner path fires instead of the registry. Hide/show
+	     (2026-10-31) gates BOTH the tree and the gutter together. -->
 	<ResizeGutter index={0} onDragStart={startSplitDrag} />
+	{/if}
 	<WorkspaceFileTabs
-		tabs={openTabs.map((p) => ({ path: p }))}
+		tabs={openTabs.map((p) => ({ path: p, dirty: dirtyMap[p] === true }))}
 		activePath={activeFile}
 		onActivate={(p) => onActivateTab?.(p)}
-		onClose={(p) => onCloseTab?.(p)}
+		onClose={(p) => {
+			onCloseTab?.(p);
+			delete dirtyMap[p];
+		}}
+		onClearAll={(scope) => {
+			// ADR D5c (2026-11-03): the panel is the single writer of the tab
+			// list — it resolves the popover's scope against the dirty map.
+			const doomed = scope === 'all' ? [...openTabs] : openTabs.filter((p) => dirtyMap[p] !== true);
+			for (const path of doomed) {
+				onCloseTab?.(path);
+				delete dirtyMap[path];
+			}
+		}}
 	>
 		{#if activeFile !== null}
 			{#if home !== undefined}
@@ -661,6 +702,11 @@
 				highlightLines={lineTarget}
 				onhighlightdone={() => (lineTarget = null)}
 				onclose={() => {}}
+				{ontoggleexplorer}
+				{explorerHidden}
+				ondirtychange={(d) => {
+					dirtyMap[activeFile] = d;
+				}}
 			/>
 			{/if}
 		{/if}

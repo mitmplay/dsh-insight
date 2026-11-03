@@ -517,3 +517,63 @@ describe("AppSidebar — the collapsed stub ControlBar onresizeall wiring", () =
 		unmount(instance);
 	});
 });
+
+/** The sidebar width badge (Movable Rail ADR amendment 2026-10-30):
+ *  the standalone rail-wrap shows the shared WidthBadge while the page
+ *  drag machine holds pagePrefs.sidebarBadge; embedded + collapsed
+ *  branches never render one. The phase lives in the pagePrefs
+ *  singleton — set it directly, restore after each test. */
+import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
+
+describe('AppSidebar — sidebar width badge', () => {
+	afterEach(() => {
+		pagePrefs.sidebarBadge = null;
+	});
+
+	async function mountWithBadge(phase: 'live' | 'fading', props: Record<string, unknown> = {}) {
+		const log: FetchLog[] = [];
+		stubFetch(log);
+		pagePrefs.sidebarBadge = phase;
+		const mounted = mountSidebar({ width: 420, ...props });
+		await settle();
+		return mounted;
+	}
+
+	it('standalone rail renders the badge in the live phase with the rail width', async () => {
+		const { target, instance } = await mountWithBadge('live');
+		const el = target.querySelector('[data-testid="sidebar-width-badge"]');
+		expect(el).not.toBeNull();
+		expect(el?.getAttribute('data-badge-phase')).toBe('live');
+		expect(el?.textContent).toBe('420px');
+		unmount(instance);
+	});
+
+	it('the fading phase carries the fade class (10s afterglow)', async () => {
+		const { target, instance } = await mountWithBadge('fading');
+		const el = target.querySelector('[data-testid="sidebar-width-badge"]');
+		expect(el?.getAttribute('data-badge-phase')).toBe('fading');
+		expect(el?.classList.contains('fading')).toBe(true);
+		unmount(instance);
+	});
+
+	it('a null phase renders no badge (idle rail)', async () => {
+		const log: FetchLog[] = [];
+		stubFetch(log);
+		const { target, instance } = mountSidebar({ width: 420 });
+		await settle();
+		expect(target.querySelector('[data-testid="sidebar-width-badge"]')).toBeNull();
+		unmount(instance);
+	});
+
+	it('the embedded rail renders NO badge at any phase (ADR D3 — zoom-scaled px would misreport)', async () => {
+		const { target, instance } = await mountWithBadge('live', { embedded: true });
+		expect(target.querySelector('[data-testid="sidebar-width-badge"]')).toBeNull();
+		unmount(instance);
+	});
+
+	it('the collapsed stub renders NO badge', async () => {
+		const { target, instance } = await mountWithBadge('live', { collapsed: true });
+		expect(target.querySelector('[data-testid="sidebar-width-badge"]')).toBeNull();
+		unmount(instance);
+	});
+});

@@ -32,11 +32,31 @@ describe('browser registry (real headed chromium)', () => {
 		expect(portHeld(info.port)).toBe(true);
 		const r = await browserRegistry.close(info.id);
 		expect(r).toEqual({ ok: true, alreadyClosed: false });
-		expect(portHeld(info.port)).toBe(false);
+		// close() resolves once the kill is issued; under full-suite CPU
+		// saturation the kernel can keep the LISTEN entry visible a moment
+		// longer (flake 2026-11-01: portHeld true immediately after an ok
+		// close). Poll with a bounded ceiling — a genuinely leaked listener
+		// still trips.
+		let freed = !portHeld(info.port);
+		for (let i = 0; i < 100 && !freed; i += 1) {
+			await new Promise((res) => setTimeout(res, 100));
+			freed = !portHeld(info.port);
+		}
+		expect(freed).toBe(true);
 	}, 120_000); // headed chromium under parallel workers needs >60s ceiling
 
 	it('double close is idempotent (D8)', async () => {
-		const info = await browserRegistry.open({ spawnMcp: false, port: 9516 + opened.length * 3, });
+		// Full-suite hardening (2026-11-01): close() itself is idempotent in
+		// source — the only way this test failed under the 600-file parallel
+		// gate is open() throwing first (a launch exceeding Playwright's 30s
+		// launch cap under CPU saturation). One retry, on a fresh free-port
+		// scan, buys the launch headroom; the D8 contract is untouched.
+		let info: Awaited<ReturnType<typeof browserRegistry.open>>;
+		try {
+			info = await browserRegistry.open({ spawnMcp: false, port: 9516 + opened.length * 3, });
+		} catch {
+			info = await browserRegistry.open({ spawnMcp: false });
+		}
 		await browserRegistry.close(info.id);
 		const second = await browserRegistry.close(info.id);
 		expect(second).toEqual({ ok: true, alreadyClosed: true });

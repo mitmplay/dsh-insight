@@ -81,7 +81,7 @@ export function workspaceFileTitle(path: string): string {
  */
 export function panelHeaderLabel(panel: DsiPanelEntry): string | undefined {
 	if (panel.kind === 'terminal') return 'Terminal';
-	if (panel.kind === 'browser') return 'Browser';
+	if (panel.kind === 'browser') return 'Glass Browser';
 	if (panel.kind === 'prompt-manager') return MANAGER_ROW_TITLE;
 	if (panel.kind === 'skill-shelf') return 'Skill Shelf';
 	if (panel.kind === 'plugin-rack') return 'Plugin Rack';
@@ -155,7 +155,7 @@ export function panelRowsFor(input: PanelRowsInput): PanelRow[] {
 				p.openedBy !== undefined ? (lineageFacts.depthById.get(p.openedBy) ?? 0) : 0;
 			return {
 				panel: p,
-				title: 'Browser',
+				title: 'Glass Browser',
 				workspace: null,
 				dead: false,
 				running: false,

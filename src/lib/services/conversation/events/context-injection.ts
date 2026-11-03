@@ -76,6 +76,9 @@ export type ContextInjectionProducer =
 	| 'skill-catalog'
 	| 'skill-invocation'
 	| 'user-approval'
+	| 'goal'
+	| 'tool-goal'
+	| 'time-context'
 	| 'compaction'
 	| 'plugin'
 	| 'recall'
@@ -109,11 +112,35 @@ export function contextInjectionProducer(data: Record<string, unknown> | undefin
 		// match only: scoped siblings (@deepseek-ai/dsh-user-approval) stay
 		// in the open family below.
 		if (source.plugin === 'user-approval') return 'user-approval';
+		// 2026-11-02 promotion (The Chip Label Promotion ADR D1/D2): the three
+		// recurring floor plugins get catalog labels instead of raw wire
+		// strings — exact-string only, scoped siblings stay in the open
+		// family, and the wire name rides the chip tooltip (D3).
+		if (source.plugin === 'goal') return 'goal';
+		if (source.plugin === 'tool-goal') return 'tool-goal';
+		if (source.plugin === 'time-context') return 'time-context';
+		// 2026-11-02 promotion (The Chip Label Promotion ADR D1/D2): the three
+		// recurring floor plugins get catalog labels instead of raw wire
+		// strings — exact-string only, scoped siblings stay in the open
+		// family, and the wire name rides the chip tooltip (D3).
+		if (source.plugin === 'goal') return 'goal';
+		if (source.plugin === 'tool-goal') return 'tool-goal';
+		if (source.plugin === 'time-context') return 'time-context';
 		// Open family: tool-jobs notices, user-approval policy changes,
 		// hooks relays, time-context snapshots, … — the chip is named after
 		// the wire plugin string at render time.
 		return 'plugin';
 	}
+	// 2026-11-02 live-wire amendment (The Chip Label Promotion ADR, amendments):
+	// DSH v4 ledgers carry the promoted vocabulary on source.KIND — wire census
+	// 2026-11-02: kind 'time-context' form 'snapshot' ×1731, kind 'user-approval'
+	// ×612, kind 'goal' {goalId,revision,round}, kind 'tool-goal' form 'notice'
+	// {summary}. The plugin-string members above stay for the older wire shape;
+	// these kind arms are the live contract. Exact-string only (D2).
+	if (source.kind === 'goal') return 'goal';
+	if (source.kind === 'tool-goal') return 'tool-goal';
+	if (source.kind === 'time-context') return 'time-context';
+	if (source.kind === 'user-approval') return 'user-approval';
 	// Instructions: agent-instructions kind + instructions form (AGENTS.md).
 	if (source.kind === 'agent-instructions' && source.form === 'instructions') return 'instructions';
 	// Skill-catalog: skill-catalog kind + catalog form (entries name+describe skills).

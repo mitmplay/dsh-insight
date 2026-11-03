@@ -109,17 +109,17 @@ afterEach(() => {
 
 describe('monacoThemeFor (the Three-State Lamp mapping, L30-32)', () => {
 	it("maps 'dark' to vs-dark — the ternary's true arm", () => {
-		expect(monacoThemeFor('dark')).toBe('vs-dark');
+		expect(monacoThemeFor('dark')).toBe('dsi-dark');
 	});
 
 	it('maps every non-dark value to vs (false arm)', () => {
-		expect(monacoThemeFor('light')).toBe('vs');
-		expect(monacoThemeFor('')).toBe('vs');
+		expect(monacoThemeFor('light')).toBe('dsi-light');
+		expect(monacoThemeFor('')).toBe('dsi-light');
 	});
 
 	it('treats missing attribute (null / undefined) as light', () => {
-		expect(monacoThemeFor(null)).toBe('vs');
-		expect(monacoThemeFor(undefined)).toBe('vs');
+		expect(monacoThemeFor(null)).toBe('dsi-light');
+		expect(monacoThemeFor(undefined)).toBe('dsi-light');
 	});
 });
 
@@ -134,7 +134,7 @@ describe('applyThemeFromDocument module-load arms (L35-39)', () => {
 		document.documentElement.dataset.theme = 'dark';
 		vi.resetModules();
 		await freshImport();
-		expect(setTheme).toHaveBeenCalledWith('vs-dark');
+		expect(setTheme).toHaveBeenCalledWith('dsi-dark');
 	});
 
 	it('applies the light theme when data-theme is absent', async () => {
@@ -142,7 +142,7 @@ describe('applyThemeFromDocument module-load arms (L35-39)', () => {
 		(monaco.editor as unknown as { setTheme: unknown }).setTheme = setTheme;
 		vi.resetModules();
 		await freshImport();
-		expect(setTheme).toHaveBeenCalledWith('vs');
+		expect(setTheme).toHaveBeenCalledWith('dsi-light');
 	});
 
 	it('skips theme application when the monaco stub has no setTheme (guard true arm, L36)', async () => {

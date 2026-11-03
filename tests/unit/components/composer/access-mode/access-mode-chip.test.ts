@@ -339,3 +339,57 @@ describe('AccessModeChip — honest receipts (2026-08-25 RCA fix C)', () => {
 		}
 	});
 });
+
+describe('AccessModeChip — dismissal contract (spec 2026-11-01)', () => {
+	/** A pointerdown on an element that is NOT inside the widget. */
+	function outsidePointerDown(): void {
+		const stranger = document.createElement('button');
+		document.body.appendChild(stranger);
+		stranger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		stranger.remove();
+	}
+
+	it('outside pointerdown closes the menu', async () => {
+		const { target, cleanup } = mountChip();
+		(target.querySelector('[data-testid="access-mode-chip"]') as HTMLButtonElement).click();
+		await settle();
+		expect(target.querySelector('[data-testid="access-mode-menu"]')).not.toBeNull();
+		outsidePointerDown();
+		await settle();
+		expect(target.querySelector('[data-testid="access-mode-menu"]')).toBeNull();
+		cleanup();
+	});
+
+	it('Escape closes the menu and returns focus to the trigger', async () => {
+		const { target, cleanup } = mountChip();
+		const chip = target.querySelector('[data-testid="access-mode-chip"]') as HTMLButtonElement;
+		chip.click();
+		await settle();
+		document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+		await settle();
+		expect(target.querySelector('[data-testid="access-mode-menu"]')).toBeNull();
+		expect(document.activeElement).toBe(chip);
+		cleanup();
+	});
+
+	it('a pointerdown inside the menu does NOT dismiss (picks still land)', async () => {
+		const { target, onpick, cleanup } = mountChip();
+		(target.querySelector('[data-testid="access-mode-chip"]') as HTMLButtonElement).click();
+		await settle();
+		const opt = target.querySelector('[data-testid="access-mode-option"][data-value="read-only"]') as HTMLButtonElement;
+		opt.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		await settle();
+		expect(target.querySelector('[data-testid="access-mode-menu"]')).not.toBeNull();
+		expect(onpick).not.toHaveBeenCalled(); // pointerdown alone never picks
+		cleanup();
+	});
+
+	it('closed widget carries no live listeners (no crash on stray outside click)', async () => {
+		const { target, cleanup } = mountChip();
+		outsidePointerDown();
+		await settle();
+		expect(target.querySelector('[data-testid="access-mode-menu"]')).toBeNull();
+		cleanup();
+	});
+});
+

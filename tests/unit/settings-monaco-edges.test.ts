@@ -101,10 +101,10 @@ afterEach(() => {
 
 describe('monacoThemeFor mapping', () => {
 	it('maps dark to vs-dark and everything else to vs', () => {
-		expect(monacoThemeFor('dark')).toBe('vs-dark');
-		expect(monacoThemeFor('light')).toBe('vs');
-		expect(monacoThemeFor(null)).toBe('vs');
-		expect(monacoThemeFor(undefined)).toBe('vs');
+		expect(monacoThemeFor('dark')).toBe('dsi-dark');
+		expect(monacoThemeFor('light')).toBe('dsi-light');
+		expect(monacoThemeFor(null)).toBe('dsi-light');
+		expect(monacoThemeFor(undefined)).toBe('dsi-light');
 	});
 });
 
@@ -113,13 +113,13 @@ describe('module-load theme application (setTheme present)', () => {
 		htmlEl.setAttribute('data-theme', 'dark');
 		vi.resetModules();
 		await import('$lib/components/monaco/settings-monaco');
-		expect(monacoState.setTheme).toHaveBeenCalledWith('vs-dark');
+		expect(monacoState.setTheme).toHaveBeenCalledWith('dsi-dark');
 	});
 
 	it('falls back to vs when the document has no data-theme', async () => {
 		vi.resetModules();
 		await import('$lib/components/monaco/settings-monaco');
-		expect(monacoState.setTheme).toHaveBeenCalledWith('vs');
+		expect(monacoState.setTheme).toHaveBeenCalledWith('dsi-light');
 	});
 });
 
@@ -127,13 +127,13 @@ describe('MutationObserver data-theme watcher', () => {
 	it('retargets every live editor when data-theme flips', async () => {
 		vi.resetModules();
 		await import('$lib/components/monaco/settings-monaco');
-		expect(monacoState.setTheme).toHaveBeenCalledWith('vs');
+		expect(monacoState.setTheme).toHaveBeenCalledWith('dsi-light');
 		// flip the lamp: the observer on documentElement fires applyThemeFromDocument
 		htmlEl.setAttribute('data-theme', 'dark');
 		// MutationObserver callbacks are delivered as microtasks — real timers flush them
 		vi.useRealTimers();
 		await new Promise((r) => setTimeout(r, 0));
-		expect(monacoState.setTheme).toHaveBeenLastCalledWith('vs-dark');
+		expect(monacoState.setTheme).toHaveBeenLastCalledWith('dsi-dark');
 	});
 });
 
@@ -157,9 +157,9 @@ describe('theme reaches create-call options', () => {
 		await import('$lib/components/monaco/settings-monaco');
 		htmlEl.setAttribute('data-theme', 'dark');
 		createYamlEditor(document.createElement('div'), 'a: 1', () => {});
-		expect(monacoState.createCalls[0]!.options.theme).toBe('vs-dark');
+		expect(monacoState.createCalls[0]!.options.theme).toBe('dsi-dark');
 		htmlEl.setAttribute('data-theme', 'light');
 		createTextEditor(document.createElement('div'), 'x', () => {});
-		expect(monacoState.createCalls[1]!.options.theme).toBe('vs');
+		expect(monacoState.createCalls[1]!.options.theme).toBe('dsi-light');
 	});
 });

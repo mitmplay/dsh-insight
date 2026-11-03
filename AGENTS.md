@@ -11,12 +11,26 @@ into a manual.
 ## Task flow (ASDLC) — non-trivial tasks
 
 Every non-trivial task goes through the battle-tested flow, in order:
-`dsi-adr` (decision) → `dsi-spec` (spec + tasks) → `dsi-task` (execution),
-with the visible checklist declared up front, updated at every step, and
-verified on disk before reporting anything as done. Never report "working"
-from claims or unit tests alone — verify on the surface the operator will
-touch (lesson 2026-10-11: three "PASS" rounds against the wrong target
-while the real click stayed broken until the operator tested it).
+`dsi-adr` (decision) → `dsi-spec` (spec + tasks) → `dsi-task` (execution).
+Anchor the whole task in DSH's own memory tools so the model cannot drift
+or forget where it is:
+
+- **At kickoff**, create a `goal` whose objective restates the task's
+  outcome, and declare the `todo` checklist `adr → spec → task → verify →
+  done`. This is the visible checklist — harness-tracked, not prose.
+- **At every step**, keep the todos 1:1 with the ASDLC stage boundaries:
+  mark the current stage `in_progress`, the finished one `completed`.
+- **On resume after a pause or fork**, re-arm with `update_goal resume`
+  and re-read the goal + todos before continuing — never pick up mid-flow
+  from memory.
+- **Completion**: mark the goal `complete` only after the verification
+  gate below passes; a stalled task is `blocked` only under DSH's rule
+  (same condition, 3+ consecutive goal rounds).
+
+Never report "working" from claims or unit tests alone — verify on the
+surface the operator will touch before marking any step or the goal done
+(lesson 2026-10-11: three "PASS" rounds against the wrong target while the
+real click stayed broken until the operator tested it).
 
 ## File links in chat (workspace-root-relative)
 

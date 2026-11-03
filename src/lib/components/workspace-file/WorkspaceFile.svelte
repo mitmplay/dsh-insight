@@ -28,11 +28,14 @@
 		hasTabs,
 		activeView,
 		showToggle,
-		diffDisabled,
+		editing,
+		onToggleEdit,
 		readonly,
 		onViewChange,
 		onSave,
 		onReload,
+		onToggleExplorer,
+		explorerHidden = false,
 		saveError,
 		saveFailedNote,
 		loadingNote,
@@ -70,8 +73,10 @@
 		activeView: 'edit' | 'diff';
 		/** Whether the diff/editor toggle renders (gate open AND changed). */
 		showToggle: boolean;
-		/** Diff toggle disabled while the buffer is dirty. */
-		diffDisabled: boolean;
+		/** The Single Edit (ADR D2): the operator-facing edit mode. */
+		editing: boolean;
+		/** Edit-mode intent — the Edit/Cancel verb. */
+		onToggleEdit: (next: boolean) => void;
 		/** Read-only gate — the toolbar's RO chip. */
 		readonly: boolean;
 		/** View-switch intent. */
@@ -80,6 +85,11 @@
 		onSave: () => void;
 		/** Reload intent (2026-10-27): the panel's draft-safe refreshFile. */
 		onReload?: () => void;
+		/** Explorer hide/show intent (2026-10-31) — threaded to the toolbar;
+		 *  absent renders no toggle icon. */
+		onToggleExplorer?: () => void;
+		/** The explorer lane's current visibility — flips the toggle glyph. */
+		explorerHidden?: boolean;
 		/** The failed save's error detail, when any. */
 		saveError: string | null;
 		/** The save-failed note's copy (owner-translated). */
@@ -130,11 +140,14 @@
 		{hasTabs}
 		view={activeView}
 		{showToggle}
-		{diffDisabled}
+		{editing}
+		ontoggledit={onToggleEdit}
 		{readonly}
 		onviewchange={onViewChange}
 		onsave={onSave}
 		onreload={onReload}
+		ontoggleexplorer={onToggleExplorer}
+		{explorerHidden}
 	/>
 	{#if saveState === 'failed'}
 		<p class="note fail" data-testid="file-save-failed">{saveFailedNote}{saveError ? ' — ' + saveError : ''}</p>

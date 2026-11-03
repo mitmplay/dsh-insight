@@ -86,6 +86,12 @@ export class TerminalRegistry {
 		this.authorized(sessionId, token).write(data);
 	}
 
+	/** Resize the PTY to the client's fitted dims (Terminal Desk ADR
+	 *  amendment 2026-11-03 — the DSH handle's `resize` fact, mirrored). */
+	resize(sessionId: string, token: string, cols: number, rows: number): void {
+		this.authorized(sessionId, token).resize(cols, rows);
+	}
+
 	signal(sessionId: string, token: string, signal: TerminalSignal): number {
 		return this.authorized(sessionId, token).signalForeground(signal);
 	}

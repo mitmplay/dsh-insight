@@ -24,12 +24,23 @@ class PagePrefs {
 	zoom = $state(1);
 	/** Explorer Layout split (clamped). */
 	treePct = $state(0);
+	/** Explorer hide/show (2026-10-31 toggle RCA): $state is REQUIRED —
+	 *  a plain field swallowed the toggle click silently (no re-render). */
+	explorerHidden = $state(false);
 	/** Sidebar rail state (OCI ControlRail port). */
 	sidebarCollapsed = $state(false);
 	sidebarWidth = $state(0);
+	/** Sidebar width-badge phase (Movable Rail ADR amendment 2026-10-30):
+	 *  'live' while the gutter drag moves, 'fading' through the 10s
+	 *  afterglow, null otherwise. GESTURE state, never persisted — the
+	 *  save whitelist below carries only collapsed + width. */
+	sidebarBadge = $state<'live' | 'fading' | null>(null);
 
 	#profile: string | null = null;
 	#initialised = false;
+	/** Non-reactive: the afterglow timer id (drag.svelte.ts dragRefs
+	 *  pattern — timers never belong in reactive state). */
+	#afterglowTimer: ReturnType<typeof setTimeout> | null = null;
 
 	/** Seed every field from the persisted blobs — exactly once, BEFORE
 	 *  the route reads any field (makePanel reads panelWidth during the
@@ -47,6 +58,7 @@ class PagePrefs {
 		this.panelWidth = clampPanelWidth(floor.panelWidth);
 		this.zoom = clampPanelZoom(floor.zoom);
 		this.treePct = clampTreePct(floor.treePct);
+		this.explorerHidden = floor.explorerHidden === true;
 		const sidebar = loadSidebarPrefs(profile);
 		this.sidebarCollapsed = sidebar.collapsed;
 		this.sidebarWidth = sidebar.width;
@@ -57,7 +69,7 @@ class PagePrefs {
 	}
 
 	/** Sidebar persistence (the route's old sidebar save effect). Call
-	 *  during component initialisation — `$effect` needs an owner. */
+	 *  during component initialisation — $effect needs an owner. */
 	installSidebarAutoSave(): void {
 		$effect(() => {
 			saveSidebarPrefs(
@@ -65,6 +77,29 @@ class PagePrefs {
 				this.#profile
 			);
 		});
+	}
+
+	/** The badge afterglow (10s linear fade, mirroring the floor's
+	 *  drag.svelte.ts:118-128): called at gutter mouseup — freezes the
+	 *  phase into 'fading', then null. A drag that starts before the
+	 *  timer fires cancels it (the chip goes back to live instantly,
+	 *  never a 10s fade-in). */
+	armSidebarAfterglow(): void {
+		this.sidebarBadge = 'fading';
+		if (this.#afterglowTimer !== null) clearTimeout(this.#afterglowTimer);
+		this.#afterglowTimer = setTimeout(() => {
+			this.sidebarBadge = null;
+			this.#afterglowTimer = null;
+		}, 10_000);
+	}
+
+	/** A new gutter drag cancels any armed afterglow. */
+	cancelSidebarAfterglow(): void {
+		if (this.#afterglowTimer !== null) {
+			clearTimeout(this.#afterglowTimer);
+			this.#afterglowTimer = null;
+		}
+		this.sidebarBadge = 'live';
 	}
 }
 

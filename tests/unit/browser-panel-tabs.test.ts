@@ -226,7 +226,9 @@ describe('BrowserPanel + chip (ADR-0042 D3)', () => {
 		await tick();
 		flushSync();
 		expect(plus().disabled).toBe(false);
-		expect(plus().textContent).toContain('+');
+		// BrowserNew extraction (2026-11-02): the + is a lucide SVG now
+		// (Plus at rest, CirclePlus on hover) — pin the icon, not a glyph.
+		expect(plus().querySelector('svg')).toBeTruthy();
 	});
 
 	it('click POSTs an EMPTY body (absence = blank, ADR-0042 D1), paints the boundary, re-attaches SSE at the seq, refreshes tabs immediately', async () => {

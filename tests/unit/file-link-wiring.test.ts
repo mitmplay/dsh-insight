@@ -100,6 +100,17 @@ describe('resolveFileLinkTarget probe order (Fullpath Bow D1)', () => {
 		expect(exists).toHaveBeenCalledTimes(3); // resolved, stripped, as-is
 	});
 
+	it('an ABSOLUTE link to a file AT the workspace root resolves to the basename (2026-10-29 glass finding)', () => {
+		// Wire shape: harness tool-result paths (read_image et al) are
+		// absolute and the file may sit AT the root itself, not under a
+		// repo subdir — the ladder must walk segment suffixes down to it.
+		const root2 = '/Users/op/agentic-ai';
+		const exists = vi.fn(async (_s: string, p2: string) => p2 === 'glass-live-capture.png');
+		return expect(
+			resolveFileLinkTarget('s1', root2 + '/glass-live-capture.png', root2, exists)
+		).resolves.toBe('glass-live-capture.png');
+	});
+
 	it('both refuse → null (the click drops)', async () => {
 		const exists = vi.fn(async () => false);
 		await expect(resolveFileLinkTarget('s1', 'nope/missing.ts', root, exists)).resolves.toBeNull();

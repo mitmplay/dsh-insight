@@ -84,7 +84,13 @@
 				<button type="button" class="block w-full px-3 py-1.5 text-left text-zinc-900 hover:bg-zinc-200" onclick={() => onctxaction?.('send-right-click')} data-testid="browser-ctxmenu-item">{m.browserCtxSendRightClick()}</button>
 			</div>
 		{/if}
-		{#if status !== 'live'}
+		{#if status === 'closed'}
+			<!-- Ghost Glass Fix 1 (RCA 2026-10-31): the dead glass tells the truth
+			     instead of painting its last frame as 'waiting for frames'. -->
+			<div class="absolute inset-0 grid place-items-center text-xs opacity-80" data-testid="browser-closed">
+				{m.browserSessionDead()}
+			</div>
+		{:else if status !== 'live'}
 			<div class="absolute inset-0 grid place-items-center text-xs opacity-60" data-testid="browser-placeholder">
 				{status === 'opening' ? m.browserLaunching() : m.browserWaitingFrames()}
 			</div>

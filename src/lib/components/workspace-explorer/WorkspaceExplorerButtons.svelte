@@ -6,7 +6,8 @@
 	 * Communication Map): the buttons emit onRefresh / onCollapseAll —
 	 * the panel owns the state the intents act on.
 	 */
-	import { ChevronsDownUp, RefreshCw } from '@lucide/svelte';
+	import { ChevronsDownUp } from '@lucide/svelte';
+	import ReloadButton from '$lib/components/common/buttons/ReloadButton.svelte';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 
@@ -22,15 +23,13 @@
 </script>
 
 	<div class="actions">
-		<button
-			class="head-btn"
-			data-testid="explorer-refresh"
-			aria-label={t(m.refresh)}
-			title={t(m.refresh)}
+		<ReloadButton
 			onclick={onRefresh}
-		>
-			<RefreshCw size={12} aria-hidden="true" />
-		</button>
+			label={t(m.refresh)}
+			testid="explorer-refresh"
+			size={12}
+			class="head-btn"
+		/>
 		<button
 			class="head-btn"
 			data-testid="explorer-collapse-all"
@@ -52,7 +51,9 @@
 		align-items: center;
 		gap: 0.25rem;
 	}
-	.head-btn {
+	/* :global — the button element now lives inside ReloadButton
+	   (2026-10-28 extraction); a plain scoped selector would not reach it. */
+	.actions :global(.head-btn) {
 		flex-shrink: 0;
 		display: inline-flex;
 		align-items: center;
@@ -65,8 +66,8 @@
 		color: var(--color-text-secondary, #6c757d);
 		cursor: pointer;
 	}
-	.head-btn:hover,
-	.head-btn:focus-visible {
+	.actions :global(.head-btn:hover),
+	.actions :global(.head-btn:focus-visible) {
 		background: var(--color-surface-secondary, #f1f3f5);
 		color: var(--color-text-primary, #212529);
 	}

@@ -1,17 +1,18 @@
 /**
- * E2E: The File Eye (2026-09-13, ADR "The File Eye" D2/D3/D4/D6) — the
- * workspace file panel against the stub DSH host, with the DSI workspace
- * routes (git-map / git-status / git-file-head / file-write) pinned by
- * page.route so the desk mode and the changed-flag are deterministic.
+ * E2E: The File Eye (2026-09-13, ADR "The File Eye") + The Single Edit
+ * (2026-10-31 ADR D1-D6) — the workspace file panel against the stub DSH
+ * host, with the DSI workspace routes (git-map / git-status /
+ * git-file-head / file-write) pinned by page.route so the desk mode and
+ * the changed-flag are deterministic.
  *
- *   Gate-on + changed file: the segmented toggle renders (Edit default),
- *   clicking Diff swaps the body to the read-only diff view and DISABLES
- *   Save; the choice survives a hard reload (D6, no flash); clicking
- *   Edit restores the editor and re-arms Save. Gate-off: no toggle and
- *   no Save verb at all (D4 — the delegate is retired).
+ *   Gate-on + changed file: the Preview | Diff toggle renders (Preview
+ *   default) and BOTH segments stay clickable (D4); the choice survives
+ *   a hard reload (D6). The Edit VERB owns editability (D2): Cancel
+ *   reverts, Save renders ONLY while a draft exists (D3). Gate-off: no
+ *   verb, no Save at all.
  *
  * Selectors verified in component source (Step 3.8): file-view-toggle /
- * file-view-edit / file-view-diff (WorkspaceFileToolbar) /
+ * file-view-edit / file-view-diff / file-edit (WorkspaceFileToolbar) /
  * file-save / file-dirty / file-diff-view / file-diff-new-file
  * (WorkspaceFilePanel) / workspace-file-panel + workspace-explorer +
  * tree-file (explorer chain).
@@ -74,42 +75,69 @@ test.describe(() => {
 		await expect(page.getByTestId('session-workspace').first()).toBeVisible();
 	});
 
-	test('gate-off desk: the file panel is READ-ONLY — no toggle, no Save (D4)', async ({ page }) => {
+	test('gate-off desk: the file panel is READ-ONLY — no toggle, no verb, no Save', async ({ page }) => {
 		await routeFileEye(page, { enabled: false, changed: false, head: null });
 		await openFilePanel(page);
 		await expect(page.getByTestId('file-view-toggle')).toHaveCount(0);
 		await expect(page.getByTestId('file-save')).toHaveCount(0);
+		await expect(page.getByTestId('file-edit')).toHaveCount(0);
 	});
 
-	test('gate-on changed file: toggle renders, Diff disables Save, view survives reload (D3/D6)', async ({ page }) => {
+	test('gate-on changed file: Preview default, Diff clickable, view survives reload (D4/D6)', async ({ page }) => {
 		await routeFileEye(page, { enabled: true, changed: true, head: '# before\n' });
 		await openFilePanel(page);
 		const toggle = page.getByTestId('file-view-toggle');
 		await expect(toggle).toBeVisible();
 		await expect(page.getByTestId('file-view-edit')).toHaveAttribute('aria-pressed', 'true');
-		// Diff: the body becomes the read-only diff view; Save locks.
+		// The Single Edit D3: clean + not editing → NO Save on the row.
+		await expect(page.getByTestId('file-save')).toHaveCount(0);
+		// Diff: the body becomes the diff view; nothing locks (D4).
 		await page.getByTestId('file-view-diff').click();
 		await expect(page.getByTestId('file-diff-view')).toBeVisible();
-		await expect(page.getByTestId('file-save')).toBeDisabled();
 		// Hard reload — the persisted view restores as Diff (D6).
 		await page.reload();
 		await openFilePanel(page);
 		await expect(page.getByTestId('file-view-diff')).toHaveAttribute('aria-pressed', 'true');
 		await expect(page.getByTestId('file-diff-view')).toBeVisible();
-		// Back to Edit: the diff view leaves; Save returns (disabled only by
-		// the clean-buffer rule, never by the view).
+		// Back to Preview: the diff view leaves; still no Save (no draft).
 		await page.getByTestId('file-view-edit').click();
 		await expect(page.getByTestId('file-diff-view')).toHaveCount(0);
-		await expect(page.getByTestId('file-save')).toBeVisible();
-		await expect(page.getByTestId('file-save')).not.toHaveAttribute('data-diff-locked');
+		await expect(page.getByTestId('file-save')).toHaveCount(0);
 	});
 
-	test('unchanged file on an open gate: no toggle, Save available after an edit (D1)', async ({ page }) => {
+	test('The Single Edit flow: verb enters editing, draft surfaces Save, Cancel reverts (D2/D3)', async ({ page }) => {
 		await routeFileEye(page, { enabled: true, changed: false, head: null });
 		await openFilePanel(page);
+		// unchanged file on an open gate: no Preview|Diff toggle, but the
+		// Edit VERB is present (D6)
 		await expect(page.getByTestId('file-view-toggle')).toHaveCount(0);
-		await expect(page.getByTestId('file-save')).toBeVisible();
-		await expect(page.getByTestId('file-save')).toBeDisabled(); // clean buffer
+		const verb = page.getByTestId('file-edit');
+		await expect(verb).toBeVisible();
+		await expect(page.getByTestId('file-save')).toHaveCount(0); // clean
+		// Enter edit mode: the md preview lands on the raw editor; the
+		// verb reads Cancel.
+		await verb.click();
+		const editor = page.locator('.monaco-editor .view-lines').first();
+		await expect(editor).toBeVisible();
+		await expect(verb).toHaveAttribute('aria-label', 'Cancel'); // icon-only (2026-11-01)
+		// Type a draft → the dirty chip AND the Save verb appear (D3).
+		await editor.click();
+		await page.keyboard.type('x');
+		await expect(page.getByTestId('file-dirty')).toBeVisible();
+		const save = page.getByTestId('file-save');
+		await expect(save).toBeVisible();
+		// Save the draft: the receipt clears dirty and Save dissolves.
+		await save.click();
+		await expect(page.getByTestId('file-dirty')).toHaveCount(0);
+		await expect(save).toHaveCount(0);
+		// A second draft, then Cancel: the buffer reverts, Save is gone.
+		await editor.click();
+		await page.keyboard.type('y');
+		await expect(page.getByTestId('file-dirty')).toBeVisible();
+		await verb.click();
+		await expect(page.getByTestId('file-dirty')).toHaveCount(0);
+		await expect(page.getByTestId('file-save')).toHaveCount(0);
+		await expect(verb).toHaveText('Edit');
 	});
 });
 

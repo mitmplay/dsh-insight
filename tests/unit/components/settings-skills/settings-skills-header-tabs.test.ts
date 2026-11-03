@@ -23,7 +23,9 @@ describe('SettingsSkillsHeaderTabs', () => {
 	it('defaults to the install segment with plain labels (no counts)', () => {
 		const target = mountGroup();
 		const install = target.querySelector('[data-testid="shelf-tab-install"]')!;
-		expect(install.classList.contains('on')).toBe(true);
+		// Plugin Rack amendment IV (2026-10-31): the pill lives in SegmentedTabs;
+		// the segment's ON state is aria-pressed, not a scoped .on class.
+		expect(install.getAttribute('aria-pressed')).toBe('true');
 		expect(install.textContent!.trim()).toBe('Install');
 		expect(target.querySelector('[data-testid="shelf-tab-uninstall"]')!.textContent!.trim()).toBe('Uninstall');
 		expect(install.textContent).not.toContain('(');

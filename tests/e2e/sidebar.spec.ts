@@ -156,6 +156,31 @@ test('03 · gutter drag resizes within the clamp', async ({ page }) => {
 	expect(await railWidth(page)).toBe(200);
 });
 
+test('03b · the width badge rides the drag: live px chip, fading afterglow', async ({ page }) => {
+	// Movable Rail ADR amendment (2026-10-30): the sidebar answers its
+	// drag with the same chip the floor gutters show — live during the
+	// move, 'fading' at mouseup (the 10s afterglow is the floor's).
+	await page.goto(`/?sessionKey=${STUB_SESSION_ID}`);
+	await expect(page.getByTestId('app-sidebar')).toBeVisible();
+
+	const gutter = page.getByTestId('sidebar-gutter');
+	const gbox = await gutter.boundingBox();
+	const startX = gbox!.x + gbox!.width / 2;
+	await page.mouse.move(startX, gbox!.y + 100);
+	await page.mouse.down();
+	await page.mouse.move(startX - 60, gbox!.y + 100, { steps: 4 });
+
+	// LIVE mid-drag: the chip is visible, phase live, text in whole px.
+	const badge = page.getByTestId('sidebar-width-badge');
+	await expect(badge).toBeVisible();
+	await expect(badge).toHaveAttribute('data-badge-phase', 'live');
+	await expect(badge).toHaveText(/^\d+px$/);
+
+	await page.mouse.up();
+	// FADING at mouseup — the afterglow freeze.
+	await expect(badge).toHaveAttribute('data-badge-phase', 'fading');
+});
+
 test('05 · cross-session click swaps the conversation panel', async ({ page }) => {
 	// Regression (2026-08-23): SvelteKit reuses the page component when only
 	// [sessionId] changes, so the init-captured store kept rendering the OLD

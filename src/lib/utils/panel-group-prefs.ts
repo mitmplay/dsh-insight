@@ -28,11 +28,16 @@ export interface PanelGroupPrefs {
 	/** Sessions whose families stand UNFOLDED (absent = folded). Pruned
 	 *  to live floor members by the writer, never on load (load is dumb). */
 	unfoldedSessionIds: string[];
+	/** Sub-agent rows hidden from the group's list (2026-10-31) — the
+	 *  spine's view-filter grammar (spine-group-prefs subagentsHidden)
+	 *  ported to the pinned panel group: depth>0 panel AND ghost rows
+	 *  tuck away, nothing closes. Only an explicit true hides. */
+	subagentsHidden: boolean;
 }
 
 /** Persisted default: expanded, every family folded. */
 export function defaultPanelGroupPrefs(): PanelGroupPrefs {
-	return { collapsed: false, unfoldedSessionIds: [] };
+	return { collapsed: false, unfoldedSessionIds: [], subagentsHidden: false };
 }
 
 /** The fold field's junk fallback (spine-group grammar): only an array of
@@ -67,7 +72,8 @@ export function loadPanelGroupPrefs(profile?: string | null): PanelGroupPrefs {
 		if (parsed === null || typeof parsed !== 'object') return defaultPanelGroupPrefs();
 		return {
 			collapsed: parsed.collapsed === true,
-			unfoldedSessionIds: sanitizeUnfoldedIds(parsed.unfoldedSessionIds)
+			unfoldedSessionIds: sanitizeUnfoldedIds(parsed.unfoldedSessionIds),
+			subagentsHidden: parsed.subagentsHidden === true
 		};
 	} catch {
 		return defaultPanelGroupPrefs();

@@ -94,6 +94,12 @@ const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Respo
 		env.closeCalls.push(url);
 		return new Response('{}', { status: 200 });
 	}
+	// Ghost Glass death handshake (cc7c1dc8): /tabs is polled every frame;
+	// a 404 there means the session DIED. Tests keep the session alive by
+	// returning an empty tab list (no-session shape = ok, zero tabs).
+	if (url.includes('/tabs')) {
+		return new Response(JSON.stringify({ tabs: [] }), { status: 200 });
+	}
 	return new Response('unrouted: ' + url, { status: 404 });
 });
 

@@ -211,7 +211,7 @@ describe('PluginManagerPanel branches', () => {
 });
 
 describe('PluginManagerPanel row-verb branches', () => {
-	it('the row uninstall verb applies remove, then the refetch drops the row', async () => {
+	it('the uninstall batch bar applies remove, then the refetch drops the row', async () => {
 		let removed = false;
 		const fetchMock = stubFetch((input) => {
 			if (String(input).includes('/api/plugins/apply')) {
@@ -226,12 +226,14 @@ describe('PluginManagerPanel row-verb branches', () => {
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-row-gamma"]')).toBeNull()); // install tab hides gamma
 		(target.querySelector('[data-testid="rack-tab-uninstall"]') as HTMLButtonElement).click();
 		flushSync();
-		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-uninstall-gamma"]')).toBeTruthy());
-		(target.querySelector('[data-testid="rack-uninstall-gamma"]') as HTMLButtonElement).click();
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-select-3"]')).toBeTruthy());
+		(target.querySelector('[data-testid="rack-select-3"]') as HTMLInputElement).click();
+		flushSync();
+		(target.querySelector('[data-testid="rack-install"]') as HTMLButtonElement).click();
 		// the refetch drops gamma from the snapshot -> even the uninstall tab empties
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-tab-empty"]')).toBeTruthy());
 		const applyCall = (fetchMock.mock.calls as unknown as [string, RequestInit][]).find(([u]) => String(u).includes('/api/plugins/apply'));
-		expect(JSON.parse(String(applyCall?.[1]?.body))).toEqual({ action: 'remove', targets: ['gamma'] });
+		expect(JSON.parse(String(applyCall?.[1]?.body))).toEqual({ action: 'remove', targets: ['3'] });
 	});
 
 	it('a failing row uninstall relays the dsh diagnostic into the error list', async () => {
@@ -245,8 +247,10 @@ describe('PluginManagerPanel row-verb branches', () => {
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-tabs"]')).toBeTruthy());
 		(target.querySelector('[data-testid="rack-tab-uninstall"]') as HTMLButtonElement).click();
 		flushSync();
-		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-uninstall-gamma"]')).toBeTruthy());
-		(target.querySelector('[data-testid="rack-uninstall-gamma"]') as HTMLButtonElement).click();
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-select-3"]')).toBeTruthy());
+		(target.querySelector('[data-testid="rack-select-3"]') as HTMLInputElement).click();
+		flushSync();
+		(target.querySelector('[data-testid="rack-install"]') as HTMLButtonElement).click();
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-errors"]')?.textContent).toContain('gamma: dsh plugin remove failed (exit 4)'));
 	});
 
@@ -265,8 +269,10 @@ describe('PluginManagerPanel row-verb branches', () => {
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-tabs"]')).toBeTruthy());
 		(target.querySelector('[data-testid="rack-tab-uninstall"]') as HTMLButtonElement).click();
 		flushSync();
-		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-uninstall-gamma"]')).toBeTruthy());
-		(target.querySelector('[data-testid="rack-uninstall-gamma"]') as HTMLButtonElement).click();
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-select-3"]')).toBeTruthy());
+		(target.querySelector('[data-testid="rack-select-3"]') as HTMLInputElement).click();
+		flushSync();
+		(target.querySelector('[data-testid="rack-install"]') as HTMLButtonElement).click();
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-bounce"]')).toBeTruthy());
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-bounce"]')).toBeNull(), { timeout: 10_000 });
 		// back on the install tab the rack re-renders without gamma
@@ -285,8 +291,10 @@ describe('PluginManagerPanel row-verb branches', () => {
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-tabs"]')).toBeTruthy());
 		(target.querySelector('[data-testid="rack-tab-uninstall"]') as HTMLButtonElement).click();
 		flushSync();
-		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-uninstall-gamma"]')).toBeTruthy());
-		(target.querySelector('[data-testid="rack-uninstall-gamma"]') as HTMLButtonElement).click();
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-select-3"]')).toBeTruthy());
+		(target.querySelector('[data-testid="rack-select-3"]') as HTMLInputElement).click();
+		flushSync();
+		(target.querySelector('[data-testid="rack-install"]') as HTMLButtonElement).click();
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-errors"]')?.textContent).toContain('gamma: network'));
 	});
 
@@ -324,7 +332,9 @@ describe('PluginManagerPanel row-verb branches', () => {
 			});
 			const { target } = mountPanel({ initialTab: 'uninstall' });
 			await vi.advanceTimersByTimeAsync(50);
-			(target.querySelector('[data-testid="rack-uninstall-gamma"]') as HTMLButtonElement).click();
+			(target.querySelector('[data-testid="rack-select-3"]') as HTMLInputElement).click();
+			flushSync();
+			(target.querySelector('[data-testid="rack-install"]') as HTMLButtonElement).click();
 			await vi.advanceTimersByTimeAsync(100);
 			expect(target.querySelector('[data-testid="rack-bounce"]')).toBeTruthy();
 			// drive past BOUNCE_TIMEOUT_MS: the poll gives up, the banner clears,
@@ -397,5 +407,70 @@ describe('PluginManagerPanel row-verb branches', () => {
 		(target.querySelector('[data-testid="rack-select-1"]') as HTMLInputElement).click();
 		flushSync();
 		expect((target.querySelector('[data-testid="rack-select-1"]') as HTMLInputElement).checked).toBe(false);
+	});
+});
+
+describe('PluginManagerPanel bounce note (amendment IV, D5 ext.)', () => {
+	it('arms the sessionStorage marker on a restarting apply', async () => {
+		stubFetch((input) => {
+			if (String(input).includes('/api/plugins/apply')) return Promise.resolve(jsonRes({ ok: true, results: [{ id: 'alpha', ok: true }], restarting: true }));
+			return Promise.resolve(jsonRes(SNAP));
+		});
+		const { target } = mountPanel();
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-select-1"]')).toBeTruthy());
+		(target.querySelector('[data-testid="rack-select-1"]') as HTMLInputElement).click();
+		flushSync();
+		(target.querySelector('[data-testid="rack-install"]') as HTMLButtonElement).click();
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-bounce"]')).toBeTruthy());
+		const raw = sessionStorage.getItem('rack-just-applied');
+		expect(raw).toBeTruthy();
+		expect(JSON.parse(raw!).action).toBe('install');
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-bounce"]')).toBeNull(), { timeout: 10_000 });
+	}, 15000);
+
+	it('the remounted rack shows the apply note, and the tab switch acknowledges it', async () => {
+		sessionStorage.setItem('rack-just-applied', JSON.stringify({ action: 'install', targets: ['1'], at: Date.now() }));
+		stubFetch((input) => Promise.resolve(jsonRes(SNAP)));
+		const { target } = mountPanel();
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-apply-note"]')).toBeTruthy());
+		// the note is the acknowledgment surface: a tab switch clears it
+		(target.querySelector('[data-testid="rack-tab-uninstall"]') as HTMLButtonElement).click();
+		flushSync();
+		expect(target.querySelector('[data-testid="rack-apply-note"]')).toBeNull();
+		expect(sessionStorage.getItem('rack-just-applied')).toBeNull();
+	});
+
+	it('a stale marker sanitizes away silently (no note)', async () => {
+		sessionStorage.setItem('rack-just-applied', JSON.stringify({ action: 'install', targets: ['1'], at: Date.now() - 200_000 }));
+		stubFetch((input) => Promise.resolve(jsonRes(SNAP)));
+		const { target } = mountPanel();
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-tabs"]')).toBeTruthy());
+		expect(target.querySelector('[data-testid="rack-apply-note"]')).toBeNull();
+		expect(sessionStorage.getItem('rack-just-applied')).toBeNull();
+	});
+
+	it('junk marker is removed, not thrown on', async () => {
+		sessionStorage.setItem('rack-just-applied', '{oops');
+		stubFetch((input) => Promise.resolve(jsonRes(SNAP)));
+		const { target } = mountPanel();
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-tabs"]')).toBeTruthy());
+		expect(target.querySelector('[data-testid="rack-apply-note"]')).toBeNull();
+		expect(sessionStorage.getItem('rack-just-applied')).toBeNull();
+	});
+});
+
+describe('PluginManagerPanel door-scoped selection (amendment IV)', () => {
+	it('switching tabs drops the selection (the bar never fires across doors)', async () => {
+		stubFetch((input) => Promise.resolve(jsonRes(SNAP)));
+		const { target } = mountPanel();
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-select-1"]')).toBeTruthy());
+		(target.querySelector('[data-testid="rack-select-1"]') as HTMLInputElement).click();
+		flushSync();
+		expect((target.querySelector('[data-testid="rack-install"]') as HTMLButtonElement).textContent).toContain('(1)');
+		(target.querySelector('[data-testid="rack-tab-uninstall"]') as HTMLButtonElement).click();
+		flushSync();
+		// the uninstall tab starts from a clean selection
+		expect((target.querySelector('[data-testid="rack-install"]') as HTMLButtonElement).textContent).toContain('(0)');
+		expect((target.querySelector('[data-testid="rack-install"]') as HTMLButtonElement).disabled).toBe(true);
 	});
 });

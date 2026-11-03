@@ -1071,6 +1071,13 @@ describe('entryForEvent — context-injection family (task 2.4-T)', () => {
 		// @deepseek-ai/dsh-user-approval sibling stays in the open family.
 		const cases: Array<{ meta: string; plugin: string; text: string }> = [
 			{ meta: 'user-approval', plugin: 'user-approval', text: 'The approval policy changed from "ask" to "never" (changed by the user).' },
+			// 2026-11-02 (The Chip Label Promotion ADR D1/D2): the three recurring
+			// floor plugins promoted — exact-string only; the scoped sibling stays
+			// in the open family right below.
+			{ meta: 'goal', plugin: 'goal', text: 'goal snapshot' },
+			{ meta: 'tool-goal', plugin: 'tool-goal', text: 'tool goal snapshot' },
+			{ meta: 'time-context', plugin: 'time-context', text: 'Current time sampled while preparing turn 1.' },
+			{ meta: 'plugin', plugin: '@deepseek-ai/dsh-goal', text: 'scoped sibling must NOT promote' },
 			{ meta: 'plugin', plugin: 'tool-jobs', text: 'background job bash-2 finished [status: completed, exit code: 0].' },
 			{ meta: 'plugin', plugin: '@deepseek-ai/dsh-user-approval', text: 'approval framing text' },
 			{ meta: 'plugin', plugin: '@deepseek-ai/dsh-compaction-basic', text: 'summarize the conversation' },
@@ -1087,6 +1094,36 @@ describe('entryForEvent — context-injection family (task 2.4-T)', () => {
 			expect(entry && entry.kind === 'user-message' && entry.meta, plugin).toBe(meta);
 			expect(entry && entry.kind === 'user-message' && entry.metaSource).toEqual({ kind: 'plugin', plugin });
 		}
+	});
+
+	it('promoted vocabulary rides source.kind in v4 ledgers (2026-11-02 live-wire amendment)', () => {
+		// Wire census 2026-11-02: kind 'time-context' ×1731, 'user-approval' ×612,
+		// 'goal' {goalId,revision,round}, 'tool-goal' form 'notice'. The 09-18
+		// user-approval promotion matched the older plugin shape and never fired
+		// on the live wire — the kind arm restores it.
+		const cases: Array<{ meta: string; kind: string; extra?: Record<string, unknown> }> = [
+			{ meta: 'goal', kind: 'goal', extra: { goalId: 'goal-x', revision: 1, round: 1 } },
+			{ meta: 'tool-goal', kind: 'tool-goal', extra: { form: 'notice', summary: 'complete: something' } },
+			{ meta: 'time-context', kind: 'time-context', extra: { form: 'snapshot', sections: [{ name: 'time-context', text: 't' }] } },
+			{ meta: 'user-approval', kind: 'user-approval' }
+		];
+		for (const { meta, kind, extra } of cases) {
+			const entry = entryForEvent({
+				type: 'user/message',
+				seq: 92,
+				time: 1,
+				data: { id: 'op', source: { kind, ...(extra ?? {}) }, content: [{ type: 'text', text: 'injection body' }] }
+			});
+			expect(entry && entry.kind === 'user-message' && entry.meta, kind).toBe(meta);
+			const src = entry && entry.kind === 'user-message' ? entry.metaSource : undefined;
+			expect(src && 'kind' in src ? src.kind : undefined).toBe(kind);
+		}
+		// an unknown kind still falls through to 'injected' — the family stays open
+		const unknown = entryForEvent({
+			type: 'user/message', seq: 93, time: 1,
+			data: { id: 'op', source: { kind: 'ptc-mode' }, content: [{ type: 'text', text: 'x' }] }
+		});
+		expect(unknown && unknown.kind === 'user-message' && unknown.meta).toBe('injected');
 	});
 
 	it('fall-through kinds: session-reference → recall, unknown kinds → injected, user → bubble', () => {

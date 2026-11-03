@@ -203,6 +203,105 @@ export const DEFAULT_PROMPT_TAGS = ['session', 'git', 'plan', 'rca', 'kb'];
 
 /** `panel.*` defaults — the floor's width/zoom bounds (ADR-0006). */
 export const DEFAULT_PANEL_WIDTH = 730;
+
+// ── panel presets (the Alt+S width chord, ADR-0006a) ────────────────────────
+
+/** Digit-keyed layout presets under `panel:` — agent = conversation-panel px,
+ *  glass = browser-panel px, sidebar = the lane (ADR-0006a ext 5): each slot
+ *  carries two dials, a collapse/expand verb and/or an expanded width; a
+ *  width-only lane implies expand (D28). Digit keys are chord slots (Alt+S
+ *  then 1..9); junk drops silently (ADR-0006a D4: the chord shrinks to
+ *  widths-only, never fails loudly). */
+export interface SidebarLane {
+	state?: 'collapse' | 'expand';
+	/** Expanded rail width in px — clamped through clampSidebarWidth at APPLY,
+	 *  never at parse (the parse gate's px band is the shared preset band). */
+	width?: number;
+}
+
+export interface PanelPresets {
+	agent: Record<number, number>;
+	glass: Record<number, number>;
+	sidebar: Record<number, SidebarLane>;
+	/** PanelsZoom zoom preset in PERCENT (80 = 0.8) — divided by 100 and
+	 *  clampPanelZoom-ed at apply time. */
+	zoom: Record<number, number>;
+}
+
+export const DEFAULT_PANEL_PRESETS: PanelPresets = { agent: {}, glass: {}, sidebar: {}, zoom: {} };
+
+/** Shared gate for the preset maps — the server reader AND the browser
+ *  assembler run this EXACT function (the resolveA2aConfig pattern). The
+ *  numeric kinds speak the uniform dial grammar (ADR-0006a ext 6): nested
+ *  `width` map or flat slot map; only chord slots 1..9 survive; junk drops
+ *  silently. */
+export function resolvePanelPresets(section: unknown): PanelPresets {
+	const rec = isConfigRecord(section) ? section : {};
+	// The DIAL reader (ADR-0006a ext 6, D31/D32): every numeric kind accepts
+	// the uniform nested `width` map (the yaml source) OR the flat slot map
+	// (the resolved wire — D32 round-trip). Nested wins on a mixed section
+	// (AC4). Band stays per kind (D33) — px vs pct are not the same unit.
+	const readDial = (key: string, lo: number, hi: number): Record<number, number> => {
+		const m = isConfigRecord(rec[key]) ? rec[key] : {};
+		const width = isConfigRecord(m.width) ? m.width : null;
+		const src = width ?? m;
+		const out: Record<number, number> = {};
+		for (const [k, v] of Object.entries(src)) {
+			const slot = Number(k);
+			const px = intWithin(v, lo, hi, NaN);
+			if (Number.isInteger(slot) && slot >= 1 && slot <= 9 && !Number.isNaN(px)) out[slot] = px;
+		}
+		return out;
+	};
+	// The sidebar LANE maps (ADR-0006a ext 5): the yaml SOURCE nests
+	// `state` / `width` maps that merge per slot into one lane; the WIRE
+	// carries the already-resolved slot → lane map (the server gate ran
+	// first), so the gate is SHAPE-NORMALIZED — nested maps when present,
+	// otherwise the lane map itself. Legacy flat verb strings drop (D29).
+	const sb = isConfigRecord(rec.sidebar) ? rec.sidebar : {};
+	const nested = isConfigRecord(sb.state) || isConfigRecord(sb.width);
+	const sbState = isConfigRecord(sb.state) ? sb.state : {};
+	const sbWidth = isConfigRecord(sb.width) ? sb.width : {};
+	const laneSource = (k: string): { state?: unknown; width?: unknown } =>
+		nested ? { state: sbState[k], width: sbWidth[k] } : (sb[k] as { state?: unknown; width?: unknown });
+	const sidebar: Record<number, SidebarLane> = {};
+	const laneSlots = new Set(nested ? [...Object.keys(sbState), ...Object.keys(sbWidth)] : Object.keys(sb));
+	for (const k of laneSlots) {
+		const slot = Number(k);
+		if (!Number.isInteger(slot) || slot < 1 || slot > 9) continue;
+		const src = laneSource(k);
+		const lane: SidebarLane = {};
+		if (src.state === 'collapse' || src.state === 'expand') lane.state = src.state;
+		const px = intWithin(src.width, 200, 4_000, NaN);
+		if (!Number.isNaN(px)) lane.width = px;
+		if (lane.state !== undefined || lane.width !== undefined) sidebar[slot] = lane;
+	}
+	return {
+		agent: readDial('agent', 200, 4_000),
+		glass: readDial('glass', 200, 4_000),
+		sidebar,
+		zoom: readDial('zoom', 25, 300)
+	};
+}
+
+/** The lane → prefs writes (ADR-0006a ext 5, D28): a PURE derivation so the
+ *  route's apply stays three lines and the semantics unit-test without DOM.
+ *  Width implies expand; state-only touches only the collapsed flag; a lane
+ *  with neither dial writes nothing. Width clamps through the injected
+ *  clampSidebarWidth — config.ts stays import-clean of the prefs layer. */
+export function applySidebarLane(
+	lane: SidebarLane | undefined,
+	clampWidth: (w: number) => number
+): { collapsed?: boolean; width?: number } {
+	if (!lane) return {};
+	const writes: { collapsed?: boolean; width?: number } = {};
+	if (lane.width !== undefined) {
+		writes.width = clampWidth(lane.width);
+		writes.collapsed = false;
+	}
+	if (lane.state !== undefined) writes.collapsed = lane.state === 'collapse';
+	return writes;
+}
 export const DEFAULT_PANEL_MIN_WIDTH = 480;
 export const DEFAULT_PANEL_MAX_WIDTH = 860;
 /** The glass panel's width bounds (browser.defaultWidth / browser.maxWidth

@@ -183,7 +183,7 @@
 			<FilterDateButton value={spine.dateFilter} dates={sessionDates} onchange={onDateFilter} />
 			<button
 				type="button"
-				class="row-btn"
+				class="subagents-btn"
 				class:active={spine.subagentsHidden}
 				data-testid="sidebar-spine-subagents"
 				aria-pressed={spine.subagentsHidden}
@@ -326,38 +326,50 @@
 		outline-offset: -1px;
 	}
 
-	/* Header buttons ([x] clear, sub-agent toggle) — the row-btn grammar
-	   the sidebar's row actions share (quiet, revealed to full opacity on
-	   hover/focus). `active` = the sub-agent filter is ON: full opacity +
-	   navy so the engaged state is never only a glyph swap. */
-	.row-btn {
+	/* Sub-agent toggle (2026-10-29): the row-btn ghost glyph never read
+	   as a button — 18px, transparent, 60% opacity. It now wears the
+	   header's chip grammar (FilterDateButton sibling): a bordered pill,
+	   full opacity, that FILLS with the spine's green when the filter is
+	   engaged so the pressed state is never only a glyph swap. */
+	.subagents-btn {
 		flex-shrink: 0;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 1.125rem;
-		height: 1.125rem;
-		border: none;
-		border-radius: 0.25rem;
-		background: transparent;
-		color: var(--color-text-primary, #212529);
+		height: 1.25rem;
+		min-width: 1.375rem;
+		padding: 0 0.25rem;
+		border: 1px solid var(--color-surface-border, #dee2e6);
+		border-radius: 0.375rem;
+		background: var(--color-surface-elevated, #ffffff);
+		color: var(--color-text-secondary, #6c757d);
 		cursor: pointer;
-		opacity: 0.6;
 		transition:
 			background-color 0.15s ease,
-			opacity 0.15s ease;
+			color 0.15s ease,
+			border-color 0.15s ease;
 	}
 
-	.row-btn:hover,
-	.row-btn:focus-visible {
-		opacity: 1;
+	.subagents-btn:hover {
 		background: var(--color-surface-hover, #e9ecef);
-		outline: none;
+		color: var(--color-text-primary, #212529);
 	}
 
-	.row-btn.active {
-		opacity: 1;
-		color: var(--color-navy-focus);
+	.subagents-btn:focus-visible {
+		outline: 2px solid var(--color-navy-focus);
+		outline-offset: 1px;
+	}
+
+	/* Engaged = sub-agents HIDDEN: the SessionAccess chip tint family —
+	   green fill, green ink (AA on the tint), green border. */
+	.subagents-btn.active {
+		border-color: color-mix(in srgb, var(--color-status-pass) 40%, transparent);
+		background: color-mix(in srgb, var(--color-status-pass) 15%, transparent);
+		color: var(--color-success-ink, #1a7f37);
+	}
+
+	.subagents-btn.active:hover {
+		background: color-mix(in srgb, var(--color-status-pass) 24%, transparent);
 	}
 
 	/* Rows scroll pane (moved down one level, 2026-09-01): owns the

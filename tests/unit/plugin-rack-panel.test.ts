@@ -59,7 +59,7 @@ describe('PluginManagerPanel', () => {
 		// switch to uninstall tab: only the installed plugin, with its verb
 		(target.querySelector('[data-testid="rack-tab-uninstall"]') as HTMLButtonElement).click();
 		flushSync();
-		expect(target.querySelector('[data-testid="rack-uninstall-installed-plugin"]')).toBeTruthy();
+		expect(target.querySelector('[data-testid="rack-select-2"]')).toBeTruthy(); // installed rows carry the select checkbox (amendment IV)
 		expect(target.querySelector('[data-testid="rack-row-dsh-rules-paths"]')).toBeNull();
 	});
 
@@ -82,13 +82,16 @@ describe('PluginManagerPanel', () => {
 		expect(target.textContent).toContain('havingautism');
 	});
 
-	it('installed badge marks installed rows only (uninstall tab)', async () => {
+	it('uninstall rows carry the select checkbox; install rows do not (amendment IV — badge deleted)', async () => {
 		stubFetch((input) => Promise.resolve(jsonRes(SNAP)));
 		const { target } = mountPanel();
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-tabs"]')).toBeTruthy());
 		(target.querySelector('[data-testid="rack-tab-uninstall"]') as HTMLButtonElement).click();
 		flushSync();
-		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-badge-installed-plugin"]')).toBeTruthy());
+		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-select-2"]')).toBeTruthy());
+		// the Installed badge is deleted: it only ever rendered on the tab where
+		// every row is installed, so it informed nowhere
+		expect(target.querySelector('[data-testid="rack-badge-installed-plugin"]')).toBeNull();
 		expect(target.querySelector('[data-testid="rack-badge-dsh-rules-paths"]')).toBeNull();
 	});
 
@@ -196,7 +199,7 @@ describe('PluginManagerRackRow doors (Shelf Credentials grammar)', () => {
 		await vi.waitFor(() => expect(target.querySelector('[data-testid="rack-row-dsh-rules-paths"]')).toBeNull());
 		(target.querySelector('[data-testid="rack-tab-uninstall"]') as HTMLButtonElement).click();
 		flushSync();
-		expect(target.querySelector('[data-testid="rack-uninstall-dsh-rules-paths"]')).toBeTruthy();
+		expect(target.querySelector('[data-testid="rack-select-1"]')).toBeTruthy(); // the row MOVES: uninstall tab carries its select checkbox
 	}, 15000);
 
 	it('a failed load offers the retry verb', async () => {

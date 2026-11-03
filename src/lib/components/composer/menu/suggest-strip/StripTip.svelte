@@ -4,11 +4,19 @@
 	 * row (OCI's StripMultiline lineage, its own component again).
 	 *
 	 * Presentational: chip anchor + live flags + raw text in, one portaled
-	 * tooltip out. Visible only while its chip is the active (keyboard-
-	 * highlighted) row, the row text is multiline, and no ⋯ menu is open
-	 * anywhere on the strip (the host threads menuOpen/anyMenuOpen).
+	 * tooltip out. Visible while its chip is the active (keyboard-
+	 * highlighted) row and no ⋯ menu is open anywhere on the strip (the
+	 * host threads menuOpen/anyMenuOpen). 2026-10-29 amendment: the old
+	 * multiline-only gate (text.includes('\n')) is GONE — a single-line
+	 * active row shows its one-line preview too, or the operator reads
+	 * the selection as broken (the `?yt` bug: chip active, tip absent,
+	 * row looks unselected). Newline still renders verbatim when present.
+	 *
+	 * 2026-10-29: renders PRE-formatted PLAIN text, not markdown — macros
+	 * are command text; the markdown render collapsed single newlines and
+	 * turned `/load …` lines into list bullets (ADR-0044-adjacent fix,
+	 * operator screenshot). textContent renders verbatim, no {@html}.
 	 */
-	import { renderMarkdown } from '$lib/utils/markdown.js';
 
 	let {
 		/** The chip root element — the tooltip's position anchor; its
@@ -36,18 +44,21 @@
 	let tipPos = $state<{ x: number; y: number; w: number } | null>(null);
 	let tipEl = $state<HTMLDivElement | undefined>();
 
-	/** Markdown render (DSI's shared escape-first util — raw HTML never
-	 *  reaches the output; safe for {@html}). Preview tooltip only. */
-	const tipHtml = $derived(renderMarkdown(text));
-
-	// While this chip is the active (keyboard-highlighted) row and its
-	// text is multiline, anchor the popup above the whole strip. effect.pre: the
-	// anchor settles before the popup mounts (no position flash).
-	$effect.pre(() => {
-		if (!active || menuOpen || anyMenuOpen || !anchor || !text.includes('\n')) {
-			tipPos = null;
-			return;
-		}
+	// While this chip is the active (keyboard-highlighted) row, anchor the
+	// popup above the whole strip. effect.pre: the anchor settles before the
+	// popup mounts (no position flash).
+	//
+	// 2026-11-03 re-anchor amendment: the effect's reactive deps (active/
+	// menuOpen/anyMenuOpen/anchor) do NOT include the strip's geometry, so a
+	// strip that MOVED without the flags changing — search narrowing from
+	// SC#1 rows to SC#2 rows shifts the strip's top — left the tip floating
+	// at the stale rect. While visible we now KEEP measuring: a
+	// ResizeObserver on the strip (row count changes resize it) plus a
+	// window resize listener and a capture-phase scroll listener (the strip
+	// can move without resizing — the textarea above it grows). All torn
+	// down with the effect when the tip hides.
+	function measure(): void {
+		if (!anchor) return;
 		const strip = anchor.parentElement; // direct parent IS .suggest-strip
 		if (!strip) return;
 		const sr = strip.getBoundingClientRect();
@@ -55,6 +66,25 @@
 			x: Math.max(0, sr.left),
 			y: Math.max(8, sr.top - 4),
 			w: sr.width
+		};
+	}
+
+	$effect.pre(() => {
+		if (!active || menuOpen || anyMenuOpen || !anchor) {
+			tipPos = null;
+			return;
+		}
+		const strip = anchor.parentElement; // direct parent IS .suggest-strip
+		if (!strip) return;
+		measure();
+		const ro = new ResizeObserver(measure);
+		ro.observe(strip);
+		window.addEventListener('resize', measure);
+		window.addEventListener('scroll', measure, true);
+		return () => {
+			ro.disconnect();
+			window.removeEventListener('resize', measure);
+			window.removeEventListener('scroll', measure, true);
 		};
 	});
 
@@ -70,19 +100,19 @@
 	});
 </script>
 
-{#if active && text.includes('\n') && !menuOpen && !anyMenuOpen && tipPos}
-	<!-- Full-text markdown preview while this multiline chip is the
+{#if active && !menuOpen && !anyMenuOpen && tipPos}
+	<!-- Full-text VERBATIM preview while this multiline chip is the
 	     active row: fixed above the strip, strip-aligned, kept
 	     content-height with a 70vh cap, portaled to document.body
 	     (zoom-transform-safe), never interactive (keyboard stays in
-	     the prompt textarea). Typography from the global .md-content
-	     rules. -->
+	     the prompt textarea). Plain <pre> — macros are command text;
+	     every newline renders as itself, no markdown rewriting. -->
 	<div
 		bind:this={tipEl}
 		class="strip-tip"
 		role="tooltip"
 		style={`left:${tipPos.x}px; top:${tipPos.y}px; width:${tipPos.w}px;`}
-	><div class="strip-tip-md md-content">{@html tipHtml}</div></div>
+	><pre class="strip-tip-pre">{text}</pre></div>
 {/if}
 
 <style>
@@ -102,32 +132,20 @@
 		pointer-events: none;
 	}
 
-	.strip-tip-md {
+	.strip-tip-pre {
 		margin: 0;
-		font-family: inherit;
-		font-size: 0.75rem;
-		line-height: 1.4;
+		/* Scale parity with the strip rows: the chip labels render 0.75rem
+		   sans; the same 0.75rem in a MONO face draws visibly larger, so the
+		   preview steps down one notch (0.6875rem) to sit at the strip's
+		   optical size. line-height 1.45 keeps the mono lines airy. */
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+		font-size: 0.6875rem;
+		line-height: 1.45;
+		white-space: pre-wrap;
 		word-break: break-word;
 		overflow-y: auto;
 		max-height: 70vh;
 		padding: 0.25rem 0.375rem;
 		color: var(--color-text-primary, #212529);
-	}
-	/* Tighten markdown block margins inside the small tooltip. */
-	.strip-tip-md :global(p:first-child) {
-		margin-top: 0;
-	}
-	.strip-tip-md :global(p:last-child) {
-		margin-bottom: 0;
-	}
-	.strip-tip-md :global(p) {
-		margin: 0.25em 0;
-	}
-	.strip-tip-md :global(ul),
-	.strip-tip-md :global(ol) {
-		margin: 0.25em 0;
-	}
-	.strip-tip-md :global(code) {
-		font-size: 0.6875rem;
 	}
 </style>

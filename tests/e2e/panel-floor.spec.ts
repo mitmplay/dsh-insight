@@ -1460,3 +1460,119 @@ test('25 · explorer layout never produces a workspace-file floor entry', async 
 		writeFileSync(process.env.DSI_CONFIG_PATH!, 'workspace:\n  layout: panels\n', 'utf-8');
 	}
 });
+
+// ── The Chord Palette (ADR-0006a amendment, 2026-10-31) ────────────────
+// Spec 30 pins the capture-first grammar on the REAL surface: Alt+S in the
+// composer arms (no sharp-s lands), the palette shows, the armed next key
+// is consumed from the composer, and the toggle verb opens a panel.
+test('30 · Alt+S arms from the composer: palette shows, nothing typed, armed next key consumed', async ({
+	page
+}) => {
+	await page.goto(`/?sessionKey=${STUB_SESSION_ID}`);
+	await expect(page.getByTestId('transcript')).toContainText(STUB_USER_HELLO);
+	const box = page.getByTestId('prompt-textarea');
+	await box.click();
+
+	// D12: the Alt+S keydown is preventDefaulted — no sharp-s in the draft.
+	await page.keyboard.press('Alt+s');
+	await expect(page.getByTestId('chord-palette')).toBeVisible();
+	await expect(box).toHaveValue('');
+
+	// D13/D15: the armed p toggles the prompt-manager right out of the composer.
+	await page.keyboard.press('p');
+	await expect(page.getByTestId('chord-palette')).toBeHidden();
+	await expect(page.getByTestId('panel-column')).toHaveCount(2);
+
+	// Old AC4 survives: an UN-ARMED digit in the composer just types.
+	await box.click();
+	await page.keyboard.type('1');
+	await expect(box).toHaveValue('1');
+
+	// D14/D15: b with zero glass panels is a silent no-op (palette disarms).
+	await page.keyboard.press('Alt+s');
+	await expect(page.getByTestId('chord-palette')).toBeVisible();
+	await page.keyboard.press('b');
+	await expect(page.getByTestId('chord-palette')).toBeHidden();
+});
+
+// Spec 31 (round 2, ADR-0006a extension 2): D17 capture phase + D18 decay.
+test('31 · capture-phase chord beats a swallowing leaf; palette centered with decay clock', async ({
+	page
+}) => {
+	await page.goto(`/?sessionKey=${STUB_SESSION_ID}`);
+	await expect(page.getByTestId('transcript')).toContainText(STUB_USER_HELLO);
+	const box = page.getByTestId('prompt-textarea');
+	await box.click();
+
+	// A leaf that stops propagation — the xterm class of surface (D17).
+	await page.evaluate(() => {
+		const thief = document.createElement('input');
+		thief.id = 'chord-key-thief';
+		thief.style.position = 'fixed';
+		thief.style.top = '10px';
+		thief.style.left = '10px';
+		thief.style.zIndex = '9999';
+		thief.addEventListener('keydown', (e) => e.stopPropagation());
+		document.body.appendChild(thief);
+	});
+	await page.locator('#chord-key-thief').click();
+
+	// Alt+S arms; the human 1s pause; then t — the leaf must NOT eat it.
+	await page.keyboard.press('Alt+s');
+	await expect(page.getByTestId('chord-palette')).toBeVisible();
+	await page.waitForTimeout(1000);
+	await page.keyboard.press('p'); // toggle verb: opens the prompt-manager
+	await expect(page.getByTestId('chord-palette')).toBeHidden();
+	await expect(page.getByTestId('panel-column')).toHaveCount(2);
+
+	// D16 revision: the palette renders CENTERED on the viewport.
+	await box.click();
+	await page.keyboard.press('Alt+s');
+	const pal = page.getByTestId('chord-palette');
+	await expect(pal).toBeVisible();
+	const centered = await pal.evaluate((el) => {
+		const r = el.getBoundingClientRect();
+		return {
+			dx: Math.abs(r.left + r.width / 2 - window.innerWidth / 2),
+			dy: Math.abs(r.top + r.height / 2 - window.innerHeight / 2)
+		};
+	});
+	expect(centered.dx).toBeLessThan(2);
+	expect(centered.dy).toBeLessThan(2);
+
+	// D18: the decay bar starts in the action phase (pastel-green).
+	await expect(pal.getByTestId('chord-palette-progress')).toHaveAttribute('data-chord-phase', 'action');
+	await page.keyboard.press('Escape'); // any non-verb key disarms cleanly
+	await expect(pal).toBeHidden();
+});
+
+// Spec 32 (round 3, ADR-0006a extension 3): D19 sidebar toggle + D20 sibling spawn.
+test('32 · chord s toggles the sidebar; chord n spawns a sibling session below the focused panel', async ({
+	page
+}) => {
+	await page.goto(`/?sessionKey=${STUB_SESSION_ID}`);
+	await expect(page.getByTestId('transcript')).toContainText(STUB_USER_HELLO);
+	const box = page.getByTestId('prompt-textarea');
+	await box.click();
+
+	// D19: s flips the sidebar and the palette lists it always. Collapse
+	// UNMOUNTS the rail (the house toggle), so absence IS the collapsed proof.
+	await expect(page.getByTestId('app-sidebar')).toBeVisible();
+	await page.keyboard.press('Alt+s');
+	await expect(page.getByTestId('chord-palette')).toBeVisible();
+	await page.keyboard.press('s');
+	await expect(page.getByTestId('chord-palette')).toBeHidden();
+	await expect(page.getByTestId('app-sidebar')).toBeHidden();
+
+	// D20: n spawns a sibling session BELOW the focused panel.
+	await box.click();
+	await page.keyboard.press('Alt+s');
+	await expect(page.getByTestId('chord-palette')).toBeVisible();
+	// No presets in the stub → lanes are p t n s; n is live (conversation focused).
+	await expect(page.getByTestId('chord-palette').getByTestId('chord-palette-row')).toHaveCount(4);
+	await expect(
+		page.getByTestId('chord-palette').locator('[data-chord-key="n"]')
+	).toBeVisible();
+	await page.keyboard.press('n');
+	await expect(page.getByTestId('panel-column')).toHaveCount(2, { timeout: 15000 });
+});

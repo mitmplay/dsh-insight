@@ -14,6 +14,7 @@
  * cache for the app; sessions are the isolation unit.
  */
 import { base64ToBytes } from '$lib/utils/base64';
+import type { DsiImageRef } from '$lib/types';
 
 interface CacheEntry {
 	url: string;
@@ -40,12 +41,16 @@ function revoke(url: string): void {
  * Resolve one attachment to a browser URL, fetching through the authorized
  * proxy on cache miss.
  *
+ * 0.2.2 contract (2026-10-29 release jump): the host verifies the SUPPLIED
+ * full ref, so the whole DsiImageRef travels (id-only reads reject
+ * gateway/input-invalid). Cache key stays the content-addressed id.
+ *
  * @param sessionId - owning session (authorization scope, cache bucket).
- * @param attachmentId - durable ref id from the ledger.
+ * @param ref - the full image reference from the ledger fold (DsiImageRef).
  * @returns object URL valid until its session is invalidated.
  */
-export function resolveAttachmentUrl(sessionId: string, attachmentId: string): Promise<string> {
-	const key = keyOf(sessionId, attachmentId);
+export function resolveAttachmentUrl(sessionId: string, ref: DsiImageRef): Promise<string> {
+	const key = keyOf(sessionId, ref.attachmentId);
 	const cached = entries.get(key);
 	if (cached !== undefined && cached.generation === generations.get(sessionId)) {
 		return Promise.resolve(cached.url);
@@ -55,7 +60,10 @@ export function resolveAttachmentUrl(sessionId: string, attachmentId: string): P
 	const generation = generations.get(sessionId) ?? 0;
 	const load = (async () => {
 		const res = await fetch(
-			'/api/dsh/session/' + encodeURIComponent(sessionId) + '/attachment?attachmentId=' + encodeURIComponent(attachmentId)
+			'/api/dsh/session/' +
+				encodeURIComponent(sessionId) +
+				'/attachment?ref=' +
+				encodeURIComponent(JSON.stringify(ref))
 		);
 		const body = (await res.json().catch(() => null)) as
 			| { ok: true; attachment: { mediaType: string }; data: string }

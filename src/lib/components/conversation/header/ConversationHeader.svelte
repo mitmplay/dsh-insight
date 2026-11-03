@@ -12,7 +12,7 @@
 	import * as m from '$lib/paraglide/messages';
 	import SessionIdAndName from './SessionIdAndName.svelte';
 	import ToolsAndStatusHeader from './ToolsAndStatusHeader.svelte';
-	import OpenBrowserButton from './OpenBrowserButton.svelte';
+	import BrowserButton from './BrowserButton.svelte';
 
 	let {
 		sessionId,
@@ -97,7 +97,7 @@
 		{onOpenExplorer}
 	/>
 		{#if onOpenBrowser}
-			<OpenBrowserButton {onOpenBrowser} />
+			<BrowserButton {onOpenBrowser} />
 		{/if}
 	<!-- Right cluster (2026-08-24): agent chip + running/idle pill +
 	     session fork (2026-09-01) + conversation capture (2026-08-25). -->

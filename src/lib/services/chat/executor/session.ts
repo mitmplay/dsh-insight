@@ -22,6 +22,10 @@ export async function runNewLine(
 		ws?: string;
 		/** /new only (2026-09-06) — the parser's --add flag (see ParsedCommand). */
 		addPanel?: boolean;
+		/** /new only (2026-10-29, ADR amendment D8) — the parser's title
+		 *  capture (the --title remainder, joined). Applied via the
+		 *  session-rename route (D7), never the create wire. */
+		title?: string;
 		agentId?: string;
 	},
 	ctx: ExecutorContext,
@@ -29,7 +33,7 @@ export async function runNewLine(
 ): Promise<ExecutorResult> {
 	// /new
 	if (command.args !== '') {
-		const usage = 'usage: /new [@agent] [workspace] [--add]';
+		const usage = 'usage: /new [@agent] [workspace] [--title <title>] [--add]';
 		onNote?.(false, usage);
 		return { ok: false, note: usage };
 	}
@@ -84,6 +88,24 @@ export async function runNewLine(
 			const note = body?.error?.message ?? `/new failed (HTTP ${res.status})`;
 			onNote?.(false, note);
 			return { ok: false, note };
+		}
+		// --title (2026-10-29, ADR amendment D7): the title rides the
+		// session-rename route the fork spine already uses (fork-session.ts
+		// renameChild) — the create wire has no title field. Awaited BEFORE
+		// the panel mounts so the row renders titled. Best-effort and SILENT
+		// on failure (D7's rejected alternative b): the session is born and
+		// on the floor; a failed cosmetic rename must never read as a
+		// failed birth — the host's default title simply stays.
+		if (command.title !== undefined && command.title !== '') {
+			try {
+				await fetch(`/api/dsh/session/${encodeURIComponent(body.sessionId)}/rename`, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ title: command.title })
+				});
+			} catch {
+				// swallow — best-effort by decision, never a failed birth
+			}
 		}
 		// --add (2026-09-06): the new session opens in a NEW panel to the
 		// RIGHT of the current panel (afterSessionId anchors it under this

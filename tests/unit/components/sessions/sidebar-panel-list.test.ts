@@ -437,13 +437,15 @@ describe('SidebarOpenPanels — group collapse (2026-08-26)', () => {
 		expect(panelRowsIn(target)).toHaveLength(0);
 		expect(JSON.parse(localStorage.getItem('dsi-panel-group') ?? 'null')).toEqual({
 			collapsed: true,
-			unfoldedSessionIds: []
+			unfoldedSessionIds: [],
+			subagentsHidden: false
 		});
 		expandGroup(target); // expand back
 		expect(panelRowsIn(target)).toHaveLength(1);
 		expect(JSON.parse(localStorage.getItem('dsi-panel-group') ?? 'null')).toEqual({
 			collapsed: false,
-			unfoldedSessionIds: []
+			unfoldedSessionIds: [],
+			subagentsHidden: false
 		});
 		unmount(instance);
 	});
@@ -1944,3 +1946,101 @@ describe('sidebar panel rows — workspace branches (3.2-T)', () => {
 		target.remove();
 	});
 });
+// ── Sub-agent view filter (2026-10-31): the header Bot/BotOff twin ──
+// The spine's sidebar-spine-subagents grammar over the pinned group:
+// depth>0 panel AND ghost ROWS tuck away, nothing closes, the choice
+// persists in the desk blob and survives a reload.
+describe('SidebarOpenPanels — sub-agent view filter (2026-10-31)', () => {
+	/** Main head + unfolded panel child, family open on load. */
+	function publishUnfoldedFamily(): void {
+		localStorage.setItem(
+			'dsi-panel-group',
+			JSON.stringify({ collapsed: false, unfoldedSessionIds: ['s-main'] })
+		);
+		publishState({
+			rows: [
+				row(panel('p1', 's-main'), { title: 'Main', depth: 0 }),
+				row(panel('p2', 's-kid'), { title: 'Kid', depth: 1, parentSessionId: 's-main' })
+			],
+			selectedPanelId: 'p1'
+		});
+	}
+
+	const subBtn = (target: HTMLElement): HTMLButtonElement =>
+		target.querySelector<HTMLButtonElement>('[data-testid="sidebar-open-panels-subagents"]')!;
+
+	it('ships the toggle SHOWING sub-agents (aria-pressed false)', () => {
+		publishUnfoldedFamily();
+		const { target, instance } = mountPanelList({ expand: false });
+		expect(subBtn(target).getAttribute('aria-pressed')).toBe('false');
+		expect(panelRowsIn(target)).toHaveLength(2);
+		unmount(instance);
+	});
+
+	it('arming the filter hides the depth>0 panel row — the head stays', () => {
+		publishUnfoldedFamily();
+		const { target, instance } = mountPanelList({ expand: false });
+		subBtn(target).click();
+		flushSync();
+		const ids = Array.from(panelRowsIn(target)).map((el) => el.getAttribute('data-session-id'));
+		expect(ids).toEqual(['s-main']);
+		expect(subBtn(target).getAttribute('aria-pressed')).toBe('true');
+		unmount(instance);
+	});
+
+	it('a VIEW filter only — the panel stays on the floor (context untouched)', () => {
+		publishUnfoldedFamily();
+		const { target, instance } = mountPanelList({ expand: false });
+		subBtn(target).click();
+		flushSync();
+		expect(getWorkspaceState()?.rows.map((r) => r.panel.id)).toEqual(['p1', 'p2']);
+		unmount(instance);
+	});
+
+	it('ghost sub-agent rows tuck away with the panels', () => {
+		localStorage.setItem(
+			'dsi-panel-group',
+			JSON.stringify({ collapsed: false, unfoldedSessionIds: ['s-main'] })
+		);
+		const pub = publishState({ rows: [row(panel('p1', 's-main'), { title: 'Main', depth: 0 })], selectedPanelId: 'p1' });
+		pub.republish({
+			ghosts: [
+				{
+					panel: { id: 'ghost-s-old', kind: 'conversation', sessionId: 's-old', agentPreset: null, width: 0 },
+					title: 's-old',
+					workspace: null,
+					dead: false,
+					running: false,
+					depth: 1,
+					runningDescendants: 0,
+					kind: 'ghost',
+					parentSessionId: 's-main'
+				} as PanelRow
+			]
+		});
+		const { target, instance } = mountPanelList({ expand: false });
+		expect(target.querySelectorAll('[data-testid="sidebar-ghost-row"]')).toHaveLength(1);
+		subBtn(target).click();
+		flushSync();
+		expect(target.querySelectorAll('[data-testid="sidebar-ghost-row"]')).toHaveLength(0);
+		expect(panelRowsIn(target)).toHaveLength(1); // the head stays
+		unmount(instance);
+	});
+
+	it('the choice persists — a reload mounts with the sub-agents hidden', () => {
+		publishUnfoldedFamily();
+		const a = mountPanelList({ expand: false });
+		subBtn(a.target).click();
+		flushSync();
+		unmount(a.instance);
+		a.target.remove();
+		expect(JSON.parse(localStorage.getItem('dsi-panel-group') ?? 'null').subagentsHidden).toBe(true);
+		// Hard reload: fresh mount, same desk blob.
+		const b = mountPanelList({ expand: false });
+		expect(subBtn(b.target).getAttribute('aria-pressed')).toBe('true');
+		const ids = Array.from(panelRowsIn(b.target)).map((el) => el.getAttribute('data-session-id'));
+		expect(ids).toEqual(['s-main']);
+		unmount(b.instance);
+	});
+});
+

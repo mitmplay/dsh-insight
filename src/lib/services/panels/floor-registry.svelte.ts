@@ -42,6 +42,10 @@ export interface FloorRegistryDeps {
 	getPanelWidth(): number;
 	setPanelWidthPreset(width: number): void;
 	setTreePct(pct: number): void;
+	/** Explorer lane hide/show persist (e3fd3ac4 follow-up): the route's
+	 *  page-prefs writer, forwarded for chrome-level toggles. Optional:
+	 *  tests configure the registry without it — absent = no-op. */
+	setExplorerHidden?(hidden: boolean): void;
 	getSettingsHomes(): Record<string, string>;
 	/** Terminal Desk action forward (--new-tab / --split-down) — the desk
 	 *  ref stays the route's bind:this; the machine only forwards. */

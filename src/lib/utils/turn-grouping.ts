@@ -80,7 +80,12 @@ export function groupTurns(entries: DsiEntry[]): TurnGroup[] {
 			// consecutive injections when neither sits behind them (D4 —
 			// session open). Otherwise they stand alone — exactly where
 			// the wire put them.
-			if (entry.meta) {
+			// 2026-10-29 amendment (The Verified Reference fix): an injected
+			// message CARRYING imageRefs is a visual prompt — harness
+			// tool-result images (read_image et al) arrive exactly this way —
+			// so it keeps the prompt seat and its gallery renders; chip-only
+			// injections fold exactly as before.
+			if (entry.meta && entry.imageRefs === undefined) {
 				const last = groups[groups.length - 1];
 				if (last?.kind === 'prompt') {
 					last.context.push(entry as ContextEntry);

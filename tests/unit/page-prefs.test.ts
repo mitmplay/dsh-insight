@@ -20,6 +20,19 @@ describe('page-prefs singleton (ADR-0018 W2 task 2.1)', () => {
 		expect(pagePrefs.sidebarCollapsed).toBe(false);
 	});
 
+	it('explorerHidden: $state-declared, seeded false, assignable (toggle RCA 2026-10-31)', () => {
+		pagePrefs.init(null);
+		expect(pagePrefs.explorerHidden).toBe(false);
+		pagePrefs.explorerHidden = true;
+		expect(pagePrefs.explorerHidden).toBe(true);
+	});
+
+	it('init seeds explorerHidden from the persisted blob', () => {
+		globalThis.localStorage.setItem('dsi-panels', JSON.stringify({ panels: [], selectedPanelId: null, panelWidth: 600, zoom: 1, treePct: 30, explorerHidden: true }));
+		pagePrefs.init(null);
+		expect(pagePrefs.explorerHidden).toBe(true);
+	});
+
 	it('init re-seeds on every mount (old route semantics: one mount = one desk)', () => {
 		pagePrefs.init(null);
 		pagePrefs.panelWidth = 700;

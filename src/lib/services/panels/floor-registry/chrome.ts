@@ -234,6 +234,13 @@ export function setExplorerTreePct(_panelId: string, pct: number): void {
 	d().setTreePct(clampTreePct(pct));
 }
 
+/** Explorer hide/show (2026-10-31): one DESK fact like the tree percent —
+ * the toggle flips it through the configured setter (pagePrefs persist). */
+export function setExplorerHidden(_panelId: string, hidden: boolean): void {
+	// Optional dep (tests configure the registry without it) — absent = no-op.
+	d().setExplorerHidden?.(hidden);
+}
+
 /** Git Eye repo-collapse intent (2026-09-13): the collapsed repo set is
  * PERSISTED on the entry. Default is EXPANDED. */
 export function toggleExplorerRepo(panelId: string, repoRel: string): void {

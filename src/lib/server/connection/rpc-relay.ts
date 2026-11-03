@@ -636,13 +636,18 @@ export class RpcRelay {
 	 * image read. Returns the ref plus canonical base64 data; host refusals
 	 * (unknown id, foreign session) reject as DshRpcError → 502 upstream.
 	 *
-	 * @param sessionId - owning session (authorization scope).
-	 * @param attachmentId - durable content-addressed id from an ImageBlock.
+	 * 0.2.2 contract (2026-10-29 release jump): verify-by-ref — the wire arg
+	 * is the FULL image reference inside request.attachment; id-only reads
+	 * reject gateway/input-invalid (live-probed). The ref is the DsiImageRef
+	 * the ledger fold already carries (content.ts imageRefsOfContent).
+	 *
+	 * @param sessionId - owning session (gateway permission scope).
+	 * @param ref - complete image reference from the folded session log.
 	 */
-	async readAttachment(sessionId: string, attachmentId: string): Promise<DshAttachmentValue> {
+	async readAttachment(sessionId: string, ref: Record<string, unknown>): Promise<DshAttachmentValue> {
 		return (await this.conn.rpc(
 			DSH_METHODS.attachment,
-			DSH_ARGS.attachment({ sessionId, attachmentId })
+			DSH_ARGS.attachment({ sessionId, attachment: ref })
 		)) as DshAttachmentValue;
 	}
 

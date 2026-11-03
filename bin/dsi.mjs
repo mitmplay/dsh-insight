@@ -5,8 +5,11 @@
 // relative to this file, not the cwd, so a globally installed or npx-run
 // package serves its own bundled build from any directory.
 // `--zai` (on `dsi web` / `dsi dsh --sync`) bootstraps a fresh DSH install:
-// it adds the ZAI provider and the default model to ~/.dsh/settings.yaml
-// (idempotent — existing entries win). The standalone `dsi zai` command was
+// it adds the ZAI provider and the default model as patch entries in the
+// active profile's ~/.dsh/profiles/<profile>/cordis.patch.yml — the file the
+// host composes entry config from (idempotent — existing entries win). The
+// legacy flat ~/.dsh/settings.yaml is DSH's import-tombstoned past; the
+// standalone `dsi zai` command was
 // decommissioned — the flag does the same work before anything boots.
 // `dsi dsh --token <token>` copies a dsh launch token into DSI's config
 // ($DSI_CONFIG_PATH or ~/.dsi/settings.yaml, key dsh.authToken — the same
@@ -30,6 +33,7 @@ import { parse, stringify } from 'yaml';
 import { mirrorSkills } from './lib/mirror-skills.mjs';
 import { dshLauncherCmd, parsePluginArgs, takeoverFloorPorts, hostBounceDecision, floorUiPort, parseDevFloorPids, launchUrl, tokenFromSettings } from './lib/plugin-chain.mjs';
 import { parseDevArg, devModeEnv, modeFromBoolean, resolveBounceMode, extractInspectArgs, parseInspectArgsFromEnv } from './lib/dev-mode.mjs';
+import { addZaiProvider as addZaiPatch, zaiPatchPath } from './lib/zai-patch.mjs';
 
 // Layman-facing help: wrapped near 76 columns, continuation lines indented,
 // the recommended one-liner first. --zai is optional on purpose — no GLM
@@ -47,7 +51,8 @@ const USAGE = [
 	'',
 	'      --sync   sync the one-time launch token into ~/.dsi/settings.yaml,',
 	'               then serve host + page as one pair',
-	'      --zai    bootstrap the GLM (Z.AI) provider into ~/.dsh/settings.yaml',
+	'      --zai    bootstrap the GLM (Z.AI) provider into the active profile',
+	'               ~/.dsh/profiles/<profile>/cordis.patch.yml',
 	'               before anything boots. No GLM account? Skip it — drop this',
 	'               flag and keep whatever provider you already configured:',
 	'',
@@ -121,37 +126,6 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const OV_PLUGIN = '@openviking/dsh-memory-plugin';
 
 // ── dsi zai ────────────────────────────────────────────────────────────────
-
-/** The ZAI provider block, byte-for-byte the fresh-install shape. */
-const ZAI_PROVIDER = {
-	apiKeyEnv: 'ZAI_API_KEY',
-	api: 'openai-completions',
-	baseURL: 'https://api.z.ai/api/coding/paas/v4',
-	compat: { thinkingFormat: 'zai' },
-	models: [
-		{ id: 'glm-4.7' },
-		{ id: 'glm-5-turbo' },
-		{ id: 'glm-5.1' },
-		{ id: 'glm-5.2' },
-		{
-			id: 'glm-5.3',
-			name: 'GLM-5.3',
-			contextWindow: 1_000_000,
-			maxTokens: 131_072,
-			input: ['text']
-		},
-		{
-			id: 'glm-5.3-flash',
-			name: 'GLM-5.3-Flash',
-			contextWindow: 1_000_000,
-			maxTokens: 131_072,
-			input: ['text', 'image']
-		}
-	]
-};
-
-/** The default-model block a fresh ZAI install wants. */
-const ZAI_DEFAULT_MODEL = { provider: 'zai', model: 'glm-5.3-flash' };
 
 function isRecord(value) {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -635,50 +609,25 @@ function readFloorEnv(pid) {
 	}
 }
 
-/** Add the ZAI provider and default model to ~/.dsh/settings.yaml when
- *  absent. Existing entries always win — an already-configured host is
- *  rewritten only when at least one block was added. Exits non-zero when
- *  the settings file exists but is not parseable YAML. */
+/** Add the ZAI provider and default model as patch entries in the active
+ *  profile's cordis.patch.yml (bin/lib/zai-patch.mjs, ADR D7-D10). Existing
+ *  entries always win — an already-configured profile is untouched. Exits 65
+ *  when the patch file exists but is not a parseable patch array. */
 function addZaiProvider() {
-	const settingsPath =
-		process.env.DSH_SETTINGS_PATH ?? path.join(homedir(), '.dsh', 'settings.yaml');
-
-	let doc = {};
-	if (existsSync(settingsPath)) {
-		try {
-			const parsed = parse(readFileSync(settingsPath, 'utf-8'));
-			if (!isRecord(parsed)) throw new Error('not a YAML mapping');
-			doc = parsed;
-		} catch (error) {
-			console.error(`dsi zai: cannot parse ${settingsPath}: ${error?.message ?? error}`);
-			process.exit(65);
-		}
+	const target = zaiPatchPath();
+	let result;
+	try {
+		result = addZaiPatch(target);
+	} catch (error) {
+		console.error(`dsi zai: ${error?.message ?? error}`);
+		process.exit(65);
 	}
-
-	const added = [];
-	if (!isRecord(doc['llm-pi-ai']) || !isRecord(doc['llm-pi-ai'].providers)) {
-		doc['llm-pi-ai'] = { providers: {} };
-	}
-	if (!isRecord(doc['llm-pi-ai'].providers.zai)) {
-		doc['llm-pi-ai'].providers.zai = ZAI_PROVIDER;
-		added.push('llm-pi-ai.providers.zai');
-	}
-	if (doc['agent-default-model'] === undefined) {
-		doc['agent-default-model'] = ZAI_DEFAULT_MODEL;
-		added.push('agent-default-model');
-	}
-
-	if (added.length === 0) {
-		console.log(`dsi zai: ${settingsPath} already has the ZAI provider — nothing to do`);
+	if (result.added.length === 0) {
+		console.log(`dsi zai: ${target} already has the ZAI provider — nothing to do`);
 		return;
 	}
-
-	mkdirSync(path.dirname(settingsPath), { recursive: true });
-	const temp = `${settingsPath}.${process.pid}.tmp`;
-	writeFileSync(temp, stringify(doc), 'utf-8');
-	renameSync(temp, settingsPath);
-	for (const entry of added) console.log(`dsi zai: added ${entry}`);
-	console.log(`dsi zai: ${settingsPath} updated — set ZAI_API_KEY in the harness env, then restart dsh web`);
+	for (const entry of result.added) console.log(`dsi zai: added ${entry}`);
+	console.log(`dsi zai: ${target} updated — set ZAI_API_KEY in the harness env, then restart dsh web`);
 }
 
 /** Install the OpenViking memory plugin into the active dsh profile by

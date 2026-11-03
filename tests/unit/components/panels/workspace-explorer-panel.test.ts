@@ -35,7 +35,7 @@ function listing(
 	};
 }
 
-function mountPanel(root: string, expanded: readonly string[] = []) {
+function mountPanel(root: string, expanded: readonly string[] = [], extra: Record<string, unknown> = {}) {
 	const onToggle = vi.fn();
 	const onOpenFile = vi.fn();
 	const onOpenTab = vi.fn();
@@ -44,7 +44,7 @@ function mountPanel(root: string, expanded: readonly string[] = []) {
 	document.body.appendChild(target);
 	const instance = mount(WorkspaceExplorerPanel, {
 		target,
-		props: { sessionId: 's1', root, expanded, onToggle, onOpenFile, onOpenTab, onCollapseAll }
+		props: { sessionId: 's1', root, expanded, onToggle, onOpenFile, onOpenTab, onCollapseAll, ...extra }
 	});
 	flushSync();
 	return {
@@ -604,5 +604,53 @@ describe('intent reveal — deep row scrolls into view (Fullpath Bow D3)', () =>
 			restore();
 			hTarget.remove();
 		}
+	});
+});
+
+describe('WorkspaceExplorerPanel — explorer hide/show toggle (2026-10-31)', () => {
+	it('default: tree lane + gutter render (explorerHidden absent)', () => {
+		const view = mountPanel('/ws/a', [], { activeFile: null, openTabs: [] });
+		expect(view.q('[data-testid="workspace-explorer"]')).not.toBeNull();
+		expect(view.q('.gutter')).not.toBeNull();
+		view.cleanup();
+	});
+
+	it('explorerHidden: true — tree lane and gutter render NOTHING, split collapses to --tree-basis: 0px', () => {
+		const view = mountPanel('/ws/a', [], { activeFile: null, openTabs: [], explorerHidden: true, ontoggleexplorer: () => {} });
+		const split = view.q('[data-testid="workspace-explorer"]')!;
+		expect(split).not.toBeNull();
+		expect(split.getAttribute('style')).toContain('--tree-basis: 0px');
+		expect(view.q('.explorer')).toBeNull();
+		expect(view.q('.gutter')).toBeNull();
+		view.cleanup();
+	});
+
+	it('STRANDED-STATE RECOVERY: hidden with NO file surface to host the toggle auto-reveals (fires the intent once)', async () => {
+		const onToggle = vi.fn();
+		// no activeFile — the file toolbar never mounts, so the toggle has no home.
+		const view = mountPanel('/ws/a', [], { activeFile: null, openTabs: [], explorerHidden: true, ontoggleexplorer: onToggle });
+		await new Promise((r2) => setTimeout(r2, 0));
+		flushSync();
+		expect(onToggle).toHaveBeenCalled();
+		view.cleanup();
+	});
+
+	it('hidden WITH a file surface keeps the lane collapsed — the toggle in the toolbar is the recovery, no auto-reveal', () => {
+		const onToggle = vi.fn();
+		const view = mountPanel('/ws/a', [], { activeFile: null, openTabs: [], explorerHidden: true });
+		expect(onToggle).not.toHaveBeenCalled();
+		view.cleanup();
+	});
+
+	it('ontoggleexplorer + explorerHidden forward into the file toolbar (toggle icon renders there)', async () => {
+		fetchMock.mockResolvedValue(new Response(JSON.stringify(listing([{ name: 'README.md', type: 'file' }])), { status: 200 }));
+		const view = mountPanel('/ws/a', [], { activeFile: 'README.md', openTabs: ['README.md'], ontoggleexplorer: () => {}, explorerHidden: false });
+		// settle the file fetch rounds
+		await new Promise((r2) => setTimeout(r2, 0));
+		flushSync();
+		await new Promise((r2) => setTimeout(r2, 0));
+		flushSync();
+		expect(view.q('[data-testid="explorer-toggle"]')).not.toBeNull();
+		view.cleanup();
 	});
 });

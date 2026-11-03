@@ -1807,8 +1807,9 @@ describe('dsh-connection — workspace registry + attachment + baseline (coverag
 
 	
 
-	it('readAttachment forwards {sessionId, attachmentId} and returns the receipt value', async () => {
+	it('readAttachment forwards {request:{sessionId, attachment ref}} and returns the receipt value', async () => {
 		let seen: Record<string, unknown> | undefined;
+		const REF = { attachmentId: 'att-1', mediaType: 'image/png', bytes: 3, width: 1, height: 1 };
 		const fetchFn = (async (url: unknown, init?: { body?: string }) => {
 			const method = String(url).split('/').pop() ?? '';
 			const body = JSON.parse(init?.body ?? '{}') as Record<string, unknown>;
@@ -1817,7 +1818,7 @@ describe('dsh-connection — workspace registry + attachment + baseline (coverag
 				JSON.stringify({
 					type: 'server-response',
 					rpcId: 'rpc-test',
-					result: { ok: true, value: { attachment: { id: 'att-1' }, data: 'QUJD' } }
+					result: { ok: true, value: { attachment: { ...REF }, data: 'QUJD' } }
 				}),
 				{ status: 200 }
 			);
@@ -1827,9 +1828,12 @@ describe('dsh-connection — workspace registry + attachment + baseline (coverag
 			wsFactory: (u) => new FakeWebSocket(u) as never,
 			rpcIdFactory: () => 'rpc-test'
 		});
-		const out = await conn.readAttachment('s-1', 'att-1');
-		expect(((seen as { args?: { request?: Record<string, unknown> } } | undefined)?.args)?.request).toEqual({ sessionId: 's-1', attachmentId: 'att-1' });
-		expect(out).toEqual({ attachment: { id: 'att-1' }, data: 'QUJD' });
+		const out = await conn.readAttachment('s-1', REF);
+		expect(((seen as { args?: { request?: Record<string, unknown> } } | undefined)?.args)?.request).toEqual({
+			sessionId: 's-1',
+			attachment: REF
+		});
+		expect(out).toEqual({ attachment: { ...REF }, data: 'QUJD' });
 	});
 
 	it('hasBaseline: true only after a subscribed baseline with lastSeq ≥ 0', () => {

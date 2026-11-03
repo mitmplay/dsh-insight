@@ -1,13 +1,14 @@
 /**
  * BrowserPanel — syncViewport guard branches (ADR-0031 amendment 2,
- * viewport-follow). Direct-mount suite reusing the browser-panel.test.ts
- * mounting/mocking patterns. Pins each early return of syncViewport():
+ * viewport-follow; settle gate per ADR-0048 D1). Direct-mount suite reusing
+ * the browser-panel.test.ts mounting/mocking patterns. Pins each early
+ * return of syncViewport():
  *   L58 no sessionId (ResizeObserver fired before the resolver answered)
  *   L58 no wrap (callback fired after unmount — wrap unbound)
  *   L61 collapsed glass (clientWidth < 100 or clientHeight < 80)
- *   L62 duplicate viewport (debounce early-return — no second POST)
- *   L63 timer-present path (a second viewport change inside the debounce
- *       window clears the pending timer — exactly ONE /viewport POST,
+ *   L62 duplicate viewport (dead-band early-return — no second POST)
+ *   L63 settle gate (every REAL change re-arms the 180ms quiet window —
+ *       a continuous gesture yields exactly ONE /viewport POST at settle,
  *       the LAST size wins)
  * fetch and EventSource are stubbed; ResizeObserver is captured so the
  * observation callback is fired manually and deterministically.
@@ -19,7 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import BrowserPanel from '$lib/components/browser/BrowserPanel.svelte';
 import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
 
-const DEBOUNCE_MS = 250;
+const SETTLE_MS = 180; // ADR-0048 D1 — the quiet window
 
 /** Minimal EventSource stub: records instances, lets tests fire events. */
 class StubEventSource {
@@ -126,6 +127,7 @@ beforeEach(() => {
 		const url = String(args[0]);
 		const init = (args[1] ?? {}) as RequestInit;
 		if (url.includes('/viewport')) return new Response('{}', { status: 200 });
+		if (url.includes('/tabs')) return new Response(JSON.stringify({ tabs: [] }), { status: 200 }); // death-handsheath poll must not 404
 		if (url.includes('/input')) return new Response('{}', { status: 200 });
 		if (url.includes('/close')) return new Response('{}', { status: 200 });
 		return new Response("unrouted: " + url, { status: 404 });
@@ -189,9 +191,9 @@ function fireFrame(source: StubEventSource, tag: string): void {
 	source.emit('frame', JSON.stringify({ jpeg: Buffer.from(tag).toString('base64'), metadata: {} }));
 }
 
-/** Await past the 250ms debounce window. */
+/** Await past the settle window. */
 async function settleViewport(): Promise<void> {
-	await new Promise((r) => setTimeout(r, DEBOUNCE_MS + 60));
+	await new Promise((r) => setTimeout(r, SETTLE_MS + 60));
 	flushSync();
 }
 
@@ -274,12 +276,12 @@ describe('BrowserPanel — syncViewport guard branches (viewport-follow)', () =>
 		view.un();
 	});
 
-	it('a FRAME STORM does not starve the resize POST (BUG 2026-10-26)', async () => {
+	it('a FRAME STORM does not starve the resize POST (BUG 2026-10-26, kept green under the ADR-0048 settle gate)', async () => {
 		// Live repro: a playing page streams ~15fps, every frame calls
-		// syncViewport, and a debounce that CLEARS on every call never
-		// expires - the gutter drag never posts. Contract: a viewport
-		// change must post within one debounce window EVEN WHILE frames
-		// keep arriving, carrying the LATEST seen size.
+		// syncViewport. The pre-0048 debounce starved because it re-armed
+		// per CALL; the settle gate re-arms only on a real CHANGE (the
+		// dead-band check runs first), so storm frames over an UNCHANGED
+		// box cannot clear the pending timer — the resize still posts.
 		const view = mountPanel({ browserSessionId: SESSION_ID });
 		await settle();
 		const source = await goLive(view);
@@ -287,9 +289,9 @@ describe('BrowserPanel — syncViewport guard branches (viewport-follow)', () =>
 		sizeWrap(view.target, 400, 300);
 		fireFrame(source, 'storm-0');
 		await settle();
-		// ~15fps for 700ms: every frame re-enters syncViewport inside the
-		// debounce window - under the old clear-and-rearm debounce this
-		// starves the timer forever and ZERO posts land
+		// ~15fps for 700ms: every frame re-enters syncViewport, but the box
+		// is UNCHANGED — the dead-band early-return eats them before any
+		// re-arm, and the settle timer fires on schedule
 		for (let i = 1; i <= 7; i += 1) {
 			await new Promise((r) => setTimeout(r, 100));
 			fireFrame(source, 'storm-' + i);
@@ -297,19 +299,19 @@ describe('BrowserPanel — syncViewport guard branches (viewport-follow)', () =>
 			await settle();
 		}
 		const calls = viewportCalls();
-		expect(calls.length).toBeGreaterThanOrEqual(1); // the starvation assert
+		expect(calls.length).toBe(1); // the starvation assert — and exactly ONE post
 		expect(calls.at(-1)?.body).toEqual({ width: 400, height: 300 });
 		view.un();
 	});
 
-	it('two viewport changes inside the debounce window clear the first timer — exactly ONE POST, the LAST size wins', async () => {
+	it('two viewport changes inside the settle window collapse to ONE POST, the LAST size wins', async () => {
 		const view = mountPanel({ browserSessionId: SESSION_ID });
 		await settle();
 		const source = await goLive(view);
 		sizeWrap(view.target, 400, 300);
 		fireFrame(source, "f");
 		await settle();
-		// SECOND change before the 250ms timer fires → clearTimeout runs
+		// SECOND change before the settle timer fires → the window re-arms
 		sizeWrap(view.target, 500, 350);
 		fireFrame(source, "g");
 		roInstances.forEach((ro) => ro.callback());
@@ -421,3 +423,64 @@ describe('BrowserPanel — the zoom-honest measure (ADR-0041 D1/D2)', () => {
 		view.un();
 	});
 });
+
+describe('BrowserPanel — the settle gate (ADR-0048 D1: one POST per gesture)', () => {
+	it('a continuous 5-step gesture yields exactly ONE POST at settle, carrying the FINAL size', async () => {
+		const view = mountPanel({ browserSessionId: SESSION_ID });
+		await settle();
+		const source = await goLive(view);
+		await settleViewport(); // drain the goLive first sync
+		const before = viewportCalls().length;
+		// THE GESTURE: five slider steps, one every 100ms — the quiet window
+		// (180ms) never expires while the hand moves
+		const widths = [410, 420, 430, 440, 450];
+		for (const w of widths) {
+			sizeWrap(view.target, 500, 1000, w, Math.round(w * 2));
+			pagePrefs.zoom = w / 500; // the D2 reactive trigger fires syncViewport
+			roInstances.forEach((ro) => ro.callback());
+			await new Promise((r) => setTimeout(r, 100));
+			await settle();
+		}
+		const midGesture = viewportCalls().length - before;
+		expect(midGesture).toBe(0); // NOTHING fires while the hand moves
+		await settleViewport(); // the hand stopped — the window expires
+		expect(viewportCalls().length).toBe(before + 1); // exactly ONE
+		expect(viewportCalls().at(-1)?.body).toEqual({ width: 450, height: 900 });
+		view.un();
+	});
+
+	it('a settled UNCHANGED box posts nothing — the dead-band eats routine frame traffic', async () => {
+		const view = mountPanel({ browserSessionId: SESSION_ID });
+		await settle();
+		const source = await goLive(view);
+		await settleViewport();
+		const before = viewportCalls().length;
+		for (let i = 0; i < 6; i += 1) {
+			fireFrame(source, 'quiet-' + i);
+			roInstances.forEach((ro) => ro.callback());
+			await new Promise((r) => setTimeout(r, 60));
+			await settle();
+		}
+		await settleViewport();
+		expect(viewportCalls().length).toBe(before);
+		view.un();
+	});
+
+	it('sub-dead-band jitter (1px wobble) posts nothing', async () => {
+		const view = mountPanel({ browserSessionId: SESSION_ID });
+		await settle();
+		const source = await goLive(view);
+		sizeWrap(view.target, 500, 1000, 410, 821);
+		fireFrame(source, 'f');
+		await settle();
+		await settleViewport();
+		const before = viewportCalls().length;
+		sizeWrap(view.target, 500, 1000, 411, 822); // |delta| 1px on both axes
+		fireFrame(source, 'g');
+		await settle();
+		await settleViewport();
+		expect(viewportCalls().length).toBe(before); // below the 2px gate
+		view.un();
+	});
+});
+

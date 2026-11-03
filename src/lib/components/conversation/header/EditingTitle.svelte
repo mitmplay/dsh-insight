@@ -1,12 +1,14 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
+	import { Check, Delete, RotateCcw } from '@lucide/svelte';
 	/**
 	 * EditingTitle (2026-08-26) — the header’s title cluster, extracted
 	 * from SessionIdAndName: BOTH title states inside one component —
 	 *
 	 *   display  — the rename trigger button (title="Rename this session")
-	 *   editing  — the inline form (input + Save + Cancel + error line)
+	 *   editing  — the inline form (input + ✓/✕ icon verbs + error line;
+	 *              ADR-0044: the verbs are icon-only, words on tooltips)
 	 *
 	 * Rename is fully owned here: draft, in-flight lock, the POST
 	 * (session.rename via the page’s /api/dsh route), the error surface,
@@ -139,7 +141,10 @@
 		{#if titleDraft.length > 0 && !renaming}
 			<!-- Clear (2026-09-05): empties the draft, form stays open. The
 			     mousedown preventDefault keeps focus in the input — the blur
-			     auto-submit must never fire with the pre-clear draft. -->
+			     auto-submit must never fire with the pre-clear draft.
+			     Icon grammar (ADR-0044 amendment 2026-10-29): the backspace
+			     Delete glyph — 'delete typed text', matching the keyboard
+			     key; X stays canonical for CLOSE surfaces only. -->
 			<button
 				type="button"
 				data-testid="rename-clear"
@@ -152,32 +157,39 @@
 					renameInput?.focus();
 				}}
 			>
-				<svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-					<path d="M1 1l8 8M9 1l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-				</svg>
+				<Delete size={11} aria-hidden="true" />
 			</button>
 		{/if}
 	</div>
 	{#if renameError}
 		<span class="text-xs text-status-fail" data-testid="rename-error" role="alert">{renameError}</span>
 	{/if}
+	<!-- Icon-only rename verbs (ADR-0044 D1, 2026-10-29): the words
+	     moved to the tooltip/aria-label — Enter saves, Esc cancels, blur
+	     auto-saves, so the labels were unread decoration costing the
+	     input its width. aria-label keeps the locale string so screen
+	     readers keep the words. -->
 	<button
 		type="button"
-		class="rounded-md bg-slate-800 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+		class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-accent-emerald-deep text-white hover:bg-[color-mix(in_srgb,var(--color-accent-emerald-deep)_85%,black)] disabled:bg-surface-alt disabled:text-text-muted disabled:hover:bg-surface-alt"
 		disabled={renaming || titleDraft.trim().length === 0 || titleDraft.trim() === renameBaseline}
 		data-testid="rename-save"
+		aria-label={t(m.save)}
+		title={`${t(m.save)} (Enter)`}
 		onclick={() => void submitRename()}
 	>
-		{renaming ? t(m.saving) : t(m.save)}
+		<Check size={14} aria-hidden="true" />
 	</button>
 	<button
 		type="button"
-		class="rounded-md border border-surface-border text-xs font-medium text-text-secondary hover:bg-surface-alt disabled:opacity-50"
+		class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-surface-border text-text-secondary hover:bg-surface-alt disabled:text-text-muted disabled:hover:bg-transparent"
 		disabled={renaming}
 		data-testid="rename-cancel"
+		aria-label={t(m.cancel)}
+		title={`${t(m.cancel)} (Esc)`}
 		onclick={() => cancelRename()}
 	>
-		{t(m.cancel)}
+		<RotateCcw size={14} aria-hidden="true" />
 	</button>
 {:else if subagent}
 	<!-- Sub-agent session (2026-08-27): the host fences session.rename

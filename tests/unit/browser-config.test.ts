@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -24,7 +24,10 @@ describe('readBrowserConfig', () => {
 	});
 
 	it('no file at all returns the defaults verbatim', () => {
-		expect(readBrowserConfig(join(tmpdir(), 'dsi-does-not-exist-' + Date.now(), 'settings.yaml'))).toEqual(DEFAULT_BROWSER_CONFIG);
+		const dir = mkdtempSync(join(tmpdir(), 'dsi-bcfg-'));
+		const path = join(dir, 'settings.yaml'); // dir exists, file never written
+		expect(readBrowserConfig(path)).toEqual(DEFAULT_BROWSER_CONFIG);
+		rmSync(dir, { recursive: true, force: true });
 	});
 
 	it('explicit headless:false flips to the headed glass', () => {

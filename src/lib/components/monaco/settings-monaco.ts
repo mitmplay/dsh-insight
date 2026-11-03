@@ -26,9 +26,126 @@ import { configureMonacoYaml } from 'monaco-yaml';
  * live instances — so one mapping helper plus one MutationObserver on
  * data-theme keeps every editor (text, yaml, diff) on the right palette
  * without each panel wiring its own listener.
+ *
+ * The themes are our OWN thin clones ('dsi-light' / 'dsi-dark', 2026-11-02)
+ * of vs / vs-dark with ONE added rule: markdown fenced-code content
+ * ('string.mermaid' — the source lines inside a ```mermaid fence; the ```
+ * opener itself stays the generic maroon 'string') gets a dedicated
+ * accessible color. Contrast on the editor background: #00695C on white
+ * ≈ 6.6:1, #80CBC4 on #1e1e1e ≈ 8.9:1 — both pass WCAG AA (4.5:1)
+ * comfortably. Everything else inherits the base theme untouched.
  */
-export function monacoThemeFor(dataTheme: string | null | undefined): 'vs' | 'vs-dark' {
-	return dataTheme === 'dark' ? 'vs-dark' : 'vs';
+const DSI_MARKDOWN_FENCE = '00695C'; // teal 800 — light mode fence text
+const DSI_MARKDOWN_FENCE_DARK = '80CBC4'; // teal 200 — dark mode fence text
+const DSI_MARKDOWN_BOLD = '6F42C1'; // purple — light mode **bold** text
+const DSI_MARKDOWN_BOLD_DARK = 'D2A8FF'; // light purple — dark mode **bold**
+const DSI_MARKDOWN_CODE = '44337A'; // dark violet — light mode `inline code`
+const DSI_MARKDOWN_CODE_BG = 'EDEAF7'; // pale violet pill — light mode bg
+const DSI_MARKDOWN_CODE_DARK = 'D2A8FF'; // dark mode `inline code` text
+const DSI_MARKDOWN_CODE_BG_DARK = '2D2848'; // deep violet pill — dark bg
+
+export type DsiMonacoTheme = 'dsi-light' | 'dsi-dark';
+
+// Guarded: unit tests stub monaco with a partial editor mock (no
+// defineTheme), and theme registration is a no-op without it.
+function defineDsiThemes(): void {
+	const define = monaco.editor.defineTheme?.bind(monaco.editor);
+	if (typeof define !== 'function') return;
+	define('dsi-light', {
+		base: 'vs',
+		inherit: true,
+		rules: [
+			{ token: 'string.mermaid', foreground: DSI_MARKDOWN_FENCE },
+			// **bold** runs: purple + real bold so emphasis reads as emphasis
+			// (6F42C1 on white ≈ 6.0:1 — WCAG AA). 'strong' is effectively a
+			// markdown-only token, so a global rule is safe.
+			{ token: 'strong', foreground: DSI_MARKDOWN_BOLD, fontStyle: 'bold' },
+			// `inline code`: tinted pill background + dark violet text
+			// (44337A on EDEAF7 ≈ 8:1 — WCAG AA).
+			{ token: 'md.inline.code', foreground: DSI_MARKDOWN_CODE, background: DSI_MARKDOWN_CODE_BG }
+		],
+		colors: {}
+	});
+	define('dsi-dark', {
+		base: 'vs-dark',
+		inherit: true,
+		rules: [
+			{ token: 'string.mermaid', foreground: DSI_MARKDOWN_FENCE_DARK },
+			// D2A8FF on #1e1e1e ≈ 10:1; inline code D2A8FF on 2D2848 ≈ 9:1.
+			{ token: 'strong', foreground: DSI_MARKDOWN_BOLD_DARK, fontStyle: 'bold' },
+			{ token: 'md.inline.code', foreground: DSI_MARKDOWN_CODE_DARK, background: DSI_MARKDOWN_CODE_BG_DARK }
+		],
+		colors: {}
+	});
+}
+defineDsiThemes();
+
+// The markdown tokenizer hands a ```mermaid block's CONTENT to an embedded
+// 'mermaid' language (markdown.js: nextEmbedded "$1"). With no such language
+// registered the embedded switch resolves to nothing and the source lines
+// fall to the untokenized default — unthemeable. Registering a one-rule
+// Monarch (every line → 'string.mermaid') makes the fence source a token
+// the dsi themes can paint, while the ``` opener keeps its maroon 'string'.
+// Guarded like defineDsiThemes: the unit-test mock has no language registry.
+function registerMermaidLanguage(): void {
+	if (typeof monaco.languages.register !== 'function') return;
+	if (monaco.languages.getLanguages().some((l) => l.id === 'mermaid')) return;
+	monaco.languages.register({ id: 'mermaid' });
+	monaco.languages.setMonarchTokensProvider('mermaid', {
+		tokenizer: {
+			root: [[/.*$/, 'string.mermaid']]
+		}
+	});
+}
+registerMermaidLanguage();
+
+// Inline `backtick code` in markdown emits the GENERIC 'variable' token —
+// shared by dozens of languages, so a global theme rule would recolor
+// variables everywhere. Patch a CLONE of the stock markdown Monarch to emit
+// a dedicated 'md.inline.code' token for that one rule instead, then
+// override the registered provider. structuredClone keeps the RegExp
+// literals alive (JSON would flatten them to {}). Guarded for the mocks.
+function patchMarkdownInlineCode(): void {
+	if (typeof monaco.languages.setMonarchTokensProvider !== 'function') return;
+	modifyMarkdownLanguage()
+		.then((r) => {
+			if (r.patched) monaco.languages.setMonarchTokensProvider('markdown', r.patched as monaco.languages.IMonarchLanguage);
+			else console.warn('[dsi-monaco] markdown inline-code patch skipped:', r.error);
+		})
+		.catch((e) => {
+			// Fire-and-forget: this chain may still be in flight when a test
+			// environment (or the page) tears down; swallow so a late module
+			// load can never surface as an unhandled rejection.
+			console.warn('[dsi-monaco] markdown inline-code patch failed:', e);
+		});
+}
+async function modifyMarkdownLanguage(): Promise<{ patched: object | null; error?: string }> {
+	try {
+		// The deep path rides the vite alias ('monaco-editor/esm/vs' → local
+		// esm tree); TS has no .d.ts for the bare file, hence the untyped import.
+		// @ts-expect-error — module resolved by the vite alias, untyped
+		const mod = await import('monaco-editor/esm/vs/languages/definitions/markdown/markdown.js');
+		const lang = (mod as { language?: { tokenizer?: { linecontent?: unknown[] } } }).language;
+		if (!lang?.tokenizer) return { patched: null, error: 'no language export' };
+		const clone = structuredClone(lang) as { tokenizer?: { linecontent?: unknown[] } };
+		const rules = clone.tokenizer?.linecontent;
+		if (!Array.isArray(rules)) return { patched: null, error: 'no linecontent' };
+		let hit = false;
+		for (const rule of rules) {
+			if (Array.isArray(rule) && rule[0] instanceof RegExp && rule[0].source.includes('`') && rule[1] === 'variable') {
+				rule[1] = 'md.inline.code';
+				hit = true;
+			}
+		}
+		return hit ? { patched: clone } : { patched: null, error: 'rule not found' };
+	} catch (e) {
+		return { patched: null, error: String(e) };
+	}
+}
+patchMarkdownInlineCode();
+
+export function monacoThemeFor(dataTheme: string | null | undefined): DsiMonacoTheme {
+	return dataTheme === 'dark' ? 'dsi-dark' : 'dsi-light';
 }
 // Guarded: unit tests stub monaco with a partial editor mock (no
 // setTheme), and non-DOM environments have no documentElement to watch.

@@ -41,9 +41,9 @@ describe('resolveA2aConfig — the a2a.* gate site (W4 4.1)', () => {
 		expect(DEFAULT_A2A_WATCH_TIMEOUT_MS).toBe(600_000);
 		expect(DEFAULT_A2A_RETENTION_DAYS).toBe(90);
 		expect(resolveA2aConfig(undefined)).toEqual({
-			fastPollMs: 1000,
-			watchTimeoutMs: 600_000,
-			retentionDays: 90
+			fastPollMs: DEFAULT_A2A_FAST_POLL_MS,
+			watchTimeoutMs: DEFAULT_A2A_WATCH_TIMEOUT_MS,
+			retentionDays: DEFAULT_A2A_RETENTION_DAYS
 		});
 	});
 
@@ -67,18 +67,18 @@ describe('resolveA2aConfig — the a2a.* gate site (W4 4.1)', () => {
 
 	it('rejects out-of-range, floats, and non-numbers per key', () => {
 		for (const fastPollMs of [-1, 60_001, 500.5, '1000', null, true]) {
-			expect(resolveA2aConfig({ fastPollMs }).fastPollMs).toBe(1000);
+			expect(resolveA2aConfig({ fastPollMs }).fastPollMs).toBe(DEFAULT_A2A_FAST_POLL_MS);
 		}
 		for (const watchTimeoutMs of [59_999, 3_600_001, 1.5, '600000']) {
-			expect(resolveA2aConfig({ watchTimeoutMs }).watchTimeoutMs).toBe(600_000);
+			expect(resolveA2aConfig({ watchTimeoutMs }).watchTimeoutMs).toBe(DEFAULT_A2A_WATCH_TIMEOUT_MS);
 		}
 		for (const retentionDays of [0, 3651, 2.5, '90']) {
-			expect(resolveA2aConfig({ retentionDays }).retentionDays).toBe(90);
+			expect(resolveA2aConfig({ retentionDays }).retentionDays).toBe(DEFAULT_A2A_RETENTION_DAYS);
 		}
 	});
 
 	it('a non-record section is three misses — defaults stand', () => {
-		const dflt = { fastPollMs: 1000, watchTimeoutMs: 600_000, retentionDays: 90 };
+		const dflt = { fastPollMs: DEFAULT_A2A_FAST_POLL_MS, watchTimeoutMs: DEFAULT_A2A_WATCH_TIMEOUT_MS, retentionDays: DEFAULT_A2A_RETENTION_DAYS };
 		expect(resolveA2aConfig('fast')).toEqual(dflt);
 		expect(resolveA2aConfig([1000])).toEqual(dflt);
 		expect(resolveA2aConfig(null)).toEqual(dflt);
@@ -87,8 +87,8 @@ describe('resolveA2aConfig — the a2a.* gate site (W4 4.1)', () => {
 	it('per-key independence — one bad key never reverts its neighbors', () => {
 		expect(resolveA2aConfig({ fastPollMs: 250, watchTimeoutMs: 1 })).toEqual({
 			fastPollMs: 250,
-			watchTimeoutMs: 600_000,
-			retentionDays: 90
+			watchTimeoutMs: DEFAULT_A2A_WATCH_TIMEOUT_MS,
+			retentionDays: DEFAULT_A2A_RETENTION_DAYS
 		});
 	});
 });

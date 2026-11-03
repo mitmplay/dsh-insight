@@ -75,7 +75,11 @@ export const test = GLASS_CDP_URL
 						// mirror-chasing is cosmetic — never fail the test for it
 					}
 				}
-				const glassBase = process.env.DSI_E2E_GLASS_BASE_URL ?? 'http://127.0.0.1:5176';
+				// D4 (ADR "The Mirror Must Face a Living Tab"): a GLASS run exists to
+			// watch the LIVE dev surface — default :5175 under CDP; the stock
+			// lane keeps the preview :5176 (BC-10 built-artifact contract).
+			const glassBase = process.env.DSI_E2E_GLASS_BASE_URL ??
+				(GLASS_CDP_URL ? 'http://127.0.0.1:5175' : 'http://127.0.0.1:5176');
 				// resolve relative URLs: a CDP-attached context has no runner baseURL
 				const origGoto = page.goto.bind(page);
 				page.goto = ((url: string, options?: Parameters<Page['goto']>[1]) =>
@@ -84,6 +88,34 @@ export const test = GLASS_CDP_URL
 				if (HOLD_MS > 0) {
 					await page.bringToFront().catch(() => undefined);
 					await new Promise((r) => setTimeout(r, HOLD_MS));
+				}
+				// D3 (ADR "The Mirror Must Face a Living Tab"): with ACTIVATE=1 this
+				// tab IS the mirror's active face — re-point the floor to a
+				// surviving tab BEFORE closing ours, so teardown never blinds the
+				// panel (the 2026-10-28 frozen-frame + empty-strip bug).
+				if (ACTIVATE) {
+					try {
+						const cdp = await context.newCDPSession(page);
+						const info = (await cdp.send('Target.getTargetInfo')) as { targetInfo?: { targetId?: string } };
+						await cdp.detach().catch(() => undefined);
+						const mine = info.targetInfo?.targetId;
+						const port = new URL(GLASS_CDP_URL!).port;
+						const list = await fetch(DSI_URL + '/api/browser').then((r) => r.json());
+						const session = (list.sessions ?? []).find((s: { port: number }) => s.port === Number(port));
+						if (mine && session) {
+							const rows = (await fetch(DSI_URL + '/api/browser/' + session.id + '/tabs').then((r) => r.json())) as Array<{ targetId: string; active: boolean }>;
+							const survivor = Array.isArray(rows) ? rows.find((r) => r.targetId !== mine && !r.active) : null;
+							if (survivor) {
+								await fetch(DSI_URL + '/api/browser/' + session.id + '/activate', {
+									method: 'POST',
+									headers: { 'content-type': 'application/json' },
+									body: JSON.stringify({ targetId: survivor.targetId })
+								});
+							}
+						}
+					} catch {
+						// mirror courtesy is best effort — never fail teardown for it
+					}
 				}
 				await page.close().catch(() => undefined); // our tab only
 			}

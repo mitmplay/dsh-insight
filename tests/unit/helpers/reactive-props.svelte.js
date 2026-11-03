@@ -5,6 +5,7 @@
  * and then mutate the returned object's fields — the component re-renders
  * exactly as it would when its owner replaces prop values.
  */
+/** @template {Record<string, unknown>} T @param {T} init @returns {T} */
 export function reactiveProps(init) {
 	let props = $state(init);
 	return props;

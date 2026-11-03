@@ -27,7 +27,7 @@ function mountToggle(stick: boolean) {
 	document.body.appendChild(target);
 	const comp = mount(StickToBottomToggle, {
 		target,
-		props: { stick, ontoggle: (next) => flips.push(next) }
+		props: { stick, ontoggle: (next: boolean) => flips.push(next) }
 	});
 	cleanup.push(() => {
 		unmount(comp);

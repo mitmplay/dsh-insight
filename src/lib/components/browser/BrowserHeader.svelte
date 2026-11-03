@@ -6,10 +6,22 @@
 	clears on the panel's answer, never on Enter); no title label. The
 	panel ACTS: no POST lives here. data-status / data-rebound stay the
 	e2e seams).
+
+	Long-press history dropdown (operator-approved 2026-10-28): press
+	and HOLD ~350ms on back/forward opens that direction's history
+	menu; a quick release keeps the plain single-step verb. The header
+	only READS history (GET) and REPORTS the picked index upward — the
+	panel performs the travel POST (the ACTS split holds).
 -->
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages';
-	import BrowserClosed from './BrowserClosed.svelte';
+	import ReloadButton from '$lib/components/common/buttons/ReloadButton.svelte';
+	import BrowserClosed from './buttons/BrowserClosed.svelte';
+	import BackButton from './buttons/BackButton.svelte';
+	import ForwardButton from './buttons/ForwardButton.svelte';
+	import UrlCopy from './buttons/UrlCopy.svelte';
+	import UrlInput from './buttons/UrlInput.svelte';
+	import BrowserHistory from './buttons/BrowserHistory.svelte';
 
 	let {
 		/** Panel session state — drives the dot color and testid data. */
@@ -31,7 +43,19 @@
 		/** Proxy intents (ADR-0031 D1): reported upward, never performed. */
 		onnavigate,
 		onreload,
-		onhistory
+		onhistory,
+		/** Long-press dropdown (2026-10-28): the FOCUSED tab's targetId the
+		 *  history GET addresses, and the picked-entry reporter — the panel
+		 *  performs the travel POST. */
+		focusTargetId = null,
+		onhistoryto,
+		/** glass-tab-ids Task 4: the panel computes the omnibox placeholder —
+		 *  the ACTIVE tab's URL (64-char truncated) or the localized fallback. */
+		placeholder = undefined,
+		/** Focus polish 2026-10-28: the FOCUSED tab's real URL, or null when
+		 *  the panel's isNoUrl guard fired (empty / about:blank) — null
+		 *  DISABLES the prefix copy-URL icon. */
+		copyUrl = null,
 	}: {
 		status: 'opening' | 'connecting' | 'live' | 'failed' | 'closed';
 		reBound?: boolean;
@@ -44,7 +68,43 @@
 		onnavigate?: (text: string) => void;
 		onreload?: () => void;
 		onhistory?: (dir: 'back' | 'forward') => void;
+		focusTargetId?: string | null;
+		onhistoryto?: (index: number) => void;
+		placeholder?: string | undefined;
+		copyUrl?: string | null;
 	} = $props();
+
+	/** Copy feedback: the icon swaps to a check for ~1.5s — no toast. */
+	let copied = $state(false);
+	let copiedTimer: ReturnType<typeof setTimeout> | null = null;
+
+	/** navigator.clipboard first; the execCommand fallback covers panel
+	 *  pages where the async clipboard lacks permission. */
+	function legacyCopy(text: string): void {
+		const ta = document.createElement('textarea');
+		ta.value = text;
+		ta.style.position = 'fixed';
+		ta.style.opacity = '0';
+		document.body.appendChild(ta);
+		ta.select();
+		try {
+			document.execCommand('copy');
+		} catch {
+			/* nothing honest to show — the icon just never flips */
+		}
+		ta.remove();
+	}
+	async function copyFocusedUrl(): Promise<void> {
+		if (!copyUrl) return;
+		try {
+			await navigator.clipboard.writeText(copyUrl);
+		} catch {
+			legacyCopy(copyUrl);
+		}
+		copied = true;
+		if (copiedTimer) clearTimeout(copiedTimer);
+		copiedTimer = setTimeout(() => (copied = false), 1500);
+	}
 
 	/** Ephemeral intent, never state (D2): the panel clears it on the
 	 *  route ANSWER via clearInput() — success or refusal both answer. */
@@ -55,47 +115,182 @@
 		urlText = '';
 	}
 
+	/** glass-tab-ids Task 4: query-active echoes the active tab's address
+	 *  ("tab:N <url>") into the box — readable and re-editable. */
+	export function setOmniboxValue(v: string): void {
+		urlText = v;
+	}
+
 	function submit(): void {
 		const t = urlText.trim();
 		if (!t) return; // empty Enter is a no-op
 		onnavigate?.(t);
 	}
+
+	/** ---- Long-press history dropdown (operator-approved 2026-10-28) ----
+	 *  Hold ≥350ms on back/forward opens that direction's menu; release
+	 *  BEFORE the threshold is the plain verb. If the menu opened, the
+	 *  trailing click is SUPPRESSED — it must never double-fire a
+	 *  single-step travel on top of the dropdown. The menu stays open
+	 *  (the simpler approved variant) and closes on item click / outside
+	 *  press / Esc. */
+	const HOLD_MS = 350;
+	const MENU_MAX = 10;
+	type HistEntry = { index: number; url: string; title: string };
+	let holdTimer: ReturnType<typeof setTimeout> | null = null;
+	let suppressNextClick = false;
+	/** Set SYNCHRONOUSLY in the hold timer's callback, BEFORE the async
+	 *  fetch — the release race: a mouseup at ~350ms lands while the
+	 *  history fetch is still in flight (menuDir still null), and without
+	 *  this flag endHold would let the plain click fire on top of the
+	 *  about-to-open dropdown. Pending-open suppresses like opened. */
+	let menuPending = false;
+	let menuDir: 'back' | 'forward' | null = $state(null);
+	let menuEntries: HistEntry[] = $state([]);
+	let menuAnchor: HTMLSpanElement | null = $state(null);
+
+	async function openMenu(dir: 'back' | 'forward'): Promise<void> {
+		if (!sessionId) {
+			menuPending = false;
+			return;
+		}
+		try {
+			const q = focusTargetId ? '?targetId=' + encodeURIComponent(focusTargetId) : '';
+			const res = await fetch('/api/browser/' + sessionId + '/history' + q);
+			if (!res.ok) {
+				menuPending = false; // refused — no dropdown, plain click semantics
+				return;
+			}
+			const d = (await res.json()) as { currentIndex: number; entries: HistEntry[] };
+			const cur = d.currentIndex;
+			// back = nearest first; forward = chronological — 10 each, max
+			const picked =
+				dir === 'back'
+					? d.entries.filter((e) => e.index < cur).slice(-MENU_MAX).reverse()
+					: d.entries.filter((e) => e.index > cur).slice(0, MENU_MAX);
+			if (picked.length === 0) {
+				menuPending = false; // empty direction — no dropdown
+				return;
+			}
+			menuEntries = picked;
+			menuDir = dir;
+		} catch {
+			menuPending = false; // transient — no dropdown, the plain verb stays available
+		}
+	}
+
+	function startHold(dir: 'back' | 'forward'): void {
+		suppressNextClick = false;
+		menuPending = false;
+		holdTimer = setTimeout(() => {
+			holdTimer = null;
+			menuPending = true; // SYNCHRONOUS — beats the fetch, closes the race
+			void openMenu(dir);
+		}, HOLD_MS);
+	}
+
+	function endHold(): void {
+		if (holdTimer) {
+			clearTimeout(holdTimer); // released before 350ms — plain click fires
+			holdTimer = null;
+		} else if (menuDir !== null || menuPending) {
+			// dropdown opened, or its fetch is still in flight — eat the click
+			suppressNextClick = true;
+		}
+	}
+
+	function clickNav(dir: 'back' | 'forward'): void {
+		if (suppressNextClick) {
+			suppressNextClick = false;
+			return;
+		}
+		onhistory?.(dir);
+	}
+
+	function closeMenu(): void {
+		menuDir = null;
+		menuEntries = [];
+		menuPending = false;
+	}
+
+	function pickEntry(index: number): void {
+		closeMenu();
+		onhistoryto?.(index);
+	}
+
+	function windowMousedown(e: MouseEvent): void {
+		if (menuDir === null) return;
+		// a press INSIDE the open menu (item or scroll) must not close it —
+		// the anchor only covers the owning button's span, so test the menu itself
+		if (e.target instanceof Element && e.target.closest('[data-testid="browser-history-menu"]')) return;
+		if (menuAnchor && e.target instanceof Node && menuAnchor.contains(e.target)) return;
+		closeMenu();
+	}
+	function windowKeydown(e: KeyboardEvent): void {
+		if (e.key === 'Escape' && menuDir !== null) closeMenu();
+	}
+
 </script>
 
-<div class="flex items-center gap-2 border-b border-surface-border px-2 py-1 text-xs">
+<svelte:window onmousedown={windowMousedown} onkeydown={windowKeydown} />
+<div class="flex items-center gap-1 border-b border-surface-border px-2 py-1 text-xs">
 	<span class="flex min-w-0 flex-1 items-center gap-2">
 		<!-- proxy controls (ADR-0031 D1): outside the glass input surface -->
-		<button
-			class="rounded px-1 hover:bg-surface-active disabled:opacity-40"
-			data-testid="browser-back"
-			aria-label={m.browserBack()}
-			disabled={busy || !canBack}
-			onclick={() => onhistory?.('back')}
-		>←</button>
-		<button
-			class="rounded px-1 hover:bg-surface-active disabled:opacity-40"
-			data-testid="browser-forward"
-			aria-label={m.browserForward()}
-			disabled={busy || !canForward}
-			onclick={() => onhistory?.('forward')}
-		>→</button>
-		<button
-			class="rounded px-1 hover:bg-surface-active disabled:opacity-40"
-			data-testid="browser-reload"
-			aria-label={m.browserReload()}
-			disabled={status !== 'live' || busy}
+		<span class="relative flex items-center gap-1" bind:this={menuAnchor}>
+			<BackButton
+				class="browser-glyph flex h-6 w-6 items-center justify-center rounded border border-surface-border bg-surface text-[18px] leading-none hover:bg-surface-active disabled:opacity-40"
+				label={m.browserBack()}
+				testid="browser-back"
+				disabled={busy || !canBack}
+				onholdstart={() => startHold('back')}
+				onholdend={endHold}
+				onclick={() => clickNav('back')}
+			/>
+			<ForwardButton
+				class="browser-glyph flex h-6 w-6 items-center justify-center rounded border border-surface-border bg-surface text-[18px] leading-none hover:bg-surface-active disabled:opacity-40"
+				label={m.browserForward()}
+				testid="browser-forward"
+				disabled={busy || !canForward}
+				onholdstart={() => startHold('forward')}
+				onholdend={endHold}
+				onclick={() => clickNav('forward')}
+			/>
+			{#if menuDir}
+				<!-- anchored to the PAIR, shifted under the pressed button (w-6 = left-0 back, left-7 forward) -->
+				<BrowserHistory dir={menuDir} entries={menuEntries} onpick={pickEntry} class={menuDir === 'back' ? 'left-0' : 'left-7'} />
+			{/if}
+		</span>
+		<!-- ReloadButton (2026-10-28 extraction): the feedback trilogy the
+		     workspace-file toolbar carries; the header keeps its chip chrome
+		     and stays idle-only (no busy/done machine — YAGNI per operator
+		     approval). -->
+		<ReloadButton
 			onclick={() => onreload?.()}
-		>⟳</button>
-		<input
-			class="min-w-0 flex-1 rounded border border-surface-border bg-surface px-2 py-0.5"
-			type="text"
-			data-testid="browser-url-input"
-			placeholder={m.browserUrlPlaceholder()}
+			label={m.browserReload()}
+			testid="browser-reload"
 			disabled={status !== 'live' || busy}
+			size={12}
+			class="browser-glyph flex h-6 w-6 items-center justify-center rounded border border-surface-border bg-surface text-[18px] leading-none hover:bg-surface-active disabled:opacity-40"
+		/>
+		<!-- Prefix copy-URL (focus polish 2026-10-28): the operator correction —
+		 icon on the LEADING edge of the input, following the existing
+		 prefix-icon design decision. Copies the FOCUSED tab's URL. -->
+		<UrlCopy
+			class="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-surface-border bg-surface text-surface-muted hover:bg-surface-active disabled:opacity-40"
+			{copied}
+			copiedLabel="Copied"
+			label="Copy focused tab URL"
+			testid="browser-copy-url"
+			disabled={!copyUrl}
+			oncopy={() => void copyFocusedUrl()}
+		/>
+		<UrlInput
+			class="min-w-0 flex-1 rounded border border-surface-border bg-surface px-2 py-0.5"
 			bind:value={urlText}
-			onkeydown={(e) => {
-				if (e.key === 'Enter') submit();
-			}}
+			placeholder={placeholder ?? m.browserUrlPlaceholder()}
+			disabled={status !== 'live' || busy}
+			testid="browser-url-input"
+			onsubmit={submit}
 		/>
 	</span>
 	<span class="flex items-center gap-2" data-testid="browser-status" data-status={status} data-rebound={reBound}>

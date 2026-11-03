@@ -265,7 +265,7 @@ describe('BrowserTab chip (direct mount)', () => {
 		const btn = target.querySelector('[data-testid="browser-tab"]') as HTMLButtonElement;
 		expect(btn.disabled).toBe(true);
 		expect(btn.getAttribute('data-active')).toBe('true');
-		expect(btn.className).toContain('bg-blue-200');
+		expect(btn.className).toContain('bg-blue-100');
 		expect(btn.className).toContain('font-medium');
 		btn.dispatchEvent(new MouseEvent('click'));
 		expect(onactivate).not.toHaveBeenCalled();

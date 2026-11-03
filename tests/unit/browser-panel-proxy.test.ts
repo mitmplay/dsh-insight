@@ -223,11 +223,13 @@ describe('BrowserPanel proxy() — history bounds from the navigate answer', () 
 	it('a success answer clears the header input via clearInput()', async () => {
 		const view = await goLive();
 		const input = view.target.querySelector('[data-testid="browser-url-input"]') as HTMLInputElement;
-		input.value = 'example.com';
+		// glass-tab-ids Task 4: a dotted host is URL-shaped now — it NAVIGATES;
+		// the search fallback belongs to non-URL phrases (use one here).
+		input.value = 'cats & dogs';
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 		await settle(2);
-		expect(nav.bodies[0]).toEqual({ url: 'https://www.google.com/search?q=example.com' });
+		expect(nav.bodies[0]).toEqual({ url: 'https://www.google.com/search?q=cats%20%26%20dogs' });
 		expect(input.value).toBe('');
 		view.un();
 	});

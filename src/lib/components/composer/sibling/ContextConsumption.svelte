@@ -5,14 +5,17 @@
 	 * ContextConsumption — context window usage indicator (OCI port,
 	 * 2026-08-23; percentage wired 2026-08-24). Two display modes:
 	 *
-	 *   both values    → OCI's exact bar: colored progress (green <60%,
-	 *                    amber <85%, red ≥85%) + percentage label
+	 *   both values,   → OCI's exact bar: colored progress (green <60%,
+	 *   used > 0         amber <85%, red ≥85%) + percentage label
 	 *   used only     → DSI fallback: "≈12.3k ctx" text label. The DSH
 	 *                    wire reports per-step usage but no model context
 	 *                    window, so when the model is unknown to the
 	 *                    local catalog (context-window.ts) the bar has
 	 *                    no denominator — the label keeps the slot
 	 *                    honest instead of dead.
+	 *   used = 0      → the fallback label too ("≈0 ctx"): a zero-usage
+	 *                    turn would otherwise paint a 0%-wide bar — a dead
+	 *                    slot (SC#1, 2026-11-01).
 	 *   neither       → renders nothing (OCI contract).
 	 *
 	 * `used` = what the LAST model request consumed: input + cache-read +
@@ -32,7 +35,7 @@
 	} = $props();
 
 	const percent = $derived(
-		used !== undefined && limit !== undefined && limit > 0
+		used !== undefined && used > 0 && limit !== undefined && limit > 0
 			? Math.round((used / limit) * 100)
 			: undefined
 	);

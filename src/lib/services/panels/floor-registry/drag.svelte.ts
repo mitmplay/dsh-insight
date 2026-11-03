@@ -157,6 +157,28 @@ export function resizeAll(width: number): void {
 	st.panels = st.panels.map((p) => (p.kind === 'conversation' ? { ...p, width: w } : p));
 }
 
+// ── Width Preset Chord (ADR-0006a): one preset snaps every lane ──────
+/** Alt+S + digit lands here: EVERY conversation column gets the agent
+ *  preset, EVERY browser column the glass preset — each clamped through
+ *  the per-kind clamp (panel-prefs) so a yaml value can't escape the
+ *  kind's bounds. Workspace lanes (explorer/file) are FIXED and keep
+ *  their widths, same rule as resizeAll. The honest-slider preset
+ *  follows the conversation width (the same convention resizeAll uses).
+ *  Persistence is the existing dsi-panels save effect — the reload
+ *  restore path needs no new writer. */
+export function applyWidthPreset(agentPx?: number, glassPx?: number): void {
+	const a = agentPx === undefined ? undefined : clampPanelWidth(agentPx, 'conversation');
+	const g = glassPx === undefined ? undefined : clampPanelWidth(glassPx, 'browser');
+	if (a !== undefined) d().setPanelWidthPreset(a);
+	st.panels = st.panels.map((p) =>
+		p.kind === 'conversation' && a !== undefined
+			? { ...p, width: a }
+			: p.kind === 'browser' && g !== undefined
+				? { ...p, width: g }
+				: p
+	);
+}
+
 // ── Markdown file-link gate (File Link Intent ADR 2026-09-25 D3) ─────
 /** A transcript file link publishes ONLY after the tree route proves
  * the file exists inside the session's workspace — the gate lives in

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { browserSlotStore, persistId, readPersistedId, removeBrowserSlot, resolveBrowserSession } from '$lib/services/panels/browser-session-resolver.js';
+import { browserSlotStore, glassReadoptCandidate, persistId, readBrowserSlots, readPersistedId, removeBrowserSlot, resetHarnessSessionKeyForTests, resolveBrowserSession } from '$lib/services/panels/browser-session-resolver.js';
 
 /** Task 2.1-T (The Sticky Glass, ADR-0030 D1/D4): the resolver re-binds a
  *  live persisted id WITHOUT a POST open; a dead id falls through to a fresh
@@ -136,4 +136,74 @@ describe('removeBrowserSlot', () => {
 		// initial sync emission + the post-drop emission
 		expect(seen.at(-1)?.map((s) => s.sessionId)).toEqual(['bbb']);
 	});
+});
+
+// RCA 2026-10-30 'The Key That Cleaned Itself Away'
+ // the page strips the sessionKey query param right after hydration; the
+ // capture-at-load store must keep the D7 ownership fact alive for later
+ // readers (the glass chip-open) AND across bare-URL reloads (F5).
+describe('glassReadoptCandidate (HMR re-adopt signature, 2026-10-30)', () => {
+	it('unfolded slot with a sessionId reads as a re-adopt candidate', () => {
+		expect(glassReadoptCandidate([{ index: 0, sessionId: 'live-1' }])).toBe(true);
+	});
+
+	it('a FOLDED slot never re-adopts (ADR-0029 D8: never returns uninvited)', () => {
+		expect(glassReadoptCandidate([{ index: 0, sessionId: 'live-1', folded: true }])).toBe(false);
+	});
+
+	it('a slot without a sessionId (legacy/junk degrade) never re-adopts', () => {
+		expect(glassReadoptCandidate([{ index: 0 }])).toBe(false);
+		expect(glassReadoptCandidate([{ index: 0, sessionId: '' }])).toBe(false);
+	});
+
+	it('an empty list (trash-bin pruned everything) never re-adopts', () => {
+		expect(glassReadoptCandidate([])).toBe(false);
+	});
+
+	it('a mix folds the decision on the unfolded member only', () => {
+		expect(glassReadoptCandidate([{ index: 0, sessionId: 'a', folded: true }, { index: 1, sessionId: 'b' }])).toBe(true);
+	});
+
+	it('round-trips through the real persisted shape (readBrowserSlots)', () => {
+		const st = fakeStorage();
+		st.setItem('dsi.browser.panelIndex', JSON.stringify([{ index: 2, width: 700, sessionId: 's1' }]));
+		expect(glassReadoptCandidate(readBrowserSlots(st))).toBe(true);
+	});
+});
+
+describe('harnessSessionKey capture (survives cleanup and reload)', () => {
+  beforeEach(() => { resetHarnessSessionKeyForTests(); sessionStorage.removeItem('dsi.harness.sessionKey.v2'); });
+
+  it('returns the captured key even with no URL at all', async () => {
+    const { captureHarnessSessionKey, harnessSessionKey } = await import('$lib/services/panels/browser-session-resolver.js');
+    captureHarnessSessionKey('session-x2');
+    expect(harnessSessionKey()).toBe('session-x2');
+  });
+
+  it('capture(null) on a bare load falls back to TAB memory (the F5 case)', async () => {
+    const { captureHarnessSessionKey, harnessSessionKey } = await import('$lib/services/panels/browser-session-resolver.js');
+    captureHarnessSessionKey('session-seeded');
+    captureHarnessSessionKey(null); // the bare reload: no query param
+    expect(harnessSessionKey()).toBe('session-seeded');
+  });
+
+  it('a fresh seed WINS over tab memory (same tab, new conversation)', async () => {
+    const { captureHarnessSessionKey, harnessSessionKey } = await import('$lib/services/panels/browser-session-resolver.js');
+    sessionStorage.setItem('dsi.harness.sessionKey.v2', 'session-old');
+    captureHarnessSessionKey('session-new');
+    expect(harnessSessionKey()).toBe('session-new');
+    expect(sessionStorage.getItem('dsi.harness.sessionKey.v2')).toBe('session-new');
+  });
+
+  it('harnessSessionKey reads TAB memory before any capture in this load', async () => {
+    const { harnessSessionKey } = await import('$lib/services/panels/browser-session-resolver.js');
+    sessionStorage.setItem('dsi.harness.sessionKey.v2', 'session-direct');
+    expect(harnessSessionKey()).toBe('session-direct');
+  });
+
+  it('all sources absent: null (degraded legacy behavior)', async () => {
+    const { captureHarnessSessionKey, harnessSessionKey } = await import('$lib/services/panels/browser-session-resolver.js');
+    captureHarnessSessionKey(null);
+    expect(harnessSessionKey()).toBeNull();
+  });
 });

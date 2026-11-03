@@ -37,11 +37,13 @@
  *                          optional name renames the row WHEN the host
  *                          created it (D2); ~ paths expand against the
  *                          host home before the wire (D3)
- *   /new [@agent] [workspace] [--add] — the /new grammar widened with
- *                          ONE optional workspace token (2026-09-15, ADR
- *                          D5): a title or canonical-path match against
+ *   /new [@agent] [workspace] [--title <title>] [--add] — the /new
+ *                          grammar: ONE optional workspace token (2026-09-15,
+ *                          ADR D5; a title or canonical-path match against
  *                          the workspace registry displaces the inherited
- *                          cwd — a named workspace replaces inheritance;
+ *                          cwd) and ONE optional --title flag (2026-10-29,
+ *                          ADR amendment D7/D8 — the session's title at
+ *                          birth, applied via the session-rename route);
  *   @<session-id> <msg>  — the agent-to-agent mention (2026-08-26, KB note
  *                          "Talking to Another Agent"): deliver <msg> to
  *                          THAT session as a queued prompt and open its
@@ -110,6 +112,13 @@ export interface ParsedCommand {
 	 *  flag token and not an '@' token; case preserved verbatim. Absent
 	 *  for the four pre-existing shapes and any malformed remainder. */
 	ws?: string;
+	/** /new only (2026-10-29, The Workspace Command ADR amendment D8) —
+	 *  the session title at birth: the tokens after a '--title' flag,
+	 *  whitespace-joined, case preserved verbatim. The remainder IS the
+	 *  title — no quoting grammar (D8's rejected alternative). A bare
+	 *  '--title' with no following tokens is a malformed shape (raw args,
+	 *  the leftover rule). Absent for every pre-existing shape. */
+	title?: string;
 	/** /dsi-skills only (The Skill Shelf ADR, 2026-09-20, D3) — the
 	 *  exact '--reload' flag: force a snapshot rebuild before the shelf
 	 *  panel opens. Absent for the bare command. */
@@ -185,14 +194,26 @@ export function parseCommand(text: string): ParsedCommand | null {
 			let rest = toks;
 			let agentId: string | undefined;
 			let ws: string | undefined;
+			let title: string | undefined;
 			let addPanel = false;
-			if (rest.length > 0 && rest[0].startsWith('@') && rest[0].length > 1) {
-				agentId = rest[0].slice(1); // host slug, case preserved
-				rest = rest.slice(1);
-			}
 			if (rest.length > 0 && rest[rest.length - 1] === '--add') {
 				addPanel = true; // exact lowercase only (the /new flag precedent)
 				rest = rest.slice(0, -1);
+			}
+			// --title (2026-10-29, ADR amendment D8): the flag consumes the
+			// REST of the line — whitespace-joined, verbatim, no quoting
+			// grammar. Tokens BEFORE the flag re-run the standing rules
+			// (@id first, then the one ws token); a bare --title (nothing
+			// after it) is a malformed shape → raw args (the leftover rule).
+			const titleIdx = rest.indexOf('--title'); // exact lowercase only
+			if (titleIdx !== -1) {
+				if (titleIdx === rest.length - 1) return { type: 'new', args };
+				title = rest.slice(titleIdx + 1).join(' ');
+				rest = rest.slice(0, titleIdx);
+			}
+			if (rest.length > 0 && rest[0].startsWith('@') && rest[0].length > 1) {
+				agentId = rest[0].slice(1); // host slug, case preserved
+				rest = rest.slice(1);
 			}
 			if (
 				rest.length === 1 &&
@@ -209,6 +230,7 @@ export function parseCommand(text: string): ParsedCommand | null {
 				args: '',
 				...(agentId !== undefined ? { agentId } : {}),
 				...(ws !== undefined ? { ws } : {}),
+				...(title !== undefined ? { title } : {}),
 				...(addPanel ? { addPanel: true } : {})
 			};
 		}

@@ -128,9 +128,27 @@ describe('viewport follows the panel (ADR-0031 amendment 2)', () => {
 		opened.push(info.id);
 		await browserRegistry.navigate(info.id, page('VP'), { waitLoad: true });
 		await browserRegistry.setViewport(info.id, 500, 400);
-		const pi = await browserRegistry.pageInfo(info.id);
-		expect(pi.innerWidth).toBe(500);
-		expect(pi.innerHeight).toBe(400);
+		// Bounded settle poll (full-suite hardening 2026-11-01): under
+		// 600-file CPU load the CDP evaluate behind pageInfo can lag the
+		// resize repair by a beat, so one immediate read may witness a
+		// mid-repair viewport. Poll the INTENT with full re-reads; ceiling
+		// 30x500ms = 15s, far above the repair ladder's own ~2.5s caps.
+		// BUG 2026-11-02: the contract is the ADR-0041 Amendment 2 layout
+		// scale — the page lays out at layoutViewport = box / contentZoom
+		// (500x400 / 0.8 = 625x500), NOT the raw box. The old 500x400 pin
+		// was an artifact of the pre-ladder-fix headless backstop re-pinning
+		// the BOX over the emulation (the zoom never reached the page).
+		// Verified: pre-wave registry passes 500 (the artifact), the fixed
+		// ladder settles at 625x500 — matching the live glass (innerWidth
+		// 966 = 773/0.8, KB glass-zoom-scales 2026-10-31 replay).
+		const lvw = 625, lvh = 500;
+		let pi = await browserRegistry.pageInfo(info.id);
+		for (let i = 0; i < 30 && (pi.innerWidth !== lvw || pi.innerHeight !== lvh); i += 1) {
+			await new Promise((r) => setTimeout(r, 500));
+			pi = await browserRegistry.pageInfo(info.id);
+		}
+		expect(pi.innerWidth).toBe(lvw);
+		expect(pi.innerHeight).toBe(lvh);
 	}, 120_000);
 
 	it('viewport route validates shapes and answers ok', async () => {
@@ -176,7 +194,7 @@ describe('screencast quality from config (amendment 4, 2026-10-20)', () => {
 		const fixture = path.join(os.tmpdir(), `dsi-quality-fixture-${Date.now()}.yaml`);
 		await fsp.writeFile(fixture, 'chat:\n  input:\n    maxRows: 15\n');
 		try {
-			expect(readBrowserConfig(fixture).screencastQuality).toBe(90); // absent section = default
+			expect(readBrowserConfig(fixture).screencastQuality).toBe(DEFAULT_BROWSER_CONFIG.screencastQuality); // absent section = default
 		} finally {
 			await fsp.rm(fixture, { force: true });
 		}
@@ -202,7 +220,7 @@ describe('sound in the headless glass — the operator fix (2026-10-20)', () => 
 		const src = (await import('node:fs')).readFileSync('src/lib/server/browser/registry.ts', 'utf8');
 		// Playwright injects --mute-audio by default; only the ignore-list
 		// removes it — the autoplay policy flag alone was never audible
-		expect(src).toContain("ignoreDefaultArgs = ['--enable-automation', '--mute-audio']");
+		expect(src).toContain("ignoreDefaultArgs = ['--enable-automation', '--mute-audio', '--hide-scrollbars']");
 	});
 });
 

@@ -4,6 +4,7 @@
 	import type { DsiPermission } from '$lib/services/conversation/permission-state';
 	import { appConfig } from '$lib/services/config/app-config.svelte';
 	import AccessModeConfirm from './AccessModeConfirm.svelte';
+	import { clickOutside } from '$lib/actions/click-outside';
 	import {
 		CUSTOM_PRESET,
 		FULL_ACCESS_PRESET,
@@ -196,6 +197,16 @@
 		open = false;
 	}
 
+	// Dismissal contract (spec 2026-11-01): outside click or Escape closes
+	// the menu only — never the pick state, the R7 gate, or the pending
+	// confirmation (the gate owns its own Escape/mask exits). Escape
+	// returns focus to the trigger.
+	function dismissMenu(reason: 'outside' | 'escape'): void {
+		if (!open) return;
+		open = false;
+		if (reason === 'escape') triggerEl?.focus();
+	}
+
 	function closeConfirmation(): void {
 		confirming = false;
 	}
@@ -207,7 +218,7 @@
 </script>
 
 {#if permission !== null}
-	<div class="relative">
+	<div class="relative" use:clickOutside={{ open, onDismiss: dismissMenu }}>
 		<button
 			type="button"
 			bind:this={triggerEl}

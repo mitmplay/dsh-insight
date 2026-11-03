@@ -429,3 +429,68 @@ describe('TerminalDesk — 4.2-T session cap refusal (Terminal Desk ADR D6)', ()
 	});
 });
 
+
+describe('TerminalDesk — the grown-up strip (2026-11-03 amendment D5b/D5c/D5d)', () => {
+	it('Clear terminals ladder-closes every shell, then mints a FRESH T1 — the desk slot survives', async () => {
+		fetchRoute = route();
+		const h = await mountDesk();
+		await tick();
+		deskRef!.applyAction('new-tab'); // two shells, two sessions
+		await tick();
+		flushSync();
+		const before = closeCalls.length;
+		expect(h.target.querySelectorAll('[data-testid="terminal-tab-button-0"]')).not.toBeNull();
+
+		// open the popover and fire Clear terminals
+		click(h.target, '[data-testid="terminal-tabstrip-clear"]');
+		click(h.target, '[data-testid="terminal-tabstrip-clear-terminals"]');
+		await tick(30);
+		flushSync();
+
+		// both old sessions were ladder-closed, and ONE fresh session was minted
+		const closes = closeCalls.slice(before);
+		expect(closes.filter((c) => c.endsWith(':close')).length).toBeGreaterThanOrEqual(2);
+		const freshMints = postOpens - 2; // 2 initial mints (row + new-tab), fresh T1 adds 1
+		expect(freshMints).toBe(1);
+		// the fresh T1 exists and is selected — the desk did NOT remove its slot
+		expect(h.target.querySelector('[data-testid="terminal-desk"]')).not.toBeNull();
+		expect(h.target.querySelector('[data-testid="terminal-tab-button-0"]')?.getAttribute('data-selected')).toBe('true');
+		h.cleanup();
+	});
+
+	it('the popover has three verbs and NO Cancel (D5b)', async () => {
+		fetchRoute = route();
+		const h = await mountDesk();
+		await tick();
+		click(h.target, '[data-testid="terminal-tabstrip-clear"]');
+		expect(h.target.querySelector('[data-testid="terminal-tabstrip-clear-all"]')).not.toBeNull();
+		expect(h.target.querySelector('[data-testid="terminal-tabstrip-clear-jobs"]')).not.toBeNull();
+		expect(h.target.querySelector('[data-testid="terminal-tabstrip-clear-terminals"]')).not.toBeNull();
+		expect(h.target.querySelector('[data-testid="terminal-tabstrip-clear-cancel"]')).toBeNull();
+		// outside click cancels (direct element dispatch — the backdrop covers
+		// the viewport in the browser, so any real outside click lands on it)
+		const bd = h.target.querySelector('.backdrop');
+		(bd as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		flushSync();
+		expect(h.target.querySelector('[data-testid="terminal-tabstrip-clear-pop"]')).toBeNull();
+		h.cleanup();
+	});
+	it('D5d — the job-tab loop is a SIBLING of the shell loop (source-level pin)', () => {
+		// readFileSync pattern per this file's house style: the shipped bug
+		// nested the jobTabs each INSIDE the tabs each — each job tab then
+		// rendered once per shell tab. Pin the hoisted order at the source.
+		const source = readFileSync('src/lib/components/terminal/TerminalDesk.svelte', 'utf8');
+		const tabsOpen = source.indexOf('{#each tabs as tab, i (tab.key)}');
+		const tabsClose = source.indexOf('{/each}', tabsOpen);
+		const jobOpen = source.indexOf('{#each jobTabs as job, ji (job.key)}');
+		const headerClose = source.indexOf('</TerminalTabHeader>');
+		expect(jobOpen).toBeGreaterThan(tabsClose);
+		expect(jobOpen).toBeLessThan(headerClose);
+		expect(tabsClose).toBeLessThan(headerClose);
+	});
+});
+
+function click(target: HTMLElement, sel: string): void {
+	(target.querySelector(sel) as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+	flushSync();
+}

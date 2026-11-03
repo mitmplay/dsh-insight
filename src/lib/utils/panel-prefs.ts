@@ -98,6 +98,9 @@ export interface PanelPrefs {
 	 *  share in percent, within [TREE_PCT_MIN, TREE_PCT_MAX]. Optional —
 	 *  absent in legacy blobs, defaulted by clampTreePct on read. */
 	treePct?: number;
+	/** Explorer hide/show (2026-10-31): the tree lane's collapsed state.
+	 *  Optional — absent in legacy blobs, defaulted false on read. */
+	explorerHidden?: boolean;
 }
 
 /**
@@ -224,7 +227,8 @@ export function defaultPanelPrefs(): PanelPrefs {
 		selectedPanelId: null,
 		panelWidth: defaultPanelWidth(),
 		zoom: PANEL_DEFAULT_ZOOM,
-		treePct: TREE_PCT_DEFAULT
+		treePct: TREE_PCT_DEFAULT,
+		explorerHidden: false
 	};
 }
 
@@ -538,12 +542,14 @@ export function loadPanelPrefs(profile?: string | null): PanelPrefs {
 			typeof parsed.treePct === 'number' && Number.isFinite(parsed.treePct)
 				? clampTreePct(parsed.treePct)
 				: TREE_PCT_DEFAULT;
+		// Explorer hide/show (2026-10-31): strict boolean — junk is false.
+		const explorerHidden = parsed.explorerHidden === true;
 		const selected =
 			typeof parsed.selectedPanelId === 'string' &&
 			panels.some((panel) => panel.id === parsed.selectedPanelId)
 				? parsed.selectedPanelId
 				: (panels[0]?.id ?? null);
-		return { panels, selectedPanelId: selected, panelWidth, zoom, treePct };
+		return { panels, selectedPanelId: selected, panelWidth, zoom, treePct, explorerHidden };
 	} catch {
 		return defaultPanelPrefs();
 	}

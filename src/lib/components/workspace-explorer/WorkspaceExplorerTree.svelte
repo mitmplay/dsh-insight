@@ -13,17 +13,7 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 import * as m from '$lib/paraglide/messages';
 	import FileTypeIcon from '../common/file-icons/FileTypeIcon.svelte';
-
-	/** One listing row (workspaceFiles/list WorkspaceDirectoryEntry). */
-	export interface DirEntry {
-		name: string;
-		type: 'file' | 'directory' | 'other';
-	}
-	/** Viewing state for one fetched level (owner-held, never persisted). */
-	export type Level =
-		| { kind: 'loading' }
-		| { kind: 'failed'; reason: string }
-		| { kind: 'ready'; entries: DirEntry[]; truncated: boolean };
+	import type { DirEntry, Level } from './workspace-explorer-tree-types';
 
 	let {
 		root,

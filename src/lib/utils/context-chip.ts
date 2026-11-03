@@ -30,8 +30,22 @@ export function chipNameOf(meta: Producer, metaSource: Source): string | undefin
 		}
 		case 'plugin':
 			return str(metaSource?.plugin);
+		// The 2026-11-02 promotions (The Chip Label Promotion ADR D3): the
+		// visible label is the catalog translation; the wire plugin string
+		// rides the chip tooltip instead of vanishing.
+		case 'goal':
+		case 'tool-goal':
+		case 'time-context':
+		// The v4 wire rides source.kind (2026-11-02 census); the older shape
+		// rode source.plugin — either way the raw string reaches the tooltip.
+			return str(metaSource?.plugin) ?? str(metaSource?.kind);
 		case 'injected':
 			return str(metaSource?.kind);
+		case 'user-approval':
+		// The v4 wire shape is kind 'user-approval' (2026-09-18 promotion
+		// matched the older plugin shape); the bare producer needs no name —
+		// kept nameable for the tooltip the same way.
+			return str(metaSource?.plugin) ?? str(metaSource?.kind);
 		default:
 			return undefined;
 	}

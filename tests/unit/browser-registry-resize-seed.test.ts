@@ -72,7 +72,13 @@ describe('browser registry — seed after resize (ADR-0041 D3)', () => {
 			const f = browserRegistry.relay(info.id).latestFrame();
 			expect(f).not.toBeNull();
 			const dims = jpegSize(f!.jpeg);
-			expect(dims).toEqual({ w: 500, h: 700 });
+			// Layout-scale zoom (ADR-0041 amendment): the frame is the LAYOUT
+			// viewport — box/zoom = 625x875 at the config scale 0.8 — and the
+			// mirror's contain-fit renders it at the panel's 500x700. The
+			// ladder's match gate speaks these units too (BUG 2026-11-02b:
+			// comparing box-sized wants against lv-sized frames made the
+			// repair impossible under zoom != 1).
+			expect(dims).toEqual({ w: 625, h: 875 });
 		}, 180_000);
 
 		it('a HEADED birth renders at the REQUESTED size - no chrome guess (BUG 2026-10-26c)', async () => {
@@ -85,7 +91,10 @@ describe('browser registry — seed after resize (ADR-0041 D3)', () => {
 			const f = browserRegistry.relay(info.id).latestFrame();
 			expect(f).not.toBeNull();
 			const dims = jpegSize(f!.jpeg);
-			expect(dims).toEqual({ w: 520, h: 640 });
+			// Layout-scale zoom (ADR-0041 amendment): the birth frame is the
+			// LAYOUT viewport — box/zoom = 650x800 at the config scale 0.8 —
+			// and the mirror's contain-fit renders it at the panel's 520x640.
+			expect(dims).toEqual({ w: 650, h: 800 });
 		}, 180_000);
 	});
 });

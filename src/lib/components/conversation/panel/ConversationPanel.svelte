@@ -456,7 +456,11 @@
 	/** Context consumption (2026-08-23): the LAST assistant usage record
 	 * across the ledger — what the most recent model request consumed
 	 * (uncached input + cache-read + cache-write = the full prompt seen).
-	 * Wire truth via DsiTokenUsage; undefined until a turn finalizes. */
+	 * Wire truth via DsiTokenUsage; 0 once the session has ledger entries
+	 * but no usage yet (aborted turn / pre-first-finalize — SC#1
+	 * 2026-11-01: an aborted turn leaves no usage record, and the honest
+	 * display is "≈0 ctx", not a dead slot). Undefined only on an empty
+	 * session (no entries at all). */
 	const contextTokens = $derived.by(() => {
 		for (let i = store.entries.length - 1; i >= 0; i--) {
 			const e = store.entries[i];
@@ -464,7 +468,7 @@
 				return e.usage.inputTokens + (e.usage.cacheReadTokens ?? 0) + (e.usage.cacheWriteTokens ?? 0);
 			}
 		}
-		return undefined;
+		return store.entries.length > 0 ? 0 : undefined;
 	});
 
 	/** Context window limit (OCI percentage parity, 2026-08-24): the DSH

@@ -535,3 +535,125 @@ describe('launch fallback + hostile-enable glue arms', () => {
     expect(() => browserRegistry.noteMcpTraffic('ghost-traffic')).not.toThrow();
   });
 });
+
+// ---- D5 amendment: the active-pointer listeners + brain re-homing ---------------
+describe('onActiveChange (D5 amendment: watch the active pointer)', () => {
+  it('listeners fire on activate(); off() detaches; a dead listener never breaks the switch', async () => {
+    const e = seed();
+    const T2 = 'tid-second-' + Math.random().toString(36).slice(2, 6);
+    const relay2 = {
+      dispatch: vi.fn(async () => undefined),
+      stop: vi.fn(),
+      pause: vi.fn(async () => undefined),
+      ensureStreaming: vi.fn(async () => undefined),
+      latestFrame: vi.fn(() => ({ seq: 1, jpeg: 'f', metadata: {} })),
+      seed: vi.fn()
+    };
+    const cdp2 = h.makeCdp();
+    (e.tabs as Map<string, unknown>).set(T2, { targetId: T2, cdp: cdp2, relay: relay2, page: { setViewportSize: vi.fn(async () => undefined) } });
+    (e.context as any).pages = () => [];
+
+    const seen: string[] = [];
+    const off = browserRegistry.onActiveChange(e.id, (tid) => seen.push(tid));
+    browserRegistry.onActiveChange(e.id, () => {
+      throw new Error('dead listener'); // must be swallowed by the switch
+    });
+    await browserRegistry.activate(e.id, T2);
+    expect(seen).toEqual([T2]); // the pointer move was witnessed
+
+    off();
+    const firstTabId = (e.tabs as Map<string, any>).keys().next().value as string | undefined;
+    if (firstTabId === undefined) throw new Error('seed tab missing');
+    await browserRegistry.activate(e.id, e.activeTargetId === T2 ? firstTabId : T2);
+    expect(seen).toEqual([T2]); // detached — no second witness
+  }, 10_000);
+
+  it('refuses for an unknown session (peek NO_SESSION)', () => {
+    expect(() => browserRegistry.onActiveChange('ghost-listeners', () => undefined)).toThrow(BrowserRegistryRefusal);
+  });
+});
+
+// ---- long-press dropdown: navEntries / historyTravel + zoom re-arm mop ---------
+describe('navEntries / historyTravel / setZoom arms', () => {
+  it('navEntries maps the CDP history list; a rejecting Page.enable still rides', async () => {
+    const e = seed();
+    (e.cdp as any).send.mockImplementation(async (method: string) => {
+      if (method === 'Page.enable') throw new Error('cdp gone'); // best-effort catch arm
+      if (method === 'Page.getNavigationHistory')
+        return {
+          currentIndex: 1,
+          entries: [
+            { id: 11, url: 'https://a.example', title: 'A' },
+            { id: 12, url: 'https://b.example', title: 'B' }
+          ]
+        };
+      return {};
+    });
+    const out = await browserRegistry.navEntries(e.id);
+    // index is the LIST position; the CDP entryId is dropped (UI never sees it)
+    expect(out).toEqual({
+      currentIndex: 1,
+      entries: [
+        { index: 0, url: 'https://a.example', title: 'A' },
+        { index: 1, url: 'https://b.example', title: 'B' }
+      ]
+    });
+  });
+
+  it('historyTravel navigates to the entry AT the list position; a hostile index refuses NO_TARGET', async () => {
+    const e = seed();
+    (e.cdp as any).send.mockImplementation(async (method: string) => {
+      if (method === 'Page.getNavigationHistory') return { currentIndex: 1, entries: [{ id: 11 }, { id: 12 }] };
+      if (method === 'Page.navigateToHistoryEntry') {
+        queueMicrotask(() => (e.cdp as any).emit('Page.loadEventFired')); // settle waitLoad fast
+        return {};
+      }
+      return {};
+    });
+    const r = await browserRegistry.historyTravel(e.id, 0);
+    expect(r).toEqual({ currentIndex: 0, entryCount: 2 });
+    expect((e.cdp as any).send).toHaveBeenCalledWith('Page.navigateToHistoryEntry', { entryId: 11 });
+    // out of the list: explicit refusal, never a silent no-op
+    await expect(browserRegistry.historyTravel(e.id, 5)).rejects.toThrow(/HISTORY_INDEX — no entry at index 5 of 2/);
+    await expect(browserRegistry.historyTravel(e.id, Number.NaN)).rejects.toThrow(BrowserRegistryRefusal);
+  });
+
+  it('setZoom re-applies the panel viewport (layout scale rides the resize; no init script)', async () => {
+    const e = seed({ zoom: 0.9 });
+    await browserRegistry.setZoom(e.id, 0.8); // stores the scale and re-applies the viewport
+    expect(e.zoom).toBe(0.8);
+    // applyPanelViewport ran: Page.enable went through the handle's cdp and
+    // the emulated (headless) viewport is box/zoom — 1280/0.8 = 1600
+    const page = (e.tabs as Map<string, { page?: { setViewportSize: ReturnType<typeof vi.fn> } }>).values().next().value!.page!;
+    expect(page.setViewportSize).toHaveBeenCalledWith({ width: 1600, height: 1000 });
+  });
+});
+
+describe('evictBrainPort (BUGFIX 2026-10-25: the brain is a floor singleton)', () => {
+  it('open() in-process re-homes the stable brain port away from the OLDER glass', async () => {
+    process.env.DSI_MCP_IN_PROCESS = '1';
+    process.env.DSI_MCP_PORT = '19552';
+    const old = seed({
+      brainPort: 19552,
+      mcpInProcess: {
+        port: 19552,
+        connection: { close: vi.fn(async () => undefined) },
+        httpServer: { closeAllConnections: vi.fn(), close: (cb?: () => unknown) => cb?.() }
+      }
+    });
+    mockLaunch();
+    const info = await browserRegistry.open(); // brain ON, in-process, same stable port
+    try {
+      expect(info.mcp).toBe('in-process');
+      // the OLD holder lost the seat, honestly reported
+      expect(old.mcpInProcess).toBeNull();
+      expect(old.mcpHealth).toBe('down');
+      expect(old.mcpError).toBe('brain re-homed to a newer glass');
+      // the evicted brain's teardown ran (forced connection drops + close)
+      await new Promise((r) => setTimeout(r, 20));
+    } finally {
+      await browserRegistry.close(info.id).catch(() => undefined);
+      if (state().entries.has(old.id)) await browserRegistry.close(old.id).catch(() => undefined);
+    }
+  }, 15_000);
+});

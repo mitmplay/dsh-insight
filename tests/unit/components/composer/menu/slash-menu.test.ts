@@ -12,10 +12,13 @@
  */
 import { mount, unmount, flushSync } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import SlashMenu, {
+import SlashMenu from '$lib/components/composer/menu/SlashMenu.svelte';
+// The pure helpers live in a .ts module (raw tsc cannot see named exports
+// through the '*.svelte' ambient declaration).
+import {
 	slashMenuMatches,
 	slashMenuScrollIntoView
-} from '$lib/components/composer/menu/SlashMenu.svelte';
+} from '$lib/components/composer/menu/slash-menu-shared';
 import SlashMenuHarness from '../../../../fixtures/SlashMenuHarness.svelte';
 
 /** The fixtures' shared flush (panels-row.test.ts's settle): drain every

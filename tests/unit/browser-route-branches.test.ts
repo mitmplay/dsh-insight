@@ -8,7 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { navigateMock, pageInfoMock, navInfoMock, peekMock, relayMock, dispatchMock, noteStreamOpenMock, noteStreamCloseMock } = vi.hoisted(() => ({
+const { navigateMock, pageInfoMock, navInfoMock, peekMock, relayMock, dispatchMock, noteStreamOpenMock, noteStreamCloseMock, onActiveChangeMock, onDeathMock } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	pageInfoMock: vi.fn(),
 	navInfoMock: vi.fn(),
@@ -16,7 +16,9 @@ const { navigateMock, pageInfoMock, navInfoMock, peekMock, relayMock, dispatchMo
 	relayMock: vi.fn(),
 	dispatchMock: vi.fn(),
 	noteStreamOpenMock: vi.fn(),
-	noteStreamCloseMock: vi.fn()
+	noteStreamCloseMock: vi.fn(),
+	onActiveChangeMock: vi.fn((_id: string, cb: (targetId: string) => void) => vi.fn()),
+	onDeathMock: vi.fn((_id: string, cb: (reason: string) => void) => vi.fn())
 }));
 
 vi.mock('$lib/server/browser/registry.js', async (importOriginal) => {
@@ -31,7 +33,9 @@ vi.mock('$lib/server/browser/registry.js', async (importOriginal) => {
 			relay: relayMock,
 			dispatch: dispatchMock,
 			noteStreamOpen: noteStreamOpenMock,
-			noteStreamClose: noteStreamCloseMock
+			noteStreamClose: noteStreamCloseMock,
+			onActiveChange: onActiveChangeMock, // D5 amendment: the stream follows the active pointer
+			onDeath: onDeathMock // Ghost Glass Fix 2: death is announced, never discovered
 		}
 	};
 });
@@ -129,6 +133,24 @@ describe('GET /api/browser/[id]/stream', () => {
 			return vi.fn();
 		})
 	});
+	// a relay fake whose unsubscribe REALLY detaches — a stale fire after
+	// unbind must not reach the stream under test
+	const makeDetachingRelay = () => {
+		let live: ((f: unknown) => void) | null = null;
+		return {
+			latestFrame: vi.fn(() => null),
+			subscribe: vi.fn((cb: (f: unknown) => void) => {
+				live = cb;
+				return () => {
+					live = null;
+				};
+			}),
+			fire: (f: unknown): boolean => {
+				live?.(f);
+				return live !== null;
+			}
+		};
+	};
 
 	it('peek NO_SESSION refusal maps to 404', async () => {
 		peekMock.mockImplementationOnce(() => {
@@ -178,10 +200,14 @@ describe('GET /api/browser/[id]/stream', () => {
 		expect((await Promise.race([reader.read(), 'pending']))).toBe('pending');
 		await reader.cancel();
 
-		relayMock.mockReturnValue(makeRelay({ seq: 7 }));
+		// VERDICT: source is authoritative — fromSeq is Number(... ?? '0') and the
+		// replay guard is `Number.isNaN(fromSeq) || latest.seq > fromSeq`, so an
+		// UNPARSEABLE fromSeq behaves like 0: the late attacher still gets the
+		// latest frame as its boundary (fail-open toward painting something).
+		relayMock.mockReturnValue(makeRelay({ seq: 7, jpeg: 'QQ==' }));
 		const nan = stream({ ...streamCtx('b1', '?fromSeq=potato') });
 		const nanReader = nan.body!.getReader();
-		expect((await Promise.race([nanReader.read(), 'pending']))).toBe('pending');
+		expect(new TextDecoder().decode((await nanReader.read()).value)).toContain('"seq":7');
 		await nanReader.cancel();
 	});
 
@@ -253,6 +279,111 @@ describe('GET /api/browser/[id]/stream', () => {
 		expect(unsub).toHaveBeenCalledOnce();
 		fire({ seq: 11 }); // closed guard swallows it
 		await reader.cancel();
+	});
+
+	// D5 amendment 2026-10-27: the stream FOLLOWS the active pointer — a
+	// registry-side activate (brain-driven or strip heal) must re-point the
+	// mirror, pushing the new face's latest frame as the boundary.
+	it('re-binds to the NEW active relay on activeChange, pushing its latest frame as the boundary', async () => {
+		const unA = vi.fn();
+		const relayA = { ...makeDetachingRelay(), latestFrame: vi.fn(() => ({ seq: 1, jpeg: 'aa==' })) };
+		const relayB = { ...makeDetachingRelay(), latestFrame: vi.fn(() => ({ seq: 5, jpeg: 'bb==' })) };
+		relayA.subscribe.mockImplementation((cb: (f: unknown) => void) => {
+			(relayA as any).fire = (f: unknown): boolean => { cb(f); return true; };
+			return () => {
+				unA();
+				(relayA as any).fire = () => false;
+			};
+		});
+		const unB = vi.fn(() => {
+			(relayB as any).fire = () => false;
+		});
+		relayB.subscribe.mockImplementation((cb: (f: unknown) => void) => {
+			(relayB as any).fire = (f: unknown): boolean => { cb(f); return true; };
+			return unB;
+		});
+		relayMock.mockReturnValue(relayA);
+		let fireActive: (targetId: string) => void = () => {};
+		onActiveChangeMock.mockImplementation((_id: string, cb: (targetId: string) => void) => {
+			fireActive = cb;
+			return vi.fn();
+		});
+		const res = stream({ ...streamCtx('b1') });
+		const reader = res.body!.getReader();
+		expect(new TextDecoder().decode((await reader.read()).value)).toContain('"seq":1'); // face A boundary
+		// the pointer moves to tab B — same SSE connection, new face
+		relayMock.mockReturnValue(relayB);
+		fireActive('tid-B');
+		const boundary = new TextDecoder().decode((await reader.read()).value);
+		expect(boundary).toContain('"seq":5'); // B's latest frame arrives immediately
+		expect(unA).toHaveBeenCalledOnce(); // the OLD face's subscription is dropped
+		expect(relayA.fire({ seq: 2, jpeg: 'old==' })).toBe(false); // A's callback detached
+		expect(relayB.fire({ seq: 6, jpeg: 'cc==' })).toBe(true); // B streams live
+		expect(new TextDecoder().decode((await reader.read()).value)).toContain('"seq":6');
+		await reader.cancel();
+		expect(unB).toHaveBeenCalledOnce(); // cancel drops the CURRENT face
+	});
+
+	it('keeps the OLD face when the re-bind lookup refuses (relay() throws)', async () => {
+		let fireA: (f: unknown) => void = () => {};
+		const unA = vi.fn();
+		relayMock.mockReturnValue({
+			latestFrame: vi.fn(() => ({ seq: 1, jpeg: 'aa==' })),
+			subscribe: vi.fn((cb: (f: unknown) => void) => {
+				fireA = cb;
+				return unA;
+			})
+		});
+		let fireActive: (targetId: string) => void = () => {};
+		onActiveChangeMock.mockImplementation((_id: string, cb: (targetId: string) => void) => {
+			fireActive = cb;
+			return vi.fn();
+		});
+		const res = stream({ ...streamCtx('b1') });
+		const reader = res.body!.getReader();
+		await reader.read(); // face A boundary consumed
+		// a switch landing on a session with no handle (closing churn):
+		// the stream must keep painting A, not die
+		relayMock.mockImplementationOnce(() => {
+			throw new Error('CLOSED');
+		});
+		fireActive('tid-gone');
+		fireA({ seq: 3, jpeg: 'still-a==' });
+		const chunk = new TextDecoder().decode((await reader.read()).value);
+		expect(chunk).toContain('"seq":3'); // A still streams
+		expect(unA).not.toHaveBeenCalled(); // never unsubscribed
+		await reader.cancel();
+	});
+
+	it('does NOT re-subscribe when the active change resolves to the SAME relay', async () => {
+		const relay = {
+			latestFrame: vi.fn(() => null),
+			subscribe: vi.fn(() => vi.fn())
+		};
+		relayMock.mockReturnValue(relay);
+		let fireActive: (targetId: string) => void = () => {};
+		onActiveChangeMock.mockImplementation((_id: string, cb: (targetId: string) => void) => {
+			fireActive = cb;
+			return vi.fn();
+		});
+		const res = stream({ ...streamCtx('b1') });
+		const reader = res.body!.getReader();
+		fireActive('tid-same');
+		expect(relay.subscribe).toHaveBeenCalledOnce(); // identity guard: no second subscribe
+		await reader.cancel();
+	});
+
+	it('cancel drops the active listener AND the subscriber count (crash-safe either way)', async () => {
+		const offActive = vi.fn();
+		const unsub = vi.fn();
+		relayMock.mockReturnValue({ latestFrame: vi.fn(() => null), subscribe: vi.fn(() => unsub) });
+		onActiveChangeMock.mockReturnValue(offActive);
+		const res = stream({ ...streamCtx('b1') });
+		expect(noteStreamOpenMock).toHaveBeenCalledWith('b1');
+		await res.body!.cancel();
+		expect(unsub).toHaveBeenCalledOnce();
+		expect(offActive).toHaveBeenCalledOnce();
+		expect(noteStreamCloseMock).toHaveBeenCalledWith('b1');
 	});
 });
 
@@ -374,5 +505,40 @@ describe('POST /api/browser/[id]/input', () => {
 	it('rethrows non-refusal, non-relay errors', async () => {
 		dispatchMock.mockRejectedValueOnce(new Error('boom'));
 		await expect(input({ ...ctx('b1'), request: post({ kind: 'text', text: 'hi' }) })).rejects.toThrow('boom');
+	});
+});
+describe('GET stream — the death broadcast (Ghost Glass Fix 2)', () => {
+	const makeRelay = () => ({
+		latestFrame: vi.fn(() => null),
+		subscribe: vi.fn(() => vi.fn())
+	});
+
+	it('an onDeath fire pushes ONE died event with the reason, then ENDS the stream', async () => {
+		relayMock.mockReturnValue(makeRelay());
+		let fireDeath: ((reason: string) => void) | null = null;
+		onDeathMock.mockImplementation((_id: string, cb: (reason: string) => void) => {
+			fireDeath = cb;
+			return vi.fn();
+		});
+		const res = stream({ ...streamCtx('b1') });
+		const reader = res.body!.getReader();
+		expect(fireDeath).toBeTruthy();
+		fireDeath!('reaped');
+		const chunk = new TextDecoder().decode((await reader.read()).value);
+		expect(chunk).toContain('event: died');
+		expect(JSON.parse(chunk.split('data: ')[1])).toEqual({ reason: 'reaped' });
+		// the stream ENDS — the panel sees a clean close right after the truth
+		expect((await reader.read()).done).toBe(true);
+	});
+
+	it('cancel detaches the death listener too (no post-close announcements)', async () => {
+		relayMock.mockReturnValue(makeRelay());
+		const offSpy = vi.fn();
+		onDeathMock.mockImplementation(() => offSpy);
+		const res = stream({ ...streamCtx('b1') });
+		const reader = res.body!.getReader();
+		await reader.cancel();
+		expect(offSpy).toHaveBeenCalled();
+		expect(noteStreamCloseMock).toHaveBeenCalled();
 	});
 });

@@ -286,6 +286,13 @@ test.describe.serial('glass browser e2e', () => {
 		// width (D2 re-arm with the visual measure) — pin the client half
 		// before judging the server half
 		await expect.poll(() => vpPosts.some((w) => w < box1!.width - 5), { timeout: 5_000 }).toBe(true);
+		// ADR-0048 D1: the gesture is ONE settle — after the quiet window the
+		// gate must have fired EXACTLY ONCE (the pre-0048 throttle emitted
+		// intermediate posts mid-gesture; a fill() is a single step, so the
+		// settled total is one). Wait out the settle window, then count.
+		await page.waitForTimeout(400);
+		expect(vpPosts).toHaveLength(1);
+		expect(vpPosts[0]).toBeLessThan(box1!.width - 5);
 		const box2 = await page.getByTestId('browser-glass').boundingBox();
 		expect(box2!.width).toBeLessThan(box1!.width - 5); // the seen box truly shrank
 		await expect.poll(innerW, { timeout: 15_000 }).toBeCloseTo(box2!.width, 0);

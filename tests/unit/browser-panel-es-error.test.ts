@@ -111,6 +111,11 @@ const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Respo
 		env.inputBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
 		return new Response('{}', { status: env.inputStatus });
 	}
+	// Ghost Glass handshake (cc7c1dc8): the panel polls /tabs; a 404 there
+	// means session DEATH — the 404 fallback below must NOT catch this route.
+	if (url.includes('/tabs')) {
+		return new Response(JSON.stringify({ tabs: [] }), { status: 200 });
+	}
 	if (url.includes('/close')) {
 		env.closeCalls.push(url);
 		return new Response('{}', { status: 200 });

@@ -32,12 +32,22 @@
 	 *  read its own output state (that loops); a settled failure stays put. */
 	const settledFailed = new Set<string>();
 
+	/** The crash guard (each_key_duplicate, operator report 2026-10-31): the
+	 *  attachment id IS the content hash, so one prompt's ledger can carry
+	 *  the same image twice — and a keyed each may not. Two refs with one
+	 *  id are ONE image: keep the first occurrence, render the distinct
+	 *  set. The boundary is robust against already-written ledgers. */
+	const uniqueRefs = $derived.by(() => {
+		const seen = new Set<string>();
+		return refs.filter((r) => (seen.has(r.attachmentId) ? false : (seen.add(r.attachmentId), true)));
+	});
+
 	$effect(() => {
-		void refs;
+		void uniqueRefs;
 		void sessionId;
-		for (const ref of refs) {
+		for (const ref of uniqueRefs) {
 			if (settledFailed.has(ref.attachmentId)) continue;
-			void resolveAttachmentUrl(sessionId, ref.attachmentId)
+			void resolveAttachmentUrl(sessionId, ref)
 				.then((url) => {
 					slots = { ...slots, [ref.attachmentId]: { url } };
 				})
@@ -49,9 +59,9 @@
 	});
 </script>
 
-{#if refs.length > 0}
+{#if uniqueRefs.length > 0}
 	<div class="flex flex-wrap justify-end gap-1.5" data-testid="message-images" role="list" aria-label={t(m.attachedImages)}>
-		{#each refs as ref (ref.attachmentId)}
+		{#each uniqueRefs as ref (ref.attachmentId)}
 			{#if slots[ref.attachmentId]?.url}
 				<img
 					src={slots[ref.attachmentId]!.url}

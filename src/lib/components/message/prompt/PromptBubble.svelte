@@ -38,6 +38,7 @@
 	import type { DsiImageRef } from '$lib/types';
 	import MessageBubble from './MessageBubble.svelte';
 	import MessageImages from './MessageImages.svelte';
+	import { parseInjectedPathTable } from '$lib/utils/injected-path-table';
 
 	let {
 		text,
@@ -46,7 +47,8 @@
 		imageRefs = [],
 		sessionId,
 		children,
-		onFileLink
+		onFileLink,
+		meta
 	}: {
 		/** Markdown body — omitted in children-only mounts (context chips). */
 		text?: string;
@@ -62,10 +64,21 @@
 		children?: import('svelte').Snippet;
 		/** File Link Intent forwarder — reaches the bubble's markdown body. */
 		onFileLink?: (path: string) => void;
+		/** The entry's injection producer ('injected', 'runtime-context', …) —
+		 *  gates the injected data-table render (2026-10-29). */
+		meta?: string;
 	} = $props();
 
 	const skin = $derived(
 		tone === 'context' ? 'bg-accent-blue/10 border-accent-blue/20' : 'bg-accent-blue/15 border-accent-blue/20'
+	);
+
+	/** 2026-10-29: an INJECTED message whose text is exactly the harness's
+	 *  <path>/<type>/<content> trio renders as a key/value table (path value
+		 *  is a file link) instead of dead escaped tags. Human prompts and
+		 *  quoting prose never match (the parser is whole-block strict). */
+	const injectedRows = $derived(
+		meta === 'injected' && text !== undefined ? parseInjectedPathTable(text) : null
 	);
 </script>
 
@@ -79,7 +92,32 @@
 			<MessageImages refs={imageRefs} {sessionId} />
 		</div>
 	{/if}
-	<MessageBubble role="user" {skin} {text} {time} {onFileLink}>
+	<MessageBubble role="user" {skin} {text} {time} {onFileLink} hideMarkdown={injectedRows !== null} showSave={injectedRows === null}>
+		{#if injectedRows}
+			<table class="injected-data-table w-full border-collapse text-xs" data-testid="injected-data-table">
+				<tbody>
+					{#each injectedRows as row (row.key)}
+						<tr class="border-b border-surface-border/40">
+							<td class="k w-20 shrink-0 py-1 pr-2 align-top font-medium opacity-60">{row.key}</td>
+							<td class="v py-1 break-all">
+								{#if row.href && onFileLink}
+									{@const href = row.href}
+									<!-- File Link Intent D1: the click is an INTENT, never a
+									     navigation — a button, not an anchor. -->
+									<button
+										type="button"
+										class="cursor-pointer text-left underline underline-offset-2 hover:opacity-80"
+										onclick={() => onFileLink(href)}
+									>{row.value.split('/').pop()}</button>
+								{:else}
+									{row.value}
+								{/if}
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{/if}
 		{#if children}{@render children()}{/if}
 	</MessageBubble>
 </div>

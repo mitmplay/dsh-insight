@@ -120,7 +120,55 @@
           "source": { "kind": "plugin", "plugin": "user-approval" }
         }
       },
-      "_note": "live pin — open plugin family, no form member; 'plugin' chip titled user-approval"
+      "_note": "live pin — promoted 2026-09-18 to the tailored 'user-approval' producer (ctxChipUserApproval); a scoped sibling stays 'plugin'"
+    },
+    "plugin-goal": {
+      "event": {
+        "type": "user/message",
+        "seq": 15,
+        "data": {
+          "role": "user",
+          "content": [{ "type": "text", "text": "goal snapshot" }],
+          "source": { "kind": "goal", "goalId": "goal-0e2ac31f-117c-4039-8adc-fccdb526347b", "revision": 1, "round": 1 }
+        }
+      },
+      "_note": "LIVE v4 pin 2026-11-02 — kind 'goal' {goalId,revision,round}; tailored 'goal' producer (ctxChipGoal); wire kind rides the tooltip"
+    },
+    "plugin-tool-goal": {
+      "event": {
+        "type": "user/message",
+        "seq": 16,
+        "data": {
+          "role": "user",
+          "content": [{ "type": "text", "text": "complete: some tool goal summary (form notice)" }],
+          "source": { "kind": "tool-goal", "form": "notice", "summary": "complete: some tool goal summary" }
+        }
+      },
+      "_note": "LIVE v4 pin 2026-11-02 — kind 'tool-goal' form 'notice' {summary}; tailored 'tool-goal' producer (ctxChipToolGoal)"
+    },
+    "plugin-time-context": {
+      "event": {
+        "type": "user/message",
+        "seq": 17,
+        "data": {
+          "role": "user",
+          "content": [{ "type": "text", "text": "Time sampled while preparing turn 1, step 1: 2026-11-02T08:02:39+08:00[Asia/Singapore]" }],
+          "source": { "kind": "time-context", "form": "snapshot", "sections": [{ "name": "time-context", "text": "Time sampled while preparing turn 1, step 1: 2026-11-02T08:02:39+08:00[Asia/Singapore]" }] }
+        }
+      },
+      "_note": "LIVE v4 pin 2026-11-02 — kind 'time-context' form 'snapshot' {sections}; tailored 'time-context' producer (ctxChipTimeContext)"
+    },
+    "kind-user-approval": {
+      "event": {
+        "type": "user/message",
+        "seq": 18,
+        "data": {
+          "role": "user",
+          "content": [{ "type": "text", "text": "The user changed the approval policy from \"ask\" to \"never\"." }],
+          "source": { "kind": "user-approval" }
+        }
+      },
+      "_note": "LIVE v4 pin 2026-11-02 — the 2026-09-18 promotion's live shape is kind 'user-approval' (census ×612); the older plugin shape is pinned above"
     },
     "session-reference": {
       "event": {

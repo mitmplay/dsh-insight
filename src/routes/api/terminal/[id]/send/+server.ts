@@ -11,10 +11,12 @@ import type { TerminalSignal } from '$lib/server/terminal/types.js';
 
 interface SendBody {
 	token?: string;
-	action?: 'write' | 'signal' | 'close';
+	action?: 'write' | 'signal' | 'close' | 'resize';
 	data?: string;
 	signal?: TerminalSignal;
 	timeoutMs?: number;
+	cols?: number;
+	rows?: number;
 }
 
 const SIGNALS: readonly string[] = ['SIGINT', 'SIGTERM', 'SIGKILL', 'SIGTSTP', 'SIGHUP'];
@@ -45,6 +47,18 @@ export const POST = async (ctx: { params: { id: string }; request: Request }): P
 			case 'close': {
 				const result = await terminalRegistry.close(id, token);
 				return json(result, { status: result.quiescent ? 200 : 500 });
+			}
+			case 'resize': {
+				// Terminal Desk ADR amendment 2026-11-03: the client's fitted dims
+				// reach the PTY so the shell's winsize (and right prompt) match
+				// the rendered viewport.
+				const cols = Number(body.cols);
+				const rows = Number(body.rows);
+				if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols < 2 || rows < 2) {
+					return json({ error: 'BAD_REQUEST' }, { status: 400 });
+				}
+				terminalRegistry.resize(id, token, cols, rows);
+				return json({ resized: true });
 			}
 			default:
 				return json({ error: 'BAD_REQUEST' }, { status: 400 });

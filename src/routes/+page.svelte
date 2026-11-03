@@ -6,16 +6,17 @@
 	 * views live in services/panels/{floor-registry,floor-reads} — the
 	 * names below are wiring aliases so the markup reads unchanged.
 	 */
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import AppSidebar from '$lib/components/common/layout/AppSidebar.svelte';
 	import ConversationPanel from '$lib/components/conversation/panel/ConversationPanel.svelte';
 	import PromptManagerPanel from '$lib/components/prompt-manager/PromptManagerPanel.svelte';
+	import ChordPalette from '$lib/components/panels/ChordPalette.svelte';
 	import TerminalDesk from '$lib/components/terminal/TerminalDesk.svelte';
 	import { registerJobTabLauncher } from '$lib/services/jobs/follow-client.svelte';
 	import BrowserManager from '$lib/components/browser/BrowserManager.svelte';
-	import { browserSlotStore, persistBrowserSlots, primeBrowserSlotStore, readBrowserSlots, removeBrowserSlot } from '$lib/services/panels/browser-session-resolver.js';
+	import { browserSlotStore, captureHarnessSessionKey, glassReadoptCandidate, harnessSessionKey, persistBrowserSlots, primeBrowserSlotStore, readBrowserSlots, removeBrowserSlot } from '$lib/services/panels/browser-session-resolver.js';
 	import SettingsSkillsPanel from '$lib/components/settings-skills/SettingsSkillsPanel.svelte';
 	import PluginManagerPanel from '$lib/components/settings-plugins/PluginManagerPanel.svelte';
 	import SettingsEditorPanel from '$lib/components/panels/SettingsEditorPanel.svelte';
@@ -45,6 +46,15 @@
 	import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
 	import { pageFeeds } from '$lib/services/workspace/page-feeds.svelte';
 	import * as floorApi from '$lib/services/panels/floor-registry.svelte';
+	import { applyWidthPreset } from '$lib/services/panels/floor-registry.svelte';
+	import {
+		chordOptions,
+		decideChordKeydown,
+		hasAnyPreset,
+		IDLE_CHORD,
+		type ChordState,
+		type ChordVerb
+	} from '$lib/utils/key-chords';
 	import { releaseGlasses } from '$lib/services/panels/glass-release.js';
 	import {
 		agentFor,
@@ -59,6 +69,7 @@
 	} from '$lib/services/panels/floor-reads.svelte';
 	import { clampPanelZoom, loadPanelPrefs, PANEL_WORKSPACE_EXPLORER_WIDTH, savePanelPrefs } from '$lib/utils/panel-prefs';
 	import { sanitizeWorkspaceProfile } from '$lib/utils/storage-profile';
+	import { applySidebarLane } from '$lib/config';
 	import { clampSidebarWidth } from '$lib/utils/sidebar-prefs';
 	import type { DsiConversationPanel, DsiPanelEntry, TerminalDeskMirror } from '$lib/types';
 
@@ -68,13 +79,31 @@
 		const fromQuery = page.url.searchParams.get('sessionKey');
 		return fromQuery !== null && fromQuery.length > 0 ? fromQuery : null;
 	}
+	// RCA 2026-10-30 "The Key That Cleaned Itself Away": capture the key NOW,
+	// while it is still in the URL — the cleanup $effect below strips it right
+	// after hydration, and a later reader (the glass chip-open) must still
+	// know whose conversation this page is (ADR-0045 amendment 3 D7).
+	// NO restored-blob fallback (retracted same day): the panel blob lives in
+	// localStorage, SHARED by every DSI tab — the last saver wins, so a bare
+	// reload of X3/X4 read X2's panels and claimed X2's identity (observed:
+	// two glasses minted with session-f2c2d33b as owner). The ONLY truthful
+	// sources are the deep-link query param (this load) and the per-tab
+	// sessionStorage memory the capture keeps (survives F5, dies with tab).
+	// A tab that lost its key stays keyless until a fresh GUI deep link.
+	captureHarnessSessionKey(seedSessionId());
 	const seededInitially = seedSessionId() !== null;
 	const seedCold = seedColdOf(page.data);
 	pagePrefs.init(activeProfile);
 	pagePrefs.installSidebarAutoSave();
 	const initialPrefs = loadPanelPrefs(activeProfile);
 	let terminalDeskRef: { applyAction: (action: 'new-tab' | 'split-down') => void } | null = $state(null);
-	let terminalDeskMirrors = $state<Record<string, TerminalDeskMirror>>({});
+	// The desk mirrors live in a PLAIN record bumped by a $state counter
+	// (2026-11-03): assigning fresh objects into a deep-$state proxy tripped
+	// assignment_value_stale on every publish (stored proxy ≠ raw RHS). The
+	// counter is the reactive gate the save effect reads; the record itself
+	// is plain and read untracked there.
+	let terminalDeskMirrors: Record<string, TerminalDeskMirror> = {};
+	let terminalDeskMirrorsVersion = $state(0);
 	floorApi.configureFloorRegistry({
 		getLineageFacts: () => floorReads.lineageFacts,
 		getMoveFacts: () => floorReads.moveFacts,
@@ -84,6 +113,7 @@
 		getPanelWidth: () => pagePrefs.panelWidth,
 		setPanelWidthPreset: (w) => (pagePrefs.panelWidth = w),
 		setTreePct: (pct) => (pagePrefs.treePct = pct),
+		setExplorerHidden: (hidden) => (pagePrefs.explorerHidden = hidden),
 		getSettingsHomes: () => appConfig().settingsHomes,
 		applyTerminalDeskAction: (a) => terminalDeskRef?.applyAction(a),
 		// The Glass Close Ladder (ADR 2026-10-24 D1/D2): the cascade's wire
@@ -120,23 +150,58 @@
 	// sidebar ghost rows). Probes the live set, re-mints every UNFOLDED glass
 	// whose own session answers live (reload survival, Amendment 3), and
 	// prunes folded entries whose session died (the honest row).
+	// In-flight latch: the HMR re-adopt below can request the restore from
+	// a reactive tick that fires more than once while the fetch is pending —
+	// concurrent calls would double-summon (the panels guard inside only
+	// helps AFTER a summon lands).
+	let restoringGlasses = false;
 	async function restoreBrowserGlasses(): Promise<void> {
+		if (restoringGlasses) return;
+		restoringGlasses = true;
 		try {
 			if (floorApi.floor.panels.some((panel) => panel.kind === 'browser')) return;
 			const res = await fetch('/api/browser');
 			if (!res.ok) return;
-			const body = (await res.json()) as { sessions?: Array<{ id: string }> };
+			const body = (await res.json()) as { sessions?: Array<{ id: string; ownerSessionId?: string | null }> };
+			// ADR-0045 amendment 3 D7 — a live session owned by ANOTHER
+			// conversation is not ours to restore; null owner (legacy) re-binds
+			// as before. localStorage keeps only slot memory (D8).
+			// RCA 2026-10-30 (reload half): seedSessionId() reads the RAW query —
+			// null on every bare reload after the cleanup strips sessionKey — so
+			// a glass minted by THIS conversation pruned as "foreign" on reload
+			// (observed live: slots wiped, panel lost). The identity authority is
+			// harnessSessionKey(): load-time capture → sessionStorage v2 → URL.
+			// RCA 2026-10-30 (hosted-set half): a page hosts MANY conversations —
+			// a + New chat panel's chip mints the glass with the OPENER's session
+			// as owner (ADR-0045 amendment: owner = opener panel), which is never
+			// the deep-link key. Ownership check is therefore a SET: every
+			// conversation panel currently hosted on this floor, plus the page
+			// identity. Anything else on the registry is genuinely foreign.
+			const ownSessions = new Set<string>(
+				floorApi.floor.panels
+					.filter((p) => p.kind === 'conversation')
+					.map((p) => (p as { sessionId: string }).sessionId)
+			);
+			const pageKey = harnessSessionKey();
+			if (pageKey) ownSessions.add(pageKey);
 			const live = new Set((body.sessions ?? []).map((s) => s.id));
+			const ownerOf = new Map((body.sessions ?? []).map((s) => [s.id, s.ownerSessionId ?? null]));
+			const mine = (id: string): boolean => {
+				const owner = ownerOf.get(id);
+				return owner == null || ownSessions.has(owner);
+			};
 			const slots = readBrowserSlots();
-			const dead = slots.filter((s) => s.sessionId && !live.has(s.sessionId));
+			const dead = slots.filter((s) => s.sessionId && (!live.has(s.sessionId) || !mine(s.sessionId)));
 			if (dead.length > 0) persistBrowserSlots(slots.filter((s) => !dead.includes(s)));
 			for (const slot of slots) {
 				if (slot.folded) continue; // a folded glass never comes back uninvited (ADR-0029 D8)
-				if (!slot.sessionId || !live.has(slot.sessionId)) continue;
+				if (!slot.sessionId || !live.has(slot.sessionId) || !mine(slot.sessionId)) continue;
 				summonGlass(slot);
 			}
 		} catch {
 			/* a boot-time probe must never break the floor */
+		} finally {
+			restoringGlasses = false;
 		}
 	}
 
@@ -235,6 +300,18 @@
 			// ADR-0037 D3: a FOLD keeps its entry — marked, not wiped. The
 			// boot restore skips folded entries; the probe prunes the dead.
 			persistBrowserSlots(readBrowserSlots().map((s) => ({ ...s, folded: true })));
+		} else if (glassReadoptCandidate(readBrowserSlots())) {
+			// HMR RE-ADOPT (2026-10-30): a dependency-module HMR re-instantiates
+			// the floor registry's module state (panels reset) WITHOUT re-running
+			// this component's init — the init-only restore never fires again and
+			// the glass vanishes from the floor while its Chrome lives on. The
+			// signature is exact: this instance never saw a glass (browserSeen
+			// false — a real fold lands in the branch above) yet an UNFOLDED slot
+			// with a sessionId says one was on the floor. Re-run the restore —
+			// the SAME contract as a hard reload (ADR-0037 D4 seam); dead or
+			// foreign-owned slots are pruned inside the restore, and a live
+			// re-bind changes nothing else on the floor.
+			void restoreBrowserGlasses();
 		}
 	});
 	$effect(() => {
@@ -244,17 +321,22 @@
 		// stall). Reading `floor.drag` gates the save AND re-arms it at
 		// mouseup: drag → null re-runs this effect with the settled widths.
 		if (floorApi.floor.drag !== null) return;
+		// the version counter is the tracked dependency; the record is read
+		// untracked (plain object — no proxy, no stale-assignment warning)
+		void terminalDeskMirrorsVersion;
+		const mirrors = untrack(() => ({ ...terminalDeskMirrors }));
 		savePanelPrefs(
 			{
 				panels: panels.map((p) =>
 					// The desk mirror rides the terminal entry (D3) so a mirror
 					// change re-runs this effect and persists.
-					p.kind === 'terminal' && terminalDeskMirrors[p.id] ? { ...p, desk: terminalDeskMirrors[p.id] } : p
+					p.kind === 'terminal' && mirrors[p.id] ? { ...p, desk: mirrors[p.id] } : p
 				),
 				selectedPanelId,
 				panelWidth: pagePrefs.panelWidth,
 				zoom: pagePrefs.zoom,
-				treePct: pagePrefs.treePct
+				treePct: pagePrefs.treePct,
+				explorerHidden: pagePrefs.explorerHidden
 			},
 			activeProfile
 		);
@@ -281,6 +363,9 @@
 	function startSidebarResize(e: MouseEvent): void {
 		e.preventDefault();
 		sidebarDrag = { startX: e.clientX, startWidth: pagePrefs.sidebarWidth };
+		// Badge live (Movable Rail ADR amendment 2026-10-30): also cancels
+		// any armed afterglow — the chip returns to live instantly.
+		pagePrefs.cancelSidebarAfterglow();
 	}
 	function onSidebarMouseMove(e: MouseEvent): void {
 		if (!sidebarDrag) return;
@@ -289,6 +374,160 @@
 	}
 	function stopSidebarResize(): void {
 		sidebarDrag = null;
+		// Badge afterglow: freeze into 'fading', 10s linear, then null —
+		// the same lifecycle the floor gutters run (drag.svelte.ts).
+		pagePrefs.armSidebarAfterglow();
+	}
+
+	// ── Width Preset Chord + Chord Palette (ADR-0006a, 2026-10-31 amendment)
+	// The wiring is a three-line adapter: decide (PURE decideChordKeydown,
+	// capture-first per D12/D13 — Alt+S and the armed next key swallow
+	// everywhere, un-armed editable targets pass untouched), then act on
+	// the action. The floor owns widths (applyWidthPreset) and membership
+	// (removePanel / doAdd) — neither knows the chord exists.
+	let chord = $state(IDLE_CHORD);
+	function subagentConversationCount(): number {
+		const subagents = floorApi.floorSeam().getLineageFacts().subagentIds;
+		return floorApi.floor.panels.filter((p) => p.kind === 'conversation' && subagents.has(p.sessionId)).length;
+	}
+	function chordPaletteRows() {
+		const kinds = [...new Set(floorApi.floor.panels.map((p) => p.kind))];
+		const selected = floorApi.floor.panels.find((p) => p.id === floorApi.floor.selectedPanelId);
+		return chordOptions({
+			presets: appConfig().panel.presets,
+			panelKinds: kinds,
+			subagentCount: subagentConversationCount(),
+			focusedConversation: selected?.kind === 'conversation'
+		});
+	}
+	function dispatchChordVerb(verb: ChordVerb): void {
+		const panels = floorApi.floor.panels;
+		const removeKind = (...kinds: string[]) =>
+			panels.filter((p) => kinds.includes(p.kind)).forEach((p) => floorApi.removePanel(p.id));
+		switch (verb) {
+			case 'a': {
+				// D22: the sweep also takes the config shelf (plugin rack + skill shelf).
+				const subagents = floorApi.floorSeam().getLineageFacts().subagentIds;
+				for (const p of panels) {
+					if (
+						p.kind === 'terminal' ||
+						p.kind === 'workspace-explorer' ||
+						p.kind === 'plugin-rack' ||
+						p.kind === 'skill-shelf'
+					)
+						floorApi.removePanel(p.id);
+					else if (p.kind === 'conversation' && subagents.has(p.sessionId)) floorApi.removePanel(p.id);
+				}
+				return;
+			}
+			case 'b':
+				return removeKind('browser');
+			case 'c':
+				return removeKind('settings-home', 'skill-shelf', 'plugin-rack');
+			case 'p': {
+				const open = panels.find((p) => p.kind === 'prompt-manager');
+				return open ? floorApi.removePanel(open.id) : void floorApi.doAdd({ kind: 'prompt-manager' });
+			}
+			case 'g': {
+				// D23: toggle the plugin manager — the rack add request dedupes to focus.
+				const open = panels.find((p) => p.kind === 'plugin-rack');
+				return open ? floorApi.removePanel(open.id) : void floorApi.doAdd({ kind: 'plugin-rack' });
+			}
+			case 'k': {
+				// D24: toggle the skill manager the same way over skill-shelf.
+				const open = panels.find((p) => p.kind === 'skill-shelf');
+				return open ? floorApi.removePanel(open.id) : void floorApi.doAdd({ kind: 'skill-shelf' });
+			}
+			case 'n': {
+				// D20: spawn the focused session's sibling — same agent + workspace,
+				// landed directly below it, composer focused on first mount.
+				const anchor = panels.find(
+					(p): p is DsiConversationPanel =>
+						p.kind === 'conversation' && p.id === floorApi.floor.selectedPanelId
+				);
+				if (!anchor) return;
+				void (async () => {
+					const workspace = panelWorkspaceFor(anchor.sessionId);
+					const res = await fetch('/api/dsh/sessions', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify(
+							workspace
+								? { agentPreset: anchor.agentPreset, cwd: workspace }
+								: { agentPreset: anchor.agentPreset }
+						)
+					});
+					const body = (await res.json()) as { ok: boolean; sessionId?: string; agentPreset?: string | null };
+					if (!res.ok || !body.ok || !body.sessionId) return; // silent no-op on failure
+					// Same workspace PRIVILEGE access (operator report 2026-10-31):
+					// session.create carries no permission knobs, so the newborn sits
+					// at the host default. The anchor's access mode resolves the same
+					// way the cold page does (GET /permission → history-tail + live
+					// projections) — re-apply it via the native /permission line
+					// (ADR-0007 R5), custom excepted (no single preset name).
+					const permRes = await fetch(`/api/dsh/session/${anchor.sessionId}/permission`);
+					const permBody = (await permRes.json()) as {
+						ok: boolean;
+						permission?: { current: string } | null;
+					};
+					const preset = permBody.ok ? permBody.permission?.current : undefined;
+					if (preset && preset !== 'custom') {
+						await fetch(`/api/dsh/session/${body.sessionId}/permission`, {
+							method: 'POST',
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify({ line: `/permission ${preset}` })
+						});
+					}
+					floorApi.doAdd({
+						sessionId: body.sessionId,
+						agentPreset: body.agentPreset ?? anchor.agentPreset,
+						afterSessionId: anchor.sessionId,
+						focus: true
+					});
+				})();
+				return;
+			}
+			case 's':
+				// D19: the same write the sidebar chevron makes.
+				pagePrefs.sidebarCollapsed = !pagePrefs.sidebarCollapsed;
+				return;
+			case 't': {
+				const open = panels.find((p) => p.kind === 'terminal');
+				return open ? floorApi.removePanel(open.id) : void floorApi.doAdd({ kind: 'terminal' });
+			}
+			case 'w':
+				return removeKind('workspace-explorer');
+		}
+	}
+	function onChordKeyDown(e: KeyboardEvent): void {
+		// canArm is UNCONDITIONAL since the verb layer (D14): the chord always
+		// owns a/b/c/p/t/w; D4 silent absence now gates only which digit rows
+		// the palette lists (chordOptions), never the arming itself.
+		const res = decideChordKeydown(chord, e, true);
+		if (res.preventDefault) {
+			// D17: capture phase + stopPropagation — a leaf like xterm's helper
+			// textarea must never see (or swallow) a chord-owned key.
+			e.preventDefault();
+			e.stopPropagation();
+		}
+		chord = res.state;
+		if (res.action.type === 'verb') dispatchChordVerb(res.action.verb);
+		if (res.action.type !== 'apply') return;
+		const presets = appConfig().panel.presets;
+		const { agent, glass, sidebar, zoom } = presets;
+		const a = agent[res.action.n];
+		const g = glass[res.action.n];
+		const s = sidebar[res.action.n];
+		const z = zoom?.[res.action.n];
+		if (a === undefined && g === undefined && s === undefined && z === undefined) return; // AC 3
+		applyWidthPreset(a, g);
+		// Sidebar LANE (ADR-0006a ext 5): one lane per slot, width implies expand
+		// (D28); the writes land through pagePrefs — the same home as a drag.
+		const laneWrites = applySidebarLane(s, clampSidebarWidth);
+		if (laneWrites.width !== undefined) pagePrefs.sidebarWidth = laneWrites.width;
+		if (laneWrites.collapsed !== undefined) pagePrefs.sidebarCollapsed = laneWrites.collapsed;
+		// Zoom preset is PERCENT (80 = 0.8) — the single zoom bound site clamps.
+		if (z !== undefined) pagePrefs.zoom = clampPanelZoom(z / 100);
 	}
 
 	// ── Mount: register registry actions + publish workspace context ────
@@ -307,6 +546,10 @@
 		registerSummonGlass
 	] as const;
 	onMount(() => {
+		// D17: the chord hears keys in the CAPTURE phase — bubble-phase
+		// svelte:window is blind behind leaf stopPropagation (xterm ate the
+		// armed chord's t, operator report + CDP probe 2026-10-31).
+		window.addEventListener('keydown', onChordKeyDown, true);
 		registerAddPanel(floorApi.doAdd);
 		registerReplaceSelected(floorApi.doReplaceSelected);
 		registerReplacePanel(floorApi.doReplacePanel);
@@ -333,6 +576,7 @@
 		});
 		return () => {
 			// Registry lifecycle (commitment 8): invoke-after-destroy → false.
+			window.removeEventListener('keydown', onChordKeyDown, true);
 			registrations.forEach((register) => register(null));
 			floorApi.disposeFloorGestures();
 			setWorkspaceState(null);
@@ -352,6 +596,15 @@
 		floorApi.onPanelWindowMouseUp();
 		stopSidebarResize();
 	}}
+/>
+
+<!-- The armed chord's face (D16/D18): centered view over route chord
+	state; the 10s idle decay lives in the palette and resets the chord here. -->
+<ChordPalette
+	open={chord.armed}
+	rows={chordPaletteRows()}
+	since={chord.since}
+	onexpire={() => (chord = IDLE_CHORD)}
 />
 
 <svelte:head>
@@ -404,7 +657,10 @@
 			<TerminalDesk
 				bind:this={terminalDeskRef}
 				restored={panel.desk ?? null}
-				onMirror={(m) => (terminalDeskMirrors[panel.id] = m)}
+				onMirror={(m) => {
+					terminalDeskMirrors[panel.id] = m;
+					terminalDeskMirrorsVersion++;
+				}}
 				onShellExit={() => floorApi.removePanel(panel.id)}
 			/>
 		</div>
@@ -531,6 +787,8 @@
 			onCollapseAllRepos={(repos) => floorApi.collapseExplorerRepos(panel.id, repos)}
 			treePct={pagePrefs.treePct}
 			onTreePctChange={(pct) => floorApi.setExplorerTreePct(panel.id, pct)}
+			explorerHidden={pagePrefs.explorerHidden}
+			ontoggleexplorer={() => floorApi.setExplorerHidden(panel.id, !pagePrefs.explorerHidden)}
 			pendingOpenFile={pendingFileIntents[panel.id] ?? null}
 			onPendingOpenConsumed={(nonce) => floorApi.consumeFileIntent(panel.id, nonce)}
 			openTabs={panel.openTabs ?? []}

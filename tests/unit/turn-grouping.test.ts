@@ -39,6 +39,15 @@ const notice = (id: string, seq: number): ContextEntry => ({
 	kind: 'user-message', id, seq, time: 1000 + seq, text: 'background job finished',
 	meta: 'plugin', metaSource: { kind: 'plugin', plugin: 'tool-jobs', form: 'notice' }
 });
+/** An image-carrying injected user-message (2026-10-29): harness tool-result
+ *  images (read_image et al) arrive as injected user/messages whose ImageBlock
+ *  refs survive the fold (content.ts imageRefsOfContent) — visual prompts,
+ *  not chip fodder. */
+const injectedImage = (id: string, seq: number, attachmentId: string): DsiEntry => ({
+	kind: 'user-message', id, seq, time: 1000 + seq, text: '<path>/tmp/x.png</path>',
+	meta: 'injected', metaSource: { kind: 'ptc-mode' },
+	imageRefs: [{ attachmentId, mediaType: 'image/png', bytes: 236821, width: 777, height: 859 }]
+});
 
 describe('groupTurns — two-group render rule (OCI pattern)', () => {
 	it('prompt → turn → prompt → turn: groups alternate and never merge across a prompt', () => {
@@ -79,6 +88,29 @@ describe('groupTurns — two-group render rule (OCI pattern)', () => {
 	it('context at session OPEN stands alone (no turn or prompt sits behind it)', () => {
 		const groups = groupTurns([notice('m1', 1), assistant('a1', 2)]);
 		expect(groups.map((g) => g.kind)).toEqual(['context', 'assistant-turn']);
+	});
+
+	it('an image-carrying injection is a PROMPT group — the gallery renders right-aligned (2026-10-29)', () => {
+		// Wire shape (session-e3a589d3 seq 1520): my read_image image arrives
+		// as an injected user/message whose ImageBlock refs survive the fold.
+		// Visual prompt rule: meta text stays, but the entry keeps the prompt
+		// seat — imageRefs ride to MessageImages, never into a chip.
+		const groups = groupTurns([assistant('a1', 1), injectedImage('m1', 2, 'sha256:x')]);
+		expect(groups.map((g) => g.kind)).toEqual(['assistant-turn', 'prompt']);
+		const prompt = groups[1] as { kind: 'prompt'; entry: { imageRefs?: unknown[] } };
+		expect(prompt.entry.imageRefs).toHaveLength(1);
+		expect(prompt.entry.imageRefs?.[0]).toMatchObject({ attachmentId: 'sha256:x' });
+	});
+
+	it('an image-carrying injection after a prompt OPENS ITS OWN prompt group (never swallows into chips)', () => {
+		const groups = groupTurns([user('u1', 1), injectedImage('m1', 2, 'sha256:y'), assistant('a1', 3)]);
+		expect(groups.map((g) => g.kind)).toEqual(['prompt', 'prompt', 'assistant-turn']);
+		expect((groups[0] as { context: unknown[] }).context).toHaveLength(0);
+	});
+
+	it('chip-only injections still fold (the 2026-08-21 rule, untouched)', () => {
+		const groups = groupTurns([assistant('a1', 1), notice('m1', 2), call('c1', 3, 'k1')]);
+		expect(groups.map((g) => g.kind)).toEqual(['assistant-turn']);
 	});
 
 	it('a mid-turn injection JOINS the open turn as a chip member (The Turn Kept Whole, D1)', () => {

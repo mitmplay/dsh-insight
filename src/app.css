@@ -43,6 +43,14 @@
 	 * chips and state surfaces beyond blue/purple — the a2a chip stack
 	 * and future toggle surfaces need these, not raw hexes. */
 	--color-accent-emerald: #10b981;
+
+	/* Save-verb fill (rename-save, 2026-10-29): deep green that lets WHITE
+	 * ink clear AA text-level — 5.02:1 — while staying visible as a button
+	 * on both surfaces (3.54:1 on dark #16181d, 5.02:1 on light #fff).
+	 * No dark flip needed: the same deep fill works in both modes, and the
+	 * check reads crisp white-on-green instead of dark-on-mid-green.
+	 * Ratios computed; see ADR-0044 amendment. */
+	--color-accent-emerald-deep: #15803d;
 	--color-accent-amber: #f59e0b;
 	--color-accent-rose: #f43f5e;
 	--color-accent-cyan: #06b6d4;
@@ -144,6 +152,9 @@
 	--color-accent-purple-ink: #ede9fe;
 
 	--color-accent-emerald: #34d399;
+	/* Same deep fill as light (no dark flip needed, ADR-0044 amendment) —
+	 * re-declared so the dark key set stays identical (token-contrast 1.2-T). */
+	--color-accent-emerald-deep: #15803d;
 	--color-accent-amber: #fbbf24;
 	--color-accent-rose: #fb7185;
 	--color-accent-cyan: #22d3ee;
@@ -399,14 +410,11 @@ body {
 	word-break: normal;
 	overflow-wrap: break-word;
 }
-/* The lead column is a term, not prose: keep it on one line and let the
- * description column absorb all squeezing (Zed's look). min-width:0
- * would fight this; width:1% collapses it to its natural word width. */
-.md-content table th:first-child,
-.md-content table td:first-child {
-	white-space: nowrap;
-	width: 1%;
-}
+/* 2026-10-29 operator change: the first column WRAPS like every other —
+ * the old 'term, not prose' nowrap/width:1% exemption (Zed's look) let a
+ * long lead cell (test names, gate rows) flatten the whole table into a
+ * tall skinny description column. All cells now share the wrap-down
+ * grammar above: word-break normal, overflow-wrap catches long tokens. */
 
 /* Markdown content — OCI app.css block, verbatim port (2026-08-22).
  * Fixes the dead-turn bullet bug: Tailwind 4 preflight resets ul/ol to

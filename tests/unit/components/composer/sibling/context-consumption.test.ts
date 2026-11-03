@@ -84,6 +84,13 @@ describe('ContextConsumption — the used-only fallback', () => {
 		expect(target.querySelector('[data-testid="context-consumption"]')?.textContent).toBe('≈800 ctx');
 		unmount(instance);
 	});
+
+	it('zero usage on a known window shows "≈0 ctx", never a 0%-wide dead bar (SC#1)', () => {
+		const { target, instance } = mountusage({ used: 0, limit: 1_000_000 });
+		expect(target.querySelector('[data-testid="context-consumption"]')?.textContent).toBe('≈0 ctx');
+		expect(bar(target)).toBeNull();
+		unmount(instance);
+	});
 });
 
 describe('ContextConsumption — neither value', () => {

@@ -3,28 +3,33 @@
 	import * as m from '$lib/paraglide/messages';
 
 	/**
-	 * PluginManagerInstall — the rack's install bar (extracted from
-	 * PluginManagerPanel): the floor-pinned verb, disabled when nothing
-	 * is selected or the DSH restart chain owns the floor (floorBounce);
-	 * the label carries the selection count.
+	 * PluginManagerInstall — the rack's bottom apply bar (extracted from
+	 * PluginManagerPanel; door-agnostic per Plugin Rack amendment IV
+	 * 2026-10-31): BOTH doors speak it — Install (n) on the install tab,
+	 * Uninstall (n) on the uninstall tab — disabled when nothing is
+	 * selected or the DSH restart chain owns the floor (floorBounce).
+	 * The testid stays rack-install on both doors (the pinned hook).
 	 */
 	let {
+		/** The active door — picks the verb label. */
+		tab,
 		/** Number of selected plugins — shown in the label; 0 disables. */
 		count,
 		/** Disables the verb while the floor is down (DSH restart chain). */
 		floorBounce = false,
-		/** Install intent — the panel runs the batch. */
-		oninstall
+		/** Apply intent — the panel runs the batch. */
+		onapply
 	}: {
+		tab: 'install' | 'uninstall';
 		count: number;
 		floorBounce?: boolean;
-		oninstall?: () => void;
+		onapply?: () => void;
 	} = $props();
 </script>
 
 <div class="rack-install-bar">
-	<button type="button" class="rack-install" data-testid="rack-install" onclick={() => oninstall?.()} disabled={count === 0 || floorBounce}>
-		{t(m.pluginRackInstall)} ({count})
+	<button type="button" class="rack-install" data-testid="rack-install" onclick={() => onapply?.()} disabled={count === 0 || floorBounce}>
+		{tab === 'install' ? t(m.pluginRackInstall) : t(m.pluginRackUninstall)} ({count})
 	</button>
 </div>
 

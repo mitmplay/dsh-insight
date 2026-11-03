@@ -141,6 +141,17 @@ export function persistBrowserSlots(slots: BrowserSlot[], storage: Pick<Storage,
 export const browserSlotStore = writable<BrowserSlot[]>([]);
 
 /**
+ * True when the slot list still carries an UNFOLDED, session-carrying glass
+ * - the HMR re-adopt signature (2026-10-30): the floor lost its browser
+ * panel without this component instance ever seeing one, yet a slot says a
+ * live glass belonged on the floor. A user fold marks entries folded and a
+ * trash-bin prunes them, so neither ever reads as a re-adopt candidate.
+ */
+export function glassReadoptCandidate(slots: readonly BrowserSlot[]): boolean {
+	return slots.some((s) => !s.folded && typeof s.sessionId === 'string' && s.sessionId.length > 0);
+}
+
+/**
  * Drop the slot entry whose glass session died (The Glass Close Ladder
  * ADR 2026-10-24 D4): the live prune — a dead glass's entry is REMOVED,
  * never folded, so the roster ghost and the spine nest drop with it in
@@ -173,6 +184,86 @@ function clearPersistedId(storage: Pick<Storage, 'removeItem'> | null = defaultS
 export interface ResolveDeps {
 	fetchImpl?: typeof fetch;
 	storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null;
+	/** ADR-0045 amendment 3 D7 — this page's harness session key; sent as
+	 *  ownerSessionId on open and checked on re-bind (own glass only). */
+	ownerSessionId?: string | null;
+}
+
+// RCA 2026-10-30 "The Key That Cleaned Itself Away": +page.svelte strips
+// sessionKey from the URL right after hydration, so a component that reads
+// location.search LATER (the BrowserPanel's chip-open) sees it already gone
+// and the glass is born ownerless. The page therefore CAPTURES the key at
+// load — before the strip — and this module holds it as the authority. The
+// capture ALSO lands in sessionStorage (per-tab by spec): the cleanup makes
+// every F5 a bare-URL load, and without the tab-scoped memory a reload
+// would capture null and the NEXT chip-open would still mint ownerless
+// glasses (observed twice, 2026-10-30 07:44 and 07:49).
+// v2 (RCA 2026-10-30): the v1 key was poisoned fleet-wide by the interim
+// shared-blob fallback (16:30-16:43) — it wrote the LAST SAVER's session id
+// into every tab's memory. Poison is data; versioning is the only clean
+// retirement: v1 entries are never read again.
+const SS_KEY = 'dsi.harness.sessionKey.v2';
+let capturedKey: string | null = null;
+
+function tabStorage(): Pick<Storage, 'getItem' | 'setItem'> | null {
+	try {
+		return typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Called once at page init, BEFORE the URL cleanup, with the still-present
+ *  sessionKey query param. A real key WINS over any tab memory (the tab was
+ *  (re)seeded with a concrete conversation) and is remembered for reloads;
+ *  null means "bare load" — fall back to the tab memory, never clear it. */
+export function captureHarnessSessionKey(key: string | null): void {
+	const ss = tabStorage();
+	if (key !== null && key.length > 0) {
+		capturedKey = key;
+		try {
+			ss?.setItem(SS_KEY, key);
+		} catch {
+			/* private mode — in-memory capture still covers this load */
+		}
+		return;
+	}
+	if (!capturedKey) {
+		try {
+			capturedKey = ss?.getItem(SS_KEY) ?? null;
+		} catch {
+			capturedKey = null;
+		}
+	}
+}
+
+/** Test seam — the capture is module state and persists across imports. */
+export function resetHarnessSessionKeyForTests(): void {
+	capturedKey = null;
+}
+
+/** The harness conversation session key — the client-side source of the D7
+ *  ownership fact. Order: load-time capture → tab memory → live URL.
+ *  Null when all three are absent (degraded: legacy behavior). */
+export function harnessSessionKey(): string | null {
+	if (capturedKey) return capturedKey;
+	try {
+		const ss = tabStorage();
+		const stored = ss?.getItem(SS_KEY) ?? null;
+		if (stored) {
+			capturedKey = stored;
+			return stored;
+		}
+	} catch {
+		/* fall through to the URL */
+	}
+	try {
+		if (typeof location === 'undefined') return null;
+		const k = new URLSearchParams(location.search).get('sessionKey');
+		return k !== null && k.length > 0 ? k : null;
+	} catch {
+		return null;
+	}
 }
 
 export interface ResolveResult {
@@ -192,8 +283,17 @@ export async function resolveBrowserSession(apiBase = '', deps: ResolveDeps = {}
 		try {
 			const res = await doFetch(apiBase + '/api/browser');
 			if (res.ok) {
-				const body = (await res.json()) as { sessions?: { id: string }[] };
-				if (body.sessions?.some((s) => s.id === persisted)) {
+				const body = (await res.json()) as { sessions?: { id: string; ownerSessionId?: string | null }[] };
+				const hit = body.sessions?.find((s) => s.id === persisted);
+				// D7: a session owned by ANOTHER conversation is not ours to
+				// re-bind — treat it as dead for this page. Null owner (legacy
+				// session opened before the field) keeps the old re-bind.
+				const ownerOk =
+					!deps.ownerSessionId ||
+					!hit ||
+					hit.ownerSessionId == null ||
+					hit.ownerSessionId === deps.ownerSessionId;
+				if (hit && ownerOk) {
 					return { id: persisted, reBound: true };
 				}
 			}
@@ -204,7 +304,11 @@ export async function resolveBrowserSession(apiBase = '', deps: ResolveDeps = {}
 		clearPersistedId(storage);
 	}
 
-	const res = await doFetch(apiBase + '/api/browser', { method: 'POST' });
+	const res = await doFetch(apiBase + '/api/browser', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(deps.ownerSessionId ? { ownerSessionId: deps.ownerSessionId } : {})
+	});
 	if (!res.ok) throw new Error('open failed: ' + res.status);
 	const info = (await res.json()) as { id: string };
 	persistId(info.id, storage);

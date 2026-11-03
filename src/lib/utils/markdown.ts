@@ -193,13 +193,51 @@ function btoaUnicode(text: string): string {
 
 const ESCAPED_CODE_FENCE = /^```/;
 
+// ── <path> blocks → file links (2026-10-29) ────────────────────────────
+
+/**
+ * Stage 0 — the harness wraps tool-result file paths in <path>…</path>
+ * blocks (every attached image rides one). Escaped by stage 1, they
+ * rendered as dead literal text. This pass rewrites each block to a
+ * [basename](full path) markdown link BEFORE escaping, so the existing
+ * machinery takes over: links() emits the scheme-free anchor (its refusal
+ * rules still guard the href) and MarkdownContent's File Link Intent
+ * (ADR 2026-09-25 D2) opens the file on click.
+ *
+ * Fenced code runs are carved out FIRST and passed through verbatim —
+ * the tool-payload rule: a <path> quoted inside a transcript paste is
+ * data, never a link.
+ */
+function pathBlocksToLinks(text: string): string {
+	const parts: string[] = [];
+	const fence = /```[\s\S]*?(```|$)/g;
+	let last = 0;
+	for (const m of text.matchAll(fence)) {
+		parts.push(transformPaths(text.slice(last, m.index)));
+		parts.push(m[0]);
+		last = (m.index ?? 0) + m[0].length;
+	}
+	parts.push(transformPaths(text.slice(last)));
+	return parts.join('');
+}
+
+function transformPaths(text: string): string {
+	return text.replace(/<path>\s*([^\n<]+?)\s*<\/path>/g, (_m, p: string) => {
+		const name = p.split('/').pop() || p;
+		// Angle-wrapped destination: the only href form links() accepts with
+		// spaces (the 2026-10-11 rule); the wrapper is destination syntax and
+		// never reaches the emitted href.
+		return `[${name}](<${p}>)`;
+	});
+}
+
 /**
  * Render markdown to sanitized HTML (single entry point, BC-12).
  * Output uses ONLY the allow-listed tags; empty input renders ''.
  */
 export function renderMarkdown(text: string): string {
 	if (text === '') return '';
-	const escaped = escapeHtml(text);
+	const escaped = escapeHtml(pathBlocksToLinks(text));
 
 	const out: string[] = [];
 	const lines = escaped.split('\n');

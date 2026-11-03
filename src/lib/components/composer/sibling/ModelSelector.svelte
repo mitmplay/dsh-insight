@@ -2,7 +2,8 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import type { DsiModelDirectory } from '$lib/types';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
+	import { clickOutside } from '$lib/actions/click-outside';
 	/**
 	 * ModelSelector — the header dropdown for the session's model (POC-3 W3, 3.2).
 	 *
@@ -34,6 +35,8 @@
 	let error = $state<string | null>(null);
 	/** (provider, model) currently being POSTed — double-submit guard. */
 	let selecting = $state<string | null>(null);
+	/** The trigger — Escape's focus return target (dismissal contract). */
+	let triggerEl = $state<HTMLButtonElement | undefined>(undefined);
 
 	async function load(): Promise<void> {
 		if (loading) return;
@@ -58,6 +61,15 @@
 	function toggle(): void {
 		open = !open;
 		if (open && directory === null && error === null) void load();
+		if (!open) return;
+		// After the menu mounts, scroll the selected option into viewport so
+		// the ✓-marked pick is visible without hunting (ADR-0046).
+		void (async () => {
+			await tick();
+			const menu = document.querySelector<HTMLElement>('[data-testid="model-selector-menu"]');
+			const selected = menu?.querySelector<HTMLElement>('[aria-selected="true"]');
+			if (selected) selected.scrollIntoView({ block: 'nearest' });
+		})();
 	}
 
 	// 2026-08-22 (dead-turn bug follow-up): fetch once on mount — the closed
@@ -113,6 +125,14 @@
 		return `${provider}::${model}::${effort ?? ''}` === currentKey();
 	}
 
+	// Dismissal contract (spec 2026-11-01): outside click or Escape closes
+	// the menu; Escape returns focus to the trigger.
+	function dismissMenu(reason: 'outside' | 'escape'): void {
+		if (!open) return;
+		open = false;
+		if (reason === 'escape') triggerEl?.focus();
+	}
+
 	/** Label for the closed state: current model, or "model —". */
 	const currentLabel = $derived.by(() => {
 		const c = directory?.current;
@@ -121,13 +141,14 @@
 	});
 </script>
 
-<div class="relative">
+<div class="relative" use:clickOutside={{ open, onDismiss: dismissMenu }}>
 	<button
 		type="button"
 		class="inline-flex items-center gap-1 rounded-md border border-[var(--color-accent-deep)] px-2 py-1 text-xs font-medium text-[var(--color-accent-deep)] hover:bg-surface-alt disabled:opacity-50"
 		disabled={disabled}
 		aria-haspopup="listbox"
 		aria-expanded={open}
+		bind:this={triggerEl}
 		data-testid="model-selector-button"
 		onclick={() => toggle()}
 	>

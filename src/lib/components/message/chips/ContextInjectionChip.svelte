@@ -38,13 +38,17 @@
 			| 'skill-catalog'
 			| 'skill-invocation'
 	        | 'user-approval'
+			| 'goal'
+			| 'tool-goal'
+			| 'time-context'
 			| 'compaction'
 			| 'plugin'
 			| 'recall'
 			| 'injected';
 		text: string;
 		/** Wire-carried chip name (skill-invocation · recall · plugin ·
-		 *  injected) — see `title` for how each producer uses it. */
+		 *  injected · the 2026-11-02 promotions goal/tool-goal/time-context,
+		 *  where it rides the tooltip — see `title` for how each uses it). */
 		name?: string;
 		open?: boolean;
 		ontoggle?: () => void;
@@ -62,6 +66,9 @@
 		'skill-catalog': () => m.ctxChipSkills(),
 		'skill-invocation': () => m.ctxChipSkill(),
 		'user-approval': () => m.ctxChipUserApproval(),
+		goal: () => m.ctxChipGoal(),
+		'tool-goal': () => m.ctxChipToolGoal(),
+		'time-context': () => m.ctxChipTimeContext(),
 		compaction: () => m.ctxChipCompact(),
 		plugin: () => m.ctxChipPlugin(),
 		recall: () => m.ctxChipRecall(),
@@ -80,6 +87,16 @@
 		if (producer === 'plugin' || producer === 'injected') return name;
 		return label;
 	});
+
+	// The 2026-11-02 promotions (The Chip Label Promotion ADR D3): the wire
+	// plugin string rides the TOOLTIP, never the visible label — the label
+	// stays the bare catalog translation. `title` (hover) + the aria label
+	// keep the wire nameable for debugging.
+	const WIRE_NAMED: readonly string[] = ['goal', 'tool-goal', 'time-context'];
+	const wireName = $derived(
+		name !== undefined && name !== '' && WIRE_NAMED.includes(producer) ? name : undefined
+	);
+	const aria = $derived(wireName === undefined ? title : `${title} (${wireName})`);
 </script>
 
 <div class="text-xs" data-testid="context-injection-chip" data-producer={producer} data-open={open}>
@@ -89,7 +106,8 @@
 			onclick={() => ontoggle?.()}
 			aria-expanded={open}
 			data-testid="context-injection-toggle"
-			aria-label={title}
+			aria-label={aria}
+			title={wireName}
 			class="chip-button inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-mono font-medium max-w-full
 				mx-0.5 my-0.5 align-middle shrink-0 transition-colors select-none cursor-pointer
 				{open

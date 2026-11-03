@@ -57,6 +57,23 @@ afterEach(() => {
 });
 
 describe('MessageImages', () => {
+	describe('duplicate attachmentId crash guard (each_key_duplicate, 2026-10-31)', () => {
+		it('the same image attached twice renders ONE slot, not a keyed-each crash', async () => {
+			const dup = 'sha256:2130bdc719b1c65246beca186f21d1f316391aaf9f73ef9a73995d06684af4e1';
+			const { target, cleanup } = mountGallery([ref(dup, 'a.png'), ref(dup, 'a.png')]);
+			await settle();
+			expect(target.querySelectorAll('[data-testid=message-image]')).toHaveLength(1);
+			cleanup();
+		});
+
+		it('distinct ids still render each slot', async () => {
+			const { target, cleanup } = mountGallery([ref('sha256:aaa'), ref('sha256:bbb')]);
+			await settle();
+			expect(target.querySelectorAll('[data-testid=message-image]')).toHaveLength(2);
+			cleanup();
+		});
+	});
+
 	it('renders one slot per ref; empty refs render nothing', async () => {
 		const empty = mountGallery([]);
 		expect(empty.target.querySelector('[data-testid="message-images"]')).toBeNull();

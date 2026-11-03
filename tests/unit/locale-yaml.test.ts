@@ -6,7 +6,7 @@
  * one case per document shape the resolver must treat as silent or spoken.
  */
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readOperatorYamlLocale } from '../../src/lib/server/locale';
@@ -46,8 +46,14 @@ describe('readOperatorYamlLocale — document shapes', () => {
 	});
 
 	it('a missing settings file is silent', () => {
-		expect(
-			readOperatorYamlLocale(join(tmpdir(), 'dsi-locale-yaml-nonexistent', 'settings.yaml'))
-		).toBeUndefined();
+		// Parent dir must exist (mkdtempSync) — readSettingsDocument('dsi') runs
+		// ensureDsiHome(dirname(path)), which would clone template/.dsi into a
+		// nonexistent dir and its settings.yaml would be read instead.
+		const dir = mkdtempSync(join(tmpdir(), 'dsi-locale-yaml-'));
+		try {
+			expect(readOperatorYamlLocale(join(dir, 'settings.yaml'))).toBeUndefined(); // dir exists, file never written
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });

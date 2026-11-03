@@ -445,3 +445,25 @@ describe('truncate — single display-truncation contract', () => {
 		expect(r.head).toHaveLength(5);
 	});
 });
+
+describe('renderMarkdown — <path> blocks become file links (2026-10-29)', () => {
+	it('a <path> block becomes [basename](full path) — the File Link Intent anchor', () => {
+		const out = renderMarkdown('<path>/Users/wharsojo/agentic-ai/glass-live-capture.png</path>');
+		expect(out).toContain('<a href="/Users/wharsojo/agentic-ai/glass-live-capture.png">glass-live-capture.png</a>');
+	});
+
+	it('a path with spaces stays one link (the whole block is the href)', () => {
+		const out = renderMarkdown('<path>/Users/wharsojo/my folder/2026-10-29 - The Note.md</path>');
+		expect(out).toContain('<a href="/Users/wharsojo/my folder/2026-10-29 - The Note.md">2026-10-29 - The Note.md</a>');
+	});
+
+	it('a <path> block inside a code fence stays literal (tool-payload rule)', () => {
+		const out = renderMarkdown('```\n<path>/Users/wharsojo/x.png</path>\n```');
+		expect(out).toContain('&lt;path&gt;/Users/wharsojo/x.png&lt;/path&gt;');
+		expect(out).not.toContain('<a href');
+	});
+
+	it('text without <path> blocks is byte-identical to the plain render', () => {
+		expect(renderMarkdown('no paths here')).not.toContain('<a href');
+	});
+});

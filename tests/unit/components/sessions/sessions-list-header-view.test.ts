@@ -120,6 +120,10 @@ describe('SidebarSessionsList — header VIEW state', () => {
 		expect(btn?.classList.contains('active')).toBe(false);
 		expect(btn?.querySelector('svg.lucide-bot')).not.toBeNull();
 		expect(btn?.querySelector('svg.lucide-bot-off')).toBeNull();
+		// chip grammar (2026-10-29): the toggle reads as a BUTTON — the
+		// bordered pill class, never the ghost row-btn at rest.
+		expect(btn?.classList.contains('subagents-btn')).toBe(true);
+		expect(btn?.classList.contains('row-btn')).toBe(false);
 		unmount(instance);
 	});
 
@@ -134,6 +138,7 @@ describe('SidebarSessionsList — header VIEW state', () => {
 		expect(btn?.classList.contains('active')).toBe(true);
 		expect(btn?.querySelector('svg.lucide-bot-off')).not.toBeNull();
 		expect(btn?.querySelector('svg.lucide-bot')).toBeNull();
+		expect(btn?.classList.contains('subagents-btn')).toBe(true);
 		unmount(instance);
 	});
 

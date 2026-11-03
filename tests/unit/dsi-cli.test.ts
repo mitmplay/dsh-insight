@@ -56,3 +56,28 @@ import { existsSync } from 'node:fs';
 function existsSyncHard(path: string): boolean {
 	return existsSync(path);
 }
+
+describe('dsi.mjs — --zai writes the profile patch, not legacy settings.yaml (D7)', () => {
+	it('imports the zai-patch module', () => {
+		expect(cli).toContain("from './lib/zai-patch.mjs'");
+	});
+
+	it('resolves the target via zaiPatchPath, not the legacy DSH settings join', () => {
+		expect(cli).toContain('zaiPatchPath()');
+		expect(cli).not.toContain("'.dsh', 'settings.yaml'");
+		expect(cli).not.toContain('DSH_SETTINGS_PATH');
+	});
+
+	it('keeps the fail-loud contract — the wrapper maps errors to exit 65', () => {
+		const fn = cli.indexOf('function addZaiProvider');
+		const exit65 = cli.indexOf('process.exit(65)', fn);
+		expect(fn).toBeGreaterThan(-1);
+		expect(exit65).toBeGreaterThan(fn);
+	});
+
+	it('the USAGE help names cordis.patch.yml, not the legacy file, for --zai', () => {
+		const zaiHelp = cli.indexOf('--zai    bootstrap the GLM');
+		const helpSlice = cli.slice(zaiHelp, zaiHelp + 200);
+		expect(helpSlice).toContain('cordis.patch.yml');
+	});
+});

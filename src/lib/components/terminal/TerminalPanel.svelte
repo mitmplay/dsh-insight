@@ -134,6 +134,8 @@
 				resizeObserver = new ResizeObserver(() => fitAddon?.fit());
 				resizeObserver.observe(hostEl ?? termEl);
 				xterm.write(fallbackText);
+				xterm.onResize((e) => syncPtyDims(e.cols, e.rows));
+				syncPtyDims(xterm.cols, xterm.rows);
 				xterm.onData((data) => {
 					if (sessionId && token) queueWrite(data);
 				});
@@ -142,6 +144,25 @@
 				xtermFailed = true;
 			}
 		})();
+	}
+
+	/** Push the fitted dims to the PTY (Terminal Desk ADR amendment
+	 *  2026-11-03): the shell's winsize — and its right prompt — must match
+	 *  the rendered viewport or the last columns spill past the edge.
+	 *  Fires only when the dims actually change; a refused write is silent
+	 *  (the desk's own ladder handles session death). */
+	let lastSentCols = 0;
+	let lastSentRows = 0;
+	function syncPtyDims(cols: number, rows: number): void {
+		if (!sessionId || !token) return;
+		if (cols === lastSentCols && rows === lastSentRows) return;
+		lastSentCols = cols;
+		lastSentRows = rows;
+		void fetch('/api/terminal/' + sessionId + '/send', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ token, action: 'resize', cols, rows })
+		}).catch(() => undefined);
 	}
 
 	$effect(() => {

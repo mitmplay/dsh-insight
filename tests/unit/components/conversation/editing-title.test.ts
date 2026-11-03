@@ -420,3 +420,48 @@ describe('EditingTitle — open focus/select-all + clear icon', () => {
 		h.cleanup();
 	});
 });
+
+describe('EditingTitle — rename verbs are icon-only (ADR-0044 D1)', () => {
+	it('save and cancel render as icon buttons — no text label, svg present, words on tooltip/aria', () => {
+		const h = mountTitle({ title: 'Old' });
+		openForm(h.target);
+		const save = h.target.querySelector('[data-testid="rename-save"]') as HTMLButtonElement;
+		const cancel = h.target.querySelector('[data-testid="rename-cancel"]') as HTMLButtonElement;
+		// Icon-only: the accessible name comes from aria-label, the VISIBLE
+		// text is empty — the words moved to the tooltip (ADR-0044 D1).
+		expect(save.textContent?.trim()).toBe('');
+		expect(cancel.textContent?.trim()).toBe('');
+		expect(save.querySelector('svg')).not.toBeNull();
+		expect(cancel.querySelector('svg')).not.toBeNull();
+		expect(save.getAttribute('aria-label')).toBeTruthy();
+		expect(cancel.getAttribute('aria-label')).toBeTruthy();
+		expect(save.getAttribute('title')).toContain('Enter');
+		expect(cancel.getAttribute('title')).toContain('Esc');
+		// Theme-survival pin (2026-10-29): the save fill must ride the deep
+		// emerald token — white ink clears AA on it (5.02:1); raw slate or a
+		// mid-green fill with dark ink regressed legibility.
+		expect(save.className).toContain('bg-accent-emerald-deep');
+		expect(save.className).toContain('text-white');
+		h.cleanup();
+	});
+
+	it('the three edit-verbs use three DISTINCT icon shapes — cancel is not an X (ADR-0044 amendment 2026-10-29)', () => {
+		const h = mountTitle({ title: 'Old' });
+		const input = openForm(h.target);
+		setDraft(input, 'Typed');
+		const cancel = h.target.querySelector('[data-testid="rename-cancel"]') as HTMLElement;
+		const clear = h.target.querySelector('[data-testid="rename-clear"]') as HTMLElement;
+		const cancelSvg = cancel.querySelector('svg');
+		const clearSvg = clear.querySelector('svg');
+		expect(cancelSvg).not.toBeNull();
+		expect(clearSvg).not.toBeNull();
+		// lucide stamps its icon name into the svg class list — the cancel
+		// verb must render the undo-shaped RotateCcw, the clear verb the
+		// backspace Delete; an X shape on either is the collision this
+		// grammar exists to kill.
+		expect(cancelSvg!.classList.contains('lucide-rotate-ccw')).toBe(true);
+		expect(clearSvg!.classList.contains('lucide-delete')).toBe(true);
+		expect(cancelSvg!.classList.contains('lucide-x')).toBe(false);
+		h.cleanup();
+	});
+});

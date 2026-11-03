@@ -50,7 +50,8 @@ function fullPrefs(): PanelPrefs {
 		selectedPanelId: 'panel-2',
 		panelWidth: 640,
 		zoom: 0.9,
-		treePct: TREE_PCT_DEFAULT
+		treePct: TREE_PCT_DEFAULT,
+		explorerHidden: false
 	};
 }
 
@@ -174,6 +175,29 @@ describe('panel-prefs — round-trip & clamps', () => {
 		expect(loadPanelPrefs().treePct).toBe(45);
 	});
 
+	// ── Explorer hide/show persistence (2026-10-31) ──
+	it('explorerHidden defaults to false when absent from the blob', () => {
+		storeBlob({ panels: [], panelWidth: 600, zoom: 1 });
+		const loaded = loadPanelPrefs();
+		expect(loaded.explorerHidden).toBe(false);
+		expect(defaultPanelPrefs().explorerHidden).toBe(false);
+	});
+
+	it('explorerHidden round-trips true; junk (non-boolean) falls back to false', () => {
+		storeBlob({ panels: [], panelWidth: 600, zoom: 1, explorerHidden: true });
+		expect(loadPanelPrefs().explorerHidden).toBe(true);
+		storeBlob({ panels: [], panelWidth: 600, zoom: 1, explorerHidden: 'yes' });
+		expect(loadPanelPrefs().explorerHidden).toBe(false);
+		storeBlob({ panels: [], panelWidth: 600, zoom: 1, explorerHidden: null });
+		expect(loadPanelPrefs().explorerHidden).toBe(false);
+	});
+
+	it('explorerHidden survives a save round-trip', () => {
+		const prefs = { ...defaultPanelPrefs(), explorerHidden: true };
+		savePanelPrefs(prefs);
+		expect(loadPanelPrefs().explorerHidden).toBe(true);
+	});
+
 	it('treePct junk (non-finite) falls back to the default', () => {
 		storeBlob({ panels: [], panelWidth: 600, zoom: 1, treePct: 'wide' });
 		expect(loadPanelPrefs().treePct).toBe(TREE_PCT_DEFAULT);
@@ -216,7 +240,8 @@ describe('panel-prefs — DsiPanelEntry type contract (1.3-T)', () => {
 			selectedPanelId: 'panel-1',
 			panelWidth: 730,
 			zoom: 1,
-			treePct: TREE_PCT_DEFAULT
+			treePct: TREE_PCT_DEFAULT,
+			explorerHidden: false
 		};
 		expectTypeOf(prefs.panels).toEqualTypeOf<DsiPanelEntry[]>();
 		savePanelPrefs(prefs);

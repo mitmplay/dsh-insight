@@ -103,6 +103,11 @@ const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Respo
 		env.navBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
 		return new Response(JSON.stringify({ currentIndex: 1, entryCount: 3 }), { status: env.navStatus });
 	}
+	if (url.includes('/tabs')) {
+		// Ghost Glass death handshake (cc7c1dc8): the panel polls GET /tabs;
+		// an unrouted 404 used to flip the panel to 'closed' mid-test.
+		return new Response(JSON.stringify({ tabs: [] }), { status: 200 });
+	}
 	if (url.includes('/input')) {
 		env.inputBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
 		return new Response('{}', { status: 200 });

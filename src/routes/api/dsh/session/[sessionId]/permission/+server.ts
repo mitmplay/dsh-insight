@@ -23,8 +23,31 @@
 import { json } from '@sveltejs/kit';
 import { getDshConnection } from '$lib/server/dsh-connection';
 import { mapRpcFailure, statusFor } from '$lib/server/dsh-rpc';
+import { permissionFromProjection } from '$lib/services/conversation/permission-state';
 
 import type { RequestHandler } from './$types';
+
+/** GET — the session's RESOLVED access mode (the chord n-verb's read side,
+ *  2026-10-31): the same fold the cold page performs — history-tail
+ *  projections, overridden by the live projection baseline when subscribe
+ *  delivers one. { ok, permission: DsiPermission | null } — null when the
+ *  session carries no permission projection at all (the caller then skips
+ *  the inheritance; there is nothing truthful to copy). */
+export const GET: RequestHandler = async ({ params }) => {
+	const sessionId = params.sessionId;
+	try {
+		const conn = getDshConnection();
+		conn.ensureDownlinks();
+		conn.subscribe(sessionId);
+		const historyPage = await conn.history(sessionId);
+		const tail = historyPage.projections?.values ?? {};
+		const live = await conn.waitForProjections(sessionId).catch(() => null);
+		const values = live?.values ?? tail;
+		return json({ ok: true, permission: permissionFromProjection(values['permissions']) ?? null });
+	} catch (err) {
+		return json(mapRpcFailure(err), { status: statusFor(err) });
+	}
+};
 
 export const POST: RequestHandler = async ({ params, request }) => {
 	const sessionId = params.sessionId;

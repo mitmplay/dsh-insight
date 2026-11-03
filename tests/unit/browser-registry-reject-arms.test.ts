@@ -220,7 +220,8 @@ describe('listTabs filter/map arrows (434)', () => {
     });
     const tabs = await browserRegistry.listTabs(e.id);
     expect(tabs).toHaveLength(1);
-    expect(tabs[0]).toEqual({ targetId: 't-page', url: 'http://p/', title: 'P', active: false }); // active is the seed tid, not t-page
+    // glass-tab-ids: rows carry the lazy-minted ordinal too
+    expect(tabs[0]).toEqual({ tabId: expect.any(Number), targetId: 't-page', url: 'http://p/', title: 'P', active: false }); // active is the seed tid, not t-page
   });
 });
 

@@ -43,6 +43,8 @@
 	import RestartButton from './RestartButton.svelte';
 	import { PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_ZOOM } from '$lib/utils/panel-prefs';
 	import ControlBar from '../../panels/control-bar/ControlBar.svelte';
+	import WidthBadge from '../WidthBadge.svelte';
+	import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
 
 	let {
 		profile = null,
@@ -176,6 +178,14 @@
 	</aside>
 {:else}
 	<div class="rail-wrap" data-testid="app-sidebar" style="width: {width}px">
+		{#if pagePrefs.sidebarBadge !== null}
+			<!-- Sidebar width badge (Movable Rail ADR amendment 2026-10-30):
+			     the standalone rail answers the same drag with the same chip
+			     the floor gutters show. The EMBEDDED rail renders no badge —
+			     its width paints under PanelsZoom's scale(), so a raw px
+			     number would misreport (ADR D3). -->
+			<WidthBadge phase={pagePrefs.sidebarBadge} width={width} testid="sidebar-width-badge" />
+		{/if}
 		<aside class="rail">
 			<AppSidebarHeader
 			{captureContainer}
@@ -220,6 +230,7 @@
 	   as a plain block child after a 100%-height rail it collapsed to
 	   height:0 and the resize handle was unhittable (2026-09-11 bug). */
 	.rail-wrap {
+		position: relative; /* the width badge's absolute anchor */
 		display: flex;
 		flex-shrink: 0;
 		height: 100%;

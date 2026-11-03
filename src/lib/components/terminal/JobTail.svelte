@@ -52,7 +52,14 @@
 			<pre class="mb-2 rounded bg-slate-800/60 p-2 text-slate-300" data-testid="job-tail-command">{commandLines.join('\n')}</pre>
 		{/if}
 		{#if tail.lines.length === 0}
-			<div class="text-slate-500" data-testid="job-tail-empty">{m.jobTailWaiting()}</div>
+			<!-- ADR-0049 D1/D3: the empty copy is a STATE claim — a settled job
+			     with a redirected command wrote zero lines BY CHOICE; only an
+			     unsettled job may say "waiting". -->
+			{#if tail.settled}
+				<div class="text-slate-500" data-testid="job-tail-empty">{m.jobTailEmpty()}</div>
+			{:else}
+				<div class="text-slate-500" data-testid="job-tail-empty">{m.jobTailWaiting()}</div>
+			{/if}
 		{/if}
 		{#each tail.lines as line, i (i)}
 			<div class:seam={line === EVICTION_SEAM}>{line}</div>

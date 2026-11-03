@@ -132,3 +132,25 @@ describe('TerminalSession (real PTY)', () => {
 		expect(s.isExited()).toBe(true);
 	});
 });
+
+describe('TerminalSession.resize — the fitted dims reach the PTY (2026-11-03 amendment)', () => {
+	it('resize(cols, rows) re-reads winsize in the child — stty reports the new size', async () => {
+		const s = makeSession();
+		await new Promise((r) => setTimeout(r, 300));
+		s.resize(120, 40);
+		s.write('stty size\n');
+		await new Promise((r) => setTimeout(r, 600));
+		// the child's winsize now reads 40 120 (rows cols) — before the fix
+		// the PTY stayed at the spawn dims and the shell's right prompt
+		// printed past the rendered viewport
+		expect(s.tail).toContain('40 120');
+	});
+
+	it('resize clamps junk and is a no-op on an exited session', async () => {
+		const s = makeSession();
+		await new Promise((r) => setTimeout(r, 300));
+		s.resize(9999, -5); // clamped, must not throw
+		await s.close();
+		s.resize(100, 30); // exited ⇒ no-op, must not throw
+	});
+});

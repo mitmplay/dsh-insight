@@ -69,12 +69,14 @@ describe('app-config store', () => {
 			home: { refreshMs: 5000 },
 			jobs: { autoClose: false },
 			a2a: { fastPollMs: 1000, watchTimeoutMs: 600_000, retentionDays: 90 },
+			browserWidths: { defaultWidth: 860, maxWidth: 1024 },
 			panel: {
 				defaultWidth: 730,
 				minWidth: 480,
 				maxWidth: 860,
 				minZoom: 0.25,
-				maxZoom: 1.25
+				maxZoom: 1.25,
+				presets: { agent: {}, glass: {}, sidebar: {}, zoom: {} }
 			},
 			sidebar: { defaultWidth: 400, minWidth: 200, maxWidth: 500, placement: 'none' },
 			prompts: { tags: ['session', 'git', 'plan', 'rca', 'kb'], dbPath: '' },
@@ -163,7 +165,15 @@ describe('app-config store', () => {
 		});
 		expect(c.home.refreshMs).toBe(1500);
 		expect(c.a2a).toEqual({ fastPollMs: 250, watchTimeoutMs: 120_000, retentionDays: 7 });
-		expect(c.panel).toEqual({ defaultWidth: 700, minWidth: 600, maxWidth: 900, minZoom: 0.75, maxZoom: 2 });
+		// ADR-0006a: the wire carries the Alt+S presets alongside the bounds.
+		expect(c.panel).toEqual({
+			defaultWidth: 700,
+			minWidth: 600,
+			maxWidth: 900,
+			minZoom: 0.75,
+			maxZoom: 2,
+			presets: { agent: {}, glass: {}, sidebar: {}, zoom: {} }
+		});
 		expect(c.sidebar).toEqual({ defaultWidth: 300, minWidth: 240, maxWidth: 400, placement: 'panels-zoom' });
 	});
 

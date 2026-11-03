@@ -137,3 +137,30 @@ test('03 · Full access keeps its gate: acknowledge before enable', async ({ pag
 	await expect(chip).toHaveAttribute('aria-label', 'Access mode, current: Full access', { timeout: 10_000 });
 	await expect(chip).toContainText('Full access');
 });
+
+test('04 · dismissal contract: outside click closes; one menu at a time (spec 2026-11-01)', async ({ page }) => {
+	await resetPermission();
+	await page.goto(`/?sessionKey=${STUB_SESSION_ID}`);
+	const chip = page.getByTestId('access-mode-chip');
+	await expect(chip).toBeVisible();
+
+	// Outside click — the composer prompt input — closes the open menu.
+	await chip.click();
+	const menu = page.getByTestId('access-mode-menu');
+	await expect(menu).toBeVisible();
+	await page.getByTestId('prompt-input').click();
+	await expect(menu).toBeHidden();
+
+	// Mutual exclusivity: opening the model selector closes the chip menu.
+	await chip.click();
+	await expect(menu).toBeVisible();
+	const modelBtn = page.getByTestId('model-selector-button');
+	await expect(modelBtn).toBeVisible();
+	await modelBtn.click();
+	await expect(menu).toBeHidden();
+
+	// Escape closes the model menu too (the same shared contract).
+	await page.keyboard.press('Escape');
+	await expect(page.getByTestId('model-selector-menu')).toBeHidden();
+});
+

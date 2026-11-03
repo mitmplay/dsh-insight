@@ -12,11 +12,16 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
-	import { persistId } from '$lib/services/panels/browser-session-resolver.js';
+	import { harnessSessionKey, persistId } from '$lib/services/panels/browser-session-resolver.js';
 	import BrowserHeader from './BrowserHeader.svelte';
 	import BrowserContent from './BrowserContent.svelte';
 	import BrowserTab from './BrowserTab.svelte';
+	import BrowserNew from './buttons/BrowserNew.svelte';
+	import BrowserProvenance from './BrowserProvenance.svelte';
 	import { createMoveCoalescer, scalePoint } from './mirror-input.ts';
+	// glass-tab-ids Task 4: the omnibox speaks the SAME grammar as the wire
+	// door — one parser, two doors (src/lib/browser/tab-grammar.ts).
+	import { parseTabCommand } from '$lib/browser/tab-grammar.js';
 	import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
 
 	let {
@@ -66,16 +71,105 @@
 	let proxyBusy = $state(false);
 	let canBack = $state(false);
 	let canForward = $state(false);
-	let header: { clearInput(): void } | null = $state(null);
+	let header: { clearInput(): void; setOmniboxValue(v: string): void } | null = $state(null);
 	const SEARCH_URL = 'https://www.google.com/search?q=';
+	/** glass-tab-ids Task 4: the focused tab's URL IS the omnibox hint, but
+	 *  a 2000-char SPA URL would eat the strip — truncate the hint at 64. */
+	const OMNIBOX_PLACEHOLDER_MAX = 64;
+	/** The omnibox placeholder: the ACTIVE tab's URL (64-char truncated) when
+	 *  one is active; the localized "Search or type a URL" when none is.
+	 *  Empty OR about:blank (any case, optional fragment suffix like
+	 *  'about:blank#blocked') is NO URL — a fresh tab must show the
+	 *  original placeholder, not the blank URL. */
+	// Focus polish round 2 (operator live report): a FRESH tab's birth page is
+	// a data: URL (the registry's 'Glass Browser — waiting' page), so the whole
+	// data: family counts as NO URL — the placeholder falls back to 'Search or
+	// type a URL', and the copy-URL icon stays disabled.
+	function isNoUrl(u: string): boolean {
+		const s = u.toLowerCase();
+		return !s || s === 'about:blank' || s.startsWith('about:blank#') || s.startsWith('data:');
+	}
+	const omniboxPlaceholder = $derived.by(() => {
+		const act = tabs.find((tb) => tb.active);
+		const url = act?.url ?? '';
+		if (isNoUrl(url)) return t(m.browserUrlPlaceholder);
+		return url.length > OMNIBOX_PLACEHOLDER_MAX ? url.slice(0, OMNIBOX_PLACEHOLDER_MAX) : url;
+	});
 	/** ADR-0040 D5: the tab strip — the registry's tab list mirrored here;
 	 *  the SERVER stays the authority (activeTargetId), this is a view. */
-	let tabs = $state<{ targetId: string; url: string; title: string; active: boolean }[]>([]);
+	let tabs = $state<{ targetId: string; tabId: number; url: string; title: string; active: boolean }[]>([]);
+	/** The tab strip's overflow container — bound for STRIP-LOCAL reveal
+	 *  scrolls (2026-10-28): scrollIntoView's ancestor walk reached the
+	 *  floor's panels-viewport and stole the operator's selection-follow. */
+	let stripEl = $state<HTMLElement | undefined>(undefined);
 	let switching = $state(false);
+	/** Focus polish 2026-10-28: the FOCUSED tab's facts for the header's
+	 *  prefix copy-URL icon (null = no real URL — the isNoUrl guard, so an
+	 *  empty/about:blank tab disables the copy) and the info line's
+	 *  '{sessionTitle} | {tab title}' suffix (FULL text; CSS truncates). */
+	const focusedTab = $derived(tabs.find((tb) => tb.active) ?? null);
+	const focusedTitle = $derived(focusedTab?.title ?? '');
+	const focusedUrl = $derived(focusedTab && !isNoUrl(focusedTab.url) ? focusedTab.url : null);
 	/** The last active tab the strip poll saw — an EXTERNAL activate (the
 	 *  brain's, D5 amendment 2026-10-27) must re-attach the SSE or the mirror
 	 *  keeps painting the old face while the strip highlights the new one. */
 	let lastSeenActive: string | null = null;
+
+	// Live zoom slider (2026-10-28, operator-approved): the session's content
+	// zoom, right-aligned in the provenance row. null = unknown/not fetched —
+	// the slider stays hidden until GET /zoom proves the config knob is on.
+	let zoom = $state<number | null>(null);
+	let zoomKnobEnabled = $state(false);
+	let zoomTimer: ReturnType<typeof setTimeout> | null = null;
+
+	async function fetchZoom(): Promise<void> {
+		if (!sessionId) return;
+		try {
+			const res = await fetch(apiBase + '/api/browser/' + sessionId + '/zoom');
+			if (!res.ok) return;
+			const d = (await res.json()) as { zoom?: number; knobEnabled?: boolean };
+			zoom = typeof d.zoom === 'number' ? d.zoom : null;
+			zoomKnobEnabled = d.knobEnabled === true;
+		} catch {
+			// endpoint unreachable — keep the slider hidden, never break the panel
+		}
+	}
+
+	/** The LIVE effect: debounced (~100ms) POST — the registry stores the
+	 *  per-session zoom and evaluates every attached tab instantly. Fix
+	 *  round 1: a refused/failed POST (400, network) rolls the optimistic
+	 *  local value back — the slider never lies about the session. */
+	function pushZoom(v: number): void {
+		const prev = zoom;
+		zoom = v;
+		if (zoomTimer) clearTimeout(zoomTimer);
+		zoomTimer = setTimeout(() => {
+			zoomTimer = null;
+			if (!sessionId) return;
+			void fetch(apiBase + '/api/browser/' + sessionId + '/zoom', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ zoom })
+			})
+				.then((res) => {
+					if (!res.ok && prev !== null) zoom = prev;
+				})
+				.catch(() => {
+					if (prev !== null) zoom = prev;
+				});
+		}, 100);
+	}
+
+	/** Ghost Glass Fix 2 (RCA 2026-10-31): a 'died' SSE event is the server's
+	 *  death announcement — the panel flips to the closed lamp instantly (no
+	 *  2s poll wait, no ghost strip). Same handshake as the tabs 404 arm. */
+	function watchDeath(source: EventSource): void {
+		source.addEventListener('died', (ev) => {
+			status = 'closed';
+			tabs = [];
+			source.close();
+		});
+	}
 
 	async function refreshTabs(): Promise<void> {
 		if (!sessionId) return;
@@ -95,6 +189,15 @@
 					// (D5 amendment) — so the mirror follows without a page reload
 					if (!firstRead && !switching) attachStream(0);
 				}
+			} else if (res.status === 404 || res.status === 409) {
+				// Ghost Glass Fix 1 (RCA 2026-10-31): a DEFINITIVE not-found for a
+				// session this panel is DISPLAYING is the DEATH handshake — the
+				// registry holds no such glass and never will again. Flip to the
+				// closed lamp, empty the strip, tell the operator once. Genuine
+				// network blips still fall through to the transient catch below.
+				status = 'closed';
+				tabs = [];
+				es?.close();
 			}
 		} catch {
 			/* transient — the strip refetches on the next switch */
@@ -126,6 +229,7 @@
 			if (p.ok) dpr = ((await p.json()) as { dpr?: number }).dpr ?? 1;
 			es?.close();
 			es = new EventSource(apiBase + '/api/browser/' + sessionId + '/stream?fromSeq=' + boundary.seq);
+			watchDeath(es);
 			es.addEventListener('frame', (ev) => {
 				status = 'live';
 				failReason = null;
@@ -146,12 +250,23 @@
 	}
 	/** Viewport-follow (ADR-0031 amendment 2): the glass box size IS the
 	 *  page viewport — the frame comes back at panel size, so content
-	 *  renders at native scale. A TRAILING THROTTLE (250ms, latest size
-	 *  wins): the SSE frame handler calls this every frame, so a
-	 *  clear-and-rearm debounce was reset ~15x/s on a playing page and
-	 *  never fired (the starved-resize bug, 2026-10-26). */
+	 *  renders at native scale. ADR-0048 D1: a SETTLE GATE (180ms quiet
+	 *  window) replaces the 2026-10-26 trailing throttle — a continuous
+	 *  gesture (slider zoom, gutter) re-arms the window on every REAL box
+	 *  change and exactly ONE POST fires after the hand stops. The
+	 *  ±2px dead-band check runs BEFORE the re-arm, so a frame stream
+	 *  over an UNCHANGED box early-returns and can never starve the gate
+	 *  (the trap that broke the pre-2026-10-26 clear-and-rearm debounce:
+	 *  that version re-armed per CALL, this one re-arms per CHANGE). */
+	const SETTLE_MS = 180;
 	let viewportTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastViewport = { w: 0, h: 0 };
+	/** The last SEEN box — the settle detector's reference. The posted
+	 *  viewport (lastViewport) only moves when the POST fires, so re-arm
+	 *  decisions keyed on it would starve (every pre-settle call would
+	 *  look "changed"). A call whose box equals the pending box must let
+	 *  the pending timer be. */
+	let lastSeen = { w: 0, h: 0 };
 	/** ADR-0041 D1: the eye's ruler — the transform-true rect (visual px).
 	 *  The floor zoom is a transform (PanelsZoom), which clientWidth cannot
 	 *  see; the rect is what the operator actually sees, and what the
@@ -166,15 +281,15 @@
 		const { w, h } = measureWrap();
 		if (w < 100 || h < 80) return; // collapsed/hidden — nothing honest to send
 		if (Math.abs(w - lastViewport.w) < 2 && Math.abs(h - lastViewport.h) < 2) return;
-		// BUGFIX 2026-10-26 (operator: the glass never followed a gutter drag):
-		// this was a clear-and-rearm debounce, and the SSE frame handler calls
-		// it on EVERY screencast frame (~15fps on a playing page) — the timer
-		// was reset every ~66ms, never expired, and the resize POST never
-		// left. It is a TRAILING THROTTLE now: once armed the timer is never
-		// cleared; it fires on schedule and re-measures so the LATEST box
-		// wins. A stale POST is harmless (idempotent setViewport); a starved
-		// one left the mirror letterboxed forever.
-		if (viewportTimer) return;
+		// ADR-0048 D1: re-arm only on a change vs the last SEEN box — a call
+		// reporting the box already pending settles with the pending timer
+		// (per-SEEN-change re-arming is the gesture semantics; per-CALL
+		// re-arming is what starved the 2026-10-26 debounce). A stale POST
+		// stays harmless (idempotent setViewport); a starved one letterboxed
+		// forever.
+		if (Math.abs(w - lastSeen.w) < 2 && Math.abs(h - lastSeen.h) < 2) return;
+		lastSeen = { w, h };
+		if (viewportTimer) clearTimeout(viewportTimer);
 		viewportTimer = setTimeout(() => {
 			viewportTimer = null;
 			if (!sessionId || !wrap) return;
@@ -187,7 +302,7 @@
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ width: m.w, height: m.h })
 			}).catch(() => undefined);
-		}, 250);
+		}, SETTLE_MS);
 	}
 	const moves = createMoveCoalescer((cb) => requestAnimationFrame(cb), (x, y) => void post({ kind: 'mouse', type: 'mouseMoved', x, y }));
 
@@ -205,6 +320,7 @@
 		if (!sessionId) return;
 		es?.close();
 		es = new EventSource(apiBase + '/api/browser/' + sessionId + '/stream?fromSeq=' + fromSeq);
+		watchDeath(es);
 		es.addEventListener('frame', (ev) => {
 			status = 'live';
 			failReason = null;
@@ -379,6 +495,29 @@
 		e.preventDefault();
 		void post({ kind: 'mouse', type: 'mouseWheel', x: p.x, y: p.y, deltaX: e.deltaX, deltaY: e.deltaY });
 	}
+	// Alt+N tab focus (glass-tab-ids, fix round 1): WINDOW-level owner via
+	// <svelte:window> — keyboard events reach the canvas onKey only while the
+	// mirror canvas holds focus, and operators' focus lives on the strip/UI,
+	// so the panel shortcut must bind wherever focus is (chrome semantics).
+	// Panel shortcut ALWAYS wins while the panel is mounted; the combo is
+	// never forwarded to the glass page. The canvas onKey path deliberately
+	// carries NO Alt-digit arm — single owner prevents double activation.
+	// Match on event.code (Digit1..Digit9), NOT event.key: macOS Option-key
+	// char remapping would break key matching. N is strip POSITION; Alt+0
+	// arms the LAST tab; an empty slot is a no-op.
+	function onWindowKey(e: KeyboardEvent): void {
+		if (!e.altKey) return;
+		const m = /^Digit([0-9])$/.exec(e.code);
+		if (!m) return;
+		e.preventDefault();
+		e.stopPropagation();
+		const n = Number(m[1]);
+		const target = n === 0 ? tabs.at(-1)?.targetId : tabs[n - 1]?.targetId;
+		if (target) {
+			void activateTab(target);
+		}
+		// always consumed — never forwarded to the page
+	}
 	function onKey(e: KeyboardEvent): void {
 		// printable keyDowns MUST carry text — CDP inserts characters only
 		// from the text field (raw key events without it move no caret)
@@ -393,9 +532,63 @@
 	}
 
 	/** A URL/search phrase is a URL when the route would take it verbatim;
-	 *  anything else rides the search engine (ADR-0031 D2). */
+	 *  anything else rides the search engine (ADR-0031 D2). glass-tab-ids
+	 *  Task 4 adds the dotted-host arm: "example.com" navigates, it does not
+	 *  search (the same shape the tab-grammar parser accepts after "glass"). */
 	function toTarget(text: string): string {
-		return /^https?:\/\/|^data:text\/html/.test(text) ? text : SEARCH_URL + encodeURIComponent(text);
+		return /^[a-z][a-z0-9+.-]*:\/\/|^data:text\/html/.test(text) || /^([^\s/]+\.[^\s/]{2,})$/.test(text)
+			? text
+			: SEARCH_URL + encodeURIComponent(text);
+	}
+
+	/** glass-tab-ids Task 4: the omnibox speaks tab grammar. A parsed command
+	 *  acts (open/focus/close/query-active); anything the parser passes over
+	 *  falls through to the classic URL-or-search split in the ACTIVE tab.
+	 *  tabId→targetId resolution is PANEL-LOCAL — read off the tabs payload
+	 *  the strip poll already holds; no server round-trip resolves it. */
+	async function handleOmniboxSubmit(text: string): Promise<void> {
+		const cmd = parseTabCommand(text);
+		if (cmd.kind === 'open') {
+			// "glass <url>" opens verbatim; "glass <text>" opens the engine.
+			await openTab(cmd.url ?? SEARCH_URL + encodeURIComponent(cmd.text ?? ''));
+			return;
+		}
+		if (cmd.kind === 'focus') {
+			const target = tabs.find((tb) => tb.tabId === cmd.tabId)?.targetId;
+			if (!target) {
+				console.warn('[browser-panel] omnibox: no tab tab:' + cmd.tabId);
+				return; // never navigate on an unknown ordinal
+			}
+			await activateTab(target);
+			// "reuse tab:N <url>": navigate AFTER the focus lands (proxy acts
+			// on the session's active target, which the activate just set).
+			if (cmd.url) await proxy({ url: toTarget(cmd.url) });
+			return;
+		}
+		if (cmd.kind === 'close') {
+			const target =
+				cmd.tabId === 'active'
+					? tabs.find((tb) => tb.active)?.targetId
+					: tabs.find((tb) => tb.tabId === cmd.tabId)?.targetId;
+			if (!target) {
+				console.warn('[browser-panel] omnibox: close resolved to no tab', cmd.tabId);
+				return;
+			}
+			await ctxCloseTab(target);
+			return;
+		}
+		if (cmd.kind === 'query-active') {
+			// "active" → echo "tab:N <url>" into the box; DO NOT navigate.
+			const act = tabs.find((tb) => tb.active);
+			if (act) header?.setOmniboxValue('tab:' + act.tabId + ' ' + act.url);
+			return;
+		}
+		if (cmd.kind === 'error') {
+			console.warn('[browser-panel] omnibox:', cmd.error);
+			return; // surface = console + no-op; a bad grammar never navigates
+		}
+		// url-or-search: URL-shaped rides verbatim, a phrase rides the engine.
+		void proxy({ url: toTarget(text) });
 	}
 
 	/** One POST for every proxy verb; the ANSWER (success or refusal)
@@ -428,11 +621,40 @@
 			proxyBusy = false;
 		}
 	}
-	function submitUrl(text: string): void {
-		void proxy({ url: toTarget(text) });
-	}
 	function goHistory(dir: 'back' | 'forward'): void {
 		void proxy({ action: dir });
+	}
+
+	/** Long-press history dropdown (operator-approved 2026-10-28): the
+	 *  header reports the picked list index; the panel performs the TRUE
+	 *  travel POST (Page.navigateToHistoryEntry — no new history entry)
+	 *  and the answer refreshes the bounds exactly like a proxy verb. */
+	async function goHistoryTo(index: number): Promise<void> {
+		if (!sessionId || proxyBusy) return;
+		proxyBusy = true;
+		try {
+			const res = await fetch(apiBase + '/api/browser/' + sessionId + '/history', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ targetId: focusedTab?.targetId, index })
+			});
+			if (res.ok) {
+				const info = (await res.json()) as { currentIndex?: number; entryCount?: number };
+				const idx = info.currentIndex ?? 0;
+				const count = info.entryCount ?? 1;
+				canBack = idx > 0;
+				canForward = idx < count - 1;
+				header?.clearInput();
+			} else if (res.status === 409) {
+				status = 'closed';
+				es?.close();
+				onclosed?.();
+			}
+		} catch {
+			/* transient — the mirror keeps painting whatever face is live */
+		} finally {
+			proxyBusy = false;
+		}
 	}
 
 	/** The FOLD (ADR-0037 D1): the header close button only reports
@@ -504,7 +726,18 @@
 				const res = await fetch(apiBase + '/api/browser', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify(birthW > 0 ? { width: birthW, height: birthH } : {})
+					// ADR-0045 amendment 3 D7 (corrected by RCA 2026-10-30): the
+					// OWNER is this glass's OPENER — openedBy is the conversation
+					// panel's own session id, wired by the chip at +page.svelte
+					// (openBrowserPanel(..., p.sessionId)). PANEL-SCOPED fact:
+					// a page hosts many conversations, so any page-global capture
+					// (URL param, shared blob) forges the map — v1/v2 of this fix
+					// both died on that. harnessSessionKey() only backs the
+					// keyless ControlBar singleton.
+					body: JSON.stringify({
+						...(birthW > 0 ? { width: birthW, height: birthH } : {}),
+						...((openedBy ?? harnessSessionKey()) ? { ownerSessionId: (openedBy ?? harnessSessionKey())! } : {})
+					})
 				});
 					if (!res.ok) throw new Error('open failed: ' + res.status);
 					const info = (await res.json()) as { id: string };
@@ -521,6 +754,8 @@
 				status = 'connecting';
 				// ADR-0040 D5: the strip mirrors the registry's tab list
 				void refreshTabs();
+				// zoom slider: learn the session's starting zoom + knob state
+				void fetchZoom();
 				// fromSeq=0 forces the server to push its LATEST frame on attach
 				attachStream(0);
 			} catch (e) {
@@ -564,11 +799,29 @@
 
 	$effect(() => {
 		// BUGFIX round 3 (operator: third tab invisible): in a narrow panel the
-		// strip can overflow — keep the ACTIVE tab scrolled into view on every
-		// tab-set change so "missing" tabs are impossible to overlook
-		if (!tabs.length) return;
-		const el = document.querySelector('[data-testid="browser-tab"][data-active="true"]');
-		el?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+		// strip can overflow — keep the ACTIVE tab visible. Trigger is the
+		// ACTIVE TAB IDENTITY, not the tabs array: the poll refreshes the array
+		// every 2s and a fresh identity must not re-fire a no-change reveal
+		// (2026-10-28 operator: the reveal fought PanelsZoom's selection-follow
+		// on the floor). The scroll is STRIP-LOCAL by hand — scrollIntoView
+		// walks every scrollable ancestor and yanked the floor's panels-viewport
+		// too, dragging the operator's focused session out of view (the traced
+		// second actor: BrowserPanel scrollIntoView 1.3s after the reveal).
+		// Component-local ref: document.querySelector would grab the FIRST
+		// panel's strip when several Glass panels share a floor.
+		const activeId = tabs.find((tb) => tb.active)?.targetId ?? null;
+		void activeId;
+		const strip = stripEl;
+		if (!activeId || !strip) return;
+		const el = strip.querySelector<HTMLElement>('[data-testid="browser-tab"][data-active="true"]');
+		if (!el) return;
+		const s = strip.getBoundingClientRect();
+		const c = el.getBoundingClientRect();
+		let target = strip.scrollLeft;
+		if (c.left < s.left) target -= s.left - c.left;
+		else if (c.right > s.right) target += c.right - s.right;
+		else return; // chip fully visible — hands off
+		strip.scrollLeft = Math.max(0, Math.min(target, strip.scrollWidth - strip.clientWidth));
 	});
 
 	// BUGFIX 2026-10-24: the strip used to fetch ONCE at mount, so a tab the
@@ -613,11 +866,13 @@
 		// reaper and cascade close now (ADR-0037 D2) - the header fold is
 		// just an unmount.
 		es?.close();
+		if (zoomTimer) clearTimeout(zoomTimer); // fix round 1: no post-unmount zoom POST
 		if (tabsPoll) clearInterval(tabsPoll);
 	});
 </script>
 
-<div class="relative flex h-full flex-col bg-surface-elevated" data-testid="panel-browser">
+<svelte:window onkeydown={onWindowKey} />
+<div class="glass-browser-icons relative flex h-full flex-col bg-surface-elevated" data-testid="panel-browser">
 	<BrowserHeader
 		bind:this={header}
 		{status}
@@ -628,24 +883,25 @@
 		{canBack}
 		{canForward}
 		onclose={() => fold()}
-		onnavigate={submitUrl}
+		onnavigate={handleOmniboxSubmit}
+		placeholder={omniboxPlaceholder}
 		onreload={() => void proxy({ action: 'reload' })}
 		onhistory={goHistory}
+		focusTargetId={focusedTab?.targetId ?? null}
+		onhistoryto={(i) => void goHistoryTo(i)}
+		copyUrl={focusedUrl}
 	/>
 	{#if openedBy}
-		<!-- The lineage chip (ADR-0036 D3): who asked for this glass. The
-		     title rides the spine merge the route resolved; a pruned opener
-		     degrades to the raw session id. Depth tint like the transcript. -->
-		<div
-			class="browser-provenance flex items-center gap-1 border-b border-surface-border px-2 py-0.5 text-[10px] text-surface-muted"
-			class:depth-tinted={depth > 0}
-			data-testid="browser-provenance"
-			title={openedBy}
-		>
-			<span class="opacity-70">⌥</span>
-			<span class="truncate">{parentTitle ?? openedBy}</span>
-			{#if depth > 0}<span class="opacity-60">·d{depth}</span>{/if}
-		</div>
+		<BrowserProvenance
+			{openedBy}
+			{parentTitle}
+			{focusedTitle}
+			{depth}
+			{zoomKnobEnabled}
+			{zoom}
+			zoomLabel={t(m.browserZoom)}
+			onzoom={(fraction) => pushZoom(fraction)}
+		/>
 	{/if}
 	{#if tabs.length >= 1}
 		<!-- ADR-0040 D5: the tab strip — panel furniture fed by the registry;
@@ -654,19 +910,17 @@
 		     CREATE — an absent-URL opentab (the birth state again); the panel
 		     performs it exactly like activate: boundary paint, dpr, SSE
 		     re-attach, immediate refresh. No address-bar focus grab (D3). -->
-		<div class="flex items-center gap-1 overflow-x-auto border-b border-surface-border px-1 py-0.5 text-[11px]" data-testid="browser-tab-strip">
-			{#each tabs as t (t.targetId)}
-				<BrowserTab tab={t} disabled={switching} onactivate={(id) => void activateTab(id)} onclose={(id) => void ctxCloseTab(id)} />
+		<div bind:this={stripEl} class="flex items-center gap-1 overflow-x-auto border-b border-surface-border px-1 py-0.5 text-[11px]" data-testid="browser-tab-strip">
+			{#each tabs as t, i (t.targetId)}
+				<BrowserTab tab={t} position={i + 1} disabled={switching} onactivate={(id) => void activateTab(id)} onclose={(id) => void ctxCloseTab(id)} />
 			{/each}
-			<button
-				type="button"
-				class="shrink-0 rounded px-1.5 leading-none text-zinc-500 hover:bg-zinc-100 disabled:opacity-40"
-				title={t(m.browserNewTab)}
-				aria-label={t(m.browserNewTab)}
-				data-testid="browser-tab-new"
+			<BrowserNew
+				class="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-accent-blue/20 bg-accent-blue/10 text-text-secondary hover:bg-accent-blue/20 disabled:opacity-40"
+				label={t(m.browserNewTab)}
+				testid="browser-tab-new"
 				disabled={switching || status !== 'live'}
 				onclick={() => void openTab('')}
-			>+</button>
+			/>
 		</div>
 	{/if}
 	<BrowserContent
@@ -686,9 +940,24 @@
 	/>
 </div>
 <style>
-	/* Depth tint, self-contained (ADR-0036 D3): the conversation surface's
-	   depth-tint is scoped there; the chip carries its OWN tone. */
-	.depth-tinted {
-		background-color: color-mix(in srgb, var(--color-surface-active, transparent) 30%, transparent);
+	/* One icon color grammar (glass-tab-ids, 2026-10-28 operator-approved):
+	   every svg icon inside the panel reads accent purple. Scoped to the
+	   panel root — never a global bare svg rule. State semantics (disabled,
+	   active chip, hover) keep their own colors. */
+	.glass-browser-icons :global(svg) {
+		color: var(--color-accent-purple);
+	}
+	/* Fix round 1 (2026-10-28): the text-glyph controls (←/→/⟳, tab ✕)
+	   join the same grammar. The destructive close keeps its white-on-red
+	   hover affordance; the trash-bin (session delete) stays red — both
+	   carve-outs are deliberate destructive-action affordances. */
+	.glass-browser-icons :global(.browser-glyph) {
+		color: var(--color-accent-purple);
+	}
+	.glass-browser-icons :global(.browser-glyph-destructive:hover) {
+		color: #fff;
+	}
+	.glass-browser-icons :global(.browser-icon-trash) {
+		color: red;
 	}
 </style>

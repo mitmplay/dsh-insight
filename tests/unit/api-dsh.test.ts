@@ -28,7 +28,7 @@ interface FakeApi {
 	listWorkspaces: () => Promise<unknown>;
 	listDirectory: (path?: string) => Promise<unknown>;
 	pickDirectory: (signal?: AbortSignal) => Promise<unknown>;
-	readAttachment: (id: string, attachmentId: string) => Promise<unknown>;
+	readAttachment: (id: string, ref: Record<string, unknown>) => Promise<unknown>;
 	listPresets: () => Promise<unknown>;
 	historyPage: (id: string, beforeSeq: number) => Promise<unknown>;
 	/** POC-3 W1 — answerer registry reads + respond forward. */
@@ -1631,39 +1631,41 @@ describe('GET /api/dsh/session/[sessionId]/attachment (task 3.2)', () => {
 		data: 'iVBOR'
 	};
 
-	it('proxies session.attachment and returns {ok, attachment, data}', async () => {
-		let seen: { id: string; attachmentId: string } | undefined;
-		fake.readAttachment = async (id, attachmentId) => {
-			seen = { id, attachmentId };
+	it('proxies session.attachment (full image ref, 0.2.2 contract) and returns {ok, attachment, data}', async () => {
+		const REF = { attachmentId: 'sha256:img-1', mediaType: 'image/png', bytes: 96, width: 1, height: 1, name: 'shot.png' };
+		let seen: { id: string; ref: typeof REF } | undefined;
+		fake.readAttachment = async (id, ref) => {
+			seen = { id, ref: ref as typeof REF };
 			return VALUE;
 		};
 		const { attachment } = await importRoutesFresh();
 		const res = await attachment.GET(
-			mkEvent({ params: { sessionId: 's1' }, url: new URL('http://dsi/a?attachmentId=sha256%3Aimg-1') })
+			mkEvent({ params: { sessionId: 's1' }, url: new URL('http://dsi/a?ref=%7B%22attachmentId%22%3A%22sha256%3Aimg-1%22%2C%22mediaType%22%3A%22image%2Fpng%22%2C%22bytes%22%3A96%2C%22width%22%3A1%2C%22height%22%3A1%2C%22name%22%3A%22shot.png%22%7D') })
 		);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as typeof VALUE & { ok: boolean };
 		expect(body.ok).toBe(true);
 		expect(body.attachment).toEqual(VALUE.attachment);
 		expect(body.data).toBe('iVBOR');
-		expect(seen).toEqual({ id: 's1', attachmentId: 'sha256:img-1' });
+		expect(seen).toEqual({ id: 's1', ref: REF });
 	});
 
-	it('missing attachmentId is a 400 (validation, not transport)', async () => {
+	it('missing ref is a 400 (validation, not transport)', async () => {
 		const { attachment } = await importRoutesFresh();
 		const res = await attachment.GET(mkEvent({ params: { sessionId: 's1' }, url: new URL('http://dsi/a') }));
 		expect(res.status).toBe(400);
 		const body = (await res.json()) as { error: { code: string } };
-		expect(body.error.code).toBe('missing-attachment-id');
+		expect(body.error.code).toBe('missing-attachment-ref');
 	});
 
 	it('host refusal (attachment-not-found) maps to 502 with the host code', async () => {
+		const REF = { attachmentId: 'sha256:missing', mediaType: 'image/png', bytes: 1, width: 1, height: 1 };
 		fake.readAttachment = async () => {
 			throw new DshRpcError('attachment-not-found', 'no such attachment');
 		};
 		const { attachment } = await importRoutesFresh();
 		const res = await attachment.GET(
-			mkEvent({ params: { sessionId: 's1' }, url: new URL('http://dsi/a?attachmentId=sha256%3Amissing') })
+			mkEvent({ params: { sessionId: 's1' }, url: new URL('http://dsi/a?ref=' + encodeURIComponent(JSON.stringify(REF))) })
 		);
 		expect(res.status).toBe(502);
 		const body = (await res.json()) as { error: { code: string } };
@@ -1675,8 +1677,9 @@ describe('GET /api/dsh/session/[sessionId]/attachment (task 3.2)', () => {
 			throw new Error('socket gone');
 		};
 		const { attachment } = await importRoutesFresh();
+		const REF = { attachmentId: 'sha256:x', mediaType: 'image/png', bytes: 1, width: 1, height: 1 };
 		const res = await attachment.GET(
-			mkEvent({ params: { sessionId: 's1' }, url: new URL('http://dsi/a?attachmentId=sha256%3Ax') })
+			mkEvent({ params: { sessionId: 's1' }, url: new URL('http://dsi/a?ref=' + encodeURIComponent(JSON.stringify(REF))) })
 		);
 		expect(res.status).toBe(503);
 		const body = (await res.json()) as { error: { code: string } };

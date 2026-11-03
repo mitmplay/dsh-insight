@@ -59,6 +59,28 @@ describe('GET /api/skills/voice', () => {
 		expect(voiceState.dir).toBe('/tmp/shelf-skills');
 	});
 
+	it('an empty SHELF_SKILLS_DIR falls back to the ~/.agents/skills default (|| arm)', async () => {
+		process.env.SHELF_SKILLS_DIR = '';
+		const { res, body } = await getBody();
+		expect(res.status).toBe(200);
+		expect(body.ok).toBe(true);
+		expect(voiceState.dir).toBe(join(homedir(), '.agents/skills'));
+	});
+
+	it('a thrown non-Error still maps to 503 (String(message) arm)', async () => {
+		// throw a raw string: (err as Error).message is undefined -> String() => "undefined"
+		vi.doMock('$lib/server/skills/voice', () => ({
+			buildVoiceMap: () => {
+				throw 'raw string failure';
+			}
+		}));
+		vi.resetModules();
+		const { GET: freshGet } = (await import('../../src/routes/api/skills/voice/+server')) as typeof import('../../src/routes/api/skills/voice/+server');
+		const res = await freshGet({} as never);
+		expect(res.status).toBe(503);
+		expect(await res.json()).toEqual({ ok: false, error: 'undefined' });
+	});
+
 	it('a failing voice scan maps to 503 with the error message', async () => {
 		voiceState.throwIt = true;
 		const { res, body } = await getBody();

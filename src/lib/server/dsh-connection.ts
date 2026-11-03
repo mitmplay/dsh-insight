@@ -573,9 +573,12 @@ export class DshConnection {
 		return this.relay.listDirectory(path);
 	}
 
-	/** session.attachment — session-authorized durable image read. */
-	async readAttachment(sessionId: string, attachmentId: string): Promise<DshAttachmentValue> {
-		return this.relay.readAttachment(sessionId, attachmentId);
+	/** session.attachment — session-authorized durable image read. The 0.2.2
+	 *  contract (2026-10-29 release jump) is verify-by-ref: the caller supplies
+	 *  the FULL image reference (DsiImageRef, mirrored from the wire
+	 *  ImageBlock) and the host checks it against the stored bytes. */
+	async readAttachment(sessionId: string, ref: Record<string, unknown>): Promise<DshAttachmentValue> {
+		return this.relay.readAttachment(sessionId, ref);
 	}
 
 	/** host.pickDirectory — the NATIVE directory chooser. */

@@ -74,7 +74,9 @@ describe('per-glass fresh open (Amendment 3)', () => {
 		// what this test forbids is any session-lifecycle call (open POST).
 		await new Promise((r) => setTimeout(r, 50));
 		expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/api/browser'))).toBe(false);
-		expect(calls.some((c) => !c.url.endsWith('/tabs'))).toBe(false); // only /tabs reads ride along
+		// furniture reads widened past /tabs (page/zoom probes for the slider + dpr);
+		// what stays forbidden is any mutating (non-GET) lifecycle call.
+		expect(calls.some((c) => c.method !== 'GET')).toBe(false);
 		unmount(instance);
 	});
 });

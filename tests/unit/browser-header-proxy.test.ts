@@ -56,6 +56,7 @@ const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Respo
 	if (url.endsWith('/api/browser') && init.method === 'POST') {
 		return new Response(JSON.stringify({ id: SESSION_ID }), { status: 200 });
 	}
+	if (url.includes('/tabs')) return new Response(JSON.stringify({ tabs: [] }), { status: 200 });
 	if (url.endsWith('/page')) return new Response(JSON.stringify({ dpr: 2 }), { status: 200 });
 	if (url.includes('/input')) return new Response('{}', { status: 200 });
 	if (url.includes('/navigate')) {

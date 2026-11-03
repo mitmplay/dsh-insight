@@ -12,7 +12,7 @@
 	 */
 	import WorkspaceExplorerToolbar from './WorkspaceExplorerToolbar.svelte';
 	import WorkspaceExplorerTree from './WorkspaceExplorerTree.svelte';
-	import type { Level } from './WorkspaceExplorerTree.svelte';
+	import type { Level } from './workspace-explorer-tree-types';
 	import WorkspaceExplorerChanges from './WorkspaceExplorerChanges.svelte';
 	import type { ChangeStatus } from './WorkspaceExplorerRepo.svelte';
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
+	import CloseButton from '$lib/components/common/buttons/CloseButton.svelte';
 
 	let {
 		index,
@@ -37,18 +38,11 @@
 	onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect()}
 >
 	<span>{label}</span>
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<span
+	<CloseButton
 		class="ml-1 rounded px-1 text-slate-500 hover:bg-slate-600 hover:text-slate-200"
-		role="button"
-		tabindex="-1"
-		aria-label={t(m.terminalTabClose) + ' ' + label}
-		data-testid="terminal-tab-close-{index}"
-		onclick={(e) => {
-			e.stopPropagation();
-			onClose();
-		}}
-	>
-		×
-	</span>
+		label={t(m.terminalTabClose) + ' ' + label}
+		testid="terminal-tab-close-{index}"
+		tabindex={-1}
+		onclick={() => onClose()}
+	/>
 </div>

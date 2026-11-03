@@ -33,6 +33,7 @@ const serverOnlyTestFiles = [
 	'tests/unit/explorer-live-refresh.test.ts',
 	'tests/unit/a2a-routes.test.ts',
 	'tests/unit/prompts-db.test.ts',
+	'tests/unit/prompts-use-route-edges.test.ts',
 	'tests/unit/prompts-routes.test.ts',
 	'tests/unit/session-path.test.ts',
 	'tests/unit/dsh-sessions-root-config.test.ts',
@@ -44,7 +45,10 @@ const serverOnlyTestFiles = [
 	'tests/unit/browser-viewport-route.test.ts',
 	'tests/unit/browser-session-routes.test.ts',
 	'tests/unit/browser-tab-element-routes.test.ts',
-	'tests/unit/subagents-route.test.ts'
+	'tests/unit/subagents-route.test.ts',
+	'tests/unit/attachment-route-ref-gate.test.ts',
+	'tests/unit/attachment-route-rpc.test.ts',
+	'tests/unit/attachment-route-ref-shapes.test.ts'
 ];
 
 // Vitest 4 inline test.projects entries do NOT inherit the root vite
@@ -83,6 +87,17 @@ const makeResolve = () => ({
 		'$app/environment': path.resolve(import.meta.dirname, 'tests/stubs/app-environment.ts'),
 		'$app/state': path.resolve(import.meta.dirname, 'tests/stubs/app-state.ts'),
 		'$app/navigation': path.resolve(import.meta.dirname, 'tests/stubs/app-navigation.ts'),
+		// Mirror the vite.config monaco alias (ADR-0047 wave): settings-monaco
+		// imports the markdown Monarch grammar through the same deep path.
+		'monaco-editor/esm/vs': path.resolve(import.meta.dirname, 'node_modules/monaco-editor/esm/vs'),
+		// The markdown grammar itself MUST stay a stub under vitest: the real
+		// file's transitive statics (nls.js, coreCommands.js, monaco-lsp-client)
+		// resolve after the environment tears down — EnvironmentTeardownError.
+		// Exact-match entry placed before the 'monaco-editor/esm/vs' prefix.
+		'monaco-editor/esm/vs/languages/definitions/markdown/markdown.js': path.resolve(
+			import.meta.dirname,
+			'tests/stubs/markdown-language.ts'
+		),
 		// The yaml.worker bundle (settings-monaco's MonacoEnvironment) drags
 		// monaco-worker-manager's deep 'monaco-editor/esm/vs/...' import —
 		// unresolvable through monaco-editor's exports map — into the unit
@@ -198,6 +213,19 @@ export default defineConfig({
 				// tests/unit/access-mode-confirm-runtime-chip-coverage.test.ts and
 				// tests/unit/components/composer/chat-components.test.ts.
 				'src/lib/components/message/chips/RuntimeContextChip.svelte',
+				// BrowserNew + ZoomSlider (CloseButton day 2026-11-02): same
+				// compiler `?? ''` fallback arm on the attribute interpolations
+				// ({testid}/{label} on BrowserNew; {testid}/{label} and the
+				// number-typed {Math.round(zoom * 100)} on ZoomSlider) — provably
+				// unreachable: all are required props, and the number expression
+				// can never be nullish (Math.round returns a number). Both real
+				// branch arms (default + explicit class/disabled/size) ARE covered
+				// by tests/unit/browser-new-button.test.ts and
+				// tests/unit/zoom-slider-button.test.ts — branch % stayed pinned
+				// at 50% before AND after those suites (observed 2026-11-02), the
+				// remaining arm is the compiler fallback.
+				'src/lib/components/browser/buttons/BrowserNew.svelte',
+				'src/lib/components/browser/buttons/ZoomSlider.svelte',
 				// Generated Paraglide output (compiled catalogs + repo junk like
 				// README.md/.gitignore) is not product code — and the junk files
 				// crash coverage-v8's remapper with fatal PARSE_ERRORs, aborting

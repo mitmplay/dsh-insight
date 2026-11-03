@@ -273,6 +273,18 @@ export class TerminalSession extends EventEmitter {
 		this.startPassiveSettle();
 	}
 
+	/** Resize the PTY to the client's fitted dims (Terminal Desk ADR
+	 *  amendment 2026-11-03, mirroring the DSH handle's `resize` fact 2):
+	 *  the shell re-reads winsize and re-prints its right prompt inside the
+	 *  viewport instead of spilling past the last column. Clamped to sane
+	 *  bounds; a dead session is a no-op. */
+	resize(cols: number, rows: number): void {
+		if (this.exited) return;
+		const c = Math.max(2, Math.min(500, Math.floor(cols)));
+		const r = Math.max(2, Math.min(200, Math.floor(rows)));
+		this.pty.resize(c, r);
+	}
+
 	/** One passive settle observation; concurrent writes share the watcher. */
 	private startPassiveSettle(): void {
 		if (this.passiveSettling || this.sendInFlight) return;

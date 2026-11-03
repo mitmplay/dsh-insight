@@ -21,7 +21,7 @@ const devEntry: DsiEntry = {
 	text: 'tools added: foo'
 };
 
-let instance: { destroy?: () => void } | null = null;
+let instance: Record<string, any> | null = null;
 let host: HTMLElement | null = null;
 
 function mountHost(entries: DsiEntry[]): HTMLElement {

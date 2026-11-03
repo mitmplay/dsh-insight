@@ -113,12 +113,45 @@ describe('JobTail — settled header status icon ladder', () => {
 		cleanup();
 	});
 
-	it('any other status → CircleAlert (slate fallback arm)', () => {
+		it('any other status → CircleAlert (slate fallback arm)', () => {
 		const { target, cleanup } = mountTail([statusEvent('cancelled')], 'cmd');
 		expect(target.querySelector('[data-testid="job-tail-settled"]')!.textContent).toBe('cancelled');
 		expect(target.querySelector('svg.text-slate-500')).not.toBeNull();
 		expect(target.querySelector('svg.text-red-400')).toBeNull();
 		expect(target.querySelector('svg.text-green-400')).toBeNull();
+		cleanup();
+	});
+});
+
+describe('JobTail — the honest empty tail (ADR-0049 D1/D3)', () => {
+	it('settled + zero lines: the placeholder names the cause, never says waiting', () => {
+		// the T4-J shape: the command redirected ALL stdout to a file, so the
+		// ring is legitimately empty at settle — the copy must not claim a
+		// run still in flight under a completed badge
+		const { target, cleanup } = mountTail([statusEvent('completed')], 'cmd');
+		const empty = target.querySelector('[data-testid="job-tail-empty"]')!;
+		expect(empty).not.toBeNull();
+		expect(empty.textContent).toContain('no output');
+		expect(empty.textContent).toContain("wrote nothing to the job's log");
+		expect(empty.textContent).not.toContain('waiting');
+		cleanup();
+	});
+
+	it('unsettled + zero lines: the waiting placeholder stays', () => {
+		const { target, cleanup } = mountTail([], 'cmd');
+		const empty = target.querySelector('[data-testid="job-tail-empty"]')!;
+		expect(empty).not.toBeNull();
+		expect(empty.textContent).toContain('waiting for output');
+		cleanup();
+	});
+
+	it('settled WITH lines: no placeholder at all', () => {
+		const { target, cleanup } = mountTail([
+			{ type: 'output', text: 'did work', next: 1 } as DsiJobFollowEvent,
+			statusEvent('completed')
+		], 'cmd');
+		expect(target.querySelector('[data-testid="job-tail-empty"]')).toBeNull();
+		expect(target.textContent).toContain('did work');
 		cleanup();
 	});
 });

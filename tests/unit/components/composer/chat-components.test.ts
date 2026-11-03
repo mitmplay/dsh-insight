@@ -42,7 +42,7 @@ function mountApproval(props: Partial<ComponentProps<typeof ApprovalCard>> = {})
 			toolName: 'Write',
 			approvalId: 'apr-1',
 			phase: 'waiting',
-			onanswer: (o) => answered.push(o),
+			onanswer: (o: 'allowed-once' | 'rejected') => answered.push(o),
 			...props
 		}
 	});
@@ -776,7 +776,9 @@ describe('QuestionCard — answerer UI (task 2.2-T)', () => {
 			rpcId: 'rpc-q1',
 			questions: questions.map((q) => ({ ...q })),
 			phase: 'waiting',
-			onanswer: (a) => answers.push(a),
+			onanswer: (
+				a: { answers: Array<{ id: string; selected: string[]; custom?: string }> }
+			) => answers.push(a),
 			...props
 		}
 	});
@@ -1037,6 +1039,9 @@ describe('ContextInjection — chip-only (popup split, 2026-08-22)', () => {
 			['instructions', 'instructions'],
 			['skill-catalog', 'skills'],
 			['skill-invocation', 'skill'],
+			['goal', 'goal'],
+			['tool-goal', 'tool goal'],
+			['time-context', 'time context'],
 			['compaction', 'compact'],
 			['plugin', 'plugin'],
 			['recall', 'recall'],
@@ -1088,6 +1093,29 @@ describe('ContextInjection — chip-only (popup split, 2026-08-22)', () => {
 			const toggle = target.querySelector('[data-testid="context-injection-toggle"]') as HTMLElement;
 			expect(toggle.textContent?.trim(), `title for ${producer} name=${name}`).toBe(title);
 			expect(toggle.getAttribute('aria-label')).toBe(title);
+			unmount(comp);
+		}
+	});
+
+	it('promoted producers (2026-11-02): bare catalog label on the chip, wire name on tooltip + aria (ADR D3)', () => {
+		for (const [producer, name, label] of [
+			['goal', 'goal', 'goal'],
+			['tool-goal', 'tool-goal', 'tool goal'],
+			['time-context', 'time-context', 'time context'],
+			['goal', undefined, 'goal'] // no readable wire name → no tooltip suffix
+		] as const) {
+			const target = document.createElement('div');
+			document.body.appendChild(target);
+			const comp = mount(ContextInjection, { target, props: { producer, text: 'payload', name } });
+			const toggle = target.querySelector('[data-testid="context-injection-toggle"]') as HTMLElement;
+			expect(toggle.textContent?.trim(), `label for ${producer} name=${name}`).toBe(label);
+			if (name === undefined) {
+				expect(toggle.getAttribute('title')).toBe(null);
+				expect(toggle.getAttribute('aria-label')).toBe(label);
+			} else {
+				expect(toggle.getAttribute('title')).toBe(name);
+				expect(toggle.getAttribute('aria-label')).toBe(`${label} (${name})`);
+			}
 			unmount(comp);
 		}
 	});

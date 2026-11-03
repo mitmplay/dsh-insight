@@ -107,6 +107,11 @@ const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Respo
 	if (url.includes('/input')) {
 		return new Response('{}', { status: env.inputStatus });
 	}
+	if (url.includes('/tabs')) {
+		// ADR-0031 death handshake: only a 404/409 here means closed; a live
+		// session answers 200 with its (possibly empty) tab list.
+		return new Response(JSON.stringify({ tabs: [] }), { status: 200 });
+	}
 	if (url.includes('/close')) {
 		env.closeCalls.push(url);
 		return new Response('{}', { status: 200 });

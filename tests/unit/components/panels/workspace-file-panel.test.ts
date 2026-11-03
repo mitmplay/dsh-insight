@@ -173,7 +173,7 @@ describe('WorkspaceFilePanel — fetch (4.1-T)', () => {
 			// Reactive props: a $state object passed as props — parent-driven
 			// re-renders (a floor drag replacing the panel entry object) mutate
 			// it in place, exactly the live-surface repro.
-			const props = reactiveProps({ sessionId: 's1', path: 'README.md', root: '/ws/a' });
+			const props = reactiveProps({ sessionId: 's1', path: 'README.md', root: '/ws/a', onclose: vi.fn() });
 			const target = document.createElement('div');
 			document.body.appendChild(target);
 			const instance = mount(WorkspaceFilePanel, { target, props });
@@ -234,6 +234,59 @@ describe('WorkspaceFilePanel — tabs + Monaco gate (4.1-T)', () => {
 		view.cleanup();
 	});
 
+	it('the preview/edit tabs are ICON-ONLY: no visible text, the paraglide label rides aria-label/title (2026-10-31)', async () => {
+		fetchMock.mockResolvedValueOnce(readBody(FILE));
+		const view = mountPanel();
+		await view.settle();
+		const preview = view.q<HTMLButtonElement>('[data-testid="tab-preview"]')!;
+		const edit = view.q<HTMLButtonElement>('[data-testid="tab-edit"]')!;
+		expect(preview).not.toBeNull();
+		expect(edit).not.toBeNull();
+		// icon-only: the button carries no text — the label is the accessible name.
+		expect(preview.textContent!.trim()).toBe('');
+		expect(edit.textContent!.trim()).toBe('');
+		expect(preview.getAttribute('aria-label')).toBeTruthy();
+		expect(edit.getAttribute('aria-label')).toBeTruthy();
+		expect(preview.getAttribute('title')).toBeTruthy();
+		// the icon svg is aria-hidden — the button's own name is the source.
+		expect(preview.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+		view.cleanup();
+	});
+
+	it('the explorer toggle: absent handler renders NOTHING; present handler renders the icon after reload, flipped by explorerHidden, click fires the intent (2026-10-31)', async () => {
+		// (a) no handler → no toggle icon (standalone file surfaces).
+		fetchMock.mockResolvedValueOnce(readBody(FILE));
+		const bare = mountPanel();
+		await bare.settle();
+		expect(bare.q('[data-testid="explorer-toggle"]')).toBeNull();
+		bare.cleanup();
+		// (b) handler present → icon renders, sits AFTER the reload button.
+		const onToggle = vi.fn();
+		fetchMock.mockResolvedValueOnce(readBody(FILE));
+		const view = mountPanel({ ontoggleexplorer: onToggle, explorerHidden: false });
+		await view.settle();
+		const toggle = view.q<HTMLButtonElement>('[data-testid="explorer-toggle"]')!;
+		expect(toggle).not.toBeNull();
+		const reload = view.q('[data-testid="file-reload"]')!;
+		expect(toggle.parentElement).toBe(reload.parentElement);
+		const kids = [...toggle.parentElement!.children];
+		expect(kids.indexOf(toggle)).toBe(kids.indexOf(reload) + 1);
+		expect(toggle.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+		expect(toggle.getAttribute('aria-label')).toBeTruthy();
+		// (c) click fires the handler exactly once.
+		toggle.click();
+		expect(onToggle).toHaveBeenCalledTimes(1);
+		view.cleanup();
+		// (d) explorerHidden flips the accessible name (open ↔ close glyph).
+		fetchMock.mockResolvedValueOnce(readBody(FILE));
+		const hidden = mountPanel({ ontoggleexplorer: onToggle, explorerHidden: true });
+		await hidden.settle();
+		const shown = hidden.q<HTMLButtonElement>('[data-testid="explorer-toggle"]')!;
+		expect(shown.getAttribute('aria-label')).toBeTruthy();
+		expect(shown.getAttribute('aria-label')).not.toBe(toggle.getAttribute('aria-label'));
+		hidden.cleanup();
+	});
+
 	it('switching to the edit tab mounts the editor through the lazy glue', async () => {
 		fetchMock.mockResolvedValueOnce(readBody(FILE));
 		const view = mountPanel();
@@ -254,7 +307,7 @@ describe('WorkspaceFilePanel — tabs + Monaco gate (4.1-T)', () => {
 			// placement contract: the reload icon is the toolbar's LAST-but-one
 			// control — immediately before the column-capture button's slot.
 			const toolbar = view.q('[data-testid="file-toolbar"]')!;
-			const children = [...toolbar.children].map((c) => c.querySelector('[data-testid]')?.dataset.testid ?? c.dataset.testid ?? c.className.split(' ')[0]);
+			const children = [...toolbar.children].map((c) => c.querySelector<HTMLElement>('[data-testid]')?.dataset.testid ?? (c as HTMLElement).dataset.testid ?? c.className.split(' ')[0]);
 			const reloadIdx = children.indexOf('file-reload');
 			const copyIdx = children.findIndex((n) => n === 'copy-slot' || String(n).includes('copy'));
 			expect(copyIdx).toBeGreaterThan(-1);
@@ -273,7 +326,7 @@ describe('WorkspaceFilePanel — tabs + Monaco gate (4.1-T)', () => {
 		it('the reload icon mirrors the CanvasCopyButton feedback: busy spinner while the refresh is in flight, check-mark after, back to idle (2026-10-27 UX parity)', async () => {
 			// A fetch WE control: hold it in flight to observe the busy state.
 			let release!: (v: Response) => void;
-			fetchMock.mockImplementationOnce(() => readBody(FILE)); // mount fetch
+			fetchMock.mockImplementationOnce(() => Promise.resolve(readBody(FILE))); // mount fetch
 			fetchMock.mockImplementationOnce(() => new Promise<Response>((res) => (release = res)));
 			fetchMock.mockResolvedValue(readBody(FILE));
 			const view = mountPanel();
@@ -367,11 +420,11 @@ describe('WorkspaceFilePanel — direct save (The File Eye ADR D4)', () => {
 		return fetchMock.mock.calls[call]![1] as RequestInit;
 	}
 
-	it('the Save button is DISABLED while the buffer is clean', async () => {
+	it('the Save button is ABSENT while the buffer is clean and not editing (The Single Edit D3)', async () => {
 		fetchMock.mockResolvedValueOnce(readBody(TS_FILE));
 		const view = mountPanel({ path: 'app.ts' });
 		await view.settle();
-		expect(view.q<HTMLButtonElement>('[data-testid="file-save"]')!.disabled).toBe(true);
+		expect(view.q<HTMLButtonElement>('[data-testid="file-save"]')).toBeNull();
 		view.cleanup();
 	});
 
@@ -379,7 +432,12 @@ describe('WorkspaceFilePanel — direct save (The File Eye ADR D4)', () => {
 		fetchMock.mockResolvedValueOnce(readBody(TS_FILE));
 		const view = mountPanel({ path: 'app.ts' });
 		await view.settle();
-		glueHandles[0]!.setValue('const a = 2;\n');
+		// The Single Edit D2: enter edit mode BEFORE typing — the mode verb.
+		// The flip re-creates the editor (async) — settle, then drive the
+		// LATEST handle; the pre-flip handle is disposed.
+		view.q<HTMLButtonElement>('[data-testid="file-edit"]')!.click();
+		await view.settle();
+		glueHandles.at(-1)!.setValue('const a = 2;\n');
 		flushSync();
 		expect(view.q('[data-testid="file-dirty"]')).not.toBeNull();
 		const save = view.q<HTMLButtonElement>('[data-testid="file-save"]')!;
@@ -393,14 +451,42 @@ describe('WorkspaceFilePanel — direct save (The File Eye ADR D4)', () => {
 		expect(saveInit(1).method).toBe('POST');
 		expect(saveBody(1)).toEqual({ sessionId: 's1', root: '/ws/a', path: 'app.ts', content: 'const a = 2;\n' });
 		expect(String(fetchMock.mock.calls[1]![0])).toContain('/api/workspace/file-write');
-		// Receipt: dirty cleared, the stale note replaces the badge.
+		// Receipt: dirty cleared — and the Save verb DISSOLVES (D3: no
+		// draft, no button); the stale note replaces the badge.
 		expect(view.q('[data-testid="file-dirty"]')).toBeNull();
+		expect(view.q('[data-testid="file-save"]')).toBeNull();
 		expect(view.q('[data-testid="file-stale"]')).not.toBeNull();
 		// A further edit re-arms the button and hides the stale note.
-		glueHandles[0]!.setValue('const a = 3;\n');
+		glueHandles.at(-1)!.setValue('const a = 3;\n');
 		flushSync();
 		expect(view.q('[data-testid="file-dirty"]')).not.toBeNull();
+		expect(view.q('[data-testid="file-save"]')).not.toBeNull();
 		expect(view.q('[data-testid="file-stale"]')).toBeNull();
+		view.cleanup();
+	});
+
+	it('Cancel reverts the draft: dirty clears, Save dissolves, the editor re-mounts read-only on the baseline (The Single Edit D2)', async () => {
+		fetchMock.mockResolvedValueOnce(readBody(TS_FILE));
+		const view = mountPanel({ path: 'app.ts' });
+		await view.settle();
+		const verb = view.q<HTMLButtonElement>('[data-testid="file-edit"]')!;
+		verb.click();
+		await view.settle();
+		glueHandles.at(-1)!.setValue('const a = 2;\n');
+		flushSync();
+		expect(view.q('[data-testid="file-dirty"]')).not.toBeNull();
+		expect(view.q('[data-testid="file-save"]')).not.toBeNull();
+		// the same button now reads Cancel and leaves edit mode
+		expect(view.q<HTMLButtonElement>('[data-testid="file-edit"]')!.getAttribute('aria-label')).toBe('Cancel');
+		view.q<HTMLButtonElement>('[data-testid="file-edit"]')!.click();
+		await new Promise((r) => setTimeout(r, 0));
+		flushSync();
+		expect(view.q('[data-testid="file-dirty"]')).toBeNull();
+		expect(view.q('[data-testid="file-save"]')).toBeNull();
+		// the mode flip re-created the editor (the handle count grows) with
+		// the carried BASELINE, not the typed draft
+		expect(glueHandles.length).toBeGreaterThan(1);
+		expect(glueHandles.at(-1)!.getValue()).toBe('const a = 1;\n');
 		view.cleanup();
 	});
 
@@ -408,7 +494,9 @@ describe('WorkspaceFilePanel — direct save (The File Eye ADR D4)', () => {
 		fetchMock.mockResolvedValueOnce(readBody(TS_FILE));
 		const view = mountPanel({ path: 'app.ts' });
 		await view.settle();
-		glueHandles[0]!.setValue('const a = 2;\n');
+		view.q<HTMLButtonElement>('[data-testid="file-edit"]')!.click();
+		await view.settle();
+		glueHandles.at(-1)!.setValue('const a = 2;\n');
 		flushSync();
 		fetchMock.mockResolvedValueOnce(
 			new Response(JSON.stringify({ ok: false, error: { code: 'agent-busy', message: 'mid-turn' } }), { status: 502 })
@@ -446,7 +534,8 @@ describe('WorkspaceFilePanel — html documents (2026-09-10)', () => {
 		const view = mountPanel({ onviewchange });
 		await view.settle();
 		expect(view.q('[data-testid="file-view-toggle"]')).toBeTruthy();
-		expect(view.q('[data-testid="file-save"]')?.hasAttribute('disabled')).toBe(true); // clean buffer
+		// The Single Edit D3: clean + not editing → no Save on the row.
+		expect(view.q('[data-testid="file-save"]')).toBeNull();
 		view.q<HTMLButtonElement>('[data-testid="file-view-diff"]')!.click();
 		await view.settle();
 		expect(onviewchange).toHaveBeenCalledWith('diff');
@@ -455,7 +544,8 @@ describe('WorkspaceFilePanel — html documents (2026-09-10)', () => {
 		expect(view.q('[data-testid="file-diff-new-file"]')).toBeTruthy();
 		expect(view.q('[data-testid="file-diff-view"]')).toBeTruthy();
 		expect(diffCalls.at(-1)).toEqual({ original: '', modified: FILE.file.text });
-		expect((view.q('[data-testid="file-save"]') as HTMLButtonElement | null)?.disabled).toBe(true);
+		// D4: the dirty lock is retired; D3: clean buffer → still no Save.
+		expect(view.q('[data-testid="file-save"]')).toBeNull();
 	});
 
 	it('html opens on the PREVIEW tab with a sandboxed iframe of the source', async () => {
@@ -754,6 +844,9 @@ describe('WorkspaceFilePanel — render/gate/save arms (coverage pass 2026-09-14
 		});
 		const view = mountPanel({ path: 'notes.txt' });
 		await view.settle();
+		// The Single Edit D2: enter edit mode, then type — Save renders on draft.
+		(view.q('[data-testid="file-edit"]') as HTMLButtonElement)!.click();
+		await view.settle();
 		glueHandles[glueHandles.length - 1].setValue('edited!');
 		await view.settle();
 		(view.q('[data-testid="file-save"]') as HTMLButtonElement)!.click();
@@ -871,6 +964,8 @@ describe('WorkspaceFilePanel — ring-failure + subrepo arms (coverage pass 2026
 		});
 		const view = mountPanel({ path: 'notes.txt' });
 		await view.settle();
+		(view.q('[data-testid="file-edit"]') as HTMLButtonElement)!.click();
+		await view.settle();
 		glueHandles[glueHandles.length - 1].setValue('draft');
 		await view.settle();
 		(view.q('[data-testid="file-save"]') as HTMLButtonElement)!.click();
@@ -883,6 +978,8 @@ describe('WorkspaceFilePanel — ring-failure + subrepo arms (coverage pass 2026
 			return readBody({ ok: true, file: { text: 'x', eof: true } });
 		});
 		const view2 = mountPanel({ path: 'notes.txt' });
+		await view2.settle();
+		(view2.q('[data-testid="file-edit"]') as HTMLButtonElement)!.click();
 		await view2.settle();
 		glueHandles[glueHandles.length - 1].setValue('draft2');
 		await view2.settle();

@@ -395,3 +395,40 @@ describe('ModelSelector — disabled prop', () => {
 		h.cleanup();
 	});
 });
+
+describe('ModelSelector — dismissal contract (spec 2026-11-01)', () => {
+	function outsidePointerDown(): void {
+		const stranger = document.createElement('button');
+		document.body.appendChild(stranger);
+		stranger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		stranger.remove();
+	}
+
+	it('outside pointerdown closes the menu', async () => {
+		stubFetch(() => json(directory()));
+		const { target, cleanup } = mountSelector();
+		await settle();
+		(target.querySelector('[data-testid="model-selector-button"]') as HTMLButtonElement).click();
+		await settle();
+		expect(target.querySelector('[data-testid="model-selector-menu"]')).not.toBeNull();
+		outsidePointerDown();
+		await settle();
+		expect(target.querySelector('[data-testid="model-selector-menu"]')).toBeNull();
+		cleanup();
+	});
+
+	it('Escape closes the menu and returns focus to the trigger', async () => {
+		stubFetch(() => json(directory()));
+		const { target, cleanup } = mountSelector();
+		await settle();
+		const btn = target.querySelector('[data-testid="model-selector-button"]') as HTMLButtonElement;
+		btn.click();
+		await settle();
+		document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+		await settle();
+		expect(target.querySelector('[data-testid="model-selector-menu"]')).toBeNull();
+		expect(document.activeElement).toBe(btn);
+		cleanup();
+	});
+});
+

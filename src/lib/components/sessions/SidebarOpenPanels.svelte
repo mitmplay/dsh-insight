@@ -68,7 +68,7 @@
 	 * and either click expands the group with the fold — a fold command
 	 * must show its result.
 	 */
-	import { ChevronDown, ChevronRight } from '@lucide/svelte';
+	import { Bot, BotOff, ChevronDown, ChevronRight } from '@lucide/svelte';
 	import { loadPanelGroupPrefs, savePanelGroupPrefs } from '$lib/utils/panel-group-prefs';
 	import {
 		addPanelFromSidebar,
@@ -116,8 +116,15 @@
 	// so a desk switch re-arms its OWN memory instead of inheriting the
 	// previous desk's.
 	let collapsed = $state(false);
+	// Sub-agent view filter (2026-10-31): the spine toggle's twin — hides
+	// depth>0 panel AND ghost ROWS from this list; nothing closes. Persists
+	// in the SAME desk blob as the collapse state (panel-group-prefs), so a
+	// reload honors the last choice. The effect re-arms on a profile change,
+	// like the collapse memory below.
+	let subagentsHidden = $state(false);
 	$effect(() => {
 		collapsed = loadPanelGroupPrefs(profile).collapsed;
+		subagentsHidden = loadPanelGroupPrefs(profile).subagentsHidden;
 	});
 
 	/** Toggle — persist on every flip so a hard reload honors the desk.
@@ -125,7 +132,14 @@
 	 *  never loses the desk's fold map to a collapse flip. */
 	function toggle(): void {
 		collapsed = !collapsed;
-		savePanelGroupPrefs({ collapsed, unfoldedSessionIds: foldSessionIds() }, profile);
+		savePanelGroupPrefs({ collapsed, unfoldedSessionIds: foldSessionIds(), subagentsHidden }, profile);
+	}
+
+	/** Toggle the sub-agent view filter (2026-10-31): a VIEW filter over
+	 *  this list only — the panels themselves stay open on the floor. */
+	function toggleSubagents(): void {
+		subagentsHidden = !subagentsHidden;
+		savePanelGroupPrefs({ collapsed, unfoldedSessionIds: foldSessionIds(), subagentsHidden }, profile);
 	}
 
 	/** Row click — select via the registry (leaf→root action, commitment 2). */
@@ -269,7 +283,7 @@
 	 *  the chevron AND the reveals persist, provenance-free, so the
 	 *  post-reload tree matches the pre-reload screen. */
 	function persistFold(): void {
-		savePanelGroupPrefs({ collapsed, unfoldedSessionIds: foldSessionIds() }, profile);
+		savePanelGroupPrefs({ collapsed, unfoldedSessionIds: foldSessionIds(), subagentsHidden }, profile);
 	}
 
 	function toggleFold(parentSessionId: string): void {
@@ -340,7 +354,14 @@
 		return true;
 	}
 
-	const visibleRender = $derived(renderList.filter((e) => ancestryUnfolded(e.member.parent)));
+	// Sub-agent view filter (2026-10-31): when armed, depth>0 members —
+	// real panels AND ghosts alike — tuck away; heads and orphans stay.
+	// A pure list-view filter: the fold walk and the floor are untouched.
+	const visibleRender = $derived(
+		renderList.filter(
+			(e) => (!subagentsHidden || (e.member.depth ?? 0) === 0) && ancestryUnfolded(e.member.parent)
+		)
+	);
 	/** Panel index in floor order — the canMove fallback's i. */
 	const panelIndex = $derived(new Map(rows.map((r, i) => [r.panel.id, i] as const)));
 
@@ -510,6 +531,24 @@
 					oncollapseall={collapseAllFamilies}
 					onexpandall={expandAllFamilies}
 				/>
+				<!-- Sub-agent view filter (2026-10-31): the spine's
+				     sidebar-spine-subagents twin — same Bot/BotOff grammar,
+				     same aria-pressed honesty; hides depth>0 rows from THIS
+				     list without closing anything. -->
+				<button
+					type="button"
+					class="subagents-btn"
+					class:active={subagentsHidden}
+					data-testid="sidebar-open-panels-subagents"
+					aria-pressed={subagentsHidden}
+					title={subagentsHidden ? 'Show sub-agents' : 'Hide sub-agents'}
+					onclick={toggleSubagents}
+				>
+					{#if subagentsHidden}<BotOff size={12} aria-hidden="true" />{:else}<Bot
+							size={12}
+							aria-hidden="true"
+						/>{/if}
+				</button>
 			</div>
 			{#if !collapsed}
 				<!-- The rows body (SidebarOpenPanelRows): the interleaved
@@ -613,6 +652,48 @@
 		align-items: center;
 		gap: 0.25rem;
 		min-width: 0;
+	}
+	/* Sub-agent view-filter button (2026-10-31): a byte-faithful port of
+	   the spine's .subagents-btn grammar (SidebarSessionsList) — one
+	   button, one look, the two headers can never drift. */
+	.subagents-btn {
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		height: 1.25rem;
+		min-width: 1.375rem;
+		padding: 0 0.25rem;
+		border: 1px solid var(--color-surface-border, #dee2e6);
+		border-radius: 0.375rem;
+		background: var(--color-surface-elevated, #ffffff);
+		color: var(--color-text-secondary, #6c757d);
+		cursor: pointer;
+		transition:
+			background-color 0.15s ease,
+			color 0.15s ease,
+			border-color 0.15s ease;
+	}
+
+	.subagents-btn:hover {
+		background: var(--color-surface-hover, #e9ecef);
+		color: var(--color-text-primary, #212529);
+	}
+
+	.subagents-btn:focus-visible {
+		outline: 2px solid var(--color-navy-focus);
+		outline-offset: 1px;
+	}
+
+	/* Engaged = sub-agents HIDDEN: the spine active tint (green). */
+	.subagents-btn.active {
+		border-color: color-mix(in srgb, var(--color-status-pass) 40%, transparent);
+		background: color-mix(in srgb, var(--color-status-pass) 15%, transparent);
+		color: var(--color-success-ink, #1a7f37);
+	}
+
+	.subagents-btn.active:hover {
+		background: color-mix(in srgb, var(--color-status-pass) 24%, transparent);
 	}
 
 	/* Group header (2026-08-26): the collapse/expand toggle — full-width

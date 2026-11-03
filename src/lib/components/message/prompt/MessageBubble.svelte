@@ -25,7 +25,8 @@
 		time,
 		showSave = true,
 		children,
-		onFileLink
+		onFileLink,
+		hideMarkdown = false
 	}: {
 		/** Which side of the conversation the bubble speaks for — picks
 		 *  the square tail corner, data-role, and the stamp's edge. */
@@ -43,6 +44,11 @@
 		 *  a USER bubble opens the workspace file too (parity with the
 		 *  assistant turn) — without it the anchor natively navigates. */
 		onFileLink?: (path: string) => void;
+		/** The children snippet IS the body (2026-10-29 injected data-table):
+		 *  suppress the markdown/raw render while text still rides the props
+		 *  — the action row's Copy/Raw keep the real wire text, and the
+		 *  action row + stamp mount exactly as for a text bubble. */
+		hideMarkdown?: boolean;
 	} = $props();
 
 	/** Raw ⇄ rendered flip state — owned here, wired to ToolsMessage. */
@@ -64,7 +70,7 @@
 	onmouseenter={() => {}}
 	onmouseleave={() => {}}
 >
-	{#if text !== undefined}
+	{#if text !== undefined && !hideMarkdown}
 		{#if showRaw}
 			<pre
 				class="whitespace-pre-wrap break-words font-mono text-text-secondary text-sm leading-relaxed"
@@ -78,8 +84,7 @@
 		<div class={text === undefined ? '' : 'mt-1'}>{@render children()}</div>
 	{/if}
 
-	{#if text !== undefined && time !== undefined}
-		<!-- 3-button action row lives in ToolsMessage; the timestamp in
+	{#if text !== undefined && time !== undefined}		<!-- 3-button action row lives in ToolsMessage; the timestamp in
 		     RelativeTime (per-bubble, same hover-reveal family) -->
 		<ToolsMessage {text} container={bubbleEl} bind:showRaw {showSave} />
 		<RelativeTime

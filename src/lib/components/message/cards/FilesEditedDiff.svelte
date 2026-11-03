@@ -1,20 +1,7 @@
 <script lang="ts">
 	import { DiffView, DiffFile, DiffModeEnum } from '@git-diff-view/svelte';
 	import '@git-diff-view/svelte/styles/diff-view.css';
-
-	interface DiffHunk {
-		oldStart: number;
-		oldLines: number;
-		newStart: number;
-		newLines: number;
-		lines: string[];
-	}
-	export interface TextFileDiff {
-		kind: 'text';
-		path?: string;
-		display?: string;
-		hunks?: DiffHunk[];
-	}
+	import type { DiffHunk, TextFileDiff } from './files-edited-diff-types';
 
 	/**
 	 * FilesEditedDiff — the @git-diff-view/svelte renderer for one text

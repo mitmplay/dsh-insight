@@ -44,8 +44,15 @@
 
 	let snapshot = $state<RackSnapshot | null>(null);
 	let loadFailed = $state(false);
+	// D5 ext (amendment IV): an apply bounces the floor and can kill the very
+	// page this panel lives in, so waitFloorBack's self-refresh may never run.
+	// The marker outlives the reload (sessionStorage — dies with the tab,
+	// exactly the bounce's lifetime); the remounted rack says what happened
+	// instead of training the operator to click apply twice.
+	const APPLY_MARKER = 'rack-just-applied';
+	const APPLY_MARKER_MAX_AGE_MS = 120_000;
+	let bounceNote = $state(false);
 	let loading = $state(true);
-	let busyId = $state<string | null>(null);
 	let floorBounce = $state(false);
 	let errors = $state<ErrorRow[]>([]);
 	// GitHub stargazers per plugin id — the snapshot/reload responses carry
@@ -60,6 +67,13 @@
 	let tab = $state<'install' | 'uninstall'>(initialTab === 'uninstall' ? 'uninstall' : 'install');
 	function setTab(next: 'install' | 'uninstall'): void {
 		tab = next;
+		// Selection is door-scoped (amendment IV): switching doors drops it.
+		selected = new Set();
+		// the bounce note's acknowledgment is the operator's next gesture
+		if (bounceNote) {
+			bounceNote = false;
+			sessionStorage.removeItem(APPLY_MARKER);
+		}
 		ontabchange?.(next);
 	}
 	// The bounce wait (D5 answers-first): the server is DOWN while the chain
@@ -106,6 +120,8 @@
 			if (body.ok) {
 				snapshot = body.snapshot;
 				stars = body.stars ?? {};
+				// the note STAYS: it explains this very list; the tab switch is the
+				// operator's acknowledgment (setTab clears it)
 			} else loadFailed = true;
 		} catch {
 			loadFailed = true;
@@ -135,43 +151,6 @@
 			loadFailed = true;
 		} finally {
 			loading = false;
-		}
-	}
-
-	async function apply(action: 'install' | 'remove', id: string): Promise<void> {
-		busyId = id;
-		errors = [];
-		try {
-			const res = await fetch('/api/plugins/apply', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ action, targets: [id] })
-			});
-			const body = await res.json();
-			if (body.ok && body.restarting) {
-				// D5: the chain kills this very server — say so, then ride the
-				// bounce out: when the floor answers again the panel refreshes
-				// ITSELF (no operator hard-reload).
-				floorBounce = true;
-				busyId = null;
-				void waitFloorBack().then(async (back) => {
-					if (back) await load();
-					else loadFailed = true;
-					floorBounce = false;
-				});
-				return;
-			}
-			if (!body.ok) {
-				errors = (body.results ?? [])
-					.filter((r: { ok: boolean }) => !r.ok)
-					.map((r: { id?: string; n?: string; error?: string }) => ({ id: r.id ?? id, error: r.error ?? '' }));
-			} else {
-				await load();
-			}
-		} catch {
-			errors = [{ id, error: 'network' }];
-		} finally {
-			busyId = null;
 		}
 	}
 
@@ -233,34 +212,38 @@
 	function expandAll(): void {
 		collapsedGroups = new Set();
 	}
-	const installCount = $derived(
-		visibleSources.flatMap((src) => src.plugins).filter((p) => !p.installed && selected.has(p.n)).length
-	);
+	// Both doors speak the selection grammar (amendment IV): the visible
+	// rows are already tab-filtered, so the count is just the selection.
+	const applyCount = $derived(visibleSources.flatMap((src) => src.plugins).filter((p) => selected.has(p.n)).length);
 	function toggleSelect(n: string): void {
 		const next = new Set(selected);
 		if (next.has(n)) next.delete(n);
 		else next.add(n);
 		selected = next;
 	}
-	async function runInstall(): Promise<void> {
-		if (installCount === 0 || floorBounce) return;
+	async function runApply(): Promise<void> {
+		if (applyCount === 0 || floorBounce) return;
+		const action = tab === 'install' ? 'install' : 'remove';
 		const targets = [...selected];
 		const idByN = new Map(visibleSources.flatMap((src) => src.plugins).filter((p) => selected.has(p.n)).map((p) => [p.n, p.id]));
-		busyId = targets[0] ?? null;
 		errors = [];
 		try {
 			const res = await fetch('/api/plugins/apply', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ action: 'install', targets })
+				body: JSON.stringify({ action, targets })
 			});
 			const body = await res.json();
 			if (body.ok && body.restarting) {
 				// D5: the chain kills this very server — announce the bounce, ride
 				// it out, and let the panel refresh ITSELF when the floor returns.
 				floorBounce = true;
-				busyId = null;
 				selected = new Set();
+				try {
+					sessionStorage.setItem(APPLY_MARKER, JSON.stringify({ action, targets, at: Date.now() }));
+				} catch {
+					// storage full/blocked: the note is best-effort, the bounce is not
+				}
 				void waitFloorBack().then(async (back) => {
 					if (back) await load();
 					else loadFailed = true;
@@ -283,11 +266,18 @@
 		} catch {
 			errors = targets.map((n) => ({ id: idByN.get(n) ?? n, error: 'network' }));
 		} finally {
-			busyId = null;
 		}
 	}
 
 	onMount(() => {
+		try {
+			const raw = sessionStorage.getItem(APPLY_MARKER);
+			const mark = raw ? (JSON.parse(raw) as { at?: number }) : null;
+			if (mark && typeof mark.at === 'number' && Date.now() - mark.at <= APPLY_MARKER_MAX_AGE_MS) bounceNote = true;
+			else if (raw) sessionStorage.removeItem(APPLY_MARKER); // stale junk sanitizes away
+		} catch {
+			sessionStorage.removeItem(APPLY_MARKER);
+		}
 		void load();
 	});
 </script>
@@ -312,17 +302,15 @@
 				{tab === 'install' ? t(m.pluginRackInstallEmpty) : t(m.pluginRackUninstallEmpty)}
 			</div>
 		{:else}
+			{#if bounceNote}<div class="rack-note" data-testid="rack-apply-note" role="status">{t(m.pluginRackApplyNote)}</div>{/if}
 			{#each visibleSources as source (source.id + source.repo)}
 				<PluginManagerSection
 					{tab}
 					{stars}
 					{source}
-					{busyId}
 					{selected}
-					{floorBounce}
 					ontoggleselect={toggleSelect}
 					ontoggle={() => toggleGroup(source.id)}
-					onremove={(id) => void apply('remove', id)}
 					collapsed={collapsedGroups.has(source.id)}
 				/>
 			{/each}
@@ -333,7 +321,7 @@
 					{/each}
 				</ul>
 			{/if}
-			{#if tab === 'install'}<PluginManagerInstall count={installCount} {floorBounce} oninstall={() => void runInstall()} />{/if}
+			<PluginManagerInstall {tab} count={applyCount} {floorBounce} onapply={() => void runApply()} />
 		{/if}
 </div>
 <style>

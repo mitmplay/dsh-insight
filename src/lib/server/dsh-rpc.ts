@@ -166,6 +166,9 @@ export const DSH_ARGS = {
 	commandsList: (agentId: string): Record<string, unknown> => ({ agentId }),
 	skillsList: (sessionId: string): Record<string, unknown> => ({ request: { sessionId } }),
 	attachment: (request: Record<string, unknown>): Record<string, unknown> => ({ request }),
+	// ↑ attachment: request = {sessionId, attachment: <full DsiImageRef>} —
+	//   the 0.2.2 verify-by-ref contract (2026-10-29 release jump); the host
+	//   validates the supplied ref against the stored bytes.
 	/** Flat args — the descriptor has NO request wrapper: scope wire
 	 *  workspaceFileScopeId (2026-09-09 rename, was agentId), json path/range. */
 	workspaceFileRead: (
@@ -506,6 +509,7 @@ export interface DshAttachmentValue {
 		width: number;
 		height: number;
 		name?: string;
+		originalDimensions?: { width: number; height: number };
 	};
 	data: string;
 }

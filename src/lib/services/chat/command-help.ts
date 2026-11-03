@@ -78,7 +78,7 @@ export interface CommandHelpEntry {
  *  PRESET_TABLE (permission-state); ids/examples mirror command-parser. */
 export const COMMAND_HELP: Record<CommandHelpTopic, CommandHelpEntry> = {
 	new: {
-		usage: '/new [@agent] [workspace] [--add]',
+		usage: '/new [@agent] [workspace] [--title <title>] [--add]',
 		summary: "Creates a fresh session — it inherits this session's workspace and agent. Name a registered workspace to land THERE instead of inheriting (unique title, or the full path). Default: it replaces this panel. With --add: it opens in a NEW panel to the right, and focus stays here.",
 		params: [
 			{
@@ -92,6 +92,11 @@ export const COMMAND_HELP: Record<CommandHelpTopic, CommandHelpEntry> = {
 					'Optional registered workspace — a unique title (recipe-ws) or the full path (/home/u/recipe-ws). The new session runs there instead of inheriting; an ambiguous name lists the candidates instead of guessing.'
 			},
 			{
+				name: '--title <title>',
+				description:
+					'Optional title for the new session — everything after --title is the title, verbatim. Applied after the session is created; a failed rename keeps the default title.'
+			},
+			{
 				name: '--add',
 				description:
 					'Open the new session in a NEW panel placed to the RIGHT of the current panel; the current panel keeps the selection and the caret (the default panel swap never runs).'
@@ -101,7 +106,7 @@ export const COMMAND_HELP: Record<CommandHelpTopic, CommandHelpEntry> = {
 			{ line: '/new', description: 'New session — same workspace, same agent, in this panel.' },
 			{ line: '/new @reviewer', description: 'New session running the reviewer agent preset.' },
 			{ line: '/new recipe-ws', description: 'New session inside the registered recipe-ws workspace.' },
-			{ line: '/new @app-dev --add', description: 'New app-dev session in a panel to the right — this panel keeps focus.' }
+			{ line: '/new @app-dev --title Refactor Auth --add', description: 'New app-dev session titled Refactor Auth in a panel to the right — this panel keeps focus.' }
 		]
 	},
 	workspace: {

@@ -43,6 +43,7 @@ export const GET = (ctx: { params: { id: string }; url: URL }): Response => {
 	const state = { closed: false };
 	let off: (() => void) | null = null;
 	let offActive: (() => void) | null = null;
+	let offDeath: (() => void) | null = null;
 
 	const stream = new ReadableStream<Uint8Array>({
 		start(controller) {
@@ -54,6 +55,7 @@ export const GET = (ctx: { params: { id: string }; url: URL }): Response => {
 					state.closed = true;
 					off?.();
 					offActive?.();
+					offDeath?.();
 				}
 			};
 			// D5 amendment 2026-10-27: the stream follows the ACTIVE pointer.
@@ -80,11 +82,28 @@ export const GET = (ctx: { params: { id: string }; url: URL }): Response => {
 			};
 			bind();
 			offActive = browserRegistry.onActiveChange(id, () => bind());
+			offDeath = browserRegistry.onDeath(id, (reason) => {
+				push(sse('died', { reason }));
+				state.closed = true;
+				off?.();
+				offActive?.();
+				try {
+					controller.close();
+				} catch {
+					// already closed — the announcement still went out first
+				}
+			});
+			// Ghost Glass Fix 2 (RCA 2026-10-31): death is ANNOUNCED, never
+			// discovered. One 'died' event carries the reaper/human reason, then
+			// the stream ends — the panel flips to its closed lamp instantly
+			// instead of polling a 404 ghost (the panel's 404 death-arm remains
+			// as the safety net for SSEs an HMR already severed).
 		},
 		cancel() {
 			state.closed = true;
 			off?.();
 			offActive?.();
+			offDeath?.();
 			browserRegistry.noteStreamClose(id);
 		}
 	});

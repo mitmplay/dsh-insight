@@ -327,10 +327,17 @@ describe('browser registry branches — open() launch + MCP wiring', () => {
 		expect(info.pid).toBeNull(); // lsof finds no listener → null arm (launch mocked)
 		expect(info.mcp).toBe('none');
 		expect(h.launchPersistentContext).toHaveBeenCalledTimes(1);
-		const [dir, opts] = h.launchPersistentContext.mock.calls[0] as [string, { headless: boolean; args: string[] }];
+		const [dir, opts] = h.launchPersistentContext.mock.calls[0] as [string, { headless: boolean; args: string[]; ignoreDefaultArgs?: string[] }];
 		expect(opts.headless).toBe(false); // explicit options.headless override wins over config
 		expect(opts.args).toContain('--remote-debugging-port=' + free);
-		expect(opts.args).toContain('--window-position=-32000,-32000');
+		// 2026-10-28 (RCA — The Scrollbars Playwright Silenced): the on-screen
+		// park is GONE (it broke YouTube playback; 7d8ab14e) — the flag must
+		// NOT be in the args anymore.
+		expect(opts.args).not.toContain('--window-position=-32000,-32000');
+		// ...and the scrollbar veto must ride ignoreDefaultArgs on EVERY launch
+		// arm — Playwright appends --hide-scrollbars headless, and the launch
+		// gate in registry.ts throws if this veto ever stops landing.
+		expect(opts.ignoreDefaultArgs).toContain('--hide-scrollbars');
 		expect(dir).toContain('.dsi/browser-profiles');
 		await browserRegistry.close(info.id);
 	});

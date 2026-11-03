@@ -55,8 +55,10 @@ import {
 	resolveConversationFlags,
 	resolveHeartbeatType,
 	DEFAULT_HEARTBEAT_TYPE,
+	resolvePanelPresets,
 	resolveStatsBarMode,
 	type HeartbeatType,
+	type PanelPresets,
 	type StatsBarMode,
 	resolveSidebarPlacement,
 	resolveWidthBounds,
@@ -352,6 +354,19 @@ export function readPanelConfig(configPath?: string): PanelConfig {
 	return { ...widths, ...zooms };
 }
 
+// ── panel presets (the Alt+S width chord, ADR-0006a) ────────────────────────
+
+export type { PanelPresets } from '$lib/config';
+export { DEFAULT_PANEL_PRESETS } from '$lib/config';
+
+/** Read the `panel.agent` / `panel.glass` / `panel.sidebar` preset maps
+ *  (Width Preset Chord, ADR-0006a 2026-10-29). The gate is the SHARED
+ *  `resolvePanelPresets` in `$lib/config` — the browser assembler runs the
+ *  exact same function on the wire body (the resolveA2aConfig pattern). */
+export function readPanelPresets(configPath?: string): PanelPresets {
+	return resolvePanelPresets(parseConfig(configPath)?.panel);
+}
+
 // ── sidebar (rail width bounds + placement) ─────────────────────────────────
 
 export interface SidebarConfig {
@@ -561,6 +576,9 @@ export interface BrowserConfig {
 	/** Screencast target fps 1..60 (ADR-0039 D1) — intent knob; the relay
 	 *  derives CDP's everyNthFrame from a nominal 30 Hz paint clock. */
 	screencastMaxFps: number;
+	/** Content zoom on every glass page (2026-10-28): documentElement.style.zoom
+	 *  via addInitScript + an attach sweep. 1 disables the injection. */
+	contentZoom: number;
 	/** The glass panel's width bounds on the floor (operator request
 	 *  2026-10-26): defaultWidth for a chip-spawned glass, maxWidth the
 	 *  gutter/restore cap. Rides /api/config to the client clamp. */
@@ -578,6 +596,7 @@ export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
 	idleMs: 600_000,
 	screencastQuality: 90,
 	screencastMaxFps: 15,
+	contentZoom: 0.8,
 	defaultWidth: 860,
 	maxWidth: 1024
 };
@@ -601,6 +620,10 @@ export function readBrowserConfig(configPath?: string): BrowserConfig {
 		idleMs: intWithin(section.idleMs, 10_000, 86_400_000, DEFAULT_BROWSER_CONFIG.idleMs),
 		screencastQuality: intWithin(section.screencastQuality, 10, 100, DEFAULT_BROWSER_CONFIG.screencastQuality),
 		screencastMaxFps: intWithin(section.screencastMaxFps, 1, 60, DEFAULT_BROWSER_CONFIG.screencastMaxFps),
+		contentZoom:
+			typeof section.contentZoom === 'number' && Number.isFinite(section.contentZoom) && section.contentZoom >= 0.25 && section.contentZoom <= 3
+				? section.contentZoom
+				: DEFAULT_BROWSER_CONFIG.contentZoom,
 		defaultWidth: intWithin(section.defaultWidth, 200, 4_000, DEFAULT_BROWSER_CONFIG.defaultWidth),
 		maxWidth: intWithin(section.maxWidth, 200, 4_000, DEFAULT_BROWSER_CONFIG.maxWidth)
 	};

@@ -189,7 +189,7 @@ describe('executeCommand — /new (create + swap)', () => {
 		const { calls } = stubFetch([]);
 		const result = await executeCommand(parseCommand('/new a b c')!, ctx());
 		expect(result.ok).toBe(false);
-		expect(result.note).toBe('usage: /new [@agent] [workspace] [--add]');
+		expect(result.note).toBe('usage: /new [@agent] [workspace] [--title <title>] [--add]');
 		expect(calls).toHaveLength(0);
 	});
 

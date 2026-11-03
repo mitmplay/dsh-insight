@@ -18,6 +18,9 @@ vi.mock('$lib/components/monaco/settings-monaco', () => ({
 
 import WorkspaceFilePanel from '$lib/components/workspace-file/WorkspaceFilePanel.svelte';
 import toolbarSrc from '$lib/components/workspace-file/WorkspaceFileToolbar.svelte?raw';
+	import fileEditSrc from '$lib/components/workspace-file/toolbar/FileEdit.svelte?raw';
+	import fileSaveSrc from '$lib/components/workspace-file/toolbar/FileSave.svelte?raw';
+	import headChipSrc from '$lib/components/workspace-file/toolbar/HeadChip.svelte?raw';
 import { PANEL_PREFS_KEY, loadPanelPrefs } from '$lib/utils/panel-prefs';
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -125,7 +128,7 @@ describe('WorkspaceFileToolbar grammar — via the panel (File Eye 2.2-T)', () =
 
 	afterEach(() => localStorage.clear());
 
-	it('a changed file on an open gate renders the toggle: Edit on, aria-pressed, default view edit', async () => {
+	it('a changed file on an open gate renders the toggle: Preview on, Diff off, Save absent until a draft (The Single Edit D3)', async () => {
 		routeOpenGate(true);
 		mountPanel({ sessionId: 's1', path: 'a.ts', root: '/ws', onclose: vi.fn() });
 		await new Promise((r) => setTimeout(r, 0));
@@ -134,21 +137,26 @@ describe('WorkspaceFileToolbar grammar — via the panel (File Eye 2.2-T)', () =
 		expect(toggle).toBeTruthy();
 		const edit = target!.querySelector('[data-testid="file-view-edit"]');
 		const diff = target!.querySelector('[data-testid="file-view-diff"]');
+		// Plugin Rack amendment IV (2026-10-31): the pill lives in SegmentedTabs;
+		// the segment's ON state is aria-pressed, not a scoped .on class.
 		expect(edit?.getAttribute('aria-pressed')).toBe('true');
-		expect(edit?.classList.contains('on')).toBe(true);
 		expect(diff?.getAttribute('aria-pressed')).toBe('false');
+		// The Single Edit ADR D4: the dirty lock is retired — Diff never disabled.
 		expect(diff?.hasAttribute('disabled')).toBe(false);
-		expect(target!.querySelector('[data-testid="file-save"]')).toBeTruthy();
+		// D3: clean + not editing → no Save button on the row.
+		expect(target!.querySelector('[data-testid="file-save"]')).toBeNull();
+		// D2/D6: the Edit verb IS present on an open gate.
+		expect(target!.querySelector('[data-testid="file-edit"]')).toBeTruthy();
 	});
 
-	it('the persisted diff view survives remount: Diff on, Save disabled', async () => {
+	it('the persisted diff view survives remount: Diff on, still no Save while clean', async () => {
 		routeOpenGate(true);
 		mountPanel({ sessionId: 's1', path: 'a.ts', root: '/ws', view: 'diff', onclose: vi.fn() });
 		await new Promise((r) => setTimeout(r, 0));
 		flushSync();
 		expect(target!.querySelector('[data-testid="file-view-diff"]')?.getAttribute('aria-pressed')).toBe('true');
 		expect(target!.querySelector('[data-testid="file-view-edit"]')?.getAttribute('aria-pressed')).toBe('false');
-		expect((target!.querySelector('[data-testid="file-save"]') as HTMLButtonElement | null)?.disabled).toBe(true);
+		expect(target!.querySelector('[data-testid="file-save"]')).toBeNull();
 	});
 
 	it('an unchanged file or a closed gate renders NO toggle; a closed gate removes Save', async () => {
@@ -180,7 +188,11 @@ describe('WorkspaceFileToolbar grammar — via the panel (File Eye 2.2-T)', () =
 		expect(toolbarSrc).toMatch(/\.file-toolbar[^{]*\{[^}]*gap:\s*0\.25rem/s);
 		expect(toolbarSrc).toMatch(/\.tabs[^{]*\{[^}]*gap:\s*0\.25rem/s);
 		expect(toolbarSrc).not.toMatch(/gap:\s*0\.125rem/);
-		const heights = toolbarSrc.match(/height:\s*1\.5rem/g) ?? [];
-		expect(heights.length).toBeGreaterThanOrEqual(3);
+		// 2026-11-01 extraction: the chip heights now live in the
+		// toolbar/ components — count the row plus the three chips.
+		const heights = [toolbarSrc, fileEditSrc, fileSaveSrc, headChipSrc]
+			.map((src) => (src.match(/height:\s*1\.5rem/g) ?? []).length)
+			.reduce((a, b) => a + b, 0);
+		expect(heights).toBeGreaterThanOrEqual(3);
 	});
 });

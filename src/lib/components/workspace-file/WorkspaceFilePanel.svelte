@@ -21,7 +21,7 @@
 	 * Refusals render the mapped failure line (never blank): not-found,
 	 * outside-workspace, too-large, not-text, not-regular-file.
 	 */
-		import { appConfig } from '$lib/services/config/app-config.svelte';
+	import { appConfig } from '$lib/services/config/app-config.svelte';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import WorkspaceFile from './WorkspaceFile.svelte';
@@ -45,7 +45,10 @@
 		onviewchange,
 		onclose,
 		highlightLines = null,
-		onhighlightdone
+		onhighlightdone,
+		ontoggleexplorer,
+		explorerHidden = false,
+		ondirtychange
 	}: {
 		/** The owning session — the read's authorization scope (dedupe key
 		 *  half; the panel never mutates it). */
@@ -69,6 +72,15 @@
 		/** Acknowledge the applied highlight — the owner clears its parked
 		 *  target so a plain re-activation never re-highlights. */
 		onhighlightdone?: () => void;
+		/** Explorer hide/show intent (2026-10-31) — forwarded to the body
+		 *  toolbar; absent renders no toggle icon. */
+		ontoggleexplorer?: () => void;
+		/** The explorer lane's current visibility — forwarded verbatim. */
+		explorerHidden?: boolean;
+		/** Dirty-flag report (ADR D5c amendment 2026-11-03) — the explorer
+		 *  panel keeps a per-path map so its tab strip can tint dirty tabs
+		 *  and resolve Clear non-dirty. Absent in standalone file panels. */
+		ondirtychange?: (dirty: boolean) => void;
 	} = $props();
 
 	// The owner prop is the LIVE authority; the override exists only to
@@ -82,7 +94,12 @@
 	// in the markdown preview. Force the edit tab for this open; the
 	// operator can still flip back to preview afterwards.
 	$effect(() => {
-		if (highlightLines !== null && hasTabs) tab = 'edit';
+		if (highlightLines !== null && hasTabs) {
+			tab = 'edit';
+			// The Single Edit (task 1.6): the anchor targets the live
+			// editor surface — land in edit mode so the operator can act.
+			editing = true;
+		}
 	});
 	let phase = $state<'loading' | 'failed' | 'ready'>('loading');
 	let errorCode = $state<string | null>(null);
@@ -93,6 +110,32 @@
 	let baseline = $state<string | null>(null);
 	/** Dirty = the edit buffer differs from the baseline. */
 	let dirty = $state(false);
+	/** Clear-scope surfacing (ADR D5c amendment 2026-11-03): the explorer
+	 *  panel keeps a per-path dirty map so its tab strip can tint dirty
+	 *  tabs and resolve Clear non-dirty. Optional — standalone file
+	 *  panels pass no listener and lose nothing. */
+	$effect(() => {
+		ondirtychange?.(dirty);
+	});
+	/** The Single Edit (ADR D2): the operator-facing edit mode — the raw
+	 *  editor mounts writable only while this is true. Cancel reverts the
+	 *  buffer to the baseline. */
+	let editing = $state(false);
+	/** The buffer carried ACROSS a mode flip (the editor re-creates on
+	 *  the readOnly change, the typed text must survive the flip). */
+	let bufferCarry: string | null = null;
+	/** Edit-mode intent: entering carries the live buffer; Cancel (D2)
+	 *  reverts to baseline and clears dirty. */
+	function setEditing(next: boolean): void {
+		if (next === editing) return;
+		bufferCarry = next ? (editor?.getValue() ?? text) : baseline;
+		if (!next) dirty = false;
+		editing = next;
+		// A markdown preview has no live editor to make writable — entering
+		// edit mode lands on the raw tab (the preview toggle stays one
+		// click away, D5).
+		if (next && isMarkdown && tab !== 'edit') tab = 'edit';
+	}
 	/** The delegated save's progress (ADR D4): idle → saving → saved /
 	 *  failed; a further edit re-arms the button from any state. */
 	let saveState = $state<'idle' | 'saving' | 'saved' | 'failed'>('idle');
@@ -160,7 +203,7 @@
 		h: 'c', hpp: 'cpp', hs: 'haskell', htm: 'html', html: 'html', ini: 'ini',
 		java: 'java', js: 'javascript', json: 'json', jsx: 'javascript',
 		kt: 'kotlin', less: 'less', lua: 'lua', mjs: 'javascript',
-		mk: 'makefile', mm: 'objective-c', php: 'php', pl: 'perl', proto: 'protobuf',
+		md: 'markdown', markdown: 'markdown', mk: 'makefile', mm: 'objective-c', php: 'php', pl: 'perl', proto: 'protobuf',
 		ps1: 'powershell', py: 'python', rb: 'ruby', rs: 'rust', sass: 'scss',
 		scala: 'scala', scss: 'scss', sh: 'shell', sol: 'solidity', sql: 'sql',
 		svelte: 'html', swift: 'swift', toml: 'ini', ts: 'typescript',
@@ -275,9 +318,16 @@
 		fetchedKey = key;
 		void fetchFile();
 		return () => {
+			// NO disposal here (ADR-0047 D1, "The Sole Undertaker"): the mount
+			// effect is the editor's ONLY disposer. This cleanup runs on every
+			// drag-frame re-run (the route re-evaluates `root` per width write,
+			// value-equal), and Svelte executes the previous cleanup BEFORE the
+			// guard below — a dispose here killed the editor on every gutter
+			// drag while the key guard could only prevent the refetch. The
+			// initSeq bump stays: it aborts an in-flight async mount at a
+			// REAL identity switch. Pairing invariant: sessionId/path MUST
+			// remain deps of the mount effect, or switches lose their disposer.
 			initSeq++;
-			editor?.dispose();
-			editor = null;
 		};
 	});
 
@@ -474,9 +524,18 @@
 	// import ONLY — the editor lands in its own chunk (the chunk gate).
 	// The token aborts superseded in-flight imports (tab flips).
 	$effect(() => {
+		// The Single Edit (ADR D2): editing is a mount dependency — the
+		// flip disposes and re-creates the editor with the carried buffer
+		// and the new readOnly (the handle has no updateOptions seam).
 		if (phase !== 'ready' || (isMarkdown && tab !== 'edit')) return;
 		const host = editorHost;
-		const initial = text;
+		const initial = bufferCarry ?? text;
+		bufferCarry = null;
+		// Read BOTH writability inputs SYNCHRONOUSLY — reads inside the
+		// async closure below are not tracked, and the mode flip would
+		// never re-mount (the bug this ADR's own unit test caught).
+		const gated = gateOpen === false;
+		const writable = !gated && editing;
 		if (host === null || initial === null || editor !== null) return;
 		const token = ++initSeq;
 		void (async () => {
@@ -484,7 +543,7 @@
 			if (token !== initSeq || editor !== null) return;
 			editor = createTextEditor(host, initial, () => {
 				dirty = editor !== null && editor.getValue() !== baseline;
-			}, { language: monacoLang, readOnly: gateOpen === false });
+			}, { language: monacoLang, readOnly: !writable });
 			editorReady = true;
 		})();
 		return () => {
@@ -557,11 +616,14 @@
 		{hasTabs}
 		{activeView}
 		showToggle={gateOpen === true && changed}
-		diffDisabled={dirty}
+		{editing}
+		onToggleEdit={setEditing}
 		readonly={gateOpen === false}
 		onViewChange={setView}
 		onSave={save}
 		onReload={refreshFile}
+		onToggleExplorer={ontoggleexplorer}
+		{explorerHidden}
 		{saveError}
 		saveFailedNote={t(m.workspaceFileSaveFailed)}
 		loadingNote={t(m.workspaceExplorerLoading)}

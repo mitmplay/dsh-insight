@@ -1,13 +1,13 @@
 {
-  "_comment": "ADR-0018 D1 frozen budget - component-to-component cross-domain imports as measured 2026-10-11 (after moving WorkspaceExplorer*/WorkspaceFile* out of panels/ and the monaco glue/workers to components/monaco/; same import edges, new addresses). Regenerate ONLY with operator sign-off.",
+  "_comment": "ADR-0018 D1 frozen budget - component-to-component cross-domain imports. Regenerated 2026-10-30 with operator sign-off (commit-all-and-push instruction) for the shared WidthBadge chip (Movable Rail ADR amendment 2026-10-30 D1): panels + common/layout both consume components/common/WidthBadge.svelte. Prior baseline: measured 2026-10-11.",
   "crossings": [
     {
       "from": "components/common/layout/AppSidebar.svelte",
-      "to": "components/panels/control-bar/ControlBar.svelte"
+      "to": "components/sessions/SidebarSessions.svelte"
     },
     {
       "from": "components/common/layout/AppSidebar.svelte",
-      "to": "components/sessions/SidebarSessions.svelte"
+      "to": "components/panels/control-bar/ControlBar.svelte"
     },
     {
       "from": "components/composer/Composer.svelte",
@@ -24,6 +24,10 @@
     {
       "from": "components/panels/InjectedDocPanel.svelte",
       "to": "components/monaco/settings-monaco.ts"
+    },
+    {
+      "from": "components/panels/PanelColumn.svelte",
+      "to": "components/common/WidthBadge.svelte"
     },
     {
       "from": "components/panels/SettingsEditorPanel.svelte",

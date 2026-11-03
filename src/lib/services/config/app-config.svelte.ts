@@ -35,6 +35,9 @@ import {
 	DEFAULT_PANEL_MIN_WIDTH,
 	DEFAULT_PANEL_MIN_ZOOM,
 	DEFAULT_PANEL_WIDTH,
+	DEFAULT_PANEL_PRESETS,
+	resolvePanelPresets,
+	type PanelPresets,
 	DEFAULT_POLL_IDLE_MS,
 	DEFAULT_POLL_RUNNING_MS,
 	DEFAULT_HEARTBEAT_TYPE,
@@ -114,6 +117,9 @@ export interface AppConfig {
 		maxWidth: number;
 		minZoom: number;
 		maxZoom: number;
+		/** The Alt+S width-chord presets (ADR-0006a) — digit slot → px/verb;
+		 *  empty maps = the chord never arms (silent absence, D4). */
+		presets: PanelPresets;
 	};
 	sidebar: {
 		defaultWidth: number;
@@ -173,7 +179,8 @@ function freshDefault(): AppConfig {
 			minWidth: DEFAULT_PANEL_MIN_WIDTH,
 			maxWidth: DEFAULT_PANEL_MAX_WIDTH,
 			minZoom: DEFAULT_PANEL_MIN_ZOOM,
-			maxZoom: DEFAULT_PANEL_MAX_ZOOM
+			maxZoom: DEFAULT_PANEL_MAX_ZOOM,
+			presets: { ...DEFAULT_PANEL_PRESETS }
 		},
 		sidebar: {
 			defaultWidth: DEFAULT_SIDEBAR_WIDTH,
@@ -288,7 +295,10 @@ function applyConfig(body: Record<string, unknown>): void {
 		4_000
 	);
 	const panelZooms = resolveZoomBounds(body.panel, DEFAULT_PANEL_MIN_ZOOM, DEFAULT_PANEL_MAX_ZOOM, 0.25, 3);
-	config.panel = { ...panel, ...panelZooms };
+	// Width Preset Chord (ADR-0006a): the wire carries panel.presets; the
+	// SAME shared gate the server reader runs re-validates on arrival.
+	const panelSection = isConfigRecord(body.panel) ? body.panel : {};
+	config.panel = { ...panel, ...panelZooms, presets: resolvePanelPresets(panelSection.presets) };
 
 	// sidebar
 	const sidebar = isConfigRecord(body.sidebar) ? body.sidebar : {};

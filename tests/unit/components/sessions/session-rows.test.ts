@@ -17,7 +17,7 @@ import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SidebarOpenPanelRows from '$lib/components/sessions/SidebarOpenPanelRows.svelte';
-import type { RowsRenderEntry } from '$lib/components/sessions/SidebarOpenPanelRows.svelte';
+import type { RowsRenderEntry } from '$lib/components/sessions/sidebar-open-panel-rows-types';
 import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
 import type { DsiWorkspaceSummary } from '$lib/types';
 
