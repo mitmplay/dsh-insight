@@ -81,3 +81,72 @@ describe('dsi.mjs — --zai writes the profile patch, not legacy settings.yaml (
 		expect(helpSlice).toContain('cordis.patch.yml');
 	});
 });
+
+describe('dsi.mjs — first-run config seed (ENOENT 2026-11-04)', () => {
+	it('defines ensureDsiConfig and calls it BEFORE the pair spawns any child', () => {
+		const def = cli.indexOf('function ensureDsiConfig');
+		const seedCall = cli.indexOf('\tensureDsiConfig();');
+		const hostSpawn = cli.indexOf("spawn('/bin/sh', [script, ...extraArgs]");
+		expect(def).toBeGreaterThan(-1);
+		expect(seedCall).toBeGreaterThan(def);
+		expect(seedCall).toBeLessThan(hostSpawn); // seed precedes the host child
+	});
+
+	it('the seed clones the template settings.yaml and never touches an existing config', () => {
+		const fn = cli.slice(cli.indexOf('function ensureDsiConfig'), cli.indexOf('function setDshAuthToken'));
+		expect(fn).toContain('existsSync(configPath)'); // early-return guard
+		expect(fn).toContain("'template', '.dsi'"); // shipped template source
+		expect(fn).toContain("'{}\\n'"); // degrade-to-empty fallback
+	});
+});
+
+describe('dsh-web-synced.sh — update_token survives a missing settings.yaml (ENOENT 2026-11-04)', () => {
+	const { mkdtempSync, existsSync, readFileSync, writeFileSync } = require('node:fs');
+	const { tmpdir } = require('node:os');
+	const scriptPath = join(repoRoot, 'scripts', 'dsh-web-synced.sh');
+
+	/** Run update_token from the script against a scratch DSI_CONFIG_PATH. */
+	function runUpdateToken(configPath: string, token: string): { status: number; out: string } {
+		const sh = [
+			`DSI_CONFIG_PATH='${configPath}'`,
+			`. '${scriptPath}' >/dev/null 2>&1`,
+			`update_token '${token}'`,
+		].join('\n');
+		// The script path rides as $0 (sh -c's third arg) so its own
+		// DSI_ROOT=$(dirname $0)/.. resolution works, exactly as when
+		// dsi.mjs executes the script as a file.
+		const r = spawnSync('/bin/sh', ['-c', sh, scriptPath], { encoding: 'utf-8' });
+		return { status: r.status ?? -1, out: (r.stdout ?? '') + (r.stderr ?? '') };
+	}
+
+	it('creates dir + file with the token when settings.yaml does not exist (the first-run case)', () => {
+		const root = mkdtempSync(join(tmpdir(), 'dsi-synced-'));
+		const configPath = join(root, 'nested', 'settings.yaml'); // dir also missing
+		const r = runUpdateToken(configPath, 'tok-first-run');
+		expect(r.status).toBe(0);
+		expect(r.out).toContain('authToken updated');
+		expect(existsSync(configPath)).toBe(true);
+		expect(readFileSync(configPath, 'utf-8')).toContain('authToken: tok-first-run');
+	});
+
+	it('merges into an existing file without clobbering sibling keys', () => {
+		const root = mkdtempSync(join(tmpdir(), 'dsi-synced-'));
+		const configPath = join(root, 'settings.yaml');
+		writeFileSync(configPath, 'ui:\n  locale: en\ndsh:\n  old: 1\n', 'utf-8');
+		const r = runUpdateToken(configPath, 'tok-second');
+		expect(r.status).toBe(0);
+		const text = readFileSync(configPath, 'utf-8');
+		expect(text).toContain('locale: en'); // sibling section survives
+		expect(text).toContain('tok-second'); // token updated
+	});
+
+	it('still fails loud on a present-but-unparseable file (not a silent skip)', () => {
+		const root = mkdtempSync(join(tmpdir(), 'dsi-synced-'));
+		const configPath = join(root, 'settings.yaml');
+		writeFileSync(configPath, '- just\n- a list\n', 'utf-8');
+		const r = runUpdateToken(configPath, 'tok-bad');
+		expect(r.status).not.toBe(0);
+		expect(existsSync(configPath)).toBe(true);
+		expect(readFileSync(configPath, 'utf-8')).not.toContain('tok-bad'); // untouched
+	});
+});

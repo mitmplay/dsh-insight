@@ -38,17 +38,33 @@ update_token() {
   # The token rides an env var, not argv: a launch token is a credential and
   # argv is readable in ps(1) output by every local process.
   DSI_ROOT="$DSI_ROOT" CONFIG_PATH="$CONFIG_PATH" DSI_TOKEN="$token" node - <<'NODE'
-const { readFileSync, writeFileSync } = require('node:fs')
+const { readFileSync, writeFileSync, mkdirSync } = require('node:fs')
 const { createRequire } = require('node:module')
 const requireFromDsi = createRequire(process.env.DSI_ROOT + '/package.json')
 const { parse, stringify } = requireFromDsi('yaml')
-const path = process.env.CONFIG_PATH
-const doc = parse(readFileSync(path, 'utf8')) ?? {}
+const path = require('node:path')
+const configPath = process.env.CONFIG_PATH
+// First run (ENOENT 2026-11-04): settings.yaml may not exist yet — the token
+// announce can be the very first thing to touch it. A missing file is the
+// create case (same semantics as vt-plugins/lib/dsh-token-sink.ts); only a
+// PRESENT-but-unparseable file stays a failure (a silent skip would leave
+// DSI dialing a dead token forever).
+let raw = null
+try {
+  raw = readFileSync(configPath, 'utf8')
+} catch (e) {
+  if (e.code !== 'ENOENT') throw e
+}
+const doc = raw === null ? {} : (parse(raw) ?? {})
+if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
+  throw new Error('settings.yaml is not a YAML mapping')
+}
 doc.dsh = { ...doc.dsh, authToken: process.env.DSI_TOKEN }
-writeFileSync(path, stringify(doc))
+mkdirSync(path.dirname(configPath), { recursive: true })
+writeFileSync(configPath, stringify(doc))
 // Tilde-compress $HOME so the log line stays portable (no /Users/<you> leak).
 const home = require('node:os').homedir()
-console.log('dsh-web-synced: authToken updated in ' + (home && path.startsWith(home) ? '~' + path.slice(home.length) : path))
+console.log('dsh-web-synced: authToken updated in ' + (home && configPath.startsWith(home) ? '~' + configPath.slice(home.length) : configPath))
 NODE
 }
 

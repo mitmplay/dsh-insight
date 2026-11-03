@@ -306,6 +306,25 @@ function dsiConfigPath() {
 	return process.env.DSI_CONFIG_PATH ?? path.join(homedir(), '.dsi', 'settings.yaml');
 }
 
+/** First-run seed (ENOENT 2026-11-04): when the DSI config file is absent,
+ *  clone the shipped template settings.yaml — the same source the server's
+ *  first-start bootstrap uses (src/lib/server/settings-document.ts via
+ *  DSI_TEMPLATE_PATH) — so the first launch-token announce has a file to
+ *  land in. No template (a stripped published tree) degrades to an empty
+ *  mapping, still a writable target. An EXISTING config is never touched —
+ *  the operator's file is the user layer. */
+function ensureDsiConfig() {
+	const configPath = dsiConfigPath();
+	if (existsSync(configPath)) return;
+	mkdirSync(path.dirname(configPath), { recursive: true });
+	const template = path.join(
+		process.env.DSI_TEMPLATE_PATH ?? path.join(packageRoot, 'template', '.dsi'),
+		'settings.yaml'
+	);
+	writeFileSync(configPath, existsSync(template) ? readFileSync(template, 'utf-8') : '{}\n', 'utf-8');
+	console.log(`dsi dsh: seeded first-run config at ${configPath.startsWith(homedir()) ? `~${configPath.slice(homedir().length)}` : configPath}`);
+}
+
 /** Store a dsh launch token as dsh.authToken. Same-file semantics as the
  *  sync script: merge into the existing dsh section, atomic tmp+rename
  *  write. A byte-identical token is a no-op (no mtime churn). Exits
@@ -428,6 +447,12 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = [], opts = {})
 		console.error(`dsi dsh: no sync script at ${script}`);
 		process.exit(66);
 	}
+	// First-run config seed (ENOENT 2026-11-04): the token watcher reads
+	// ~/.dsi/settings.yaml the moment the host announces its launch URL — on a
+	// fresh machine that file does not exist yet (the server's first-start
+	// template clone only runs later, inside the UI child). Seed it BEFORE any
+	// child spawns so the first token announce lands, not "token capture failed".
+	ensureDsiConfig();
 	// UI port: the built server takes 5174 — the same port `dsi web` uses,
 	// so plain `dsi dsh --sync` listens on ONE port. --dev's Vite dev server
 	// takes 5175 instead (vite.config.ts pins 5174 strictPort, so pair mode

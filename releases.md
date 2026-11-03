@@ -1,3 +1,13 @@
+## 0.9.1
+
+Bumped from 0.9.0 — the first-run patch: a fresh machine's very first `dsi dsh --sync` keeps its launch token.
+
+### Bug fixes
+- **First-run ENOENT lost the launch token** — on a fresh machine the token watcher (`scripts/dsh-web-synced.sh` `update_token`) read `~/.dsi/settings.yaml` before anything created it: raw `readFileSync` ENOENT stack, `WARNING — token capture failed`, unauthenticated first click (a second run worked, hiding the bug). Two fixes (ADR-0050 D1/D2): the CLI seeds the config before any child spawns — `ensureDsiConfig()` clones `template/.dsi/settings.yaml` (`DSI_TEMPLATE_PATH`-aware, degrade `{}`, never touches an existing file) at the top of `runSyncedPair`; the watcher treats a missing file as the create case (`mkdirSync` + fresh `dsh.authToken`), same contract as the in-process sink, while a present-but-unparseable file still fails loud (D3). `eac47cf1`; regression tests in `tests/unit/dsi-cli.test.ts` (3 functional `update_token` runs — missing file incl. nested dir, merge preserving siblings, unparseable untouched — plus structural seed pins), 13/13 green.
+
+### Dev notes
+- Install orb transcript under `dev/orb/` (`install.txt`, `test-run.txt`). `4060c1e9`.
+
 ## 0.9.0
 
 Bumped from 0.8.5 — the minor release of the glass year: the Alt+S chord palette gives the floor a verb layer, glass tabs get chrome-parity identity and UX, the plugin rack and workspace surfaces grow up, and the CLI's `--zai` bootstrap writes where DSH actually reads.
