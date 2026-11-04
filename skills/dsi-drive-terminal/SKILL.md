@@ -1,29 +1,115 @@
-# DSI Drive Terminal — DO-path
+---
+name: "dsi-drive-terminal"
+description: "Drive the operator's live Terminal Desk tab (T1, T2, …) over DSI's terminal wire with curl — baton etiquette, human-pace typing, ring reads, silent-eater escapes. Reserved keyword"
+---
 
-Drive the operator's live Terminal Desk tab (T1, T2, …) over DSI's terminal
-wire with curl — no browser, no glass. Mechanics + contract:
-`dev/feature-contract-scenario/terminal-driving.md` (read once; this skill is
-the procedure). Display never needs a token; WRITES do.
+# Drive Terminal
 
-## 0. Resolve the floor + baton
+One goal → a live terminal session driven over DSI's terminal wire with
+curl: take the baton, type like a human, read what the shell said — while
+the operator watches the same bytes paint their desk tab.
 
-```sh
-PORT=5175   # dev floor (or the serving port)
-curl -s http://127.0.0.1:$PORT/api/terminal            # list sessions (id + exited)
-ID=t-1                                                   # the desk tab you mean
-curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/reattach -o /tmp/t.json
-TOK=$(sed 's/.*"token":"\([^"]*\)".*/\1/' /tmp/t.json)   # the baton — one holder
-OFF=$(sed 's/.*"fromByte":\([0-9]*\).*/\1/' /tmp/t.json) # resume offset
+## SYSTEM PROTOCOL: THE BATON LAW
+
+The session's write token is a baton with ONE holder. Every rule below
+instantiates it (ADR The Surviving Shell 2026-09-24 + amendments
+2026-11-04; mechanics: `dev/feature-contract-scenario/terminal-driving.md`):
+
+### 1. BATON ETIQUETTE (who may type)
+- Take the baton (`reattach`) only when about to write; a refused write
+  (`403 FOREIGN_SESSION`) means heal — reattach once, retry the SAME
+  keystroke — never retry blind, never re-mint in a loop.
+- The operator's tab heals identically (their first key after your takeover
+  shows the heal badge); watching is token-free, so displays never break.
+
+### 2. THE DESK IS THE UX (what the operator sees)
+- Run commands UNPIPED — the operator watches progress paint live; `| tail`
+  a build they are watching and you have hidden their own terminal.
+- The PTY echoes reality: no echo = the write was refused or the shell is
+  busy. NEVER type while a command is still running (keystrokes go into
+  that process's stdin, silently).
+
+### 3. ESCAPE THE SILENT EATER (writes say `written:true`, nothing executes)
+- An interactive prompt is consuming stdin — met live: `git push` username
+  prompt, open commit editor, package-manager approve prompt.
+- Escape: `\u0003\u0003` (Ctrl+C ×2), or ESC + `:qa!\r` (vi family), then a
+  marker (`echo ALIVE\r\n`) to confirm the prompt answers.
+
+### Enforcement Rules
+- Every write response MUST be checked: `{"written":true}` or handled
+  (`403` → heal, `409 SEND_ACTIVE` → wait, `400` → fix the body).
+- Output MUST be read promptly from an offset captured BEFORE the command —
+  the ring is ~2–3 KB and prompt redraws rotate it (live miss, 2026-11-04).
+- Remote git operations MUST be non-interactive (`-c core.editor=true`,
+  output redirected to a file) — an editor or credential prompt ate
+  keystrokes for minutes (live, 2026-11-04).
+
+---
+
+## When to Use
+
+- User says `/dsi-drive-terminal {what to run}` or "drive T1"
+- User asks to install/build/run something "on the terminal" while their
+  desk tab is the surface they will judge
+- Agent needs to execute on a remote box the operator's shell is SSH'd into
+
+### Step 0: No Params — Usage Guide
+
+When the user sends `/dsi-drive-terminal` with no arguments:
+
+1. Ask which session and what to run:
+2. Reply with a usage guide — NOT execution
+
+**Response format:**
+
+```
+📋 **Drive Terminal** — No inputs specified. I need two things:
+
+1. **Session** — the desk tab (T1, T2, …) or "open a new one"
+2. **Command / goal** — what to run, e.g. "pnpm install then build"
+
+Usage: `/dsi-drive-terminal {session} {command}`
 ```
 
-No session? `POST /api/terminal` opens one (appears on the desk as a new
-T-tab). Reattach kills the OTHER holder's token — fine: the operator's tab
-auto-heals on its next keystroke (heal badge), and you heal the same way.
+**Rules:**
+- If the goal spans many commands, confirm the order before typing
+- Do NOT take the baton until the goal is confirmed
 
-## 1. Type
+## Pipeline
 
-Build the JSON body with node (never inline-quote shell strings — one bad
-escape is a silent `BAD_REQUEST`), then send:
+```mermaid
+flowchart LR
+    A["/dsi-drive-terminal"] --> B["Step 1<br/>floor + baton"]
+    B --> C["Step 2<br/>type (paced, checked)"]
+    C --> D["Step 3<br/>read promptly"]
+    D --> E{"done?"}
+    E -->|"no"| C
+    E -->|"yes"| F["report what the<br/>operator saw"]
+```
+
+---
+
+## Step 1: Floor + Baton ⛔ MANDATORY
+
+Resolve the floor port by PROBE, never by memory of a previous session:
+
+```sh
+PORT=5175   # only after a listener probe confirms it
+curl -s http://127.0.0.1:$PORT/api/terminal            # list sessions
+curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/reattach -o /tmp/t.json
+TOK=$(sed 's/.*"token":"\([^"]*\)".*/\1/' /tmp/t.json)
+OFF=$(sed 's/.*"fromByte":\([0-9]*\).*/\1/' /tmp/t.json)
+```
+
+- No live session → `POST /api/terminal` opens one (new T-tab on the desk).
+- `403`/foreign responses on write → heal: reattach, retry the same write.
+
+---
+
+## Step 2: Type ⛔ MANDATORY
+
+Build the JSON body with node — never inline-quote shell strings (one bad
+escape is a silent `BAD_REQUEST`):
 
 ```sh
 node -e 'const fs=require("fs");const tok=fs.readFileSync("/tmp/t1-token","utf8").trim();
@@ -33,56 +119,90 @@ curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/send \
 ```
 
 - **Human pace when the operator watches**: one char per write, ~120 ms
-  apart, checking each response is `{"written":true}`. Faster bursts hit the
-  write fence and DROP characters (live: `sudo apt update` → `sudoaptupdate`).
-- **Machine commands** (install/build): one whole-line write is fine.
-- **Password prompts**: type the secret the same way — PTY echo is off, the
-  desk shows dots, the secret never lands in the scrollback.
-- **403 FOREIGN_SESSION** → someone else holds the baton: reattach (step 0),
-  retry the SAME keystroke once.
-- **NEVER type while a command is still running** — keystrokes go into that
-  process's stdin, silently.
+  apart, each response checked `{"written":true}`. Faster bursts hit the
+  write fence and DROP characters (live: `sudo apt update` →
+  `sudoaptupdate`, zsh "command not found").
+- **Passwords**: same pacing; PTY echo is off — the secret never lands in
+  scrollback, the desk shows dots.
+- **End every long command with a marker**: `; echo STEP-DONE-$?` — the
+  marker is the completion gate (exit code included).
 
-## 2. Read (promptly — the ring is SMALL, ~2–3 KB)
+---
+
+## Step 3: Read ⛔ MANDATORY
 
 ```sh
 curl -s "http://127.0.0.1:$PORT/api/terminal/$ID/output?fromByte=$OFF"
 ```
 
-- Capture `$OFF` BEFORE sending the command; read right after. Old offsets
-  return empty (rotated) — re-read `fromByte=0` for the full retained ring.
-- Strip ANSI in the shell: `sed 's/\\u001b\[[0-9;?]*[a-zA-Z=]//g; s/\\u0007//g; s/\\r\\n/\n/g; s/\\n/\n/g; s/\\r//g'`.
-- Long commands: write an end marker (`; echo STEP-DONE-$?`) and poll until
-  it appears.
+- `$OFF` captured BEFORE the command; read right after it finishes.
+- ANSI strip: `sed 's/\\u001b\[[0-9;?]*[a-zA-Z=]//g; s/\\u0007//g; s/\\r\\n/\n/g; s/\\n/\n/g; s/\\r//g'`
+- Empty/short read → the ring rotated; re-read `fromByte=0` (full retained
+  ring) or re-run redirecting output to a file and `cat` a slice.
 
-## 3. Show, don't hide
+---
 
-The operator watches the desk live. Run commands UNPIPED so progress paints;
-if you must trim (huge logs), redirect to a file and `cat` a slice — never
-`| tail` a build the operator is trying to watch.
+## Step 4: Silent Eater ⛔ MANDATORY
 
-## 4. The silent eater (writes say `written:true`, nothing executes)
+Writes say `written:true` but nothing executes or echoes → an interactive
+prompt is consuming stdin (credential prompt, commit editor, approve
+prompt). Escape per SYSTEM PROTOCOL §3, confirm with a marker, re-send.
 
-Something interactive is consuming stdin. Met live: a `git push` username
-prompt, an open commit editor, a package-manager approve prompt. Escape:
+---
 
-```sh
-data:"\u0003\u0003"            # Ctrl+C twice
-data:"\u001b:qa!\r"            # ESC + :qa! + Enter (vi family)
-data:"echo ALIVE\r\n"          # marker — prompt answers = recovered
+## Drive Checklist — MANDATORY
+
+This is the ONLY checklist output to the user. Declared at the start,
+verified at the end.
+
+```
+📋 drive-terminal: {session} — {goal}
+
+   [ ]  1.1  ⛔ Floor port probed (listener confirmed, not assumed)
+   [ ]  1.2  ⛔ Baton taken (reattach → token + offset captured)
+   [ ]  2.1  ⛔ Every write response checked (written / healed / refused)
+   [ ]  2.2  ⛔ Long commands carry an exit marker; completion gated on it
+   [ ]  2.3  ⛔ Operator-paced typing (≈120 ms/char, verified) when watched
+   [ ]  3.1  ⛔ Output read from pre-captured offset, promptly
+   [ ]  3.2  ⛔ Ring misses recovered (fromByte=0 or file+cat)
+   [ ]  4.1  ⛔ Any silent eater escaped (Ctrl+C / :qa!) and marker-confirmed
+   [ ]  5.1  ⛔ Commands ran UNPIPED — the operator could watch everything
+   [ ]  5.2  ⛔ Report states what the desk showed, not just what was read
+
+   ⛔ Behavioral Commitments:
+   [ ]  I will NOT retry a refused write blind — heal (reattach) first
+   [ ]  I will NOT type while a command is still running
+   [ ]  I will NOT pipe or silence output the operator is watching
+   [ ]  I will NOT send keystrokes into an unverified prompt state
+   [ ]  I will NOT claim success without the exit marker in the read
+   [ ]  I will re-output this checklist at each step transition
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-If the marker echoes, re-send the real command. Interactive prompts that
-WAIT (approve-builds, credentials) must be answered or killed — never typed
-past.
+### Check-Off Rules
 
-## 5. Etiquette
+- Re-output the checklist with `[✅]` / `[🔄]` / `[ ]` at each step
+  transition (1→2, 2→3, 3→4).
+- At completion, output the final checklist: ALL `[✅]`, any `[❌]`.
+- Do NOT deliver without the final checklist.
+<!-- RCA: AI-Research/LLMs Skip Mandatory Steps/001. LLMs Skip Mandatory Steps/002.The Visible checklist Pattern/2026-06-11 - The Visible Checklist Pattern - AI Research v1 - report.md -->
 
-- Take the baton only when you need to write; leave it at the prompt.
-- Expect `403` after the operator types — heal and continue; do not
-  re-mint in a loop.
-- Committing on the remote box? Pass `-c core.editor=true` to git commit and
-  redirect push output to a file — interactive prompts there ate keystrokes
-  for minutes (live, 2026-11-04). A missing git identity fails commit with
-  exit 128: set `git config user.name/user.email` (per-repo) if unset.
-- Report what the operator saw on the desk, not just what you read.
+---
+
+## How This Skill Connects to the Docs
+
+The skill is the DO-path; the docs carry the WHY and the CONTRACT.
+
+```mermaid
+flowchart LR
+    A["/dsi-drive-terminal<br/>this skill"] --> B["KB terminal-driving.md<br/>feature / contract / scenario"]
+    B --> C["ADR The Surviving Shell<br/>lease + auto-heal decisions"]
+    A --> D["Live floor<br/>the operator's desk tab"]
+```
+
+## Attention-Degradation Protection
+
+This skill stays SHORT. The mechanics and contract live in the KB note
+(`dev/feature-contract-scenario/terminal-driving.md`); the decisions live in
+the ADR. This skill only orchestrates the drive.
+<!-- RCA: AI-Research/YT-Research/2026-06-22 - Why Long Instructions Make AI Dumber - Attention Degradation Science.md -->
