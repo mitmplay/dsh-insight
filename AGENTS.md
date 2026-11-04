@@ -69,6 +69,22 @@ for every ADR:
 **Invoke the `dsi-adr` skill before drafting, reviewing, or marking done any
 ADR** — it carries the full skeleton, the depth test, and the self-audit.
 
+## Driving the live terminal (Terminal Desk)
+
+To type into the operator's terminal tab (T1, T2, …) — install, build, run
+anything on the floor's shell — invoke the `dsi-drive-terminal` skill first;
+it carries the wire procedure, the typing pace, and the escape traps
+(interactive prompts that silently eat keystrokes). Two rules here because
+they bite hardest:
+
+- The write token is a baton with one holder — a `403 FOREIGN_SESSION` write
+  means heal (reattach → retry the same keystroke), never retry blind; the
+  operator's tab heals identically (ADR The Surviving Shell, amendments
+  2026-11-04).
+- The desk is the UX: run commands unpiped so the operator watches progress
+  live; the mechanics and contract live in
+  `dev/feature-contract-scenario/terminal-driving.md`.
+
 ## run_code tool-call hygiene
 
 One malformed `run_code` program fails whole and costs every sub-call
