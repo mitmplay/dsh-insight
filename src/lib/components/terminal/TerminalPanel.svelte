@@ -70,11 +70,36 @@
 	let shellExitFired = false;
 
 	/** Serialized keystroke writes: separate fetches race on the server, so
-	 *  the chain is the ordering guarantee for the PTY byte stream. */
+	 *  the chain is the ordering guarantee for the PTY byte stream. Failures
+	 *  INSIDE writeWithHeal are handled (the token auto-heal); only network
+	 *  errors are swallowed here — a dead fetch must not break the chain. */
 	function queueWrite(data: string): void {
-		writeChain = writeChain.then(() =>
-			post('/api/terminal/' + (sessionId ?? '') + '/send', { token, action: 'write', data })
-		).then(() => undefined, () => undefined);
+		writeChain = writeChain.then(() => writeWithHeal(data), () => undefined);
+	}
+
+	/** Token auto-heal (ADR The Surviving Shell, amendment 2026-11-04): the
+	 *  session's write token is a baton with ONE holder. A 403
+	 *  FOREIGN_SESSION means another writer (the operator's own reload, a
+	 *  desk row, an API driver) re-minted it — heal by reattaching once,
+	 *  swapping the fresh token in, and retrying the SAME keystroke. The
+	 *  display stream is token-free (open-watch, D7), so only the baton
+	 *  moves; whoever typed last owns it and the other side heals on its
+	 *  next keystroke. A second consecutive refusal gives up quietly — the
+	 *  next keystroke starts a fresh heal. */
+	let healCount = $state(0);
+	async function writeWithHeal(data: string): Promise<void> {
+		const url = '/api/terminal/' + (sessionId ?? '') + '/send';
+		let res = await post(url, { token, action: 'write', data });
+		if (res.status === 403 && sessionId) {
+			const re = await post('/api/terminal/' + sessionId + '/reattach', {});
+			if (re.ok) {
+				const body = (await re.json()) as { token: string };
+				token = body.token;
+				healCount += 1;
+				onAssigned?.(sessionId, token);
+				res = await post(url, { token, action: 'write', data });
+			}
+		}
 	}
 
 	async function post(url: string, body: unknown): Promise<Response> {
@@ -92,6 +117,11 @@
 		if (!ev || !dataLine) return;
 		const data = JSON.parse(dataLine) as Record<string, unknown>;
 		if (ev === 'output') {
+			// The reconnect ladder resumes from HERE (attachStream reads
+			// lastOffset): the offset the view has actually painted.
+			const off = Number(data.nextOffset);
+			if (Number.isFinite(off)) lastOffset = off;
+			reconnectDelayMs = STREAM_RECONNECT_MIN_MS;
 			// THE view path: streamed bytes go to the visible terminal. The
 			// fallbackText mirror exists only for the no-xterm fallback.
 			if (xterm) xterm.write(String(data.text ?? ''));
@@ -183,6 +213,8 @@
 		return () => {
 			window.removeEventListener('pagehide', markGoingAway);
 			if (shellExitTimer !== null) clearTimeout(shellExitTimer);
+			if (reconnectTimer !== null) clearTimeout(reconnectTimer); // the ladder dies with the panel
+			streamEnded = true;
 			resizeObserver?.disconnect();
 			xterm?.dispose();
 			xterm = null;
@@ -263,7 +295,19 @@
 
 	/** The SSE subscription, shared by both modes (solo ladder tail and
 	 *  desk row mode): named events forwarded into applyFrame; `closed`
-	 *  ends the source. */
+	 *  ends the source. Stream reconnect ladder (ADR amendment 2026-11-04):
+	 *  a dead EventSource must not freeze the view forever — EventSource's
+	 *  own auto-retry replays the SAME fromByte (duplicate scrollback) or
+	 *  dies silently on a non-SSE answer (a 404 JSON from a restarted dev
+	 *  server), so we close it and re-attach MANUALLY from the last offset
+	 *  the view actually painted, with capped backoff. A `closed` frame
+	 *  (the session really ended) stops the ladder. */
+	const STREAM_RECONNECT_MIN_MS = 1000;
+	const STREAM_RECONNECT_MAX_MS = 8000;
+	let lastOffset = 0;
+	let reconnectDelayMs = STREAM_RECONNECT_MIN_MS;
+	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let streamEnded = false;
 	function attachStream(resumeByte: number): void {
 		const es = new EventSource('/api/terminal/' + sessionId + '/stream?fromByte=' + resumeByte);
 		es.onmessage = (e) => applyFrame('data: ' + e.data);
@@ -271,16 +315,26 @@
 			es.addEventListener(kind, (e) => {
 				const data = 'data' in e ? (e as MessageEvent).data : '';
 				applyFrame('event: ' + kind + '\n' + 'data: ' + data);
+				if (kind === 'closed' || kind === 'exit') streamEnded = true;
 				if (kind === 'closed') es.close();
 			});
 		}
+		es.onerror = () => {
+			es.close();
+			if (streamEnded || reconnectTimer !== null) return;
+			reconnectTimer = setTimeout(() => {
+				reconnectTimer = null;
+				attachStream(lastOffset);
+			}, reconnectDelayMs);
+			reconnectDelayMs = Math.min(reconnectDelayMs * 2, STREAM_RECONNECT_MAX_MS);
+		};
 	}
 
 	async function sendLine(): Promise<void> {
 		const line = typedLine;
 		typedLine = '';
 		if (!sessionId || !token || !line) return;
-		await post('/api/terminal/' + sessionId + '/send', { token, action: 'write', data: line + '\n' });
+		await writeWithHeal(line + '\n');
 	}
 
 	function settleText(reason: string | null): string {
@@ -305,6 +359,9 @@ input line) appears ONLY when xterm cannot attach.
 	<div class="mb-1 flex items-center gap-2 px-1 text-[10px] text-slate-400">
 		{#if panelState.lastSettle}
 			<span data-testid="terminal-settle-badge" class="rounded bg-slate-700 px-1.5 py-0.5">{settleText(panelState.lastSettle)}</span>
+		{/if}
+		{#if healCount > 0}
+			<span data-testid="terminal-heal-badge" class="rounded bg-slate-700 px-1.5 py-0.5">{t(m.terminalTokenRefreshed)}</span>
 		{/if}
 		<div class="grow"></div>
 	</div>

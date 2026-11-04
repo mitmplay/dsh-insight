@@ -399,6 +399,7 @@
 	"terminalSessionCap": "Session cap reached — close a terminal to open another.",
 	"terminalDisabled": "Terminal is disabled — enable it in settings (terminal.enabled).",
 	"terminalOpening": "Opening terminal…",
+	"terminalTokenRefreshed": "token refreshed — your keystroke was retried",
 	"jobTailEmpty": "no output — the command wrote nothing to the job's log",
 	"jobTailWaiting": "waiting for output…",
 	"terminalClosed": "Terminal closed",
