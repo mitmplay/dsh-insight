@@ -5,6 +5,7 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { pickTerminalTheme } from './terminal-theme';
+	import { panelHot } from './terminal-hmr.js';
 	import {
 		initialTerminalPanelState,
 		reduceTerminalFrame,
@@ -18,7 +19,8 @@
 		 *  shell exit closes the panel the way the header × would. */
 		onShellExit,
 		assigned = null,
-		onAssigned
+		onAssigned,
+		zoom = 1
 	}: {
 		onShellExit?: () => void;
 		/** Row mode (Terminal Desk, Wave 2): the desk opened the session and
@@ -30,7 +32,16 @@
 		/** Fired (both modes) once the panel holds a live session — the desk
 		 *  records it per row (the Wave 3 blob mirror's raw material). */
 		onAssigned?: (sessionId: string, token: string) => void;
+		/** Floor zoom (ADR-0041 Am.3, the terminal pocket): the panel renders
+		 *  inside PanelsZoom's scale(zoom) row, which splits xterm's cell math
+		 *  from the visual space and mis-maps mouse selection. The pocket
+		 *  wrapper counter-scales (net 1 — layout == visual) and the zoom
+		 *  reaches the glyphs as fontSize × zoom. Null/undefined = 1. */
+		zoom?: number | null;
 	} = $props();
+
+	/** Coerced zoom — the pocket's single source (null-safe default 1). */
+	const pocketZoom = $derived(zoom ?? 1);
 
 	let panelState = $state<TerminalPanelState>({ ...initialTerminalPanelState });
 	let disabled = $state(false);
@@ -48,6 +59,18 @@
 	$effect(() => {
 		const theme = pickTerminalTheme(theming, themePrefs.resolved);
 		if (xterm) xterm.options.theme = theme ?? undefined;
+	});
+
+	// Terminal pocket zoom (ADR-0041 Am.3): the visual zoom reaches the
+	// terminal the way terminals zoom — the font — then one refit (the
+	// existing ResizeObserver plumbing picks up the re-fit dims and the
+	// syncPtyDims gate decides whether the PTY cares). Mirrors the theme
+	// effect idiom above: an option-setter on the live instance.
+	$effect(() => {
+		const z = pocketZoom;
+		if (!xterm) return;
+		xterm.options.fontSize = Math.round(12 * z * 100) / 100;
+		fitAddon?.fit();
 	});
 
 	let xterm: import('@xterm/xterm').Terminal | null = null;
@@ -153,7 +176,10 @@
 				if (!termEl) return;
 				xterm = new Terminal({
 					convertEol: true,
-					fontSize: 12,
+					// Pocket zoom's initial value (the $effect above only re-fires
+					// on PROP changes once the effect has run with a live xterm;
+					// plain-let xterm is invisible to it at creation time).
+					fontSize: Math.round(12 * pocketZoom * 100) / 100,
 					theme: pickTerminalTheme(theming, themePrefs.resolved) ?? undefined
 				});
 				fitAddon = new FitAddon();
@@ -210,6 +236,26 @@
 			pageGoingAway = true;
 		};
 		window.addEventListener('pagehide', markGoingAway);
+		// The HMR LEASE (2026-11-04 amendment, dev-only): a vite hot swap
+		// disposes WITHOUT a pagehide — the page never unloads — so the
+		// plain-unmount clause below would kill the session on every hot
+		// swap (observed live: t-7/t-8 corpses, t-9 minted). An
+		// import.meta.hot dispose marks the teardown HMR-sourced; the close
+		// POST is skipped and the desk's rebuild ladder (probe → reattach →
+		// byte-0 replay) re-attaches to the survivor on the re-mount.
+		// Production builds never see import.meta.hot — byte-identical
+		// ladder; a deliberate panel × is NOT an HMR dispose and still
+		// closes provably (fact 11 untouched).
+		const hot = panelHot();
+		hot?.dispose(() => {
+			pageGoingAway = true;
+		});
+		hot?.on('vite:beforeUpdate', () => {
+			pageGoingAway = true;
+		});
+		hot?.on('vite:afterUpdate', () => {
+			pageGoingAway = false;
+		});
 		return () => {
 			window.removeEventListener('pagehide', markGoingAway);
 			if (shellExitTimer !== null) clearTimeout(shellExitTimer);
@@ -376,7 +422,19 @@ input line) appears ONLY when xterm cannot attach.
 			onclick={() => (xterm ? xterm.focus() : termEl?.querySelector('textarea')?.focus())}
 			role="presentation"
 		>
-			<div bind:this={termEl} class="absolute inset-0"></div>
+			<!-- The pocket (ADR-0041 Am.3): layout pre-multiplied by zoom and
+			     counter-scaled by 1/zoom — net scale 1 against the row AND the
+			     pocket's layout box equals the host's VISUAL box, so xterm
+			     measures and maps exactly the pixels the eye sees. At zoom 1
+			     no styles are applied (byte-equivalent markup). -->
+			<div
+				class="absolute inset-0 origin-top-left"
+				style={pocketZoom === 1
+					? undefined
+					: `right: auto; bottom: auto; width: ${pocketZoom * 100}%; height: ${pocketZoom * 100}%; transform: scale(${1 / pocketZoom});`}
+			>
+				<div bind:this={termEl} class="absolute inset-0"></div>
+			</div>
 		</div>
 		{#if xtermFailed}
 			<pre class="max-h-40 overflow-auto whitespace-pre-wrap bg-slate-950 p-1 font-mono text-[11px] text-slate-300" data-testid="terminal-fallback">{fallbackText}</pre>

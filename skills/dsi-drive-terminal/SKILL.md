@@ -38,11 +38,12 @@ instantiates it (ADR The Surviving Shell 2026-09-24 + amendments
 ### Enforcement Rules
 - Every write response MUST be checked: `{"written":true}` or handled
   (`403` → heal, `409 SEND_ACTIVE` → wait, `400` → fix the body).
-- Output MUST be read promptly from an offset captured BEFORE the command —
-  the ring is ~2–3 KB and prompt redraws rotate it (live miss, 2026-11-04).
-- Remote git operations MUST be non-interactive (`-c core.editor=true`,
-  output redirected to a file) — an editor or credential prompt ate
-  keystrokes for minutes (live, 2026-11-04).
+- **The receipt is necessary, never sufficient**: a dead session still
+  answers `written:true` (known trap — `session.ts` silently no-ops an
+  exited target; honest refusal deferred). Completion gates on ECHO +
+  the exit marker in the ring, never on the receipt alone. A receipt
+  with no echo → check `GET /api/terminal` `exited` first, silent
+  eater second (RCA 2026-11-04).
 
 ---
 
@@ -103,6 +104,13 @@ OFF=$(sed 's/.*"fromByte":\([0-9]*\).*/\1/' /tmp/t.json)
 
 - No live session → `POST /api/terminal` opens one (new T-tab on the desk).
 - `403`/foreign responses on write → heal: reattach, retry the same write.
+- **Resolve the session id from evidence, never from the tab position.**
+  The desk badge names its session: `T{position}:{id}` (`T1:7` = tab
+  index 1, session `t-7`; splits join with `+`, unassigned tabs show
+  plain `Tn`). Cross-check `GET /api/terminal` (`exited` flag) — the
+  live trap: desk tab "T1" drove session `t-7` while `t-1` was an hour
+  dead, and 69 keystrokes vanished (RCA 2026-11-04, "The Surface That Only
+  Ever Said Yes").
 
 ---
 
@@ -160,12 +168,15 @@ verified at the end.
 
    [ ]  1.1  ⛔ Floor port probed (listener confirmed, not assumed)
    [ ]  1.2  ⛔ Baton taken (reattach → token + offset captured)
+   [ ]  1.3  ⛔ Session id resolved from badge suffix / sessions list — NOT assumed from the tab position
    [ ]  2.1  ⛔ Every write response checked (written / healed / refused)
    [ ]  2.2  ⛔ Long commands carry an exit marker; completion gated on it
+   [ ]  2.4  ⛔ Receipt cross-checked by echo + marker (dead sessions answer written:true)
    [ ]  2.3  ⛔ Operator-paced typing (≈120 ms/char, verified) when watched
    [ ]  3.1  ⛔ Output read from pre-captured offset, promptly
    [ ]  3.2  ⛔ Ring misses recovered (fromByte=0 or file+cat)
    [ ]  4.1  ⛔ Any silent eater escaped (Ctrl+C / :qa!) and marker-confirmed
+   [ ]  4.2  ⛔ Dead-session eater ruled OUT via GET /api/terminal exited flag (RCA 2026-11-04)
    [ ]  5.1  ⛔ Commands ran UNPIPED — the operator could watch everything
    [ ]  5.2  ⛔ Report states what the desk showed, not just what was read
 

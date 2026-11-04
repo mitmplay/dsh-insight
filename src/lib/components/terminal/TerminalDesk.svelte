@@ -37,7 +37,8 @@
 	let {
 		onShellExit,
 		restored = null,
-		onMirror
+		onMirror,
+		zoom = 1
 	}: {
 		onShellExit?: () => void;
 		/** The clamped blob mirror (from the terminal panel entry) — the
@@ -45,7 +46,12 @@
 		restored?: TerminalDeskMirror | null;
 		/** Fires whenever the tree settles, with the mirror to persist. */
 		onMirror?: (mirror: TerminalDeskMirror) => void;
+		/** Floor zoom, forwarded to every row panel (ADR-0041 Am.3 pocket). */
+		zoom?: number | null;
 	} = $props();
+
+	/** Coerced zoom — one pocket source for every row (null-safe default 1). */
+	const deskZoom = $derived(zoom ?? 1);
 
 	/** The desk's root — the anchor for finding the hosting PanelColumn,
 		 *  the WHOLE column (the panel floor slot the desk lives in), not just
@@ -53,7 +59,7 @@
 	 *  documented no-op. */
 	let deskEl = $state<HTMLElement | null>(null);
 
-	let nextKey = 1;
+	let nextKey = 1; // hmr-survival probe 2026-11-04: comment-only, safe to remove
 	const mkKey = (): number => nextKey++;
 
 	const defaultTab = (): Tab => ({ key: mkKey(), rows: [{ key: mkKey(), assigned: null }] });
@@ -231,6 +237,24 @@
 			const row = tabs[i]?.rows[0];
 			if (row) panelEls[row.key]?.focusTerminal?.();
 		});
+	}
+
+	/** The truthful badge grammar (2026-11-04 amendment, ADR D5e/D5f):
+	 *  the shell-tab badge pairs the strip position with the session id —
+	 *  single row assigned → 'T1:7' (registry id t-7 → 7); split →
+	 *  'T1:7+9' (row order); unassigned → plain 'T1'. Display-only: the
+	 *  registry and mirror stay keyed on FULL session ids; the badge is a
+	 *  view, mirroring the Glass chip's ordinal grammar. */
+	function sessionOrdinal(id: string): string {
+		return id.replace(/^t-/, '');
+	}
+	function badgeSuffix(tab: Tab): string {
+		const ids = tab.rows.map((r) => r.assigned?.sessionId ?? '').filter((id) => id !== '');
+		return ids.length > 0 ? ':' + ids.map(sessionOrdinal).join('+') : '';
+	}
+	function badgeTitle(tab: Tab): string {
+		const ids = tab.rows.map((r) => r.assigned?.sessionId ?? '').filter((id) => id !== '');
+		return ids.length > 0 ? 'session ' + ids.join(', ') : '';
 	}
 
 	let lastMirrorJson: string | null = null;
@@ -439,7 +463,8 @@ the rows. Restoring shows a quiet placeholder until the ladder settles.
 			{#each tabs as tab, i (tab.key)}
 				<TerminalTabButton
 					index={i}
-					label={'T' + (i + 1)}
+					label={'T' + (i + 1) + badgeSuffix(tab)}
+					title={badgeTitle(tab)}
 					selected={i === selectedTab}
 					onSelect={() => (selectedTab = i)}
 					onClose={() => closeTab(i)}
@@ -467,6 +492,7 @@ the rows. Restoring shows a quiet placeholder until the ladder settles.
 							<TerminalPanel
 								bind:this={panelEls[row.key]}
 								assigned={row.assigned}
+								zoom={deskZoom}
 								onAssigned={(sessionId, token) => recordAssigned(row, sessionId, token)}
 								onShellExit={() => removeRow(i, row)}
 							/>

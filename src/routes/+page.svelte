@@ -654,9 +654,13 @@
 			<!-- The desk (Terminal Desk ADR D1, Wave 2): tabs + rows in the ONE
 			     terminal slot. Shell exit (its LAST shell) auto-closes the panel
 			     the same way the header × did pre-desk. -->
+			<!-- Zoom only on the FLOOR site — the loupe renders the same
+			     snippet OUTSIDE the transform (its own mount site), where
+			     the pocket must not engage. -->
 			<TerminalDesk
 				bind:this={terminalDeskRef}
 				restored={panel.desk ?? null}
+				zoom={floorPanelId ? pagePrefs.zoom : 1}
 				onMirror={(m) => {
 					terminalDeskMirrors[panel.id] = m;
 					terminalDeskMirrorsVersion++;

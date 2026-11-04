@@ -74,7 +74,7 @@ ADR** — it carries the full skeleton, the depth test, and the self-audit.
 To type into the operator's terminal tab (T1, T2, …) — install, build, run
 anything on the floor's shell — invoke the `dsi-drive-terminal` skill first;
 it carries the wire procedure, the typing pace, and the escape traps
-(interactive prompts that silently eat keystrokes). Two rules here because
+(interactive prompts that silently eat keystrokes). Four rules here because
 they bite hardest:
 
 - The write token is a baton with one holder — a `403 FOREIGN_SESSION` write
@@ -84,6 +84,18 @@ they bite hardest:
 - The desk is the UX: run commands unpiped so the operator watches progress
   live; the mechanics and contract live in
   `dev/feature-contract-scenario/terminal-driving.md`.
+- The desk badge names its session: `T{position}:{id}` (`T1:7` = tab
+  index 1, session `t-7`; splits `+`; unassigned plain `Tn`). Resolve
+  the wire id from the badge suffix or `GET /api/terminal` — never assume
+  tab position N is session `t-N` (the 2026-11-04 incident: "T1" drove
+  `t-7` while `t-1` was dead; 69 keystrokes vanished; RCA
+  `dev/kb/rca/2026-11-04 - RCA — The Surface That Only Ever Said Yes (A
+  Label, a Receipt, and a Swap That Killed Shells).md`).
+- A `written:true` receipt is necessary, never sufficient — a dead
+  session still answers it. Gate completion on ECHO + the exit marker in
+  the ring, and check the `exited` flag before blaming a silent eater.
+  In dev, client-only file edits keep sessions alive across HMR (the
+  lease); a `src/lib/server/**` edit closes every session (SSR reload).
 
 ## run_code tool-call hygiene
 
