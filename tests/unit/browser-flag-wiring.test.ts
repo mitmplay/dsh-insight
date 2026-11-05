@@ -12,7 +12,8 @@ describe('W3 3.2 — --playwright-mcp flag wiring (D7)', () => {
 		expect(devModeEnv('in-process', { playwrightMcp: true }).DSI_MCP_IN_PROCESS).toBe('1');
 		expect(devModeEnv('pair')).not.toHaveProperty('DSI_MCP_IN_PROCESS');
 		expect(devModeEnv('in-process')).not.toHaveProperty('DSI_MCP_IN_PROCESS');
-		expect(devModeEnv('build', { playwrightMcp: true })).toEqual({}); // build floor never embeds
+		// A6 D7c: the built floor MAY embed — the marker rides without --dev
+		expect(devModeEnv('build', { playwrightMcp: true })).toEqual({ DSI_MCP_IN_PROCESS: '1' });
 	});
 
 	it('dsi.mjs strips --playwright-mcp from host args and carries the marker', async () => {

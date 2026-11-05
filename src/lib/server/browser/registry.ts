@@ -299,7 +299,7 @@ export interface RegistryEntry {
 	mcpChild: ChildProcess | null;
 	/** In-process brain (DSI_MCP_IN_PROCESS=1, ADR-0029 D7): the
 	 *  createConnection handle + its sibling SSE listener. */
-	mcpInProcess: { connection: unknown; httpServer: unknown; port: number } | null;
+	mcpInProcess: { connection: unknown; httpServer: unknown; port: number; release?: () => void } | null;
 	mcpHealth: 'up' | 'down';
 	/** Why the brain is down (spawn/connect/bind failure) — surfaces in the
 	 *  status strip and list(); null when up or never attempted. */
@@ -429,10 +429,49 @@ function evictBrainPort(brainPort: number, exceptId: string): void {
 				// eviction is best-effort — the port scan then frees the seat
 			}
 		})();
+		e.mcpInProcess?.release?.(); // A6 D7e: drop the process-level guard with the brain
 		e.mcpInProcess = null;
 		e.mcpHealth = 'down';
 		e.mcpError = 'brain re-homed to a newer glass';
 	}
+}
+
+/** A6 D7e — the built floor now carries the brain, so a LATE failure must
+ *  demote the brain, never kill the floor. Two guards per brain:
+ *  1. an 'error' listener on the sibling http listener (node's default for a
+ *     stray server error event is a process exit — that default is fatal to a
+ *     production floor);
+ *  2. a scoped unhandledRejection guard for the brain's lifetime, filtering
+ *     to brain-sourced rejections (playwright/mcp or MCP-SDK frames in the
+ *     stack) so unrelated crashes still surface loudly. release() removes the
+ *     process-level guard at teardown (evict + D8 close call it). */
+export function attachBrainGuards(entry: RegistryEntry): void {
+	const brain = entry.mcpInProcess;
+	if (!brain) return;
+	const demote = (what: string, err: unknown): void => {
+		entry.mcpHealth = 'down'; // the mirror keeps working — graceful (D7 fallback)
+		entry.mcpError = what + ': ' + (err instanceof Error ? err.message : String(err));
+		entry.mcpInProcess = null;
+		release();
+	};
+	const isBrainSourced = (reason: unknown): boolean => {
+		const stack = reason instanceof Error ? (reason.stack ?? '') : String(reason);
+		return stack.includes('@playwright/mcp') || stack.includes('modelcontextprotocol') || stack.includes('startInProcessMcp');
+	};
+	const rejectionGuard = (reason: unknown): void => {
+		if (entry.mcpInProcess !== brain) return; // the brain was already released
+		if (isBrainSourced(reason)) demote('unhandled rejection', reason);
+	};
+	const release = (): void => {
+		process.off('unhandledRejection', rejectionGuard);
+		if (entry.mcpInProcess === brain) brain.release = undefined;
+	};
+	// PREPEND: a host (vitest, a supervisor) may register its own
+	// unhandledRejection handler that rethrows — registering first keeps the
+	// demotion deterministic even when a later handler throws.
+	process.prependListener('unhandledRejection', rejectionGuard);
+	brain.release = release;
+	(brain.httpServer as { on?: (ev: string, cb: (e: unknown) => void) => void }).on?.('error', (e) => demote('brain listener', e));
 }
 
 /** The in-process brain (D7): createConnection attached to the SAME headed
@@ -1205,6 +1244,7 @@ const browser = context.browser();
 					entry.mcpInProcess = await startInProcessMcp(entry.port, brainPort, () => {
 						entry.lastMcpActivity = Date.now();
 					});
+					attachBrainGuards(entry);
 				} catch (e) {
 					entry.mcpHealth = 'down'; // graceful: the mirror still works
 					entry.mcpError = (e as Error).message;
@@ -1286,6 +1326,7 @@ const browser = context.browser();
 					setTimeout(res, 2000); // never let teardown wedge the close
 				});
 				await brain.connection?.close?.();
+				brain.release?.(); // A6 D7e: drop the process-level guard with the brain
 				entry.mcpInProcess = null;
 			} catch (e) {
 				errs.push(e);

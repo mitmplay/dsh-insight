@@ -66,6 +66,35 @@ describe('devModeEnv (D4/D6 — mode rides as env)', () => {
   });
 });
 
+describe('devModeEnv (A6 D7c — playwrightMcp ungated from --dev)', () => {
+  it('build + flag: ONLY the brain marker — no dev markers on a build floor', () => {
+    expect(devModeEnv('build', { playwrightMcp: true })).toEqual({ DSI_MCP_IN_PROCESS: '1' });
+  });
+
+  it('pair + flag: brain marker rides beside the dev markers', () => {
+    expect(devModeEnv('pair', { playwrightMcp: true })).toEqual({
+      DSI_MCP_IN_PROCESS: '1',
+      DSI_DEV: '1',
+      DSI_DEV_MODE: 'pair'
+    });
+  });
+
+  it('in-process + flag: full five-marker map', () => {
+    expect(devModeEnv('in-process', { playwrightMcp: true })).toEqual({
+      DSI_MCP_IN_PROCESS: '1',
+      DSI_DEV: '1',
+      DSI_DEV_MODE: 'in-process',
+      DSI_DEV_IN_PROCESS: '1',
+      DSH_HOST_INTROSPECT: '1'
+    });
+  });
+
+  it('no flag: every mode identical to the pre-A6 map (no-flag = no change)', () => {
+    expect(devModeEnv('build', { playwrightMcp: false })).toEqual({});
+    expect(devModeEnv('pair', { playwrightMcp: false })).toEqual({ DSI_DEV: '1', DSI_DEV_MODE: 'pair' });
+  });
+});
+
 describe('modeFromBoolean (bounce bridge until 3.5)', () => {
   it('true → pair, false → build', () => {
     expect(modeFromBoolean(true)).toBe('pair');

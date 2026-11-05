@@ -109,6 +109,26 @@ describe('browser floor species (W2 2.2)', () => {
 		unmount(instance);
 	});
 
+	it('narrow-column hooks (2026-11-05, ADR-0029 amendment): the icon-only text spans carry .narrow-hide', () => {
+		const target = document.createElement('div');
+		document.body.appendChild(target);
+		const instance = mount(ConversationHeader, {
+			target,
+			props: { sessionId: 's1', title: 't', initialTitle: 't', agent: 'x', isStreaming: true, onOpenBrowser: () => undefined }
+		});
+		// open-browser: icon + label span; the span is what the PanelColumn
+		// container query hides below 530px.
+		const chip = target.querySelector('[data-testid="open-browser"]');
+		expect(chip).not.toBeNull();
+		expect(chip?.querySelector('svg')).not.toBeNull();
+		expect(chip?.querySelector('.narrow-hide')).not.toBeNull();
+		// running-status: dot + text span with the same hook.
+		const pill = target.querySelector('[data-testid="running-status"]');
+		expect(pill?.querySelector('.narrow-hide')).not.toBeNull();
+		expect(pill?.querySelector('.narrow-hide')?.textContent).toBe('running');
+		unmount(instance);
+	});
+
 });
 
 // ── ADR-0036 D1/D2: provenance recorded once at spawn, never rewritten ──

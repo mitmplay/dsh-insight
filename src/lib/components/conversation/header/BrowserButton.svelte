@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages';
+	import { Globe } from '@lucide/svelte';
 	/**
 	 * BrowserButton — the conversation header's browser chip
 	 * (extracted from ConversationHeader, 2026-10-20): the singleton
@@ -21,8 +22,14 @@
 
 <button
 	type="button"
-	class="rounded border border-surface-border px-1.5 py-0.5 text-xs hover:bg-surface-active"
+	class="inline-flex items-center gap-1 rounded border border-surface-border px-1.5 py-0.5 text-xs hover:bg-surface-active"
 	data-testid="open-browser"
 	title={m.browserOpenTitle()}
 	onclick={onOpenBrowser}
->{m.browserChipLabel()}</button>
+>
+	<!-- Icon leads the label (agent-chip parity); narrow columns hide
+	     the label span — the icon + title carry the identity (the
+	     PanelColumn container query owns the hiding, 2026-11-05). -->
+	<Globe size={12} class="shrink-0" aria-hidden="true" />
+	<span class="narrow-hide">{m.browserChipLabel()}</span>
+</button>

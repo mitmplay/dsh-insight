@@ -33,6 +33,7 @@ import { parse, stringify } from 'yaml';
 import { mirrorSkills } from './lib/mirror-skills.mjs';
 import { dshLauncherCmd, parsePluginArgs, takeoverFloorPorts, hostBounceDecision, floorUiPort, parseDevFloorPids, launchUrl, tokenFromSettings } from './lib/plugin-chain.mjs';
 import { parseDevArg, devModeEnv, modeFromBoolean, resolveBounceMode, extractInspectArgs, parseInspectArgsFromEnv } from './lib/dev-mode.mjs';
+import { brainBannerLines } from './lib/mcp-banner.mjs';
 import { addZaiProvider as addZaiPatch, zaiPatchPath } from './lib/zai-patch.mjs';
 import { ensureGlassBrowser } from './lib/glass-browser-bootstrap.mjs';
 
@@ -178,12 +179,18 @@ if (command === 'dsh') {
 		const rest = process.argv.slice(4);
 		const withZai = rest.includes('--zai');
 		const withOv = rest.includes('--ov');
-		// The Glass Browser (ADR-0029 D7): --playwright-mcp opts the DEV floor
-		// into the in-process MCP brain — a dsi-side flag, stripped before the
-		// host spawn (dsh web would refuse it) and carried to vite as an env
-		// marker, the exact idiom of DSI_DEV_IN_PROCESS.
+		// The Glass Browser (ADR-0029 D7, amendment A6 D7c): --playwright-mcp
+		// opts ANY floor into the in-process MCP brain — a dsi-side flag,
+		// stripped before the host spawn (dsh web would refuse it) and carried
+		// to the server as an env marker (DSI_MCP_IN_PROCESS, dev-mode.mjs).
 		const withPlaywrightMcp = rest.includes('--playwright-mcp');
 		const restNoMcp = withPlaywrightMcp ? rest.filter((a) => a !== '--playwright-mcp') : rest;
+		// A6 D7d: say out loud what the flag chose, in plain language, BEFORE
+		// any child spawns — an unannounced behavior change is a silent trap.
+		if (withPlaywrightMcp) {
+			const { mode: bannerMode } = parseDevArg(restNoMcp);
+			for (const line of brainBannerLines(bannerMode !== 'build')) console.log(line);
+		}
 		if (withZai) addZaiProvider();
 		if (withOv) runOvPlugin();
 		runSkillsMirror();
@@ -501,7 +508,7 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = [], opts = {})
 		stdio: 'inherit',
 		env: { ...process.env, DSH_WEB_VERSION: dshWebVersion() }
 	});
-	const ui = mode === 'build' ? startDsiServer(uiPort, dshBase) : startDsiDevServer(uiPort, dshBase, mode, execArgv, opts);
+	const ui = mode === 'build' ? startDsiServer(uiPort, dshBase, opts) : startDsiDevServer(uiPort, dshBase, mode, execArgv, opts);
 	// The browser follows the UI: the built page (5174) — or, in --dev mode,
 	// the dev server (5175). Gated on the HOST actually listening (bug
 	// 2026-10-17): the fixed 2s timer lost every race the host booted slower
@@ -776,7 +783,7 @@ function startDsiDevServer(defaultPort = '5175', dshBase = undefined, mode = 'pa
 	});
 }
 
-function startDsiServer(defaultPort = '5174', dshBase = undefined) {
+function startDsiServer(defaultPort = '5174', dshBase = undefined, opts = {}) {
 	const serverEntry = path.join(packageRoot, 'build', 'index.js');
 	if (!existsSync(serverEntry)) {
 		console.error(`dsi: no build found at ${serverEntry} — run \`pnpm run build\` first`);
@@ -791,6 +798,10 @@ function startDsiServer(defaultPort = '5174', dshBase = undefined) {
 			// First-start bootstrap seam: the server clones template/.dsi to ~/.dsi
 			// when the operator home is absent (src/lib/server/settings-document.ts).
 			DSI_TEMPLATE_PATH: process.env.DSI_TEMPLATE_PATH ?? path.join(packageRoot, 'template', '.dsi'),
+			// A6 D7c: the brain marker rides EVERY floor, build included — the
+			// vite child got it via startDsiDevServer's devModeEnv spread; the
+			// built server was silently dropping it (caught by the live gate).
+			...devModeEnv('build', { playwrightMcp: opts.playwrightMcp === true }),
 			...(dshBase !== undefined ? { DSH_BASE_URL: dshBase } : {})
 		}
 	});

@@ -119,7 +119,10 @@
 			class:bg-status-pass={isStreaming}
 			class:bg-surface-border={!isStreaming}
 		></span>
-		{isStreaming ? 'running' : 'idle'}
+		<!-- Narrow columns (<530px) hide the text — the dot + aria-label
+		     carry the state (the PanelColumn container query owns the
+		     hiding, 2026-11-05). -->
+		<span class="narrow-hide">{isStreaming ? 'running' : 'idle'}</span>
 	</span>
 	<!-- Session fork (The Fork Button ADR, 2026-09-01): branch a new
 	     session from the last completed turn; the child joins the floor

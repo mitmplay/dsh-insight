@@ -151,6 +151,11 @@ import * as m from '$lib/paraglide/messages';
 <style>
 	.column {
 		position: relative; /* the width badge's absolute anchor */
+		/* Size container (2026-11-05, Glass Browser amendment): the
+		   column's inline size is the narrow-header trigger — header
+		   children (open-browser, running-status) query it instead of
+		   receiving width as props (ADR-0029 amendment D1). */
+		container-type: inline-size;
 		display: flex;
 		flex-direction: column;
 		height: 100%;
@@ -195,6 +200,17 @@ import * as m from '$lib/paraglide/messages';
 		-webkit-mask-composite: xor;
 		mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
 		mask-composite: exclude;
+	}
+
+	/* Narrow columns (<530px): header text hides, icons carry identity
+	   (2026-11-05, ADR-0029 amendment). :global because the text spans
+	   live in child components (BrowserButton, ToolsAndStatusHeader) —
+	   Svelte scoping stops at this component's own elements, and the
+	   container query must reach the descendants. */
+	@container (max-width: 529px) {
+		.column :global(.narrow-hide) {
+			display: none;
+		}
 	}
 
 	.body {

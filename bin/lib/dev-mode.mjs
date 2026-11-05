@@ -54,9 +54,15 @@ export function parseDevArg(rest) {
  * @returns {Record<string, string>}
  */
 export function devModeEnv(mode, opts = {}) {
-	if (mode === 'build') return {};
 	/** @type {Record<string, string>} */
-	const env = { DSI_DEV: '1', DSI_DEV_MODE: mode };
+	const env = {};
+	// ADR-0029 amendment A6 D7c: the glass brain's placement is the operator's
+	// choice on EVERY floor — build included. DSI_DEV/DSI_DEV_MODE stay
+	// strictly dev-only (the bounce chain probes them as dev-floor markers).
+	if (opts.playwrightMcp) env.DSI_MCP_IN_PROCESS = '1';
+	if (mode === 'build') return env;
+	env.DSI_DEV = '1';
+	env.DSI_DEV_MODE = mode;
 	if (mode === 'in-process') {
 		env.DSI_DEV_IN_PROCESS = '1';
 		// ADR-0025 Wave 3 (real-floor gate finding, 2026-10-14): the bounce
@@ -67,9 +73,6 @@ export function devModeEnv(mode, opts = {}) {
 		// that carries the handle, so in-process floors default to it.
 		env.DSH_HOST_INTROSPECT = '1';
 	}
-	// ADR-0029 D7: the glass browser's MCP brain runs in-process (opt-in,
-	// dev floor only — the tandem/production floors keep the stdio child)
-	if (opts.playwrightMcp) env.DSI_MCP_IN_PROCESS = '1';
 	return env;
 }
 
