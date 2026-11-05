@@ -79,10 +79,12 @@ One "floor" is a pair: **DSH** (the harness host) and **DSI** (the page you watc
 
 **Example — a second, self-contained floor beside a live one** (nothing on the running floor is touched):
 
-```bash```
+```bash
 PORT=5176 DSI_MCP_PORT=19515 npx @deepseek-insight/dsi@latest dsh --sync --playwright-mcp --port 3081
 # Page: http://localhost:5176 · host: 3081 · brain: http://127.0.0.1:19515/sse
-``````
+```
+
+**Second floors are fully drivable.** At boot, a floor stamps its own addresses (`DSI_UI`, `DSI_MCP_URL`) into everything it starts — so agents in *that* floor's conversations drive *that* floor's glass automatically, and the preset brain entry follows the stamped port. Nothing on the primary floor changes: without a stamp (a bare `dsh web` boot), the brain falls back to `9515` and the drivers probe `5175` → `5174` exactly as before. One conversation = one glass owner; the driver refuses to touch another conversation's glass, and a session busy in the live floor shows `writer-held` if you try to prompt it from the second window (watch it there, prompt it on its own floor).
 
 ## License
 
