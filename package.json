@@ -38,7 +38,7 @@
 		"node": ">=22.19"
 	},
 	"dsh": {
-		"webVersion": "0.2.2-alpha.2"
+		"webVersion": "0.2.2-rc.1"
 	},
 	"bin": {
 		"dsi": "bin/dsi.mjs"
