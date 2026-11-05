@@ -132,7 +132,7 @@
 		iconSize={9}
 		testid="sidebar-workspace-chip"
 		data-registered={isRegisteredWorkspace(workspace, workspaces)}
-		style="--wsc-width: 6.5rem; --wsc-gap: 0.1875rem"
+		style="--wsc-width: 6.5rem; --wsc-gap: 0.1875rem; --wsc-font-size: 0.6875rem"
 	/>
 {:else}
 	<span class="ws-slot" aria-hidden="true"></span>

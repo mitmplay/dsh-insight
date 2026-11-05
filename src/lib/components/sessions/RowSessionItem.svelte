@@ -139,7 +139,10 @@
 		min-width: 0;
 		padding: 0.3rem 0.5rem;
 		border-radius: 0.375rem;
-		font-size: 0.75rem;
+		/* 11px (2026-11-06 coherence fix, same call as SidebarOpenPanelRows):
+		   the row label must match the ghost rows and the panel rows'
+		   0.6875rem — the 0.75rem default made the tiers type-incoherent. */
+		font-size: 0.6875rem;
 		color: var(--color-text-primary, #212529);
 		transition: background-color 0.15s ease;
 	}

@@ -25,6 +25,7 @@
 
 ## switch to zsh
 - `chsh -s $(which zsh)` - (password: orb)
+	- or `sudo usermod -s $(which zsh) wharsojo`
 
 ## install sheldon
 [Manual Installation](https://sheldon.cli.rs/Installation.html)

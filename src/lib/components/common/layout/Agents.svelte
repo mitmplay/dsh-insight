@@ -14,7 +14,7 @@
 	 * the filter state lives in SessionFilterRow; a pick reports the key
 	 * upward and the owner toggles the dimension.
 	 */
-	import { Bot } from '@lucide/svelte';
+	import AgentChip from '../buttons/AgentChip.svelte';
 	import type { FilterOption } from '$lib/utils/session-filters';
 
 	let {
@@ -32,114 +32,22 @@
 
 {#if presets.length > 0}
 	{#each presets as p (p.key)}
-		<button
-			type="button"
-			class="pill preset reg"
-			class:on={selected === p.key}
-			onclick={() => onpick(p.key)}
-			aria-pressed={selected === p.key}
+		<AgentChip
+			interactive
+			label={p.label}
+			count={p.count}
+			pickKey={p.key}
+			onpick={onpick}
+			selected={selected === p.key}
 			title={`agent preset — ${p.key}`}
-			data-testid="filter-preset-{p.key}"
-		>
-			<Bot size={12} aria-hidden="true" />
-			<span class="label">{p.label}</span><span class="count">{p.count}</span>
-		</button>
+			size="pill"
+			maxWidth="9rem"
+			testid={`filter-preset-${p.key ?? ''}`}
+		/>
 	{/each}
 {/if}
 
 <style>
-	/* Restyled 2026-08-26 for the row's accent-wash field (same grammar
-	   as SessionFilterRow's pills): rest var(--color-slate-neutral) (5.52:1), hover
-	   accent-deep (5.17:1), selected accent-deep fill + white (5.17:1
-	   — the raw token managed 3.68:1 at this 10px size). */
-	.pill {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		border: 1px solid color-mix(in srgb, var(--color-accent-blue, #3b82f6) 35%, var(--color-surface-elevated));
-		border-radius: 9999px;
-		background: transparent;
-		color: var(--color-slate-neutral);
-		font-size: 0.625rem;
-		line-height: 1;
-		padding: 0.25rem 0.5rem;
-		cursor: pointer;
-		max-width: 9rem;
-		white-space: nowrap;
-		transition:
-			color 0.15s ease,
-			border-color 0.15s ease,
-			background-color 0.15s ease;
-	}
-
-	.pill:hover {
-		border-color: color-mix(in srgb, var(--color-accent-blue, #3b82f6) 50%, var(--color-navy-focus));
-		color: color-mix(in srgb, var(--color-accent-blue, #3b82f6) 50%, var(--color-navy-focus));
-		background: color-mix(in srgb, var(--color-accent-blue, #3b82f6) 12%, var(--color-surface-elevated));
-	}
-
-	.pill.on {
-		background: color-mix(in srgb, var(--color-accent-blue, #3b82f6) 65%, var(--color-navy-focus));
-		border-color: color-mix(in srgb, var(--color-accent-blue, #3b82f6) 65%, var(--color-navy-focus));
-		color: #fff;
-	}
-
-	/* Pill status styles use :not(.on) guards on every REST/HOVER rule
-	   (2026-08-23 hover bug): a hover rule at higher specificity than the
-	   selected rule once overrode the selected pill's white text with its
-	   accent color ON its accent background — same fg as bg. Guards make
-	   rest and selected rule sets disjoint; cascade order can no longer
-	   regress either state. */
-
-	/* Preset pills: every preset is a real pickable identity — purple at
-	   rest (chip parity: Bot/purple in the rows), solid purple selected.
-	   Purple DEEPENED 2026-08-26 for AA on the wash: rest text is the
-	   token mixed 50% toward violet-900 (5.25:1 on its 8% tint, 5.00:1
-	   on the hover tint); the selected fill is 75% toward violet-900
-	   (white 5.34:1 — the raw var(--color-accent-purple) never cleared 4.5). */
-	.pill.preset.reg:not(.on) {
-		color: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 50%, #4c1d95);
-		border-color: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 50%, #4c1d95);
-		background: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 8%, transparent);
-	}
-
-	.pill.preset.reg:not(.on):hover {
-		color: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 50%, #4c1d95);
-		border-color: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 50%, #4c1d95);
-		background: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 12%, var(--color-surface-elevated));
-	}
-
-	.pill.preset.on {
-		background: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 75%, #4c1d95);
-		border-color: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 75%, #4c1d95);
-		color: #fff;
-	}
-
-	/* Icon and count NEVER shrink — only the label ellipsizes (2026-08-23
-	   geometry audit: a crushed-to-0px icon on the longest pill). */
-	.pill :global(svg) {
-		flex-shrink: 0;
-	}
-
-	/* Selected pill (app.css icon standard exception): the icon follows
-	   the on-state text color — white on the saturated surface — so the
-	   global purple default never paints it into its own background. At
-	   rest the global purple applies (the pill's icon identity). */
-	.pill.on :global(svg) {
-		color: inherit;
-	}
-
-	.label {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.count {
-		flex-shrink: 0;
-		font-size: 0.5625rem;
-		/* No opacity fade (2026-08-26): at 9px this is TEXT — 0.7 white
-		   on the deep purple measured under 4.5:1. Full white: 5.34:1. */
-		font-variant-numeric: tabular-nums;
-	}
+	/* The pill identity (shape, AA color-mixes, states) moved into
+	   AgentChip (2026-11-06) — this file is markup + props only. */
 </style>

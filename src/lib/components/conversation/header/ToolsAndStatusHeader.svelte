@@ -1,4 +1,4 @@
-<script lang="ts">
+	<script lang="ts">
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	/**
@@ -20,6 +20,7 @@
 	 * tests and e2e pin them.
 	 */
 	import { Bot, Check, Copy } from '@lucide/svelte';
+	import AgentChip from '$lib/components/common/buttons/AgentChip.svelte';
 	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
 	import { copyWithFeedback } from '$lib/utils/clipboard';
 	import type { DsiPlanProjection } from '$lib/services/conversation/plan-projection';
@@ -94,16 +95,8 @@
 		</button>
 	{/if}
 	{#if agent}
-		<span
-			class="agent-chip"
-			data-testid="agent-chip"
-			title={agentId ? `agent preset — ${agentId}` : undefined}
-		>
-			<!-- Bot leads the label (SessionFilterHeader .chip.agent parity —
-		     the icon is the agent dimension's identity across surfaces). -->
-			<Bot size={12} class="shrink-0" aria-hidden="true" />
-			{agent}
-		</span>
+		<!-- AgentChip owns the identity (2026-11-06): span mode, header size. -->
+		<AgentChip label={agent} testid="agent-chip" title={agentId ? `agent preset — ${agentId}` : undefined} />
 	{/if}
 	<!-- Plan-mode pill (extracted 2026-09-01): renders while plan mode
 	     is ACTIVE; PlanModeChip hides itself otherwise. -->

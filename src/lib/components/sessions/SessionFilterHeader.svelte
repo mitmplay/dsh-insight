@@ -38,7 +38,8 @@
 	 * end; the whole stretch doubles as the collapse button's hit and
 	 * hover area.
 	 */
-	import { Bot, ChevronDown, ChevronRight } from '@lucide/svelte';
+	import { ChevronDown, ChevronRight } from '@lucide/svelte';
+import AgentChip from '../common/buttons/AgentChip.svelte';
 	import SessionFilterMeta from './SessionFilterMeta.svelte';
 	import WorkspaceChip from '../common/WorkspaceChip.svelte';
 	import WorkspaceActionsMenu from './WorkspaceActionsMenu.svelte';
@@ -189,12 +190,7 @@
 				onclick={onWsChipClick}
 				onkeydown={onWsChipKeydown}
 				style="--wsc-font-size: 0.75em"
-			/>{/if}{#if wsLabel !== null && agentLabel !== null}{' + '}{/if}{#if agentLabel !== null}<span
-				class="chip agent"
-				title={`agent preset — ${filter.preset}`}
-				data-testid="filter-summary-chip-agent"
-			><Bot size={10} aria-hidden="true" /><span class="chip-label">{agentLabel}</span></span
-			>{/if}</span>
+			/>{/if}{#if wsLabel !== null && agentLabel !== null}{' + '}{/if}{#if agentLabel !== null}<!-- AgentChip owns the identity (2026-11-06); a span, so it nests inside this button. -->{/if}{#if agentLabel !== null}<AgentChip size="compact" label={agentLabel} maxWidth="6.5rem" testid="filter-summary-chip-agent" title={`agent preset — ${filter.preset}`} />{/if}</span>
 	</button>
 	<!-- The meta controls ride the header line, pinned RIGHT: visible
 	     whether the dimension pills are folded or not. -->
@@ -311,37 +307,9 @@
 	   (50%-deepened text/border, 8% tint field) so chip and pill of the
 	   same dimension read as one identity. Icons inherit the chip color
 	   (base-layer button-svg guard). */
-	.chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.1875rem;
-		max-width: 6.5rem;
-		border: 1px solid transparent;
-		border-radius: 9999px;
-		font-size: 0.75em;
-		line-height: 1;
-		padding: 0.15rem 0.375rem;
-		vertical-align: middle;
-		white-space: nowrap;
-	}
+	/* The summary chip styles moved into AgentChip (2026-11-06). */
 
-	.chip :global(svg) {
-		flex-shrink: 0;
-	}
-
-	.chip-label {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	/* Agent chip — the preset pill's rest identity: purple deepened 50%
-	   toward violet-900 (5.25:1 on its 8% tint). */
-	.chip.agent {
-		color: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 50%, #4c1d95);
-		border-color: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 50%, #4c1d95);
-		background: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 8%, transparent);
-	}
+	/* The agent chip identity moved into AgentChip (2026-11-06). */
 
 	/* Summary — accent-deep + 600, the panel group's .head-title twin:
 	   5.17:1 against the wash's darkest end at 11px (AA). */

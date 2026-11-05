@@ -112,4 +112,16 @@
 		border-color: color-mix(in srgb, yellowgreen 55%, black);
 		color: var(--color-text-primary, #212529);
 	}
+	/* Dark theme (2026-11-06 SC#3): the rest/hover borders follow the
+	   AccessModeChip recipe — accent-deep re-points to the soft dark
+	   violet; the light-tuned blue color-mix read too hot on dark.
+	   Selected (.on) and the yellowgreen count-only cue are state
+	   signals — unchanged. */
+	:global([data-theme='dark']) .pill {
+		border-color: var(--color-accent-deep);
+	}
+
+	:global([data-theme='dark']) .pill:hover {
+		border-color: var(--color-accent-deep);
+	}
 </style>

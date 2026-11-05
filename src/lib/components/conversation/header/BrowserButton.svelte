@@ -41,3 +41,13 @@
 	<Globe size={12} class="shrink-0" aria-hidden="true" />
 	<span class="narrow-hide">{m.browserChipLabel()}</span>
 </button>
+
+<style>
+	/* Dark theme (2026-11-06 SC#2): the border follows the
+	   AccessModeChip recipe — accent-deep re-points to the soft dark
+	   violet; the default surface-border hairline read as a hot edge
+	   on the dark header. Light theme keeps surface-border. */
+	:global([data-theme='dark']) button[data-testid='open-browser'] {
+		border-color: var(--color-accent-deep);
+	}
+</style>

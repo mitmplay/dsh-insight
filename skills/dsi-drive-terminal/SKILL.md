@@ -126,7 +126,7 @@ curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/send \
   -H 'content-type: application/json' --data-binary @/tmp/t1-cmd.json
 ```
 
-- **Human pace when the operator watches**: one char per write, ~120 ms
+- **Human pace when the operator watches**: one char per write, ~60 ms
   apart, each response checked `{"written":true}`. Faster bursts hit the
   write fence and DROP characters (live: `sudo apt update` →
   `sudoaptupdate`, zsh "command not found").

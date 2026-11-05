@@ -212,7 +212,10 @@
 		min-width: 0;
 		padding: 0.25rem 0.375rem;
 		border-radius: 0.3rem;
-		font-size: 0.75rem;
+		/* 11px (2026-11-06 coherence fix): the ghost rows below and every
+		   sessions-list row render 0.6875rem — the panel rows' 0.75rem
+		   made the three list tiers type-incoherent on the floor. */
+		font-size: 0.6875rem;
 		color: var(--color-text-primary, #212529);
 		transition: background-color 0.15s ease;
 	}
@@ -391,6 +394,14 @@
 	   compositing to 3.61:1 on the wash and 3.37:1 on the selected
 	   field (WCAG 1.4.11 3:1) — no per-state override needed since the
 	   selected row went light (2026-08-26). */
+	/* The glyph follows the row ink (2026-11-06): app.css's @layer base
+	   svg default otherwise paints chevrons generic accent-purple,
+	   bypassing the ws-violet palette this file owns — same scoped
+	   inherit exception the icon standard asks hosts to state. */
+	:global(.row-btn) :global(svg) {
+		color: inherit;
+	}
+
 	:global(.row-btn) {
 		flex-shrink: 0;
 		display: inline-flex;
