@@ -26,7 +26,52 @@
  */
 import { chromium } from 'playwright-core';
 
-const DSI = 'http://127.0.0.1:5175';
+// ── The Floor Seam (ADR "The Floor Seam" 2026-11-05, D1-D3) ────────────────
+// DSI_UI env verbatim when set; else parallel probe of both known floor
+// bases (5175 dev, 5174 build) with the D7 identity tiebreak. Tab identity
+// is an origin compare against the RESOLVED base — never a port literal.
+
+const DEFAULT_FLOOR_BASES = ['http://127.0.0.1:5175', 'http://127.0.0.1:5174'];
+
+/** Candidate bases: env seam wins; else dev first, build second. */
+export function floorCandidates(env = process.env) {
+  const ui = env.DSI_UI;
+  if (ui && /^http:\/\//.test(ui)) return [ui.replace(/\/$/, '')];
+  return [...DEFAULT_FLOOR_BASES];
+}
+
+/** Resolve the live floor — one answer wins; both → pickSession per floor,
+ *  my-glass floor wins, double-claim dies loud; none → die naming both. */
+export async function resolveDsiBase({ env = process.env, fetchImpl = fetch, identity = undefined, pickSessionFn = pickSession, dieFn = die, timeoutMs = 3000 } = {}) {
+  const candidates = floorCandidates(env);
+  const probes = await Promise.all(candidates.map(async (base) => {
+    try {
+      const res = await fetchImpl(base + '/api/browser', { signal: AbortSignal.timeout(timeoutMs) });
+      if (!res.ok) return { base, reg: null };
+      return { base, reg: await res.json() };
+    } catch { return { base, reg: null }; }
+  }));
+  const answered = probes.filter((p) => p.reg?.sessions);
+  if (answered.length === 0) {
+    dieFn('no DSI floor answers — probed ' + candidates.join(', ') +
+      ' (dev: dsi dsh --sync --dev --playwright-mcp · build: dsi dsh --sync · or set DSI_UI=<floor url>)');
+  }
+  if (answered.length === 1) return answered[0];
+  const claims = answered.map((p) => ({ ...p, verdict: pickSessionFn(p.reg.sessions, identity) }));
+  const mine = claims.filter((c) => c.verdict.session);
+  if (mine.length === 1) return mine[0];
+  if (mine.length > 1) {
+    dieFn('a glass owned by you lives on BOTH floors (' + mine.map((m) => m.base).join(', ') +
+      ') — set DSI_UI=<floor url> to name the floor; refusing to guess (D7)');
+  }
+  dieFn('both floors answer but neither holds YOUR glass (' + answered.map((m) => m.base).join(', ') +
+    ') — click the Browser chip in THIS conversation');
+}
+
+/** True when a tab url's ORIGIN is the resolved floor's origin (D2). */
+export function isFloorTab(url, base) {
+  try { return new URL(url).origin === new URL(base).origin; } catch { return false; }
+}
 
 export function die(msg) {
   console.error(JSON.stringify({ error: msg, fallback: 'SKILL.md Step 1 — ask the OPERATOR to click the Browser chip IN THE RIGHT CONVERSATION, then catch the session via GET /api/browser. If DSH_SESSION_ID is absent from env, pass --owner-session <id> (the session id you already know from context).' }));
@@ -62,18 +107,13 @@ export function pickSession(sessions, envId) {
 }
 
 export async function connect() {
-  let reg;
-  try {
-    reg = await (await fetch(DSI + '/api/browser')).json();
-  } catch {
-    die('DSI dev server not reachable on 5175 — floor not up (dsi dsh --sync --dev --playwright-mcp)');
-  }
+  const { base, reg } = await resolveDsiBase({ env: process.env, identity: identityFrom(process.argv) });
   const { session, degraded, note, error } = pickSession(reg.sessions, identityFrom(process.argv));
   if (!session) die(error ?? 'no glass session resolved — operator must click the Browser chip');
   if (degraded || note) console.error(JSON.stringify({ warn: note ?? 'degraded', sessionId: session.id }));
   const browser = await chromium.connectOverCDP('http://127.0.0.1:' + session.port).catch(() => null);
   if (!browser) die('CDP connect failed on port ' + session.port);
-  return { session, browser, ctx: browser.contexts()[0] };
+  return { session, browser, ctx: browser.contexts()[0], base };
 }
 
 export function pick(ctx, substr) {

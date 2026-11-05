@@ -39,7 +39,59 @@ import { chromium } from 'playwright-core';
  * @property {string} [error]
  */
 
-const DSI = 'http://127.0.0.1:5175';
+// ── The Floor Seam (ADR "The Floor Seam" 2026-11-05, D1-D3) ────────────────
+// The drivers dial the floor they SEE: DSI_UI env verbatim when set, else a
+// parallel probe of the two known floor bases (5175 dev, 5174 build) with the
+// D7 identity resolver as tiebreak. No port literal may survive in tab
+// filtering — isFloorTab compares origins against the RESOLVED base (D2).
+
+const DEFAULT_FLOOR_BASES = ['http://127.0.0.1:5175', 'http://127.0.0.1:5174'];
+
+/** Candidate bases: the env seam wins verbatim (validated http), else both
+ *  known floor bases — dev first so a dev-only machine keeps today's shape. */
+export function floorCandidates(env = process.env) {
+  const ui = env.DSI_UI;
+  if (ui && /^http:\/\//.test(ui)) return [ui.replace(/\/$/, '')];
+  return [...DEFAULT_FLOOR_BASES];
+}
+
+/** Resolve the live floor: fetch /api/browser on every candidate in
+ *  PARALLEL (3 s timeout each), then — one answer wins; both answer →
+ *  pickSession per floor with the caller's identity, the floor holding the
+ *  caller's OWN glass wins, a double-claim dies loud (D7 stands); none
+ *  answer → die naming BOTH ports and BOTH launch commands. */
+export async function resolveDsiBase({ env = process.env, fetchImpl = fetch, identity = undefined, pickSessionFn = pickSession, dieFn = die, timeoutMs = 3000 } = {}) {
+  const candidates = floorCandidates(env);
+  const probes = await Promise.all(candidates.map(async (base) => {
+    try {
+      const res = await fetchImpl(base + '/api/browser', { signal: AbortSignal.timeout(timeoutMs) });
+      if (!res.ok) return { base, reg: null };
+      return { base, reg: await res.json() };
+    } catch { return { base, reg: null }; }
+  }));
+  const answered = probes.filter((p) => p.reg?.sessions);
+  if (answered.length === 0) {
+    dieFn('no DSI floor answers — probed ' + candidates.join(', ') +
+      ' (dev: dsi dsh --sync --dev --playwright-mcp · build: dsi dsh --sync · or set DSI_UI=<floor url>)');
+  }
+  if (answered.length === 1) return answered[0];
+  // Both floors live — the caller's own glass picks the floor (D7 tiebreak).
+  const claims = answered.map((p) => ({ ...p, verdict: pickSessionFn(p.reg.sessions, identity) }));
+  const mine = claims.filter((c) => c.verdict.session);
+  if (mine.length === 1) return mine[0];
+  if (mine.length > 1) {
+    dieFn('a glass owned by you lives on BOTH floors (' + mine.map((m) => m.base).join(', ') +
+      ') — set DSI_UI=<floor url> to name the floor; refusing to guess (D7)');
+  }
+  dieFn('both floors answer but neither holds YOUR glass (' + answered.map((m) => m.base).join(', ') +
+    ') — click the Browser chip in THIS conversation');
+}
+
+/** True when a tab url's ORIGIN is the resolved floor's origin (D2): the
+ *  DSI tab is the floor's own page, whatever port it landed on. */
+export function isFloorTab(url, base) {
+  try { return new URL(url).origin === new URL(base).origin; } catch { return false; }
+}
 
 /** @param {string} msg @returns {never} */
 export function die(msg) {
@@ -79,18 +131,13 @@ export function pickSession(sessions, envId) {
 
 /** @returns {Promise<{ session: GlassSession, browser: import('playwright-core').Browser, ctx: import('playwright-core').BrowserContext }>} */
 export async function connect() {
-  let reg;
-  try {
-    reg = await (await fetch(DSI + '/api/browser')).json();
-  } catch {
-    die('DSI dev server not reachable on 5175 — floor not up (dsi dsh --sync --dev --playwright-mcp)');
-  }
+  const { base, reg } = await resolveDsiBase({ env: process.env, identity: identityFrom(process.argv) });
   const { session, degraded, note, error } = pickSession(reg.sessions, identityFrom(process.argv));
   if (!session) die(error ?? 'no glass session resolved — operator must click the Browser chip');
   if (degraded || note) console.error(JSON.stringify({ warn: note ?? 'degraded', sessionId: session.id }));
   const browser = await chromium.connectOverCDP('http://127.0.0.1:' + session.port).catch(() => null);
   if (!browser) die('CDP connect failed on port ' + session.port);
-  return { session, browser, ctx: browser.contexts()[0] };
+  return { session, browser, ctx: browser.contexts()[0], base };
 }
 
 /** @param {import('playwright-core').BrowserContext} ctx @param {string} substr @returns {import('playwright-core').Page|undefined} */

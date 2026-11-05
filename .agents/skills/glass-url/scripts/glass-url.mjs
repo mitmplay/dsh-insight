@@ -23,22 +23,23 @@
  * EXIT DISCIPLINE: this script always process.exit()s — a driver that
  * played media once hung its caller for a full timeout (RCA trap 5).
  */
-import { connect, die, pick } from './_connect.mjs';
+import { connect, die, pick, isFloorTab } from './_connect.mjs';
 import { norm, parseEvalArgs, matchAllTerms } from './_args.mjs';
 
 const argv = process.argv.slice(2);
-const { session, browser, ctx } = await connect();
+const { session, browser, ctx, base } = await connect();
 const out = (v) => { console.log(JSON.stringify(v, null, 1)); return process.exit(0); };
 
 // target tab: url-substring when given; else last http(s) page that is
-// neither the glass placeholder nor :5175 (contract, not position — D2).
+// neither the glass placeholder nor the FLOOR's own page — origin compare
+// against the resolved base (The Floor Seam ADR D2; never a port literal).
 const target = (substr) => {
   if (substr) {
     const p = pick(ctx, substr);
     if (!p) die('no tab matching "' + substr + '" — run: pages');
     return p;
   }
-  const pages = ctx.pages().filter((p) => p.url().startsWith('http') && !p.url().includes(':5175'));
+  const pages = ctx.pages().filter((p) => p.url().startsWith('http') && !isFloorTab(p.url(), base));
   if (!pages.length) die('no non-DSI tab to drive — run: glass-url.mjs open <url>');
   return pages[pages.length - 1];
 };

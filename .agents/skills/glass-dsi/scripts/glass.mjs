@@ -20,18 +20,19 @@
  * On any failure it prints the manual fallback hint (SKILL.md Step 1 —
  * the operator clicks the Browser chip; agents never open sessions).
  */
-import { connect, die } from './_connect.mjs';
+import { connect, die, isFloorTab } from './_connect.mjs';
 
-const DSI = 'http://127.0.0.1:5175';
 const [cmd, ...args] = process.argv.slice(2);
 
-const { session, browser, ctx } = await connect();
+// The Floor Seam (ADR 2026-11-05): connect resolves the live floor (DSI_UI
+// env or probe); the DSI tab is its own ORIGIN — never a port literal.
+const { session, browser, ctx, base } = await connect();
 
-let page = ctx.pages().find((p) => p.url().includes('5175'));
+let page = ctx.pages().find((p) => isFloorTab(p.url(), base));
 if (cmd === 'open') {
   if (!page) {
     page = await ctx.newPage();
-    await page.goto(args[0] ?? DSI, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    await page.goto(args[0] ?? base, { waitUntil: 'domcontentloaded' }).catch(() => {});
   } else if (args[0] && args[0] !== page.url()) {
     await page.goto(args[0], { waitUntil: 'domcontentloaded' }).catch(() => {});
   }
