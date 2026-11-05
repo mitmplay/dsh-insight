@@ -33,7 +33,6 @@ sidebar:
   maxWidth: 500
 prompts:
   tags: session lookup macro skill plan rca git cov ptc cordis standard minimal
-  dbPath: ~/agentic-ai/deepseek-insight/template/.dsi/
 dsh:
   authToken: Hjb44MjBpiDchF6FAGdxFMk2-CKVBwjKjbvmFXboqZU
   presetEnglish: true

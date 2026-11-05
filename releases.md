@@ -1,3 +1,17 @@
+## 0.10.0
+
+Bumped from 0.9.1 — the terminal that heals itself: a refused write re-mints and climbs back, xterm selection survives zoom, the desk badges tell the truth, and driving the live terminal became a house skill.
+
+### Features
+- **The token auto-heal** — a refused terminal write (stale token) no longer drops the keystrokes: the write route re-mints the token via reattach, retries the SAME write once, and the output stream climbs back — never retries blind, never re-mints in a loop. The operator's tab heals identically (their first key shows the heal badge); watching stays token-free. `576833a3`.
+- **The Terminal Zoom Pocket (ADR-0041 Amendment 3)** — zoom-honest selection for xterm: the pocket is `inset-0 scale(1/zoom)` with pre-multiplied layout, `fontSize×zoom`, and refit — selection rectangles land on the glyphs at any floor zoom, no counter-scaling inside the pocket. Unit + e2e pins (`370eea1e`, corrected by `897712b1`); design + spec (`d27e3768`, `962482bd`, `d631faf9`); completion notes (`244356a7`).
+- **Truthful desk badges + the HMR lease** — desk tab badges name their session (`T{position}:{id}`, splits join with `+`, unassigned tabs show plain `Tn`), killing the drive-by-tab-position trap; the HMR lease keeps terminal sessions alive through dev hot swaps. `95b3bc99`.
+- **`dsi-drive-terminal` as a house skill** — KB note (`dev/feature-contract-scenario/terminal-driving.md`), the skill reframed to the house pattern, and an AGENTS.md pointer: baton law, human-pace typing, ring reads, silent-eater escapes. `7aa4d3ae`, `10c11de5`.
+
+### Dev notes
+- RCA: the home-dir pnpm shadow (PATH ordering) + new `dsi-publish` skill. `3e74ed63`.
+- Install orb notes: extra packages, global pnpm; webVersion 0.2.2-rc.1. `42f16f73`.
+
 ## 0.9.1
 
 Bumped from 0.9.0 — the first-run patch: a fresh machine's very first `dsi dsh --sync` keeps its launch token.
