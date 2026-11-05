@@ -23,8 +23,8 @@ panel:
   minZoom: 0.25
   maxZoom: 1.25
   sidebar: { width: {2: 340, 4: 400}, state: {1, 3: collapse} }
-  agent:   { width: {1: 630, 2: 808, 3:  808, 4:  505} }
   glass:   { width: {1: 860, 2: 800, 3: 1270, 4: 1570} }
+  agent:   { width: {1: 630, 2: 808, 3:  808, 4:  505} }
   zoom:    { width: {1:  77, 2:  90, 3:   90, 4:   90} }
 sidebar:
   placement: none
