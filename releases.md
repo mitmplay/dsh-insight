@@ -1,3 +1,16 @@
+## 0.10.1
+
+Bumped from 0.10.0 — the borrowed Chrome is dead and buried: Shift+Click now opens a HEADED disposable glass, and every path that could point the close at home is audited, guarded, or deleted.
+
+### Features
+- **The Headed Downgrade (ADR-0047 retirement amendment)** — Shift+Click opens a VISIBLE glass on a fresh disposable profile (`headless:false`, `~/.dsi/browser-profiles/<id>`); plain opens byte-identical; boot restore never headed. The whole borrow surface is REMOVED: the consent dialog and the DSI-in-Chrome detection are gone (nothing to consent to), the wire renames `borrowProfile`→`headedOpen` across route/types/factories/chrome/resolver/panel/page, `borrow.ts` is deleted with a zero-code-reference gate, and i18n swaps `browserBorrow*` for one `browserHeadedHint` ×4 locales. A headed disposable glass is reaped and killed exactly like any glass — the reaper exemption and the close detach branch are deleted (today-for-today). Pins: `tests/unit/headed-{launch,lifecycle,wire,chip}.test.ts` (18) + rewritten `browser-button-shift.test.ts`; deletion audit grep clean; live-verified on the operator's glass (headedOpen:true, visible window, host Chrome untouched). `4e6be962`, `7f1df7a9`; completion notes under `dev/specs/2026-11/2026-11-05 - The Headed Downgrade/`.
+
+### Bug fixes
+- **The Borrowed Wipe — deletion-path hardening (RCA 2026-11-05)** — the borrowed close's `rmSync` met the host Chrome root via a pre-guard code path (9 profiles lost). Three fixes: the DATA-LOSS PATH GUARD — rmSync is only legal inside the disposable profile root, guarded by PATH not flag (`3b26b179`); the owner marker so a boot sweep can tell a LIVE session from an orphan (inside `7f1df7a9`); the deletion-path audit appendix verifying all 3 rmSync sites + kill sites target DSI-spawned pids only (`8f1f04d1`). The full failure chain, retractions, and the sole recovery route (per-account Sync) live in the RCA note.
+
+### Dev notes
+- ADR-0047 amendment + ADR-0046 cancellation recorded (`d85c7430`); spec folder with Karpathy context, PRD, Tasks (`4e6be962`); follow-up recorded: config sanity check on profileRoot.
+
 ## 0.10.0
 
 Bumped from 0.9.1 — the terminal that heals itself: a refused write re-mints and climbs back, xterm selection survives zoom, the desk badges tell the truth, and driving the live terminal became a house skill.
