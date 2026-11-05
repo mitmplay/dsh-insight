@@ -57,26 +57,6 @@ describe('copySignatureStores (task 1.2)', () => {
 		}
 	});
 
-	it('cookie dbs survive intact via the SQLite backup path (2026-11-05 live finding: the byte race produced a 0-row jar)', () => {
-		const root = tmp();
-		try {
-			const chromeRoot = seedHost(root);
-			// upgrade the fixture Cookies to a REAL sqlite db with rows (the host
-			// shape) - the seed's text file must be REPLACED, sqlite3 refuses it
-			const { spawnSync } = require('node:child_process');
-			const dbPath = join(chromeRoot, 'Profile 1', 'Cookies');
-			rmSync(dbPath, { force: true });
-			spawnSync('sqlite3', [dbPath, 'CREATE TABLE IF NOT EXISTS cookies (host_key TEXT, name TEXT); INSERT INTO cookies VALUES (\'.google.com\',\'HSID\');'], {});
-			const dest = join(root, 'dest');
-			mkdirSync(dest, { recursive: true });
-			copySignatureStores({ profileKey: 'Profile 1', sourceDir: join(chromeRoot, 'Profile 1') }, dest);
-			const out = spawnSync('sqlite3', [join(dest, 'Profile 1', 'Cookies'), 'SELECT name FROM cookies;'], { encoding: 'utf8' });
-			expect(out.stdout.trim()).toBe('HSID');
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-
 	it('strips Singleton lock files from the destination', () => {
 		const root = tmp();
 		try {

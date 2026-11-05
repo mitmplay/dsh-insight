@@ -19,8 +19,7 @@
  * Data, Web Data, caches (D2 — passwords and browsing history stay out of
  * an automation-owned dir).
  */
-import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -97,11 +96,7 @@ export function copySignatureStores(source: CloneSource, destRoot: string): Stor
 				verdicts.push({ store, ok: false, reason: 'absent' });
 				return;
 			}
-			if (isCookieDb(store)) {
-				copyCookieDb(src, dest);
-			} else {
-				cpSync(src, dest, { recursive: true });
-			}
+			cpSync(src, dest, { recursive: true });
 			verdicts.push({ store, ok: true });
 		} catch {
 			// mid-write LevelDB, permission, disk-full — skip, never throw (D2)
@@ -134,26 +129,6 @@ export function copySignatureStores(source: CloneSource, destRoot: string): Stor
 		}
 	}
 	return verdicts;
-}
-
-const COOKIE_DB_PATTERN = new RegExp('(^|/)Cookies$');
-
-/** A cookie db is the SQLite file whose loss is the whole feature (the
- *  2026-11-05 live finding: a byte-race copy against the RUNNING Chrome
- *  yielded a 0-row jar and the Google sign-in wall). */
-function isCookieDb(store: string): boolean {
-	return COOKIE_DB_PATTERN.test(store);
-}
-
-/** Take a CONSISTENT snapshot of the host cookie db via SQLite's online
- *  backup API - safe while Chrome writes. Falls back to a plain copy when
- *  sqlite3 is unavailable or the file is not a db (unit fixtures). */
-function copyCookieDb(src: string, dest: string): void {
-	mkdirSync(join(dest, '..'), { recursive: true });
-	const backup = spawnSync('sqlite3', [src, '.backup ' + JSON.stringify(dest)], { encoding: 'utf8', timeout: 10_000 });
-	if (backup.status === 0 && existsSync(dest)) return;
-	// fallback: not a db (or no sqlite3) - a byte copy is the best we can do
-	cpSync(src, dest, { recursive: false });
 }
 
 function defaultChromeRootOf(source: CloneSource): string {
