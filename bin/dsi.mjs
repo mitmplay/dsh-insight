@@ -34,6 +34,7 @@ import { mirrorSkills } from './lib/mirror-skills.mjs';
 import { dshLauncherCmd, parsePluginArgs, takeoverFloorPorts, hostBounceDecision, floorUiPort, parseDevFloorPids, launchUrl, tokenFromSettings } from './lib/plugin-chain.mjs';
 import { parseDevArg, devModeEnv, modeFromBoolean, resolveBounceMode, extractInspectArgs, parseInspectArgsFromEnv } from './lib/dev-mode.mjs';
 import { addZaiProvider as addZaiPatch, zaiPatchPath } from './lib/zai-patch.mjs';
+import { ensureGlassBrowser } from './lib/glass-browser-bootstrap.mjs';
 
 // Layman-facing help: wrapped near 76 columns, continuation lines indented,
 // the recommended one-liner first. --zai is optional on purpose — no GLM
@@ -186,6 +187,17 @@ if (command === 'dsh') {
 		if (withZai) addZaiProvider();
 		if (withOv) runOvPlugin();
 		runSkillsMirror();
+		// The Glass Bootstrap (ADR 2026-11-05, D1): probe the glass browser
+		// BEFORE the pair spawns — system Chrome first, cached chromium second,
+		// a one-time pinned fetch last (soft failure; DSI_SKIP_BROWSER_INSTALL=1
+		// skips). The bounce chain never fetches — only this first-run branch.
+		const glass = ensureGlassBrowser({
+			packageRoot,
+			spawnSync,
+			env: process.env,
+			log: (line) => console.log(line)
+		});
+		if (glass.action === 'fetched') console.log(`dsi dsh: chromium ${glass.reason} — the glass browser is ready`);
 		// --dev parse (D4): 'in-process' | 'pair' consumed as a value; bare
 		// --dev stays 'pair'. dsi-side flags stripped before the host spawn.
 		const { mode, rest: hostArgs0 } = parseDevArg(restNoMcp);

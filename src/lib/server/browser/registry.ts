@@ -964,7 +964,21 @@ let context: BrowserContext;
 try {
 	context = await launch(true); // real Chrome: full codecs/Widevine
 } catch (chromeErr) {
-	context = await launch(false); // no system Chrome — bundled chromium
+	// The Glass Bootstrap honest error (ADR 2026-11-05, D5): a raw Playwright
+	// "Executable doesn't exist" names no cure — rethrow with the revision
+	// family and BOTH cures, keeping the originals for the stack reader.
+	try {
+		context = await launch(false); // no system Chrome — bundled chromium
+	} catch (chromiumErr) {
+		throw new Error(
+			'Glass browser: no browser binary. System Google Chrome failed (' +
+				String((chromeErr as Error)?.message ?? chromeErr).slice(0, 120) +
+				') and the bundled chromium is missing (' +
+				String((chromiumErr as Error)?.message ?? chromiumErr).slice(0, 120) +
+				'). Cures: install Google Chrome, or run `npx playwright@<playwright-core version from package.json> install chromium` ' +
+				'(the revision must match this playwright-core pin).'
+		);
+	}
 }
 const browser = context.browser();
 		// persistent contexts do not expose .process(); the pid comes from the
