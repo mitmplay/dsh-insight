@@ -187,9 +187,9 @@ export interface ResolveDeps {
 	/** ADR-0045 amendment 3 D7 — this page's harness session key; sent as
 	 *  ownerSessionId on open and checked on re-bind (own glass only). */
 	ownerSessionId?: string | null;
-	/** ADR-0046 D0 - Shift+Click intent; sent as borrowProfile on the
+	/** ADR-0046 D0 - Shift+Click intent; sent as headedOpen on the
 	 *  open POST. Never set on the re-bind GET path. */
-	borrowProfile?: boolean;
+	headedOpen?: boolean;
 }
 
 // RCA 2026-10-30 "The Key That Cleaned Itself Away": +page.svelte strips
@@ -312,7 +312,7 @@ export async function resolveBrowserSession(apiBase = '', deps: ResolveDeps = {}
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({
 			...(deps.ownerSessionId ? { ownerSessionId: deps.ownerSessionId } : {}),
-			...(deps.borrowProfile ? { borrowProfile: true } : {})
+			...(deps.headedOpen ? { headedOpen: true } : {})
 		})
 	});
 	if (!res.ok) throw new Error('open failed: ' + res.status);

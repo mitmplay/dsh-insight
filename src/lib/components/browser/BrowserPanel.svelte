@@ -40,7 +40,7 @@
 		 *  title, and the opener's lineage depth — the lineage chip's facts.
 		 *  openedBy absent (ControlBar open) means NO chip, honestly. */
 		openedBy = undefined,
-		borrowProfile = false,
+		headedOpen = false,
 		parentTitle = null,
 		depth = 0,
 		onsession,
@@ -51,8 +51,8 @@
 		apiBase?: string;
 		openedBy?: string | undefined;
 		/** ADR-0046 D0 - the Shift+Click intent from the chip; rides the
-		 *  open POST as borrowProfile. Never set by re-bind/restore. */
-		borrowProfile?: boolean;
+		 *  open POST as headedOpen. Never set by re-bind/restore. */
+		headedOpen?: boolean;
 		parentTitle?: string | null;
 		depth?: number;
 		onsession?: (id: string) => void;
@@ -741,11 +741,9 @@
 					body: JSON.stringify({
 						...(birthW > 0 ? { width: birthW, height: birthH } : {}),
 						...((openedBy ?? harnessSessionKey()) ? { ownerSessionId: (openedBy ?? harnessSessionKey())! } : {}),
-						// ADR-0046 D0/D2: the chip's Shift asks for the Borrowed
-						// Signature - the server clones the host last-used profile
-						// into this session's dir before launch (or falls back
-						// clean, honestly).
-						...(borrowProfile ? { borrowProfile: true } : {})
+						// The Headed Downgrade (2026-11-05): the chip's Shift asks for a
+						// HEADED open - a visible window on a disposable profile.
+						...(headedOpen ? { headedOpen: true } : {})
 					})
 				});
 					if (!res.ok) throw new Error('open failed: ' + res.status);

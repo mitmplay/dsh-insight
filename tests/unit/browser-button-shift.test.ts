@@ -12,8 +12,20 @@ function mountHeader(onOpenBrowser: (shift: boolean) => void): { target: HTMLDiv
 	return { target, instance };
 }
 
-describe('BrowserButton shift wiring (task 2.1/2.2, ADR-0047 D0/D2)', () => {
-	it('a plain click reports shift=false with NO consent dialog (D0: plain stays clean)', async () => {
+// The Headed Downgrade (2026-11-05): the consent dialog is GONE — Shift
+// passes straight through as the headed intent. Plain clicks stay clean.
+describe('BrowserButton shift wiring (task 2.2, the Headed Downgrade)', () => {
+	it('a plain click reports shift=false (plain stays byte-identical)', async () => {
+		const seen: boolean[] = [];
+		const { target, instance } = mountHeader((shift) => seen.push(shift));
+		(target.querySelector('[data-testid="open-browser"]') as HTMLElement).click();
+		await new Promise((r) => setTimeout(r, 0));
+		expect(seen).toEqual([false]);
+		unmount(instance);
+		target.remove();
+	});
+
+	it('a shift+click reports shift=true immediately — NO consent dialog', async () => {
 		const seen: boolean[] = [];
 		let dialogs = 0;
 		window.confirm = () => {
@@ -21,34 +33,29 @@ describe('BrowserButton shift wiring (task 2.1/2.2, ADR-0047 D0/D2)', () => {
 			return true;
 		};
 		const { target, instance } = mountHeader((shift) => seen.push(shift));
-		(target.querySelector('[data-testid="open-browser"]') as HTMLElement).click();
+		const chip = target.querySelector('[data-testid="open-browser"]') as HTMLElement;
+		chip.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
 		await new Promise((r) => setTimeout(r, 0));
-		expect(seen).toEqual([false]);
+		expect(seen).toEqual([true]);
 		expect(dialogs).toBe(0);
 		unmount(instance);
 		target.remove();
 	});
 
-	it('a shift+click asks consent, and only a confirmed dialog reports shift=true (D2)', async () => {
+	it('the chip renders no dialog path at all — confirm can never fire for any click', async () => {
+		let dialogs = 0;
+		window.confirm = () => {
+			dialogs += 1;
+			return false;
+		};
 		const seen: boolean[] = [];
-		window.confirm = () => true;
 		const { target, instance } = mountHeader((shift) => seen.push(shift));
 		const chip = target.querySelector('[data-testid="open-browser"]') as HTMLElement;
+		chip.click();
 		chip.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
 		await new Promise((r) => setTimeout(r, 0));
-		expect(seen).toEqual([true]);
-		unmount(instance);
-		target.remove();
-	});
-
-	it('a DECLINED consent dialog reports nothing (declining is a no-op, never permission)', async () => {
-		const seen: boolean[] = [];
-		window.confirm = () => false;
-		const { target, instance } = mountHeader((shift) => seen.push(shift));
-		const chip = target.querySelector('[data-testid="open-browser"]') as HTMLElement;
-		chip.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
-		await new Promise((r) => setTimeout(r, 0));
-		expect(seen).toEqual([]);
+		expect(dialogs).toBe(0);
+		expect(seen).toEqual([false, true]);
 		unmount(instance);
 		target.remove();
 	});

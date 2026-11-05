@@ -15,32 +15,16 @@
 		onOpenBrowser
 	}: {
 		/** Browser-chip click intent — the singleton browser panel's
-		 *  opener; absent hides the chip. The boolean is Shift (ADR-0047
-		 *  D0): true = the operator asked to BORROW the real host Chrome
-		 *  profile — consent is collected HERE, before the intent leaves
-		 *  the page. */
+		 *  opener; absent hides the chip. The boolean is Shift (the Headed
+		 *  Downgrade, 2026-11-05): true = the operator asked for a HEADED
+		 *  open — a visible window on a disposable profile. No consent
+		 *  dialog: there is nothing to consent to any more. */
 		onOpenBrowser: (shift: boolean) => void;
 	} = $props();
 
-	/** ADR-0047 D2 — is DSI itself running inside Chrome? If the floor's
-	 *  host browser is Chrome, quitting Chrome kills THIS window, and the
-	 *  dialog must say so before the operator consents. */
-	const dsiRunsInChrome = (): boolean => {
-		const nav = navigator as { userAgentData?: { brands?: { brand: string }[] } };
-		const brands = nav.userAgentData?.brands ?? [];
-		if (brands.some((b) => /chrome/i.test(b.brand))) return true;
-		return /Chrome/.test(navigator.userAgent);
-	};
-
 	const click = (event: MouseEvent): void => {
-		if (!event.shiftKey) {
-			onOpenBrowser(false);
-			return;
-		}
-		// ADR-0047 D2: consent BEFORE the intent — name the closes, warn the
-		// DSI-in-Chrome case. Declining is a no-op, never a permission.
-		const warn = dsiRunsInChrome() ? '\n\n⚠ ' + m.browserBorrowQuitFirst() : '';
-		if (window.confirm(m.browserBorrowHint() + warn)) onOpenBrowser(true);
+		// Shift passes straight through as the headed intent — no dialog.
+		onOpenBrowser(event.shiftKey);
 	};
 </script>
 
@@ -48,7 +32,7 @@
 	type="button"
 	class="inline-flex items-center gap-1 rounded border border-surface-border px-1.5 py-0.5 text-xs hover:bg-surface-active"
 	data-testid="open-browser"
-	title={m.browserOpenTitle() + ' · ' + m.browserBorrowHint()}
+	title={m.browserOpenTitle() + ' · ' + m.browserHeadedHint()}
 	onclick={click}
 >
 	<!-- Icon leads the label (agent-chip parity); narrow columns hide

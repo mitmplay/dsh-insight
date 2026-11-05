@@ -753,10 +753,11 @@ export interface DsiBrowserPanel {
 	 *  ONCE at spawn, never rewritten by later clicks (ADR-0036 D1/D2).
 	 *  undefined = opened without conversation context (ControlBar). */
 	openedBy?: string;
-	/** ADR-0046 D0 - Shift+Click intent, recorded ONCE at spawn: the
-	 *  glass's open POST asks for the host last-used profile's signature.
-	 *  Never set by re-bind or boot restore. */
-	borrowProfile?: boolean;
+	/** The Headed Downgrade (2026-11-05) - Shift+Click intent, recorded
+	 *  ONCE at spawn: the glass's open POST asks for a HEADED open (a
+	 *  visible window on a disposable profile). Never set by re-bind or
+	 *  boot restore. */
+	headedOpen?: boolean;
 }
 
 /** The prompt-manager branch (ADR D6/D8) — hosts PromptManagerPanel; no

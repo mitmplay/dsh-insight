@@ -485,8 +485,6 @@
 	"browserLaunching": "iniciando navegador…",
 	"browserWaitingFrames": "esperando fotogramas…",
 	"browserOpenTitle": "Abrir el navegador de cristal",
-	"browserBorrowHint": "Shift toma prestado tu perfil de Chrome — Chrome debe cerrarse primero",
-	"browserBorrowQuitFirst": "Préstamo rechazado — cierra Chrome primero y vuelve a pulsar Shift+Click",
 	"browserChipLabel": "Navegador",
 	"browserUrlPlaceholder": "Buscar o escribir una URL",
 	"browserReload": "Recargar",
@@ -503,5 +501,6 @@
 	"browserTabCloseTitle": "Cerrar pestaña",
 	"browserZoom": "Zoom de contenido",
 	"browserSessionDead": "sesión de glass cerrada — el navegador detrás de este panel ya no existe",
-	"terminalFontSlider": "tamaño de fuente de la terminal"
+	"terminalFontSlider": "tamaño de fuente de la terminal",
+	"browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile"
 }

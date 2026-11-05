@@ -485,8 +485,6 @@
 	"browserLaunching": "正在启动浏览器…",
 	"browserWaitingFrames": "等待画面帧…",
 	"browserOpenTitle": "打开玻璃浏览器",
-	"browserBorrowHint": "Shift 借用你的 Chrome 配置 — 需先退出 Chrome",
-	"browserBorrowQuitFirst": "借用被拒 — 请先退出 Chrome，再按住 Shift 点击",
 	"browserChipLabel": "浏览器",
 	"browserUrlPlaceholder": "搜索或输入网址",
 	"browserReload": "重新加载",
@@ -503,5 +501,6 @@
 	"browserTabCloseTitle": "关闭标签页",
 	"browserZoom": "内容缩放",
 	"browserSessionDead": "glass 会话已关闭 — 该面板背后的浏览器已不存在",
-	"terminalFontSlider": "终端字号"
+	"terminalFontSlider": "终端字号",
+	"browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile"
 }

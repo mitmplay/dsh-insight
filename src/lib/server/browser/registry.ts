@@ -22,7 +22,7 @@ import { join } from 'node:path';
 
 import { chromium, type CDPSession, type BrowserContext, type Page } from 'playwright-core';
 
-import { checkHostLock, mountArgs, resolveLastUsedProfile } from './borrow.js';
+
 
 import { readBrowserConfig, type BrowserConfig } from '$lib/server/insight-config.js';
 
@@ -63,7 +63,7 @@ export function clampZoom(z: unknown): number | null {
 import { BrowserRelay, type InputDispatch } from './relay.js';
 
 /** The plain-open identity spoofs (ADR-0046 D3 reasoning, kept for plain
- *  launches; borrowed launches run the REAL identity with none of these —
+ *  launches;
  *  ADR-0047 D3). */
 const PLAIN_IDENTITY = {
 	userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -75,13 +75,10 @@ const PLAIN_IDENTITY = {
  *  watches its stream AND its last MCP tool traffic is older than idleMs.
  *  An active agent (traffic younger than idleMs) is NEVER eligible (D2). */
 export function reaperEligible(
-	e: Pick<RegistryEntry, 'streamSubscribers' | 'lastMcpActivity' | 'borrowed'>,
+	e: Pick<RegistryEntry, 'streamSubscribers' | 'lastMcpActivity'>,
 	idleMs: number,
 	now: number
 ): boolean {
-	// ADR-0047 D4: a BORROWED browser is the operator's real Chrome — never
-	// reaper-eligible regardless of watchers or idle traffic.
-	if (e.borrowed) return false;
 	if (e.streamSubscribers > 0) return false;
 	return now - e.lastMcpActivity >= idleMs;
 }
@@ -213,9 +210,9 @@ export interface BrowserSessionInfo {
 	/** ADR-0045 amendment 3 D7 — owning harness conversation session id;
 	 *  null for legacy sessions. The driver's identity match key. */
 	ownerSessionId: string | null;
-	/** ADR-0047 D4/D5 — the glass mounted the operator's REAL profile:
-	 *  reaper-exempt; close detaches without killing. */
-	borrowed: boolean;
+	/** ADR-0047 downgrade — Shift opened this glass HEADED (visible
+	 *  window, disposable profile). Informational. */
+	headedOpen: boolean;
 }
 
 export interface OpenOptions {
@@ -236,11 +233,9 @@ export interface OpenOptions {
 	/** ADR-0045 amendment 3 D7 — the opener panel's harness session id;
 	 *  recorded so drivers can claim their OWN glass. */
 	ownerSessionId?: string;
-	/** ADR-0047 D0-D3 - Shift+Click's BORROW: mount the host Chrome's real
-	 *  last-used profile (headed, visible window, real logins) after consent.
-	 *  Locked host = honest refusal; the reaper never touches a borrowed
-	 *  entry; close detaches without killing (D4/D5). */
-	borrowProfile?: boolean;
+	/** ADR-0047 downgrade - Shift+Click's HEADED open: a visible window on
+	 *  a disposable profile. No host Chrome, no consent, nothing borrowed. */
+	headedOpen?: boolean;
 }
 
 /** One attached page of the glass context: its own CDP session + relay
@@ -301,9 +296,8 @@ export interface RegistryEntry {
 	/** ADR-0041: headless glasses drive the page via Emulation (no real
 	 *  window to resize); headed ones via Browser.setWindowBounds. */
 	headless: boolean;
-	/** ADR-0047 D4/D5 — the glass mounted the operator's REAL profile:
-	 *  reaper-exempt forever; close detaches without killing. */
-	borrowed?: boolean;
+	/** ADR-0047 downgrade - Shift opened this glass HEADED. Informational. */
+	headedOpen?: boolean;
 	/** BUG 2026-10-26c: the LEARNED OS window chrome offset (outer − page).
 	 *  applyPanelViewport's one-shot evaluate can race out and answer 0,
 	 *  which strands the page 87px short of the request; the repair's
@@ -632,7 +626,7 @@ class BrowserRegistry {
 			profileDir: e.profileDir,
 			createdAt: e.createdAt,
 			ownerSessionId: e.ownerSessionId ?? null,
-			borrowed: e.borrowed === true,
+			headedOpen: e.headedOpen === true,
 			mcp: e.mcpChild ? ('child' as const) : e.mcpInProcess ? ('in-process' as const) : ('none' as const),
 			mcpHealth: e.mcpHealth,
 			mcpError: e.mcpError
@@ -995,39 +989,18 @@ class BrowserRegistry {
 		const cfg: BrowserConfig = readBrowserConfig();
 		const id = randomUUID();
 		const port = freePort(options.port);
-		// The Borrowed Chrome (ADR-0047 D1/D2): resolve the borrow FIRST — a
-		// borrowed session mounts the HOST root and has NO session dir, NO
-		// owner marker, nothing to sweep.
-		let borrowedKey: string | null = null;
-		let borrowedRoot: string | null = null;
-		let borrowVerdict = '';
-		if (options.borrowProfile) {
-			const source = resolveLastUsedProfile();
-			if (!source) {
-				borrowVerdict = 'borrow refused - no usable host Chrome last-used profile';
-			} else {
-				const lock = checkHostLock(source.hostRoot);
-				if (!lock.free) {
-					borrowVerdict = 'borrow refused - quit Chrome first (holding pid ' + lock.pid + ')';
-				} else {
-					borrowedKey = source.profileKey;
-					borrowedRoot = source.hostRoot;
-					borrowVerdict = 'borrowed host profile ' + source.profileKey;
-				}
-			}
-		}
-		// ADR-0047 D3: a borrowed session is ALWAYS headed — a headless borrow
-		// would vanish the operator's browser off-screen with all logins inside.
-		const headless = borrowedKey ? false : (options.headless ?? cfg.headless);
-		// ADR-0047 D2: an EXPLICIT borrow that cannot mount is an honest
-		// refusal, never a silent different browser.
-		if (options.borrowProfile && !borrowedKey) throw new Error(borrowVerdict || 'borrow refused');
-		const profileDir = borrowedRoot ?? join(cfg.profileRoot, id.slice(0, 8));
-		if (!borrowedRoot) mkdirSync(profileDir, { recursive: true });
+		// The Headed Downgrade (ADR-0047 retirement amendment, 2026-11-05):
+		// Shift+Click means a HEADED DISPOSABLE glass — a visible window on a
+		// fresh ~/.dsi/browser-profiles profile. The real-profile mount is
+		// GONE (the borrowed wipe RCA 2026-11-05): the host Chrome root is
+		// never read, never mounted, never deletable from this code.
+		const headless = options.headedOpen ? false : (options.headless ?? cfg.headless);
+		const profileDir = join(cfg.profileRoot, id.slice(0, 8));
+		mkdirSync(profileDir, { recursive: true });
 		// Owner marker (fix 2026-11-05): lets a sibling process's boot sweep
 		// tell this LIVE session from an orphan (foreignLiveOwner). Best-effort
 		// — a missing marker just means the dir sweeps like any legacy leftover.
-		if (!borrowedRoot) try {
+		try {
 			writeFileSync(join(profileDir, OWNER_MARKER), JSON.stringify({ pid: process.pid, at: Date.now() }));
 		} catch {
 			// marker write must never fail the open
@@ -1051,9 +1024,10 @@ class BrowserRegistry {
 		const ignoreDefaultArgs = ['--enable-automation', '--mute-audio', '--hide-scrollbars'];
 		// ADR-0046 D3: a cloned real identity launches without the spoofed
 		// userAgent/timezoneId/locale; plain launches keep today's spoofs.
-		// ADR-0047 D3: a borrowed real identity launches without the spoofed
-		// userAgent/timezoneId/locale; plain launches keep today's spoofs.
-		const identity: { userAgent?: string; timezoneId?: string; locale?: string } = borrowedKey ? {} : PLAIN_IDENTITY;
+		// The Headed Downgrade: a headed DISPOSABLE glass keeps the anti-bot
+		// posture exactly like any glass — spoofs stay (the profile is fake
+		// anyway; there is no real identity to protect).
+		const identity: { userAgent?: string; timezoneId?: string; locale?: string } = PLAIN_IDENTITY;
 		const launch = (useChrome: boolean) => chromium.launchPersistentContext(profileDir, {
 	...(useChrome ? { channel: 'chrome' as const } : {}),
 	headless,
@@ -1076,11 +1050,8 @@ class BrowserRegistry {
 		'--autoplay-policy=no-user-gesture-required',
 		// ADR-0046: open the CLONED profile key, not Default - the copied
 		// Secure-Preferences MACs are keyed to this profile name.
-		...(borrowedKey ? mountArgs(borrowedKey) : []),
 		// '--window-position=-32000,-32000', //# if on will failed the yt video
-		// ADR-0047 D3: a borrowed session opens a REAL window at its natural
-		// size - no fixed window-size arg.
-		...(borrowedKey ? [] : ['--window-size=' + (Math.max(200, Math.min(1920, options.width ?? 730)) + 6) + ',' + (Math.max(120, Math.min(1080, options.height ?? 830)) + 70)])
+		'--window-size=' + (Math.max(200, Math.min(1920, options.width ?? 730)) + 6) + ',' + (Math.max(120, Math.min(1080, options.height ?? 830)) + 70)
 	],
 	// ADR-0041 root-cause fix (2026-10-25, the black bands): a FIXED context
 	// viewport is a per-session emulation override Playwright owns and
@@ -1221,7 +1192,7 @@ const browser = context.browser();
 			zoom: cfg.contentZoom,
 			headless,
 			// ADR-0047 D4: pinned at mint — the reaper and D8 ladder read it.
-			borrowed: borrowedKey !== null,
+			headedOpen: options.headedOpen === true,
 			port, pid, profileDir,
 			brainPort,
 			streamSubscribers: 0,
@@ -1355,7 +1326,7 @@ const browser = context.browser();
 		}
 		return {
 			id, port, pid, profileDir, createdAt: entry.createdAt,
-			borrowed: entry.borrowed === true,
+			headedOpen: entry.headedOpen === true,
 			ownerSessionId: entry.ownerSessionId,
 			mcp: entry.mcpChild ? 'child' : entry.mcpInProcess ? 'in-process' : 'none',
 			mcpHealth: entry.mcpHealth,
@@ -1448,34 +1419,26 @@ const browser = context.browser();
 		} catch (e) {
 			errs.push(e);
 		}
-		if (entry.borrowed) {
-			// ADR-0047 D5: DETACH, DON'T KILL — the browser is the operator's
-			// real Chrome. Drop the handles, keep the pid alive; the profile
-			// dir is the HOST ROOT and is never deleted.
-		} else {
-			try {
-				await entry.context.close();
-			} catch (e) {
-				errs.push(e);
+		try {
+			await entry.context.close();
+		} catch (e) {
+			errs.push(e);
+		}
+		// profile cleanup (operator report 2026-10-20): the isolated
+		// --user-data-dir (D5) is session-scoped — closed means GONE, or
+		// ~/.dsi/browser-profiles fills with leftovers.
+		// DATA-LOSS GUARD (RCA 2026-11-05, the borrowed wipe): rmSync is
+		// ONLY legal inside the disposable profile root — the guard is a
+		// PATH check, not a flag, so no entry shape can ever point it home.
+		try {
+			const disposableRoot = readBrowserConfig().profileRoot;
+			if (entry.profileDir.startsWith(disposableRoot)) {
+				rmSync(entry.profileDir, { recursive: true, force: true });
+			} else {
+				errs.push(new Error('profile cleanup skipped - dir outside disposable root: ' + entry.profileDir));
 			}
-			// profile cleanup (operator report 2026-10-20): the isolated
-			// --user-data-dir (D5) is session-scoped — closed means GONE, or
-			// ~/.dsi/browser-profiles fills with leftovers.
-			// DATA-LOSS GUARD (RCA 2026-11-05, the borrowed wipe): rmSync is
-			// ONLY legal inside the disposable profile root. A stale HMR
-			// module instance running the pre-guard close turned this line
-			// into 'delete the host Chrome root' — guard the PATH, not just
-			// the flag, so no future entry can ever point the rm at home.
-			try {
-				const disposableRoot = readBrowserConfig().profileRoot;
-				if (entry.profileDir.startsWith(disposableRoot)) {
-					rmSync(entry.profileDir, { recursive: true, force: true });
-				} else {
-					errs.push(new Error('profile cleanup skipped - dir outside disposable root: ' + entry.profileDir));
-				}
-			} catch (e) {
-				errs.push(e);
-			}
+		} catch (e) {
+			errs.push(e);
 		}
 		state().entries.delete(id);
 		return { ok: errs.length === 0, alreadyClosed: false };

@@ -485,8 +485,6 @@
 	"browserLaunching": "meluncurkan peramban…",
 	"browserWaitingFrames": "menunggu frame…",
 	"browserOpenTitle": "Buka peramban kaca",
-	"browserBorrowHint": "Shift meminjam profil Chrome Anda — Chrome harus keluar dulu",
-	"browserBorrowQuitFirst": "Pinjam ditolak — keluarkan Chrome dulu, lalu Shift+klik lagi",
 	"browserChipLabel": "Peramban",
 	"browserUrlPlaceholder": "Cari atau ketik URL",
 	"browserReload": "Muat ulang",
@@ -503,5 +501,6 @@
 	"browserTabCloseTitle": "Tutup tab",
 	"browserZoom": "Zoom konten",
 	"browserSessionDead": "sesi glass ditutup — peramban di balik panel ini sudah tiada",
-	"terminalFontSlider": "ukuran font terminal"
+	"terminalFontSlider": "ukuran font terminal",
+	"browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile"
 }

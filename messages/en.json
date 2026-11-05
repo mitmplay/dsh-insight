@@ -485,8 +485,6 @@
 	"browserLaunching": "launching browser…",
 	"browserWaitingFrames": "waiting for frames…",
 	"browserOpenTitle": "Open the glass browser",
-	"browserBorrowHint": "Shift borrows YOUR Chrome profile — your Chrome must quit first",
-	"browserBorrowQuitFirst": "Borrow refused — quit Chrome first, then Shift+Click again",
 	"browserChipLabel": "Browser",
 	"browserUrlPlaceholder": "Search or type a URL",
 	"browserReload": "Reload",
@@ -503,5 +501,6 @@
 	"browserTabCloseTitle": "Close tab",
 	"browserZoom": "Content zoom",
 	"browserSessionDead": "glass session closed — the browser behind this panel is gone",
-	"terminalFontSlider": "terminal font size"
+	"terminalFontSlider": "terminal font size",
+	"browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile"
 }

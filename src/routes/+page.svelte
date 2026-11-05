@@ -688,7 +688,7 @@
 				floorApi.removePanel(panel.id);
 			}}
 			openedBy={panel.openedBy}
-			borrowProfile={'borrowProfile' in panel ? panel.borrowProfile === true : false}
+			headedOpen={'headedOpen' in panel ? panel.headedOpen === true : false}
 			parentTitle={panel.openedBy ? (panelTitleFor(panel.openedBy) ?? panel.openedBy) : null}
 			depth={panel.openedBy ? (lineageFacts.depthById.get(panel.openedBy) ?? 0) : 0}
 			onsession={(id) => floorApi.setBrowserSessionId(panel.id, id)}
