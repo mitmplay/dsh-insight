@@ -491,7 +491,7 @@
 	"browserUrlPlaceholder": "Search or type a URL",
 	"browserReload": "Reload",
 	"browserBack": "Back",
-"browserCopyUrl": "Copy focused tab URL",
+	"browserCopyUrl": "Copy focused tab URL",
 	"browserCopied": "Copied",
 	"browserForward": "Forward",
 	"browserCloseDelete": "Delete the glass browser — kills the session and removes the panel",
@@ -502,5 +502,6 @@
 	"browserCtxSendRightClick": "Send right-click to the page",
 	"browserTabCloseTitle": "Close tab",
 	"browserZoom": "Content zoom",
-	"browserSessionDead": "glass session closed — the browser behind this panel is gone"
+	"browserSessionDead": "glass session closed — the browser behind this panel is gone",
+	"terminalFontSlider": "terminal font size"
 }

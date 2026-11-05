@@ -67,7 +67,7 @@
 		panelWorkspaceFor,
 		seedColdOf
 	} from '$lib/services/panels/floor-reads.svelte';
-	import { clampPanelZoom, loadPanelPrefs, PANEL_WORKSPACE_EXPLORER_WIDTH, savePanelPrefs } from '$lib/utils/panel-prefs';
+	import { clampPanelZoom, clampTermFontSize, loadPanelPrefs, PANEL_WORKSPACE_EXPLORER_WIDTH, savePanelPrefs } from '$lib/utils/panel-prefs';
 	import { sanitizeWorkspaceProfile } from '$lib/utils/storage-profile';
 	import { applySidebarLane } from '$lib/config';
 	import { clampSidebarWidth } from '$lib/utils/sidebar-prefs';
@@ -336,7 +336,8 @@
 				panelWidth: pagePrefs.panelWidth,
 				zoom: pagePrefs.zoom,
 				treePct: pagePrefs.treePct,
-				explorerHidden: pagePrefs.explorerHidden
+				explorerHidden: pagePrefs.explorerHidden,
+				termFontSize: pagePrefs.termFontSize
 			},
 			activeProfile
 		);
@@ -661,6 +662,8 @@
 				bind:this={terminalDeskRef}
 				restored={panel.desk ?? null}
 				zoom={floorPanelId ? pagePrefs.zoom : 1}
+				termFontSize={pagePrefs.termFontSize}
+				onFontChange={(px) => (pagePrefs.termFontSize = clampTermFontSize(px))}
 				onMirror={(m) => {
 					terminalDeskMirrors[panel.id] = m;
 					terminalDeskMirrorsVersion++;

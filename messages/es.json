@@ -491,7 +491,7 @@
 	"browserUrlPlaceholder": "Buscar o escribir una URL",
 	"browserReload": "Recargar",
 	"browserBack": "Atrás",
-"browserCopyUrl": "Copiar la URL de la pestaña enfocada",
+	"browserCopyUrl": "Copiar la URL de la pestaña enfocada",
 	"browserCopied": "Copiado",
 	"browserForward": "Adelante",
 	"browserCloseDelete": "Eliminar el navegador de vidrio — mata la sesión y quita el panel",
@@ -502,5 +502,6 @@
 	"browserCtxSendRightClick": "Enviar clic derecho a la página",
 	"browserTabCloseTitle": "Cerrar pestaña",
 	"browserZoom": "Zoom de contenido",
-	"browserSessionDead": "sesión de glass cerrada — el navegador detrás de este panel ya no existe"
+	"browserSessionDead": "sesión de glass cerrada — el navegador detrás de este panel ya no existe",
+	"terminalFontSlider": "tamaño de fuente de la terminal"
 }

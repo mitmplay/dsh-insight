@@ -13,6 +13,7 @@
 	import { registerJobTabOpener, registerJobTabClearer, connectJobFollow } from '$lib/services/jobs/follow-client.svelte';
 	import { appConfig, loadAppConfig } from '$lib/services/config/app-config.svelte';
 	import type { DsiJobFollowEvent } from '$lib/types';
+import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 
 	/** TerminalDesk — the ONE terminal floor slot (Terminal Desk ADR,
 	 *  2026-09-24, D1/D3): tabs of stacked rows over the server's N-session
@@ -38,7 +39,9 @@
 		onShellExit,
 		restored = null,
 		onMirror,
-		zoom = 1
+		zoom = 1,
+		termFontSize = TERM_FONT_DEFAULT,
+		onFontChange
 	}: {
 		onShellExit?: () => void;
 		/** The clamped blob mirror (from the terminal panel entry) — the
@@ -48,10 +51,18 @@
 		onMirror?: (mirror: TerminalDeskMirror) => void;
 		/** Floor zoom, forwarded to every row panel (ADR-0041 Am.3 pocket). */
 		zoom?: number | null;
+		/** Terminal base font in px (ADR-0041 Am.4) — ONE desk value,
+		 *  forwarded to every row (the one-authority zoom pattern). */
+		termFontSize?: number;
+		/** Row slider-up callback — forwarded to the route (which writes
+		 *  pagePrefs). Rows emit; the desk only relays. */
+		onFontChange?: (px: number) => void;
 	} = $props();
 
 	/** Coerced zoom — one pocket source for every row (null-safe default 1). */
 	const deskZoom = $derived(zoom ?? 1);
+	/** Coerced base font — one glyph-size source for every row. */
+	const deskFont = $derived(termFontSize ?? TERM_FONT_DEFAULT);
 
 	/** The desk's root — the anchor for finding the hosting PanelColumn,
 		 *  the WHOLE column (the panel floor slot the desk lives in), not just
@@ -493,6 +504,8 @@ the rows. Restoring shows a quiet placeholder until the ladder settles.
 								bind:this={panelEls[row.key]}
 								assigned={row.assigned}
 								zoom={deskZoom}
+								termFontSize={deskFont}
+								onFontChange={(px) => onFontChange?.(px)}
 								onAssigned={(sessionId, token) => recordAssigned(row, sessionId, token)}
 								onShellExit={() => removeRow(i, row)}
 							/>

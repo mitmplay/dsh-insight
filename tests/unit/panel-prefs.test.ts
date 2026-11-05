@@ -24,6 +24,8 @@ import {
 	clampPanelZoom,
 	shelfPanelWidth,
 	clampTreePct,
+	clampTermFontSize,
+	TERM_FONT_DEFAULT,
 	TREE_PCT_DEFAULT,
 	TREE_PCT_MAX,
 	TREE_PCT_MIN,
@@ -51,7 +53,8 @@ function fullPrefs(): PanelPrefs {
 		panelWidth: 640,
 		zoom: 0.9,
 		treePct: TREE_PCT_DEFAULT,
-		explorerHidden: false
+		explorerHidden: false,
+		termFontSize: TERM_FONT_DEFAULT
 	};
 }
 
@@ -241,7 +244,8 @@ describe('panel-prefs — DsiPanelEntry type contract (1.3-T)', () => {
 			panelWidth: 730,
 			zoom: 1,
 			treePct: TREE_PCT_DEFAULT,
-			explorerHidden: false
+			explorerHidden: false,
+			termFontSize: TERM_FONT_DEFAULT
 		};
 		expectTypeOf(prefs.panels).toEqualTypeOf<DsiPanelEntry[]>();
 		savePanelPrefs(prefs);

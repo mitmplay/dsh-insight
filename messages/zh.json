@@ -502,5 +502,6 @@
 	"browserCtxSendRightClick": "向页面发送右键点击",
 	"browserTabCloseTitle": "关闭标签页",
 	"browserZoom": "内容缩放",
-	"browserSessionDead": "glass 会话已关闭 — 该面板背后的浏览器已不存在"
+	"browserSessionDead": "glass 会话已关闭 — 该面板背后的浏览器已不存在",
+	"terminalFontSlider": "终端字号"
 }

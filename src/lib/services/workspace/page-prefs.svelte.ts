@@ -14,7 +14,13 @@
  *   mixes these fields with `panels`/`selectedPanelId`/`terminalDeskMirrors`
  *   which remain floor-owned. The service only owns the numbers.
  */
-import { clampPanelWidth, clampPanelZoom, clampTreePct, loadPanelPrefs } from '$lib/utils/panel-prefs';
+import {
+	clampPanelWidth,
+	clampPanelZoom,
+	clampTermFontSize,
+	clampTreePct,
+	loadPanelPrefs
+} from '$lib/utils/panel-prefs';
 import { loadSidebarPrefs, saveSidebarPrefs } from '$lib/utils/sidebar-prefs';
 
 class PagePrefs {
@@ -27,6 +33,9 @@ class PagePrefs {
 	/** Explorer hide/show (2026-10-31 toggle RCA): $state is REQUIRED —
 	 *  a plain field swallowed the toggle click silently (no re-render). */
 	explorerHidden = $state(false);
+	/** Terminal base font in px (ADR-0041 Am.4): the TermFontSlider's
+	 *  truth. Zoom multiplies on top — this is the preference NUMBER. */
+	termFontSize = $state(12);
 	/** Sidebar rail state (OCI ControlRail port). */
 	sidebarCollapsed = $state(false);
 	sidebarWidth = $state(0);
@@ -59,6 +68,7 @@ class PagePrefs {
 		this.zoom = clampPanelZoom(floor.zoom);
 		this.treePct = clampTreePct(floor.treePct);
 		this.explorerHidden = floor.explorerHidden === true;
+		this.termFontSize = clampTermFontSize(floor.termFontSize);
 		const sidebar = loadSidebarPrefs(profile);
 		this.sidebarCollapsed = sidebar.collapsed;
 		this.sidebarWidth = sidebar.width;

@@ -6,6 +6,8 @@
 	import * as m from '$lib/paraglide/messages';
 	import { pickTerminalTheme } from './terminal-theme';
 	import { panelHot } from './terminal-hmr.js';
+import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
+import TermFontSlider from './TermFontSlider.svelte';
 	import {
 		initialTerminalPanelState,
 		reduceTerminalFrame,
@@ -20,7 +22,9 @@
 		onShellExit,
 		assigned = null,
 		onAssigned,
-		zoom = 1
+		zoom = 1,
+		termFontSize = TERM_FONT_DEFAULT,
+		onFontChange
 	}: {
 		onShellExit?: () => void;
 		/** Row mode (Terminal Desk, Wave 2): the desk opened the session and
@@ -38,10 +42,19 @@
 		 *  wrapper counter-scales (net 1 — layout == visual) and the zoom
 		 *  reaches the glyphs as fontSize × zoom. Null/undefined = 1. */
 		zoom?: number | null;
+		/** Terminal base font in px (ADR-0041 Am.4): the operator's
+		 *  preference NUMBER; zoom multiplies on top. Clamped by the
+		 *  caller (the pagePrefs seed). */
+		termFontSize?: number;
+		/** Slider-up callback — the desk forwards to the route, which
+		 *  writes pagePrefs (the persisted floor blob). */
+		onFontChange?: (px: number) => void;
 	} = $props();
 
 	/** Coerced zoom — the pocket's single source (null-safe default 1). */
 	const pocketZoom = $derived(zoom ?? 1);
+	/** Coerced base font — the glyph-size preference (null-safe). */
+	const baseFont = $derived(termFontSize ?? TERM_FONT_DEFAULT);
 
 	let panelState = $state<TerminalPanelState>({ ...initialTerminalPanelState });
 	let disabled = $state(false);
@@ -67,9 +80,14 @@
 	// syncPtyDims gate decides whether the PTY cares). Mirrors the theme
 	// effect idiom above: an option-setter on the live instance.
 	$effect(() => {
+		// READ BOTH SIGNALS BEFORE the xterm guard: an early return on the
+		// first run (xterm attaches later, a plain let invisible to the
+		// scheduler) would leave baseFont untracked — a later font-drag
+		// would never re-fire this effect (found live, 2026-11-05 e2e).
 		const z = pocketZoom;
+		const f = baseFont;
 		if (!xterm) return;
-		xterm.options.fontSize = Math.round(12 * z * 100) / 100;
+		xterm.options.fontSize = Math.round(f * z * 100) / 100;
 		fitAddon?.fit();
 	});
 
@@ -179,7 +197,7 @@
 					// Pocket zoom's initial value (the $effect above only re-fires
 					// on PROP changes once the effect has run with a live xterm;
 					// plain-let xterm is invisible to it at creation time).
-					fontSize: Math.round(12 * pocketZoom * 100) / 100,
+					fontSize: Math.round(baseFont * pocketZoom * 100) / 100,
 					theme: pickTerminalTheme(theming, themePrefs.resolved) ?? undefined
 				});
 				fitAddon = new FitAddon();
@@ -410,6 +428,15 @@ input line) appears ONLY when xterm cannot attach.
 			<span data-testid="terminal-heal-badge" class="rounded bg-slate-700 px-1.5 py-0.5">{t(m.terminalTokenRefreshed)}</span>
 		{/if}
 		<div class="grow"></div>
+		<!-- Terminal base font (ADR-0041 Am.4): right-aligned in the
+		     settle-badge row; presentational — the desk/route own the
+		     meaning, this panel only re-fires the pocket refit. -->
+		<TermFontSlider
+			font={baseFont}
+			onchange={(px) => onFontChange?.(px)}
+			label={t(m.terminalFontSlider)}
+			testid="terminal-font-slider"
+		/>
 	</div>
 	{#if disabled}
 		<div class="p-3 text-xs text-slate-500" data-testid="terminal-disabled">{t(m.terminalDisabled)}</div>

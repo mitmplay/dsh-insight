@@ -77,6 +77,23 @@ export const TREE_PCT_DEFAULT = 30;
 export const TREE_PCT_MIN = 15;
 export const TREE_PCT_MAX = 70;
 
+/** The terminal base font (ADR-0041 Am.4): the operator's glyph-size
+ *  preference in px — zoom multiplies ON TOP of it. A DESK fact, so it
+ *  lives in the dsi-panels floor blob beside zoom (not settings.yaml).
+ *  One bound site: load-side sanitize AND the slider both route through
+ *  clampTermFontSize; the default 12 retires TerminalPanel's literal. */
+export const TERM_FONT_DEFAULT = 12;
+export const TERM_FONT_MIN = 8;
+export const TERM_FONT_MAX = 20;
+
+/** The single terminal-font bound site — load-side sanitizing and the
+ *  TermFontSlider both route through here; junk (non-finite) falls back
+ *  to TERM_FONT_DEFAULT. Mirrors clampTreePct's discipline. */
+export function clampTermFontSize(px: unknown): number {
+	if (typeof px !== 'number' || !Number.isFinite(px)) return TERM_FONT_DEFAULT;
+	return Math.max(TERM_FONT_MIN, Math.min(TERM_FONT_MAX, Math.round(px)));
+}
+
 /** The single treePct bound site — sanitize a stored or dragged value
  *  into [TREE_PCT_MIN, TREE_PCT_MAX]; junk (non-finite) falls back to
  *  TREE_PCT_DEFAULT. Mirrors clampPanelZoom's discipline. */
@@ -101,6 +118,9 @@ export interface PanelPrefs {
 	/** Explorer hide/show (2026-10-31): the tree lane's collapsed state.
 	 *  Optional — absent in legacy blobs, defaulted false on read. */
 	explorerHidden?: boolean;
+	/** Terminal base font in px (ADR-0041 Am.4). Optional — absent in
+	 *  legacy blobs, defaulted TERM_FONT_DEFAULT by clampTermFontSize. */
+	termFontSize?: number;
 }
 
 /**
@@ -228,7 +248,8 @@ export function defaultPanelPrefs(): PanelPrefs {
 		panelWidth: defaultPanelWidth(),
 		zoom: PANEL_DEFAULT_ZOOM,
 		treePct: TREE_PCT_DEFAULT,
-		explorerHidden: false
+		explorerHidden: false,
+		termFontSize: TERM_FONT_DEFAULT
 	};
 }
 
@@ -544,12 +565,27 @@ export function loadPanelPrefs(profile?: string | null): PanelPrefs {
 				: TREE_PCT_DEFAULT;
 		// Explorer hide/show (2026-10-31): strict boolean — junk is false.
 		const explorerHidden = parsed.explorerHidden === true;
+		// Terminal base font (ADR-0041 Am.4): clamp through the single
+		// bound site; absent in legacy blobs — only override the default
+		// when the stored value is a usable number.
+		const termFontSize =
+			typeof parsed.termFontSize === 'number' && Number.isFinite(parsed.termFontSize)
+				? clampTermFontSize(parsed.termFontSize)
+				: TERM_FONT_DEFAULT;
 		const selected =
 			typeof parsed.selectedPanelId === 'string' &&
 			panels.some((panel) => panel.id === parsed.selectedPanelId)
 				? parsed.selectedPanelId
 				: (panels[0]?.id ?? null);
-		return { panels, selectedPanelId: selected, panelWidth, zoom, treePct, explorerHidden };
+		return {
+			panels,
+			selectedPanelId: selected,
+			panelWidth,
+			zoom,
+			treePct,
+			explorerHidden,
+			termFontSize
+		};
 	} catch {
 		return defaultPanelPrefs();
 	}

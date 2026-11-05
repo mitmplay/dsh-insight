@@ -491,7 +491,7 @@
 	"browserUrlPlaceholder": "Cari atau ketik URL",
 	"browserReload": "Muat ulang",
 	"browserBack": "Kembali",
-"browserCopyUrl": "Salin URL tab yang difokus",
+	"browserCopyUrl": "Salin URL tab yang difokus",
 	"browserCopied": "Tersalin",
 	"browserForward": "Maju",
 	"browserCloseDelete": "Hapus browser kaca — matikan sesi dan hapus panel",
@@ -502,5 +502,6 @@
 	"browserCtxSendRightClick": "Kirim klik kanan ke halaman",
 	"browserTabCloseTitle": "Tutup tab",
 	"browserZoom": "Zoom konten",
-	"browserSessionDead": "sesi glass ditutup — peramban di balik panel ini sudah tiada"
+	"browserSessionDead": "sesi glass ditutup — peramban di balik panel ini sudah tiada",
+	"terminalFontSlider": "ukuran font terminal"
 }
