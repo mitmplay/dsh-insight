@@ -485,6 +485,8 @@
 	"browserLaunching": "meluncurkan peramban…",
 	"browserWaitingFrames": "menunggu frame…",
 	"browserOpenTitle": "Buka peramban kaca",
+	"browserCloneHint": "Shift membuka profil Chrome Anda (klon)",
+	"browserCloneFallback": "Klon profil tidak tersedia — kaca bersih dibuka",
 	"browserChipLabel": "Peramban",
 	"browserUrlPlaceholder": "Cari atau ketik URL",
 	"browserReload": "Muat ulang",

@@ -485,6 +485,8 @@
 	"browserLaunching": "launching browser…",
 	"browserWaitingFrames": "waiting for frames…",
 	"browserOpenTitle": "Open the glass browser",
+	"browserCloneHint": "Shift opens YOUR Chrome profile (clone)",
+	"browserCloneFallback": "Profile clone unavailable — clean glass opened",
 	"browserChipLabel": "Browser",
 	"browserUrlPlaceholder": "Search or type a URL",
 	"browserReload": "Reload",

@@ -485,6 +485,8 @@
 	"browserLaunching": "iniciando navegador…",
 	"browserWaitingFrames": "esperando fotogramas…",
 	"browserOpenTitle": "Abrir el navegador de cristal",
+	"browserCloneHint": "Shift abre tu perfil de Chrome (clon)",
+	"browserCloneFallback": "Clonación de perfil no disponible — se abrió vidrio limpio",
 	"browserChipLabel": "Navegador",
 	"browserUrlPlaceholder": "Buscar o escribir una URL",
 	"browserReload": "Recargar",

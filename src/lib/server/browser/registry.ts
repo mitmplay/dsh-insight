@@ -22,6 +22,8 @@ import { join } from 'node:path';
 
 import { chromium, type CDPSession, type BrowserContext, type Page } from 'playwright-core';
 
+import { copySignatureStores, launchIdentityFor, resolveCloneSource } from './profile-clone.js';
+
 import { readBrowserConfig, type BrowserConfig } from '$lib/server/insight-config.js';
 
 /** The MCP brain version — PINNED (spec W3 3.1; the ADR-0029 D7 ledger: the
@@ -219,6 +221,11 @@ export interface OpenOptions {
 	/** ADR-0045 amendment 3 D7 — the opener panel's harness session id;
 	 *  recorded so drivers can claim their OWN glass. */
 	ownerSessionId?: string;
+	/** ADR-0046 D0/D2 - Shift+Click clone option: copy the host Chrome
+	 *  last-used profile signature into the fresh session dir before
+	 *  launch and drop the identity spoofs (D3). Absent or failed source
+	 *  means clean-launch fallback. */
+	cloneSignature?: boolean;
 }
 
 /** One attached page of the glass context: its own CDP session + relay
@@ -980,6 +987,28 @@ class BrowserRegistry {
 			// marker write must never fail the open
 		}
 
+		// The Borrowed Signature (ADR-0046 D1/D2/D3): Shift+Click's clone.
+		// Copy the host's last-used profile signature into the session dir,
+		// keyed under its OWN profile name so Secure-Preferences MACs verify;
+		// drop the identity spoofs only when the clone actually landed.
+		let cloneProfileKey: string | null = null;
+		let cloneVerdict = '';
+		if (options.cloneSignature) {
+			const source = resolveCloneSource();
+			if (!source) {
+				cloneVerdict = 'clone skipped - no usable host Chrome last-used profile';
+			} else {
+				const verdicts = copySignatureStores(source, profileDir);
+				const okCount = verdicts.filter((v) => v.ok).length;
+				if (okCount === 0) {
+					cloneVerdict = 'clone skipped - every signature store failed to copy';
+				} else {
+					cloneProfileKey = source.profileKey;
+					cloneVerdict = 'cloned ' + okCount + '/' + verdicts.length + ' signature stores from ' + source.profileKey;
+				}
+			}
+		}
+
 		// launchPersistentContext is the ONLY way to hand a profile dir to
 		// playwright (launch() refuses --user-data-dir in args).
 		// Anti-bot hardening (bug 2026-10-20: YouTube kills playback with
@@ -995,6 +1024,9 @@ class BrowserRegistry {
 		// cannot paint over a hidden bar. Veto it by name; the launch gate
 		// below proves the veto landed.
 		const ignoreDefaultArgs = ['--enable-automation', '--mute-audio', '--hide-scrollbars'];
+		// ADR-0046 D3: a cloned real identity launches without the spoofed
+		// userAgent/timezoneId/locale; plain launches keep today's spoofs.
+		const identity = launchIdentityFor(cloneProfileKey !== null);
 		const launch = (useChrome: boolean) => chromium.launchPersistentContext(profileDir, {
 	...(useChrome ? { channel: 'chrome' as const } : {}),
 	headless: options.headless ?? cfg.headless,
@@ -1015,6 +1047,9 @@ class BrowserRegistry {
 		// the glass has no physical keys: page media must autoplay WITH
 		// sound (operator report 2026-10-20 — silent headless YouTube)
 		'--autoplay-policy=no-user-gesture-required',
+		// ADR-0046: open the CLONED profile key, not Default - the copied
+		// Secure-Preferences MACs are keyed to this profile name.
+		...(cloneProfileKey ? ['--profile-directory=' + cloneProfileKey] : []),
 		// '--window-position=-32000,-32000', //# if on will failed the yt video
 		'--window-size=' + (Math.max(200, Math.min(1920, options.width ?? 730)) + 6) + ',' + (Math.max(120, Math.min(1080, options.height ?? 830)) + 70)
 	],
@@ -1029,9 +1064,9 @@ class BrowserRegistry {
 	viewport: (options.headless ?? cfg.headless)
 		? { width: Math.max(200, Math.min(1920, options.width ?? 730)), height: Math.max(120, Math.min(1080, options.height ?? 830)) }
 		: null,
-	userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-	timezoneId: 'America/New_York',
-	locale: 'en-US'
+	...(identity.userAgent ? { userAgent: identity.userAgent } : {}),
+	...(identity.timezoneId ? { timezoneId: identity.timezoneId } : {}),
+	...(identity.locale ? { locale: identity.locale } : {})
 });
 let context: BrowserContext;
 try {

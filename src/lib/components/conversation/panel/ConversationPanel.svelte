@@ -185,7 +185,7 @@
 		/** Browser-chip intent (The Glass Browser spec W2, ADR-0029 D4) —
 		 *  the singleton browser panel's opener; absent = no chip (the
 		 *  subagent read-only mount never receives it). */
-		onOpenBrowser?: () => void;
+		onOpenBrowser?: (shift: boolean) => void;
 		onFileLink?: (href: string) => void;
 		/** Page-owned file-open seat for the markdown cards (ADR-0013 D5). */
 		onFileOpen?: (path: string) => void;

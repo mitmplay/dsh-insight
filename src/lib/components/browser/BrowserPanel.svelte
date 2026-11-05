@@ -40,6 +40,7 @@
 		 *  title, and the opener's lineage depth — the lineage chip's facts.
 		 *  openedBy absent (ControlBar open) means NO chip, honestly. */
 		openedBy = undefined,
+		cloneIntent = false,
 		parentTitle = null,
 		depth = 0,
 		onsession,
@@ -49,6 +50,9 @@
 		onclosed?: () => void;
 		apiBase?: string;
 		openedBy?: string | undefined;
+		/** ADR-0046 D0 - the Shift+Click intent from the chip; rides the
+		 *  open POST as cloneSignature. Never set by re-bind/restore. */
+		cloneIntent?: boolean;
 		parentTitle?: string | null;
 		depth?: number;
 		onsession?: (id: string) => void;
@@ -736,7 +740,12 @@
 					// keyless ControlBar singleton.
 					body: JSON.stringify({
 						...(birthW > 0 ? { width: birthW, height: birthH } : {}),
-						...((openedBy ?? harnessSessionKey()) ? { ownerSessionId: (openedBy ?? harnessSessionKey())! } : {})
+						...((openedBy ?? harnessSessionKey()) ? { ownerSessionId: (openedBy ?? harnessSessionKey())! } : {}),
+						// ADR-0046 D0/D2: the chip's Shift asks for the Borrowed
+						// Signature - the server clones the host last-used profile
+						// into this session's dir before launch (or falls back
+						// clean, honestly).
+						...(cloneIntent ? { cloneSignature: true } : {})
 					})
 				});
 					if (!res.ok) throw new Error('open failed: ' + res.status);

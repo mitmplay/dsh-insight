@@ -685,6 +685,7 @@
 				floorApi.removePanel(panel.id);
 			}}
 			openedBy={panel.openedBy}
+			cloneIntent={'cloneIntent' in panel ? panel.cloneIntent === true : false}
 			parentTitle={panel.openedBy ? (panelTitleFor(panel.openedBy) ?? panel.openedBy) : null}
 			depth={panel.openedBy ? (lineageFacts.depthById.get(panel.openedBy) ?? 0) : 0}
 			onsession={(id) => floorApi.setBrowserSessionId(panel.id, id)}
@@ -855,7 +856,7 @@
 					a2aRows={a2aRowsFor(p.sessionId)}
 					a2aTitles={spineTitles}
 					onOpenExplorer={floorApi.openWorkspaceExplorer}
-					onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel(undefined, false, undefined, p.sessionId))}
+					onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : ((shift: boolean) => floorApi.openBrowserPanel(undefined, false, undefined, p.sessionId, undefined, shift))}
 					focusComposer={p.id === focusComposerId}
 					oncomposerfocus={() => floorApi.clearFocusComposer()}
 					focused={p.id === selectedPanelId}
@@ -882,7 +883,7 @@
 					a2aTitles={spineTitles}
 					onNeedCold={(sid) => void ensureCold(sid)}
 					onOpenExplorer={floorApi.openWorkspaceExplorer}
-					onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : (() => floorApi.openBrowserPanel(undefined, false, undefined, p.sessionId))}
+					onOpenBrowser={lineageFacts.subagentIds.has(p.sessionId) ? undefined : ((shift: boolean) => floorApi.openBrowserPanel(undefined, false, undefined, p.sessionId, undefined, shift))}
 					focusComposer={p.id === focusComposerId}
 					oncomposerfocus={() => floorApi.clearFocusComposer()}
 					focused={p.id === selectedPanelId}

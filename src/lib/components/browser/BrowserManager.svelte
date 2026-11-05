@@ -10,6 +10,7 @@
 		browserSessionId,
 		onclose,
 		openedBy = undefined,
+		cloneIntent = false,
 		parentTitle = null,
 		depth = 0,
 		onsession,
@@ -20,6 +21,8 @@
 		/** Provenance pass-through (ADR-0036 D3) — the thin shell owns no
 		 *  lineage state; the route resolves, the glass displays. */
 		openedBy?: string | undefined;
+		/** ADR-0046 D0 - Shift+Click intent for the glass's open POST. */
+		cloneIntent?: boolean;
 		parentTitle?: string | null;
 		depth?: number;
 		/** Session write-back (Amendment 3): the glass reports its resolved
@@ -32,7 +35,7 @@
 </script>
 
 <div class="panel-manager-body" data-testid="panel-browser-slot">
-	<BrowserPanel {browserSessionId} {onclose} {openedBy} {parentTitle} {depth} {onsession} {onclosed} />
+	<BrowserPanel {browserSessionId} {onclose} {openedBy} {cloneIntent} {parentTitle} {depth} {onsession} {onclosed} />
 </div>
 <style>
 	/* Same rule as +page.svelte's scoped .panel-manager-body (RCA

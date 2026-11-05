@@ -74,7 +74,7 @@
 		onOpenExplorer?: (sessionId: string, workspace: string) => void;
 		/** Browser-chip click intent (The Glass Browser spec W2) — the
 		 *  singleton browser panel's opener; absent renders no chip. */
-		onOpenBrowser?: () => void;
+		onOpenBrowser?: (shift: boolean) => void;
 	} = $props();
 </script>
 

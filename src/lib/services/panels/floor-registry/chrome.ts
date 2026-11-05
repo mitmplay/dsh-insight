@@ -110,7 +110,7 @@ export function openWorkspaceExplorer(sessionId: string, workspace: string): voi
  *  browser panel across the floor — the terminal singleton rule (Terminal
  *  Desk ADR D2). A click on an open browser FOCUSES it; a miss inserts at
  *  the focused slot. */
-export function openBrowserPanel(index?: number, keepSelection = false, width?: number, openedBy?: string, sessionId?: string): void {
+export function openBrowserPanel(index?: number, keepSelection = false, width?: number, openedBy?: string, sessionId?: string, cloneIntent?: boolean): void {
 	// Amendment 3: ONE glass PER OPENER — the dedupe key is openedBy (the
 	// workspace-explorer per-root precedent). A second opener's chip spawns
 	// its OWN glass; the same opener's click focuses. The keyless
@@ -143,7 +143,7 @@ export function openBrowserPanel(index?: number, keepSelection = false, width?: 
 	insertPanel(
 		// openedBy rides the INSERT path only — the per-opener early-return
 		// above is D2: the same opener's click focuses, never rewrites.
-		makeBrowserPanel(width, openedBy, sessionId),
+		makeBrowserPanel(width, openedBy, sessionId, cloneIntent),
 		slot
 	);
 	if (keepSelection && prevSelected !== null && prevSelected !== undefined) {
