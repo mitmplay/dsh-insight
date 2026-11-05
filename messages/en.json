@@ -485,7 +485,7 @@
 	"browserLaunching": "launching browser…",
 	"browserWaitingFrames": "waiting for frames…",
 	"browserOpenTitle": "Open the glass browser",
-	"browserChipLabel": "⌖ Browser",
+	"browserChipLabel": "Browser",
 	"browserUrlPlaceholder": "Search or type a URL",
 	"browserReload": "Reload",
 	"browserBack": "Back",

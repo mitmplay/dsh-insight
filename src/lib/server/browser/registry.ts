@@ -334,6 +334,13 @@ function state(): { entries: Map<string, RegistryEntry>; closed: Set<string> } {
 function sweepOrphanProfiles(keep: Set<string>): void {
 	try {
 		const root = readBrowserConfig().profileRoot;
+		// Fix 2026-11-05 (browser-proxy-verbs profile-dir flake): the DIR arm
+		// is gated off under vitest, same authority rule as the kill arm
+		// below — a booting worker's keep-set cannot see another worker's
+		// LIVE sessions, and its sweep rmSync'd a sibling's freshly opened
+		// profile dir mid-test (existsSync flipped false between open() and
+		// the assertion). Production keeps ONE registry, so the sweep runs.
+		if (process.env.VITEST) return;
 		for (const name of readdirSync(root)) {
 			if (keep.has(name)) continue;
 			// Ghost Glass Fix 3 (RCA 2026-10-31 Bug 3): sweeping the fingerprint

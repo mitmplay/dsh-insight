@@ -35,9 +35,12 @@ describe('Glass Browser icon color grammar (glass-tab-ids)', () => {
 	it('binds the zoom slider to the same accent token', () => {
 		// ZoomSlider extraction (2026-11-02): the slider — and its accent
 		// token — live in the component; the panel mounts it.
-		const zoomSrc = readFileSync(join(ROOT, 'buttons', 'ZoomSlider.svelte'), 'utf8');
+		// 2026-11-05: the mount moved panel → BrowserProvenance; the pin
+		// follows the mount, still guarding the same accent token.
+		const zoomSrc = readFileSync(join(BUTTONS, 'ZoomSlider.svelte'), 'utf8');
 		expect(zoomSrc).toContain('accent-[var(--color-accent-purple)]');
-		expect(panelSrc).toContain('<ZoomSlider');
+		const provenanceSrc = readFileSync(join(ROOT, 'BrowserProvenance.svelte'), 'utf8');
+		expect(provenanceSrc).toContain('<ZoomSlider');
 	});
 
 	it('leaves state semantics alone (disabled + active chip untouched)', () => {
