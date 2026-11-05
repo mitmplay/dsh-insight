@@ -43,14 +43,14 @@ export function makeTerminalPanel(): DsiPanelEntry {
  *  chip clicks and legacy slots — the honest-slider preset.
  *  openedBy: the opener session's provenance, recorded ONCE at spawn and
  *  never rewritten (ADR-0036 D1/D2); undefined = no conversation context. */
-export function makeBrowserPanel(width?: number, openedBy?: string, sessionId?: string, cloneIntent?: boolean): DsiPanelEntry {
+export function makeBrowserPanel(width?: number, openedBy?: string, sessionId?: string, borrowProfile?: boolean): DsiPanelEntry {
 	return {
 		id: nextPanelId(),
 		kind: 'browser',
 		width: clampPanelWidth(width ?? browserPanelWidth(), 'browser'),
 		...(openedBy !== undefined ? { openedBy } : {}),
 		...(sessionId !== undefined ? { browserSessionId: sessionId } : {}),
-		...(cloneIntent ? { cloneIntent: true } : {})
+		...(borrowProfile ? { borrowProfile: true } : {})
 	};
 }
 

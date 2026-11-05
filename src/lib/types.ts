@@ -756,7 +756,7 @@ export interface DsiBrowserPanel {
 	/** ADR-0046 D0 - Shift+Click intent, recorded ONCE at spawn: the
 	 *  glass's open POST asks for the host last-used profile's signature.
 	 *  Never set by re-bind or boot restore. */
-	cloneIntent?: boolean;
+	borrowProfile?: boolean;
 }
 
 /** The prompt-manager branch (ADR D6/D8) — hosts PromptManagerPanel; no

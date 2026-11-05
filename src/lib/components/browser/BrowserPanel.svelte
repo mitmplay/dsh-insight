@@ -40,7 +40,7 @@
 		 *  title, and the opener's lineage depth — the lineage chip's facts.
 		 *  openedBy absent (ControlBar open) means NO chip, honestly. */
 		openedBy = undefined,
-		cloneIntent = false,
+		borrowProfile = false,
 		parentTitle = null,
 		depth = 0,
 		onsession,
@@ -51,8 +51,8 @@
 		apiBase?: string;
 		openedBy?: string | undefined;
 		/** ADR-0046 D0 - the Shift+Click intent from the chip; rides the
-		 *  open POST as cloneSignature. Never set by re-bind/restore. */
-		cloneIntent?: boolean;
+		 *  open POST as borrowProfile. Never set by re-bind/restore. */
+		borrowProfile?: boolean;
 		parentTitle?: string | null;
 		depth?: number;
 		onsession?: (id: string) => void;
@@ -745,7 +745,7 @@
 						// Signature - the server clones the host last-used profile
 						// into this session's dir before launch (or falls back
 						// clean, honestly).
-						...(cloneIntent ? { cloneSignature: true } : {})
+						...(borrowProfile ? { borrowProfile: true } : {})
 					})
 				});
 					if (!res.ok) throw new Error('open failed: ' + res.status);
