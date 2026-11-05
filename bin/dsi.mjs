@@ -384,6 +384,18 @@ function setDshAuthToken(token) {
  *  falls back to the registry's latest tag). An exact pin, not a range: a
  *  range drifts to whatever the registry resolves, and the pin exists
  *  precisely because latest can change the API contract under DSI. */
+/** The Stamped Floor (ADR 2026-11-05, D1): every floor announces its own
+ *  addresses into the env it gives its children — the UI base (the Floor
+ *  Seam D1a seam, finally with a writer) and the brain URL (the preset's
+ *  !!js expression reads DSI_MCP_URL with a 9515 bare-boot fallback). The
+ *  launcher is the only party that knows both ports at spawn time. */
+function stampedFloorEnv(uiPort) {
+	return {
+		DSI_UI: 'http://127.0.0.1:' + uiPort,
+		DSI_MCP_URL: 'http://127.0.0.1:' + (process.env.DSI_MCP_PORT ?? 9515) + '/sse'
+	};
+}
+
 function dshWebVersion() {
 	const doc = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf-8'));
 	const version = doc?.dsh?.webVersion;
@@ -506,7 +518,7 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = [], opts = {})
 	// host lifecycle (vite close hook stops it; one Ctrl-C, no orphan).
 	const host = inProcess ? null : spawn('/bin/sh', [script, ...extraArgs], {
 		stdio: 'inherit',
-		env: { ...process.env, DSH_WEB_VERSION: dshWebVersion() }
+		env: { ...process.env, DSH_WEB_VERSION: dshWebVersion(), ...stampedFloorEnv(uiPort) }
 	});
 	const ui = mode === 'build' ? startDsiServer(uiPort, dshBase, opts) : startDsiDevServer(uiPort, dshBase, mode, execArgv, opts);
 	// The browser follows the UI: the built page (5174) — or, in --dev mode,
@@ -773,6 +785,7 @@ function startDsiDevServer(defaultPort = '5175', dshBase = undefined, mode = 'pa
 			DSI_DEV: '1',
 			// D4/D6: the mode rides as env, never past the CLI to the host.
 			...devModeEnv(mode, { playwrightMcp: opts.playwrightMcp === true }),
+			...stampedFloorEnv(process.env.PORT ?? defaultPort),
 			// The Faithful Bounce (ADR 2026-10-13, D1): the inspector flags are
 			// part of the launch record — stamped so every restorer (the bounce
 			// boot via ps -E, the delayed re-serve via inherited env) can put
@@ -802,6 +815,7 @@ function startDsiServer(defaultPort = '5174', dshBase = undefined, opts = {}) {
 			// vite child got it via startDsiDevServer's devModeEnv spread; the
 			// built server was silently dropping it (caught by the live gate).
 			...devModeEnv('build', { playwrightMcp: opts.playwrightMcp === true }),
+			...stampedFloorEnv(process.env.PORT ?? defaultPort),
 			...(dshBase !== undefined ? { DSH_BASE_URL: dshBase } : {})
 		}
 	});
