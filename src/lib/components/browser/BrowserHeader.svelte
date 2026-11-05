@@ -278,8 +278,8 @@
 		<UrlCopy
 			class="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-surface-border bg-surface text-surface-muted hover:bg-surface-active disabled:opacity-40"
 			{copied}
-			copiedLabel="Copied"
-			label="Copy focused tab URL"
+			copiedLabel={m.browserCopied()}
+			label={m.browserCopyUrl()}
 			testid="browser-copy-url"
 			disabled={!copyUrl}
 			oncopy={() => void copyFocusedUrl()}

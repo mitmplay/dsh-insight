@@ -18,6 +18,7 @@ const registrySpies = vi.hoisted(() => ({
 	peek: vi.fn(),
 	write: vi.fn(),
 	signal: vi.fn(),
+	resize: vi.fn(),
 	close: vi.fn(),
 	readFrom: vi.fn(),
 	events: vi.fn(),
@@ -124,6 +125,24 @@ describe('POST /api/terminal/[id]/send — payload validation (400 before the re
 		const res = await send({ token: 'k', action: 'write', data: 42 });
 		expect(res.status).toBe(400);
 		expect(registrySpies.write).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		['non-numeric cols', { token: 'k', action: 'resize', cols: 'wide', rows: 24 }],
+		['non-numeric rows', { token: 'k', action: 'resize', cols: 80, rows: null }],
+		['cols below minimum', { token: 'k', action: 'resize', cols: 1, rows: 24 }],
+		['rows below minimum', { token: 'k', action: 'resize', cols: 80, rows: 1 }]
+	])('resize %s answers 400 BAD_REQUEST', async (_name, body) => {
+		const res = await send(body);
+		expect(res.status).toBe(400);
+		expect(registrySpies.resize).not.toHaveBeenCalled();
+	});
+
+	it('resize forwards fitted dims and answers {resized:true}', async () => {
+		const res = await send({ token: 'tok', action: 'resize', cols: 120, rows: 40 });
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ resized: true });
+		expect(registrySpies.resize).toHaveBeenCalledExactlyOnceWith('t1', 'tok', 120, 40);
 	});
 
 	it.each([

@@ -35,6 +35,8 @@ vi.mock('@xterm/xterm', () => ({
 		onData(fn: (data: string) => void) {
 			onDataHandlers.push(fn);
 		}
+		onResize(_fn: (e: { cols: number; rows: number }) => void) {}
+		options: Record<string, unknown> = {};
 		focus() {}
 		dispose() {
 			this.disposed = true;
@@ -400,6 +402,136 @@ describe('TerminalPanel — enabled lifecycle (coverage)', () => {
 		const calls = vi.mocked(fetch).mock.calls.filter((c) => String(c[0]).includes('/send'));
 		expect(calls.length).toBe(before + 1);
 		expect((calls[calls.length - 1][1] as RequestInit).body).toContain('"write"');
+		h.cleanup();
+	});
+});
+
+describe('TerminalPanel — token auto-heal + reconnect ladder (coverage)', () => {
+	it('403 FOREIGN_SESSION write heals: reattach once, swap the token, retry the SAME keystroke', async () => {
+		let writeAttempts = 0;
+		let reattached = false;
+		const onAssigned = vi.fn();
+		fetchRoute = (url, init) => {
+			const body = (init as RequestInit | undefined)?.body?.toString() ?? '';
+			if (url.endsWith('/reattach')) {
+				reattached = true;
+				return Promise.resolve(jsonResponse({ token: 't2', fromByte: 0 }));
+			}
+			if (url.includes('/send') && body.includes('"write"')) {
+				writeAttempts += 1;
+				if (writeAttempts === 1) return Promise.resolve(new Response(JSON.stringify({ error: 'FOREIGN_SESSION' }), { status: 403 }));
+				return Promise.resolve(jsonResponse({ ok: true }));
+			}
+			if (url === '/api/terminal' && !init) return Promise.resolve(jsonResponse({ enabled: true, sessions: [] }));
+			if (url === '/api/terminal' && init) return Promise.resolve(jsonResponse({ sessionId: 's1', token: 't1', totalBytes: 0 }));
+			return Promise.resolve(jsonResponse({ ok: true }));
+		};
+		const h = await mountPanel({ onAssigned });
+		await tick();
+		flushSync();
+		// xterm keystroke → write → 403 → heal → retry succeeds
+		onDataHandlers[0]('ls\n');
+		await tick();
+		await tick();
+		flushSync();
+		expect(reattached).toBe(true);
+		expect(writeAttempts).toBe(2);
+		// the heal badge shows and the desk learns the fresh token
+		expect(h.target.querySelector('[data-testid="terminal-heal-badge"]')).not.toBeNull();
+		expect(onAssigned).toHaveBeenCalledWith('s1', 't2');
+		h.cleanup();
+	});
+
+	it('a refused heal (reattach not ok) gives up quietly — no second write attempt', async () => {
+		let writeAttempts = 0;
+		fetchRoute = (url, init) => {
+			const body = (init as RequestInit | undefined)?.body?.toString() ?? '';
+			if (url.endsWith('/reattach')) return Promise.resolve(jsonResponse({ error: 'no' }, false));
+			if (url.includes('/send') && body.includes('"write"')) {
+				writeAttempts += 1;
+				return Promise.resolve(new Response('{}', { status: 403 }));
+			}
+			if (url === '/api/terminal' && !init) return Promise.resolve(jsonResponse({ enabled: true, sessions: [] }));
+			if (url === '/api/terminal' && init) return Promise.resolve(jsonResponse({ sessionId: 's1', token: 't1', totalBytes: 0 }));
+			return Promise.resolve(jsonResponse({ ok: true }));
+		};
+		const h = await mountPanel();
+		await tick();
+		flushSync();
+		onDataHandlers[0]('x');
+		await tick();
+		await tick();
+		expect(writeAttempts).toBe(1);
+		h.cleanup();
+	});
+
+	it('stream error closes the source and the ladder RE-ATTACHES from the last painted offset', async () => {
+		fetchRoute = openRoute();
+		const h = await mountPanel();
+		vi.useFakeTimers();
+		try {
+			// paint an offset, then the stream dies
+			lastES!.emit('output', JSON.stringify({ text: 'chunk', nextOffset: 4096 }));
+			const dead = lastES!;
+			dead.onerror?.();
+			expect(dead.closed).toBe(true);
+			// backoff timer fires the manual reattach from lastOffset
+			vi.advanceTimersByTime(1000);
+			expect(lastES).not.toBe(dead);
+			expect(lastES!.url).toBe('/api/terminal/s1/stream?fromByte=4096');
+			// the delay doubled: the second error waits longer, still one ladder at a time
+			const second = lastES!;
+			second.onerror?.();
+			vi.advanceTimersByTime(1000);
+			expect(lastES).toBe(second);
+			vi.advanceTimersByTime(1000);
+			expect(lastES).not.toBe(second);
+			h.cleanup();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('a closed named frame ends the stream: the source closes and the ladder never restarts', async () => {
+		fetchRoute = openRoute();
+		const h = await mountPanel();
+		vi.useFakeTimers();
+		try {
+			const es = lastES!;
+			es.emit('closed', JSON.stringify({ quiescent: true }));
+			expect(es.closed).toBe(true);
+			const count = vi.mocked(fetch).mock.calls.length;
+			es.onerror?.(); // a late error after close must NOT schedule a reattach
+			vi.advanceTimersByTime(8000);
+			expect(lastES).toBe(es);
+			expect(vi.mocked(fetch).mock.calls.length).toBe(count);
+			h.cleanup();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('probe theming:true switches the panel to the themed surface classes', async () => {
+		fetchRoute = (url, init) => {
+			if (url === '/api/terminal' && !init) return Promise.resolve(jsonResponse({ enabled: true, theming: true, sessions: [] }));
+			if (url === '/api/terminal' && init) return Promise.resolve(jsonResponse({ sessionId: 's1', token: 't1', totalBytes: 0 }));
+			return Promise.resolve(jsonResponse({ ok: true }));
+		};
+		const h = await mountPanel();
+		await tick();
+		flushSync();
+		const panel = h.target.querySelector('[data-testid="terminal-panel"]')!;
+		expect(panel.className).toContain('bg-surface-elevated');
+		h.cleanup();
+	});
+
+	it('zoom prop applies the pocket counter-scale styles and the xterm font size', async () => {
+		fetchRoute = openRoute();
+		const h = await mountPanel({ zoom: 1.5 });
+		await tick();
+		flushSync();
+		const pocket = h.target.querySelector('[data-testid="terminal-host"] div[style]') as HTMLElement | null;
+		expect(pocket?.getAttribute('style')).toContain('scale(0.66');
 		h.cleanup();
 	});
 });

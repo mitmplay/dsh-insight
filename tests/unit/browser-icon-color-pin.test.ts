@@ -10,8 +10,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = join(process.cwd(), 'src', 'lib', 'components', 'browser');
+// Buttons extraction: BrowserClosed (and the other header glyphs) moved
+// to ROOT/buttons/ (BrowserHeader imports './buttons/BrowserClosed.svelte').
+const BUTTONS = join(ROOT, 'buttons');
 const panelSrc = readFileSync(join(ROOT, 'BrowserPanel.svelte'), 'utf8');
-const closedSrc = readFileSync(join(ROOT, 'BrowserClosed.svelte'), 'utf8');
+const closedSrc = readFileSync(join(BUTTONS, 'BrowserClosed.svelte'), 'utf8');
 const headerSrc = readFileSync(join(ROOT, 'BrowserHeader.svelte'), 'utf8');
 
 describe('Glass Browser icon color grammar (glass-tab-ids)', () => {
@@ -69,7 +72,7 @@ describe('Glass Browser glyph controls join the icon grammar (fix round 1)', () 
 	});
 
 	it('carves the trash-bin OUT of the purple grammar — it stays red', () => {
-		const closedSrc = readFileSync(join(ROOT, 'BrowserClosed.svelte'), 'utf8');
+		const closedSrc = readFileSync(join(BUTTONS, 'BrowserClosed.svelte'), 'utf8');
 		expect(closedSrc).toContain('class="browser-icon-trash"');
 		expect(panelSrc).toMatch(
 			/\.glass-browser-icons\s+:global\(\.browser-icon-trash\)\s*\{[^}]*color:\s*red/

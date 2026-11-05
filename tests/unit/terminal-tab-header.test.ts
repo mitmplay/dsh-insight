@@ -42,7 +42,7 @@ afterEach(() => {
 describe('TerminalTabHeader — the tablist strip', () => {
 	it('renders the tablist role and its children tabs', () => {
 		const { target, instance } = mountHeader();
-		const strip = target.querySelector('[data-testid="terminal-tab-header"]');
+		const strip = target.querySelector('[data-testid="terminal-tabstrip"]');
 		expect(strip).not.toBeNull();
 		expect(strip?.getAttribute('role')).toBe('tablist');
 		expect(target.querySelector('[data-testid="fake-tab"]')?.textContent).toBe('tab-a');

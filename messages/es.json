@@ -489,6 +489,8 @@
 	"browserUrlPlaceholder": "Buscar o escribir una URL",
 	"browserReload": "Recargar",
 	"browserBack": "Atrás",
+"browserCopyUrl": "Copiar la URL de la pestaña enfocada",
+	"browserCopied": "Copiado",
 	"browserForward": "Adelante",
 	"browserCloseDelete": "Eliminar el navegador de vidrio — mata la sesión y quita el panel",
 	"browserCtxOpenImage": "Abrir imagen en una pestaña nueva",

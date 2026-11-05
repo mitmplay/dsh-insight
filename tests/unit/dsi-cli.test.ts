@@ -115,7 +115,17 @@ describe('dsh-web-synced.sh — update_token survives a missing settings.yaml (E
 		// The script path rides as $0 (sh -c's third arg) so its own
 		// DSI_ROOT=$(dirname $0)/.. resolution works, exactly as when
 		// dsi.mjs executes the script as a file.
-		const r = spawnSync('/bin/sh', ['-c', sh, scriptPath], { encoding: 'utf-8' });
+		// Sourcing the script also runs its top-level launcher block, which
+		// would npx-spawn a real 'dsh web' and pipe it into watch_host_stdin —
+		// a process that blocks on stdin forever (the 5s-timeout hang). Point
+		// DSH_WEB_CMD at a no-op and ignore stdin so the watcher's read -r
+		// sees EOF immediately and sourcing exits cleanly; update_token itself
+		// still runs verbatim afterwards.
+		const r = spawnSync('/bin/sh', ['-c', sh, scriptPath], {
+			encoding: 'utf-8',
+			env: { ...process.env, DSH_WEB_CMD: 'true' },
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
 		return { status: r.status ?? -1, out: (r.stdout ?? '') + (r.stderr ?? '') };
 	}
 

@@ -205,7 +205,15 @@ describe('Focus-area polish pins (glass-tab-ids follow-up, 2026-10-28)', () => {
 	});
 
 	it('info line is sessionTitle | focused tab title with CSS truncate and bare fallback', () => {
-		expect(panelSrc).toContain("{parentTitle ?? openedBy}{focusedTitle ? ' | ' + focusedTitle : ''}");
+		// BrowserProvenance extraction (ADR-0036 D3): the lineage chip moved
+		// out of BrowserPanel — the pin follows the seam and now guards the
+		// span shape: bare parent fallback, conditional " | title" suffix,
+		// CSS truncate on the wrapper.
+		const provenanceSrc = readFileSync(join(ROOT, 'BrowserProvenance.svelte'), 'utf8');
+		expect(provenanceSrc).toContain('{parentTitle ?? openedBy}');
+		expect(provenanceSrc).toContain('{#if focusedTitle}');
+		expect(provenanceSrc).toContain('{focusedTitle}');
+		expect(provenanceSrc, 'CSS truncate on the title wrapper').toMatch(/truncate/);
 	});
 
 	it('fresh-tab data: URLs are no-URL — the guard covers the whole data: family', () => {

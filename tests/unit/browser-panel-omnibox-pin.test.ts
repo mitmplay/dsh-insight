@@ -14,6 +14,9 @@ import { describe, expect, it } from 'vitest';
 const ROOT = join(process.cwd(), 'src', 'lib', 'components', 'browser');
 const panelSrc = readFileSync(join(ROOT, 'BrowserPanel.svelte'), 'utf8');
 const headerSrc = readFileSync(join(ROOT, 'BrowserHeader.svelte'), 'utf8');
+// 2026-11-02 extraction: the input's own key handling (IME guard, Escape
+// clear) moved into the UrlInput component — pins read it too.
+const urlInputSrc = readFileSync(join(ROOT, 'buttons', 'UrlInput.svelte'), 'utf8');
 
 describe('BrowserPanel omnibox pins (glass-tab-ids Task 4)', () => {
 	it('imports parseTabCommand from the shared tab-grammar module', () => {
@@ -63,12 +66,14 @@ describe('BrowserPanel omnibox pins (glass-tab-ids Task 4)', () => {
 
 describe('BrowserHeader omnibox input pins (glass-tab-ids Task 4)', () => {
 	it('guards Enter against IME composition', () => {
-		expect(headerSrc).toContain('e.isComposing');
+		expect(urlInputSrc).toContain('e.isComposing');
 	});
 
 	it('Escape clears the input (placeholder restored)', () => {
-		expect(headerSrc).toMatch(/key === 'Escape'/);
-		expect(headerSrc).toMatch(/Escape[\s\S]{0,80}urlText = ''/);
+		// UrlInput owns the draft via the bindable value prop — Escape
+		// resets it, so the header's panel answer (placeholder) resurfaces.
+		expect(urlInputSrc).toMatch(/key === 'Escape'/);
+		expect(urlInputSrc).toMatch(/Escape[\s\S]{0,80}value = ''/);
 	});
 
 	it('placeholder binding accepts the panel-provided focused URL', () => {

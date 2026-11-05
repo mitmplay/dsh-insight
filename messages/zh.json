@@ -490,6 +490,8 @@
 	"browserReload": "重新加载",
 	"browserBack": "后退",
 	"browserForward": "前进",
+	"browserCopyUrl": "复制当前标签页 URL",
+	"browserCopied": "已复制",
 	"browserCloseDelete": "删除玻璃浏览器 — 终止会话并移除面板",
 	"browserCtxOpenImage": "在新标签页中打开图片",
 	"browserCtxCopyImage": "复制图片地址",

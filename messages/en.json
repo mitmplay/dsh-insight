@@ -489,6 +489,8 @@
 	"browserUrlPlaceholder": "Search or type a URL",
 	"browserReload": "Reload",
 	"browserBack": "Back",
+"browserCopyUrl": "Copy focused tab URL",
+	"browserCopied": "Copied",
 	"browserForward": "Forward",
 	"browserCloseDelete": "Delete the glass browser — kills the session and removes the panel",
 	"browserCtxOpenImage": "Open image in new tab",
