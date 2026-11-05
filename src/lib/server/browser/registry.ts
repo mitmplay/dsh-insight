@@ -17,7 +17,7 @@
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { chromium, type CDPSession, type BrowserContext, type Page } from 'playwright-core';
@@ -331,18 +331,37 @@ function state(): { entries: Map<string, RegistryEntry>; closed: Set<string> } {
  *  close (crash, kill -9, reaper miss). keep = prefixes of LIVE entries —
  *  a module hot reload re-runs state() init against a process-global map
  *  that may hold live sessions, and this sweep must never delete one. */
+const OWNER_MARKER = ".dsi-owner.json";
+
+/** Fix 2026-11-05 (browser-proxy-verbs profile-dir flake): every profile dir
+ *  open() creates carries an OWNER MARKER (the creating process's pid). Under
+ *  vitest, parallel workers boot at staggered times and an empty keep-set
+ *  would rmSync a SIBLING worker's LIVE profile dir mid-test (the sibling's
+ *  entry map is invisible here) — existsSync then flips false between open()
+ *  and the leak-guard assertion. The marker makes ownership visible across
+ *  processes: a dir whose marker pid is STILL ALIVE and is not ours is a live
+ *  foreign session and must be skipped; a dead-pid marker (crashed worker) or
+ *  no marker (the mop pins this arm — legacy/production leftovers) is swept
+ *  exactly as before. Production (one registry per machine) is unaffected:
+ *  markers only exist for pids this rule would protect, and dead owners sweep. */
+function foreignLiveOwner(dir: string): boolean {
+	try {
+		const raw = readFileSync(join(dir, OWNER_MARKER), 'utf8');
+		const pid = (JSON.parse(raw) as { pid?: number }).pid;
+		if (typeof pid !== 'number' || pid === process.pid) return false;
+		process.kill(pid, 0); // ESRCH when the owner is dead -> sweepable
+		return true;
+	} catch {
+		return false; // no marker / unreadable / dead owner
+	}
+}
+
 function sweepOrphanProfiles(keep: Set<string>): void {
 	try {
 		const root = readBrowserConfig().profileRoot;
-		// Fix 2026-11-05 (browser-proxy-verbs profile-dir flake): the DIR arm
-		// is gated off under vitest, same authority rule as the kill arm
-		// below — a booting worker's keep-set cannot see another worker's
-		// LIVE sessions, and its sweep rmSync'd a sibling's freshly opened
-		// profile dir mid-test (existsSync flipped false between open() and
-		// the assertion). Production keeps ONE registry, so the sweep runs.
-		if (process.env.VITEST) return;
 		for (const name of readdirSync(root)) {
 			if (keep.has(name)) continue;
+			if (foreignLiveOwner(join(root, name))) continue;
 			// Ghost Glass Fix 3 (RCA 2026-10-31 Bug 3): sweeping the fingerprint
 			// is not removing the body — an orphan Chrome keeps a live CDP port
 			// forever (proven: PID 3462, port 9549, dir swept, process immortal).
@@ -952,6 +971,14 @@ class BrowserRegistry {
 		const port = freePort(options.port);
 		const profileDir = join(cfg.profileRoot, id.slice(0, 8));
 		mkdirSync(profileDir, { recursive: true });
+		// Owner marker (fix 2026-11-05): lets a sibling process's boot sweep
+		// tell this LIVE session from an orphan (foreignLiveOwner). Best-effort
+		// — a missing marker just means the dir sweeps like any legacy leftover.
+		try {
+			writeFileSync(join(profileDir, OWNER_MARKER), JSON.stringify({ pid: process.pid, at: Date.now() }));
+		} catch {
+			// marker write must never fail the open
+		}
 
 		// launchPersistentContext is the ONLY way to hand a profile dir to
 		// playwright (launch() refuses --user-data-dir in args).
