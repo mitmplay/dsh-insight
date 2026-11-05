@@ -1460,9 +1460,19 @@ const browser = context.browser();
 			}
 			// profile cleanup (operator report 2026-10-20): the isolated
 			// --user-data-dir (D5) is session-scoped — closed means GONE, or
-			// ~/.dsi/browser-profiles fills with leftovers
+			// ~/.dsi/browser-profiles fills with leftovers.
+			// DATA-LOSS GUARD (RCA 2026-11-05, the borrowed wipe): rmSync is
+			// ONLY legal inside the disposable profile root. A stale HMR
+			// module instance running the pre-guard close turned this line
+			// into 'delete the host Chrome root' — guard the PATH, not just
+			// the flag, so no future entry can ever point the rm at home.
 			try {
-				rmSync(entry.profileDir, { recursive: true, force: true });
+				const disposableRoot = readBrowserConfig().profileRoot;
+				if (entry.profileDir.startsWith(disposableRoot)) {
+					rmSync(entry.profileDir, { recursive: true, force: true });
+				} else {
+					errs.push(new Error('profile cleanup skipped - dir outside disposable root: ' + entry.profileDir));
+				}
 			} catch (e) {
 				errs.push(e);
 			}
