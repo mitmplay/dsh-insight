@@ -20,14 +20,17 @@
 		open,
 		rows,
 		since,
+		prefix,
 		onexpire
 	}: {
-		/** True between the Alt+S arm and the fire / disarm / decay. */
+		/** True between the arming chord and the fire / disarm / decay. */
 		open: boolean;
 		/** The live options, already filtered by the reducer helper. */
 		rows: { key: string; label: string }[];
 		/** Date.now() of the arming — the decay clock's zero. */
 		since: number;
+		/** The armed prefix — the palette names it (Alt+S or Alt+T, ADR-0052). */
+		prefix: 's' | 't';
 		/** Fired once at 100% — the route resets the chord. */
 		onexpire: () => void;
 	} = $props();
@@ -59,10 +62,10 @@
 		data-testid="chord-palette"
 		data-chord-elapsed={elapsed}
 		aria-live="polite"
-		aria-label={t(() => m.chordArmedLabel())}
+		aria-label={t(() => m.chordArmedLabel({ prefix }))}
 	>
 		<div class="mb-1 text-[10px] font-semibold tracking-wide text-neutral-400 uppercase">
-			{t(() => m.chordArmedTitle())}
+			{t(() => m.chordArmedTitle({ prefix }))}
 		</div>
 		<ul class="m-0 list-none space-y-0.5 p-0">
 			{#each rows as row (row.key)}

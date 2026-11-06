@@ -13,6 +13,7 @@ import {
 	hasAnyPreset,
 	IDLE_CHORD,
 	isEditableTarget,
+	terminalChordOptions,
 	type ChordKey as CKey
 } from '$lib/utils/key-chords';
 import {
@@ -136,7 +137,7 @@ describe('applySidebarLane (pure lane writer, T2.1-T, ADR-0006a ext 5)', () => {
 });
 
 describe("chordKey (pure reducer, T2.1-T)", () => {
-	const armed = { armed: true, since: 1000 };
+	const armed = { armed: true, since: 1000, prefix: 's' as const };
 
 	it('Alt+S keydown arms only when presets exist; keyup is a pass-through', () => {
 		const r1 = chordKey(IDLE_CHORD, key('s', { altKey: true, type: 'keydown' }), true, 1000);
@@ -226,19 +227,19 @@ describe("isEditableTarget (AC 4)", () => {
 });
 
 describe("chordKey verbs + chordOptions + decideChordKeydown (Chord Palette, 2026-10-31)", () => {
-	const armed = { armed: true, since: 1000 };
+	const armed = { armed: true, since: 1000, prefix: 's' as const };
 
 	it('each verb letter inside the window fires its verb and disarms', () => {
 		for (const v of ['a', 'b', 'c', 'g', 'k', 'n', 'p', 's', 't', 'w'] as const) {
 			const r = chordKey(armed, key(v), true, 1200);
-			expect(r.action).toEqual({ type: 'verb', verb: v });
+			expect(r.action).toEqual({ type: 'verb', verb: v, prefix: 's' });
 			expect(r.state).toEqual(IDLE_CHORD);
 		}
 	});
 
 	it('verb via e.code survives an Alt-style remapped key (physical identity)', () => {
 		const r = chordKey(armed, { key: '∫', code: 'KeyB', altKey: true, ctrlKey: false, metaKey: false, type: 'keydown' }, true, 1200);
-		expect(r.action).toEqual({ type: 'verb', verb: 'b' });
+		expect(r.action).toEqual({ type: 'verb', verb: 'b', prefix: 's' });
 	});
 
 	it('a dead key disarms; keyup never fires a verb', () => {
@@ -268,7 +269,7 @@ describe("chordKey verbs + chordOptions + decideChordKeydown (Chord Palette, 202
 	it('decideChordKeydown: armed next key is swallowed even at an editable target (AC2)', () => {
 		const r = decideChordKeydown(armed, key('b'), true, 1200);
 		expect(r.preventDefault).toBe(true);
-		expect(r.action).toEqual({ type: 'verb', verb: 'b' });
+		expect(r.action).toEqual({ type: 'verb', verb: 'b', prefix: 's' });
 	});
 
 	it('decideChordKeydown: un-armed digit passes untouched (old AC4 preserved)', () => {
@@ -280,6 +281,53 @@ describe("chordKey verbs + chordOptions + decideChordKeydown (Chord Palette, 202
 		const r = decideChordKeydown(armed, key('s', { altKey: true, type: 'keyup' }), true, 1000);
 		expect(r.preventDefault).toBe(false);
 		expect(r.action).toEqual({ type: 'none' });
+	});
+});
+
+describe('the terminal chord (ADR-0052): Alt+T prefix table', () => {
+	const armedT = { armed: true, since: 1000, prefix: 't' as const };
+
+	it('Alt+T keydown arms the t prefix (AC1/G1)', () => {
+		const r = chordKey(IDLE_CHORD, key('t', { altKey: true, type: 'keydown' }), true, 1000);
+		expect(r.state).toEqual({ armed: true, since: 1000, prefix: 't' });
+		expect(r.action.type).toBe('none');
+	});
+
+	it('decideChordKeydown: Alt+T captures everywhere like Alt+S (D5)', () => {
+		const r = decideChordKeydown(IDLE_CHORD, key('t', { altKey: true }), true, 1000);
+		expect(r.preventDefault).toBe(true);
+		expect(r.state.armed).toBe(true);
+	});
+
+	it('t and s under the t prefix fire the desk verbs (AC1/AC2)', () => {
+		expect(chordKey(armedT, key('t'), true, 1200).action).toEqual({ type: 'verb', verb: 'term-new-tab', prefix: 't' });
+		expect(chordKey(armedT, key('s'), true, 1200).action).toEqual({ type: 'verb', verb: 'term-split-down', prefix: 't' });
+	});
+
+	it('a letter outside the t table disarms (D4: truthful table)', () => {
+		expect(chordKey(armedT, key('b'), true, 1200).action).toEqual({ type: 'disarm' });
+		expect(chordKey(armedT, key('a'), true, 1200).state).toEqual(IDLE_CHORD);
+	});
+
+	it('digits are Alt+S lanes only — under Alt+T they disarm (D1)', () => {
+		expect(chordKey(armedT, key('1'), true, 1200).action).toEqual({ type: 'disarm' });
+	});
+
+	it('last prefix wins: Alt+T re-arms over an armed Alt+S chord and back (D5/AC6)', () => {
+		const toT = chordKey({ armed: true, since: 1000, prefix: 's' }, key('t', { altKey: true, type: 'keydown' }), true, 1200);
+		expect(toT.state).toEqual({ armed: true, since: 1200, prefix: 't' }); // D5: re-arm resets the window clock
+		const toS = chordKey(armedT, key('s', { altKey: true, type: 'keydown' }), true, 1200);
+		expect(toS.state).toEqual({ armed: true, since: 1200, prefix: 's' });
+	});
+
+	it('the s prefix table is untouched: verbs still fire with prefix s (G5)', () => {
+		const r = chordKey({ armed: true, since: 1000, prefix: 's' }, key('p'), true, 1200);
+		expect(r.action).toEqual({ type: 'verb', verb: 'p', prefix: 's' });
+	});
+
+	it('terminalChordOptions: s row only when a desk holds a tab (D4/AC4)', () => {
+		expect(terminalChordOptions(0, { t: 'New terminal tab', s: 'Split down' }).map((r) => r.key)).toEqual(['t']);
+		expect(terminalChordOptions(2, { t: 'New terminal tab', s: 'Split down' }).map((r) => r.key)).toEqual(['t', 's']);
 	});
 });
 

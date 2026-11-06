@@ -262,6 +262,13 @@
 		wrap: 'group/diagram relative',
 		host: 'absolute top-0 left-0 opacity-0 group-hover/diagram:opacity-100 transition-opacity'
 	} as const;
+	// ADR-0051 (2026-11-06): rendered code blocks — text copy at the TOP-RIGHT
+	// (code reads left-to-right; the button clears the code gutter). Complete
+	// literals per the Tailwind 4 whole-name scan rule (2026-09-05 regression).
+	const CODE_COPY_CLASSES = {
+		wrap: 'group/code relative',
+		host: 'absolute top-1.5 right-1.5 opacity-0 group-hover/code:opacity-100 transition-opacity'
+	} as const;
 
 	/** Wrap one rendered element in a relative div with a hover-revealed
 	 *  canvas-copy button at its top-left. Returns the disposer that
@@ -276,7 +283,11 @@
 	function attachCopyButton(
 		el: HTMLElement,
 		classes: { wrap: string; host: string },
-		title: string
+		title: string,
+		// ADR-0051: 'text' copies the element's own characters (CopyButton,
+		// value = textContent); the default 'canvas' renders an image
+		// (CanvasCopyButton) — the tables/diagrams grammar, unchanged.
+		mode: 'canvas' | 'text' = 'canvas'
 	): () => void {
 		const wrap = document.createElement('div');
 		wrap.className = classes.wrap;
@@ -285,16 +296,28 @@
 		el.parentNode?.insertBefore(wrap, el);
 		wrap.appendChild(el);
 		wrap.appendChild(host);
-		const btn = mount(CanvasCopyButton, {
-			target: host,
-			props: {
-				container: el,
-				title,
-				size: 12,
-				class:
-					'p-1 rounded-md bg-surface/60 border border-surface-border/50 text-text-muted hover:text-text-primary hover:bg-surface-hover'
-			}
-		});
+		const btn =
+			mode === 'text'
+				? mount(CopyButton, {
+						target: host,
+						props: {
+							value: el.textContent ?? '',
+							title,
+							size: 12,
+							class:
+								'p-1 rounded-md bg-surface/60 border border-surface-border/50 text-text-muted hover:text-text-primary hover:bg-surface-hover'
+						}
+					})
+				: mount(CanvasCopyButton, {
+						target: host,
+						props: {
+							container: el,
+							title,
+							size: 12,
+							class:
+								'p-1 rounded-md bg-surface/60 border border-surface-border/50 text-text-muted hover:text-text-primary hover:bg-surface-hover'
+						}
+					});
 		return () => {
 			unmount(btn);
 			// Unwrap: the element returns to its place, wrapper and host go.
@@ -327,6 +350,12 @@
 					'Copy diagram as image (Shift+Click to save)'
 				)
 			);
+		}
+		// ADR-0051 (2026-11-06): every rendered code fence gets a hover-revealed
+		// text copy at its top-right. The raw-view pre is a Svelte-rendered
+		// sibling OUTSIDE containerEl, so it never enters this loop (D3).
+		for (const pre of Array.from(containerEl.querySelectorAll('pre'))) {
+			copyDisposers.push(attachCopyButton(pre, CODE_COPY_CLASSES, 'Copy code', 'text'));
 		}
 	});
 

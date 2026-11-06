@@ -6,7 +6,7 @@
 	 * views live in services/panels/{floor-registry,floor-reads} — the
 	 * names below are wiring aliases so the markup reads unchanged.
 	 */
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import AppSidebar from '$lib/components/common/layout/AppSidebar.svelte';
@@ -52,9 +52,12 @@
 		decideChordKeydown,
 		hasAnyPreset,
 		IDLE_CHORD,
+		terminalChordOptions,
 		type ChordState,
 		type ChordVerb
 	} from '$lib/utils/key-chords';
+	import * as m from '$lib/paraglide/messages';
+	import { t } from '$lib/services/locale/locale-state.svelte';
 	import { releaseGlasses } from '$lib/services/panels/glass-release.js';
 	import {
 		agentFor,
@@ -392,6 +395,15 @@
 		return floorApi.floor.panels.filter((p) => p.kind === 'conversation' && subagents.has(p.sessionId)).length;
 	}
 	function chordPaletteRows() {
+		// ADR-0052 D4: the palette renders the ARMED prefix's table — Alt+T's
+		// terminal rows (labels via paraglide, i18n) instead of the Alt+S set.
+		if (chord.prefix === 't') {
+			const deskTabs = Object.values(terminalDeskMirrors).reduce((n, mir) => n + (mir.tabs?.length ?? 0), 0);
+			return terminalChordOptions(deskTabs, {
+				t: t(() => m.chordTerminalNewTab()),
+				s: t(() => m.chordTerminalSplitDown())
+			});
+		}
 		const kinds = [...new Set(floorApi.floor.panels.map((p) => p.kind))];
 		const selected = floorApi.floor.panels.find((p) => p.id === floorApi.floor.selectedPanelId);
 		return chordOptions({
@@ -401,7 +413,7 @@
 			focusedConversation: selected?.kind === 'conversation'
 		});
 	}
-	function dispatchChordVerb(verb: ChordVerb): void {
+	function dispatchChordVerb(verb: ChordVerb | 'term-new-tab' | 'term-split-down'): void {
 		const panels = floorApi.floor.panels;
 		const removeKind = (...kinds: string[]) =>
 			panels.filter((p) => kinds.includes(p.kind)).forEach((p) => floorApi.removePanel(p.id));
@@ -492,6 +504,23 @@
 				// D19: the same write the sidebar chevron makes.
 				pagePrefs.sidebarCollapsed = !pagePrefs.sidebarCollapsed;
 				return;
+			case 'term-new-tab':
+			case 'term-split-down': {
+				// ADR-0052 D2/D3: the chord is the THIRD caller of the desk's
+				// action channel (after the desk buttons and the wire grammar).
+				// D3 create-the-target: a closed desk mounts first, then the
+				// newborn desk (binding terminalDeskRef on mount) gets the verb
+				// after the tick. `s` on a zero-tab desk degrades to new-tab —
+				// splitting nothing opens the first tab (truthful D4 gating).
+				const desk = panels.find((p) => p.kind === 'terminal');
+				const deskTabs = Object.values(terminalDeskMirrors).reduce((n, mir) => n + (mir.tabs?.length ?? 0), 0);
+				const action = verb === 'term-split-down' && deskTabs >= 1 ? ('split-down' as const) : ('new-tab' as const);
+				if (!desk) {
+					floorApi.doAdd({ kind: 'terminal' });
+					return void tick().then(() => floorApi.floorSeam().applyTerminalDeskAction(action));
+				}
+				return floorApi.floorSeam().applyTerminalDeskAction(action);
+			}
 			case 't': {
 				const open = panels.find((p) => p.kind === 'terminal');
 				return open ? floorApi.removePanel(open.id) : void floorApi.doAdd({ kind: 'terminal' });
@@ -605,6 +634,7 @@
 	open={chord.armed}
 	rows={chordPaletteRows()}
 	since={chord.since}
+	prefix={chord.prefix}
 	onexpire={() => (chord = IDLE_CHORD)}
 />
 

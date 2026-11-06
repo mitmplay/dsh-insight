@@ -19,7 +19,7 @@ function render(props: {
 	document.body.appendChild(target);
 	const comp = mount(ChordPalette, {
 		target,
-		props: { since: Date.now(), onexpire: () => {}, ...props }
+		props: { since: Date.now(), prefix: 's' as const, onexpire: () => {}, ...props }
 	});
 	flushSync();
 	return { target, unmount: () => unmount(comp) };

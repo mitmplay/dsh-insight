@@ -15,14 +15,32 @@
 
 export const CHORD_WINDOW_MS = 2_000;
 
+export type ChordPrefix = 's' | 't';
+
 export interface ChordState {
-	/** True between the Alt+S release and the digit / disarm. */
+	/** True between the arming release and the digit / disarm. */
 	armed: boolean;
 	/** Date.now() of the arming keyup — the window clock. */
 	since: number;
+	/** Which prefix owns this chord — Alt+S (floor verbs + preset digits)
+	 *  or Alt+T (terminal verbs: t new tab, s split down). ADR-0052 D1:
+	 *  one reducer, the prefix names the follow-up table. */
+	prefix: ChordPrefix;
 }
 
-export const IDLE_CHORD: ChordState = { armed: false, since: 0 };
+export const IDLE_CHORD: ChordState = { armed: false, since: 0, prefix: 's' };
+
+/** The Alt+T palette rows (ADR-0052 D4, truthful): t is always live (the
+ *  add path creates the desk, D3); s only when a desk holds ≥1 tab —
+ *  split-down on an empty desk would mint a session and drop it
+ *  (TerminalDesk.applyAction's latent empty-desk drop). The layer stays
+ *  PURE: labels arrive localized (paraglide m.*) from the render site —
+ *  this module never hardcodes copy (i18n, 4 locales). */
+export function terminalChordOptions(deskTabCount: number, labels: Record<'t' | 's', string>): ChordOptionRow[] {
+	const rows: ChordOptionRow[] = [{ key: 't', label: labels.t }];
+	if (deskTabCount >= 1) rows.push({ key: 's', label: labels.s });
+	return rows;
+}
 
 export type ChordVerb = 'a' | 'b' | 'c' | 'g' | 'k' | 'n' | 'p' | 's' | 't' | 'w';
 
@@ -44,7 +62,7 @@ export type ChordAction =
 	| { type: 'none' }
 	| { type: 'disarm' }
 	| { type: 'apply'; n: number }
-	| { type: 'verb'; verb: ChordVerb };
+	| { type: 'verb'; verb: ChordVerb | 'term-new-tab' | 'term-split-down'; prefix: ChordPrefix };
 
 /** Minimal key shape the wiring feeds in (a real KeyboardEvent fits). */
 export interface ChordKey {
@@ -102,16 +120,28 @@ export function chordKey(
 
 	if (ev.type === 'keyup') return { state, action: { type: 'none' } };
 
-	// PHYSICAL identity: code='KeyS' survives the macOS Alt remap (key='ß');
-	// key==='s' stays as the fallback for events that carry no code.
-	const isS = ev.code === 'KeyS' || (key === 's' && !ev.code);
+	// PHYSICAL identity: code='KeyS'/'KeyT' survives the macOS Alt remap
+	// (key='ß'); key==='s'/'t' stays as the fallback for code-less events.
+	// ADR-0052 D1: the arming key NAMES the prefix; the prefix owns the
+	// follow-up table (s = floor verbs + preset digits, t = terminal verbs).
+	const prefix: ChordPrefix | null =
+		ev.code === 'KeyS' || (key === 's' && !ev.code)
+			? 's'
+			: ev.code === 'KeyT' || (key === 't' && !ev.code)
+				? 't'
+				: null;
 	// Digits: Digit1..9 first (matches even with Alt still held), key fallback.
-	const digit = /^Digit([1-9])$/.exec(ev.code ?? '')?.[1] ?? (/^[1-9]$/.test(ev.key) ? ev.key : null);
+	// Digits are Alt+S lanes only (ADR-0052 D1) — under Alt+T they disarm.
+	const digit =
+		state.prefix === 's'
+			? (/^Digit([1-9])$/.exec(ev.code ?? '')?.[1] ?? (/^[1-9]$/.test(ev.key) ? ev.key : null))
+			: null;
 
-	// Arming: a clean Alt+S keydown (no ctrl/meta — those are browser verbs).
-	if (isS && ev.altKey && !ev.ctrlKey && !ev.metaKey) {
+	// Arming: a clean Alt+S / Alt+T keydown (no ctrl/meta — browser verbs).
+	if (prefix && ev.altKey && !ev.ctrlKey && !ev.metaKey) {
 		if (!canArm) return { state, action: { type: 'none' } };
-		return { state: { armed: true, since: now }, action: { type: 'none' } };
+		// D5 (ADR-0052): last prefix wins — an armed chord re-arms cleanly.
+		return { state: { armed: true, since: now, prefix }, action: { type: 'none' } };
 	}
 
 	if (!state.armed) return { state, action: { type: 'none' } };
@@ -128,11 +158,25 @@ export function chordKey(
 
 	// A verb letter fires its floor action (D14/D15, 2026-10-31). code first
 	// — the same physical-identity rule as arming — key fallback after.
-	const verb =
-		(/^[abcgknpstw]$/.test(ev.key) ? (ev.key as ChordVerb) : undefined) ??
-		(/^Key([ABCGKNPSTW])$/.exec(ev.code ?? '')?.[1]?.toLowerCase() as ChordVerb | undefined);
-	if (verb) {
-		return { state: IDLE_CHORD, action: { type: 'verb', verb } };
+	// ADR-0052 D1: the armed prefix namespaces the letters — Alt+T's table
+	// owns only t/s, mapped to the desk's two spawn verbs; any other letter
+	// falls through and disarms (the table is truthful, D4).
+	const letter =
+		(/^[abcgknpstw]$/.test(ev.key) ? ev.key : undefined) ??
+		(/^Key([ABCGKNPSTW])$/.exec(ev.code ?? '')?.[1]?.toLowerCase());
+	if (letter) {
+		if (state.prefix === 't') {
+			if (letter !== 't' && letter !== 's') return { state: IDLE_CHORD, action: { type: 'disarm' } };
+			return {
+				state: IDLE_CHORD,
+				action: {
+					type: 'verb',
+					verb: letter === 't' ? 'term-new-tab' : 'term-split-down',
+					prefix: 't'
+				}
+			};
+		}
+		return { state: IDLE_CHORD, action: { type: 'verb', verb: letter as ChordVerb, prefix: 's' } };
 	}
 
 	// Any other key disarms.
@@ -190,7 +234,8 @@ export function chordOptions(facts: {
 
 /** The capture-first decision (D12/D13) as a PURE function so the route
  *  adapter stays three lines and the capture rules unit-test without DOM.
- *  Ordering IS the contract: (1) a clean Alt+S keydown captures everywhere;
+ *  Ordering IS the contract: (1) a clean Alt+S / Alt+T keydown captures
+ *  everywhere (ADR-0052 D5);
  *  (2) an armed chord captures the next keydown everywhere; (3) anything
  *  else — including an un-armed digit on an editable target — passes (old
  *  AC4). preventDefault is the swallowing the composer must never see. */
@@ -200,12 +245,13 @@ export function decideChordKeydown(
 	canArm: boolean,
 	now: number = Date.now()
 ): { state: ChordState; action: ChordAction; preventDefault: boolean } {
-	const isArmS =
-		(ev.code === 'KeyS' || (ev.key.toLowerCase() === 's' && !ev.code)) &&
+	const isArm =
+		((ev.code === 'KeyS' || (ev.key.toLowerCase() === 's' && !ev.code)) ||
+			(ev.code === 'KeyT' || (ev.key.toLowerCase() === 't' && !ev.code))) &&
 		ev.altKey &&
 		!ev.ctrlKey &&
 		!ev.metaKey;
-	if (ev.type === 'keydown' && isArmS) {
+	if (ev.type === 'keydown' && isArm) {
 		return { ...chordKey(state, ev, canArm, now), preventDefault: true };
 	}
 	if (state.armed && ev.type === 'keydown') {

@@ -1,57 +1,63 @@
 # installation in orb-stack vm (ubuntu)
 [Quick start orb-stack](https://docs.orbstack.dev/quick-start)
+
+## Install system packages
 - `orb sudo passwd $USER` - (password: orb)
-- `ssh ubuntu@orb`
-- <pre>sudo apt install zsh vim curl\
-	git-core unzip pkg-config\
-	openssh-server cargo\
-	build-essential\
-	libssl-dev\
-	libnspr4\
-	libnss3\
-	libatk1.0-0t64\
-	libatk-bridge2.0-0t64\
-	libcups2t64\
-	libxkbcommon0\
-	libasound2t64\
-	libgbm1\
-	libcairo2\
-	libpango-1.0-0\
-	libxcomposite1\
-	libxdamage1\
-	libxfixes3\
-	libxrandr2\
+	- TWO prompts in sequence: `New password:` then `Retype new password:` —
+		type `orb` at EACH. A trailing blank line at the first prompt is eaten
+		as the retype → `Sorry, passwords do not match` → password unchanged.
+- `ssh ubuntu@orb` (passwordless — OrbStack injects its key)
+- <pre>
+sudo apt update
+# sudo is passwordless for the OrbStack user; if it ever prompts, password: orb
+sudo apt install -y \
+	zsh \
+	vim \
+	curl \
+	git-core \
+	unzip \
+	pkg-config \
+	cargo \
+	build-essential \
+	libssl-dev \
+	libnspr4 \
+	libnss3 \
+	libatk1.0-0t64 \
+	libatk-bridge2.0-0t64 \
+	libcups2t64 \
+	libxkbcommon0 \
+	libasound2t64 \
+	libgbm1 \
+	libcairo2 \
+	libpango-1.0-0 \
+	libxcomposite1 \
+	libxdamage1 \
+	libxfixes3 \
+	libxrandr2 \
 	libatspi2.0-0t64</pre>
 
 ## switch to zsh
-- `chsh -s $(which zsh)` - (password: orb)
-	- or `sudo usermod -s $(which zsh) wharsojo`
+- `sudo usermod -s "$(which zsh)" "$(whoami)"` ← PREFER THIS (root, no password prompt)
+	- fallback: `chsh -s $(which zsh)` - (password: orb)
 
 ## install sheldon
 [Manual Installation](https://sheldon.cli.rs/Installation.html)
-- `cargo install sheldon`
-- `vim ~/.zshrc` - (A)ppend
+- Ubuntu's `cargo` (apt) is TOO OLD for sheldon's deps (rustc ≥1.86) — the
+	build fails with `Try re-running cargo install with --locked`. Install rustup first:
+	- `curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal`
+	- `source "$HOME/.cargo/env"`
+- `cargo install sheldon` (a few minutes; ends `Installed package `sheldon v0.8.x``)
+- append to `~/.zshrc` (no editor needed — paste-safe):
 ```
-export PATH="$HOME/.cargo/bin:$PATH"
-eval "$(sheldon source)"
+printf '%s\n' 'export PATH="$HOME/.cargo/bin:$PATH"' 'eval "$(sheldon source)"' >> ~/.zshrc
 ```
 
-# configure sheldon
+## configure sheldon
 - `mkdir -p ~/.config/sheldon`
-- `vim ~/.config/sheldon/plugins.toml`
+- write `~/.config/sheldon/plugins.toml` with a quoted heredoc (no editor;
+	`<<'EOF'` keeps `$hook`/`{{ }}` unexpanded):
 ```
-# `sheldon` configuration file
-# ----------------------------
-#
-# You can modify this file directly or you can use one of the following
-# `sheldon` commands which are provided to assist in editing the config file:
-#
-# - `sheldon add` to add a new plugin to the config file
-# - `sheldon edit` to open up the config file in the default editor
-# - `sheldon remove` to remove a plugin from the config file
-#
-# See the documentation for more https://github.com/rossmacarthur/sheldon#readme
-
+cat > ~/.config/sheldon/plugins.toml <<'EOF'
 shell = "zsh"
 
 [templates]
@@ -74,27 +80,36 @@ github = "ohmyzsh/ohmyzsh"
 [plugins.zsh-syntax-highlighting]
 github = "zsh-users/zsh-syntax-highlighting"
 apply = ["defer"]
+EOF
 ```
-- exit from orb vm
-- `ssh ubuntu@orb`
 
-# install fnm
-curl -fsSL https://fnm.vercel.app/install | bash
-- `vim ~/.zshrc` - (A)ppend
-- copy env var `ZAI_API_KEY` to `~/.zshrc`
-```
-# fnm
-FNM_PATH="/home/wharsojo/.local/share/fnm"
-if [ -d "$FNM_PATH" ]; then
-  export PATH="$FNM_PATH:$PATH"
-  eval "$(fnm env --shell bash)"
-fi
-```
-- exit from orb vm
+## Reconnect:
+- `exit`
 - `ssh ubuntu@orb`
+- first reconnect launches the **Powerlevel10k config wizard** — it eats all
+	further keystrokes. Answer `q` (Quit) to skip it, or finish the wizard
+	interactively. Until then the shell looks frozen: that is the wizard.
+
+## install fnm
+`curl -fsSL https://fnm.vercel.app/install | bash`
+- the installer APPENDS the fnm block to `~/.zshrc` itself (`--shell zsh`
+	variant) — no manual vim step needed; it also prints `source ~/.zshrc`.
+- copy env var `ZAI_API_KEY` from the mac into `~/.zshrc`:
+```
+echo 'export ZAI_API_KEY=<value-from-mac-zsh>' >> ~/.zshrc
+```
+	- note: typing this on a live terminal leaves the value in scrollback.
+
+## Reload & Install Nodejs:
+- `source ~/.zshrc`
 - `fnm install 26.13.0`
+- `fnm use 26.13.0`
+- `fnm default 26.13.0`
 - `npm install -g pnpm`
 
-# run dsi-insight
-- `mkdir ~/agentic-ai`
-- `npx @deepseek-insight/dsi@latest dsh --sync --zai`
+## run dsi-insight
+- `mkdir -p ~/agentic-ai && cd ~/agentic-ai`
+- `npx -y @deepseek-insight/dsi@latest dsh --sync --zai`
+	- first run downloads playwright chromium + the pinned DSH host — minutes.
+	- the host runs FOREGROUND (listens on 127.0.0.1:5174, web on :3080) — this
+		is the end state, not a hang. It prints `dsh web: http://127.0.0.1:3080/?token=…`.

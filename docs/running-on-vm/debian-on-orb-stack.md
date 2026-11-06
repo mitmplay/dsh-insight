@@ -52,7 +52,7 @@ sudo apt install -y \
 printf '%s\n' 'export PATH="$HOME/.cargo/bin:$PATH"' 'eval "$(sheldon source)"' >> ~/.zshrc
 ```
 
-# configure sheldon
+## configure sheldon
 - `mkdir -p ~/.config/sheldon`
 - write `~/.config/sheldon/plugins.toml` with a quoted heredoc (no editor;
   `<<'EOF'` keeps `$hook`/`{{ }}` unexpanded):
@@ -107,7 +107,7 @@ echo 'export ZAI_API_KEY=<value-from-mac-zsh>' >> ~/.zshrc
 - `fnm default 26.13.0`
 - `npm install -g pnpm`
 
-# run dsi-insight
+## run dsi-insight
 - `mkdir -p ~/agentic-ai && cd ~/agentic-ai`
 - `npx -y @deepseek-insight/dsi@latest dsh --sync --zai`
   - first run downloads playwright chromium + the pinned DSH host — minutes.
