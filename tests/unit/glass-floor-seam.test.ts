@@ -10,8 +10,15 @@ import {
 import { floorCandidates as floorCandidatesDsi, isFloorTab as isFloorTabDsi }
 	from '../../.agents/skills/glass-dsi/scripts/_connect.mjs';
 
-const okFetch = (base) => async () => ({ ok: true, json: async () => ({ sessions: [{ id: 's1', port: 9400, ownerSessionId: 'me' }] }), probed: base });
-const dead = () => async () => { throw new Error('down'); };
+// Type-only shims: resolveDsiBase's .mjs default params (fetch, identity=undefined)
+// infer non-test-friendly types; cast call-site opts instead of touching the shared script.
+type ResolveOpts = NonNullable<Parameters<typeof resolveDsiBase>[0]>;
+const opts = (o: Record<string, unknown>) => o as unknown as ResolveOpts;
+const registry = (sessions: Array<{ id: string; port: number; ownerSessionId: string | null }>): Response =>
+	new Response(JSON.stringify({ sessions }), { headers: { 'content-type': 'application/json' } });
+
+const okFetch = (_base: string) => async (): Promise<Response> => registry([{ id: 's1', port: 9400, ownerSessionId: 'me' }]);
+const dead = () => async (): Promise<Response> => { throw new Error('down'); };
 
 // Task 1.1-T / 1.3-T — the Floor Seam decision tree (ADR D1-D3), pinned on
 // the glass-url copy and shape-pinned on the glass-dsi copy.
@@ -29,46 +36,45 @@ describe('floorCandidates', () => {
 
 describe('resolveDsiBase', () => {
 	it('env seam probes ONLY the env base — defaults never touched (D1a)', async () => {
-		const fetched = [];
-		const fetchImpl = async (url) => { fetched.push(url); return { ok: true, json: async () => ({ sessions: [{ id: 's', port: 9, ownerSessionId: null }] }) }; };
-		const v = await resolveDsiBase({ env: { DSI_UI: 'http://127.0.0.1:9000' }, fetchImpl, identity: undefined, pickSessionFn: pickSession });
-		expect(v.base).toBe('http://127.0.0.1:9000');
+		const fetched: string[] = [];
+		const fetchImpl: typeof fetch = async (input) => { fetched.push(String(input)); return registry([{ id: 's', port: 9, ownerSessionId: null }]); };
+		const v = await resolveDsiBase(opts({ env: { DSI_UI: 'http://127.0.0.1:9000' }, fetchImpl, identity: undefined, pickSessionFn: pickSession }));
+		expect(v?.base).toBe('http://127.0.0.1:9000');
 		// connect still needs the registry — one fetch to the env base ONLY
 		expect(fetched).toEqual(['http://127.0.0.1:9000/api/browser']);
 	});
 
 	it('one answering floor wins — dead one costs nothing', async () => {
-		const fetchImpl = async (url) => {
-			if (url.startsWith('http://127.0.0.1:5174')) return { ok: true, json: async () => ({ sessions: [{ id: 's', port: 1, ownerSessionId: null }] }) };
+		const fetchImpl: typeof fetch = async (input) => {
+			if (String(input).startsWith('http://127.0.0.1:5174')) return registry([{ id: 's', port: 1, ownerSessionId: null }]);
 			throw new Error('down');
 		};
-		const v = await resolveDsiBase({ env: {}, fetchImpl, identity: undefined, pickSessionFn: pickSession });
-		expect(v.base).toBe('http://127.0.0.1:5174');
-		expect(v.reg.sessions[0].id).toBe('s');
+		const v = await resolveDsiBase(opts({ env: {}, fetchImpl, identity: undefined, pickSessionFn: pickSession }));
+		expect(v?.base).toBe('http://127.0.0.1:5174');
+		expect(v?.reg?.sessions[0].id).toBe('s');
 	});
 
 	it('both floors alive — the floor holding MY glass wins the tiebreak (D7)', async () => {
-		const fetchImpl = async (url) => ({
-			ok: true,
-			json: async () => url.includes(':5175/')
-				? { sessions: [{ id: 'other', port: 1, ownerSessionId: 'someone-else' }] }
-				: { sessions: [{ id: 'mine', port: 2, ownerSessionId: 'me' }] }
-		});
-		const v = await resolveDsiBase({ env: {}, fetchImpl, identity: 'me', pickSessionFn: pickSession });
-		expect(v.base).toBe('http://127.0.0.1:5174');
+		const fetchImpl: typeof fetch = async (input) => registry(
+			String(input).includes(':5175/')
+				? [{ id: 'other', port: 1, ownerSessionId: 'someone-else' }]
+				: [{ id: 'mine', port: 2, ownerSessionId: 'me' }]
+		);
+		const v = await resolveDsiBase(opts({ env: {}, fetchImpl, identity: 'me', pickSessionFn: pickSession }));
+		expect(v?.base).toBe('http://127.0.0.1:5174');
 	});
 
 	it('both floors claim me — dies LOUD naming both (D7 stands)', async () => {
-		const fetchImpl = async () => ({ ok: true, json: async () => ({ sessions: [{ id: 'x', port: 1, ownerSessionId: 'me' }] }) });
-		const msg = await resolveDsiBase({ env: {}, fetchImpl, identity: 'me', pickSessionFn: pickSession,
-			dieFn: (m) => { throw new Error(m); } }).catch((e) => e.message);
+		const fetchImpl: typeof fetch = async () => registry([{ id: 'x', port: 1, ownerSessionId: 'me' }]);
+		const msg = await resolveDsiBase(opts({ env: {}, fetchImpl, identity: 'me', pickSessionFn: pickSession,
+			dieFn: (m: string) => { throw new Error(m); } })).catch((e) => e.message);
 		expect(msg).toContain('BOTH floors');
 		expect(msg).toContain('5175');
 		expect(msg).toContain('5174');
 	});
 
 	it('no floor answers — dies naming both ports and both launch commands', async () => {
-		const msg = await resolveDsiBase({ env: {}, fetchImpl: dead(), dieFn: (m) => { throw new Error(m); } }).catch((e) => e.message);
+		const msg = await resolveDsiBase(opts({ env: {}, fetchImpl: dead(), dieFn: (m: string) => { throw new Error(m); } })).catch((e) => e.message);
 		expect(msg).toContain('http://127.0.0.1:5175');
 		expect(msg).toContain('http://127.0.0.1:5174');
 		expect(msg).toContain('--sync');

@@ -699,16 +699,28 @@ export class RpcRelay {
 	}
 
 	/**
-	 * POC-2 W3 — session.create {cwd?, agentPreset?} → {sessionId, …}.
+	 * POC-2 W3 — session.create → {sessionId, …}.
 	 * Live-probed round-trip 2026-08-21 (probe7 → real session id).
+	 * Birth Workspace Attach (2026-11-06, The Frozen Roster amendment D5):
+	 * the location is EITHER workspaceId OR cwd — never both (the host
+	 * refuses the pair gateway/bad-request; commands.js:113-115). With
+	 * workspaceId the host derives the cwd from the workspace row and
+	 * attaches the session to the roster at birth.
 	 */
 	async createSession(
 		cwd?: string,
-		agentPreset?: string
+		agentPreset?: string,
+		workspaceId?: string
 	): Promise<{ sessionId: string; agentPreset?: string }> {
+		const location =
+			workspaceId !== undefined
+				? { workspaceId }
+				: cwd === undefined
+					? {}
+					: { cwd };
 		return (await this.conn.rpc(
 			DSH_METHODS.create,
-			DSH_ARGS.create({ ...(cwd === undefined ? {} : { cwd }), ...(agentPreset === undefined ? {} : { agentPreset }) })
+			DSH_ARGS.create({ ...location, ...(agentPreset === undefined ? {} : { agentPreset }) })
 		)) as {
 			sessionId: string;
 			agentPreset?: string;

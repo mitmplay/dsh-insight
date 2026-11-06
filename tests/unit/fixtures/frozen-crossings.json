@@ -1,13 +1,13 @@
 {
-  "_comment": "ADR-0018 D1 frozen budget - component-to-component cross-domain imports. Regenerated 2026-10-30 with operator sign-off (commit-all-and-push instruction) for the shared WidthBadge chip (Movable Rail ADR amendment 2026-10-30 D1): panels + common/layout both consume components/common/WidthBadge.svelte. Prior baseline: measured 2026-10-11.",
+  "_comment": "ADR-0018 D1 frozen budget - component-to-component cross-domain imports. Regenerated 2026-11-06 with operator sign-off (commit-all-and-push instruction) for the shared AgentChip pill (AgentChip Shared Pill ADR 2026-11-06): sessions headers consume components/common/buttons/AgentChip.svelte. Prior baseline: regenerated 2026-10-30 for WidthBadge.",
   "crossings": [
     {
       "from": "components/common/layout/AppSidebar.svelte",
-      "to": "components/sessions/SidebarSessions.svelte"
+      "to": "components/panels/control-bar/ControlBar.svelte"
     },
     {
       "from": "components/common/layout/AppSidebar.svelte",
-      "to": "components/panels/control-bar/ControlBar.svelte"
+      "to": "components/sessions/SidebarSessions.svelte"
     },
     {
       "from": "components/composer/Composer.svelte",
@@ -39,6 +39,10 @@
     },
     {
       "from": "components/sessions/SessionFilterHeader.svelte",
+      "to": "components/common/buttons/AgentChip.svelte"
+    },
+    {
+      "from": "components/sessions/SessionFilterHeader.svelte",
       "to": "components/common/WorkspaceChip.svelte"
     },
     {
@@ -59,7 +63,7 @@
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
-      "to": "components/workspace-file/WorkspaceFilePanel.svelte"
+      "to": "components/panels/ResizeGutter.svelte"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
@@ -67,11 +71,11 @@
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
-      "to": "components/workspace-file/WorkspaceFileTabs.svelte"
+      "to": "components/workspace-file/WorkspaceFilePanel.svelte"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
-      "to": "components/panels/ResizeGutter.svelte"
+      "to": "components/workspace-file/WorkspaceFileTabs.svelte"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerTree.svelte",

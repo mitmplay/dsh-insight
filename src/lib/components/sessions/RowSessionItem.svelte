@@ -27,6 +27,7 @@
 	} from '$lib/services/panels/panel-registry';
 	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
 	import { conversationSeedUrl } from '$lib/utils/seed-url';
+	import { resolve } from '$app/paths';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
 
 	let {
@@ -108,7 +109,7 @@
 <a
 	class="row"
 	class:child={depth > 0}
-	href={isGlass ? undefined : conversationHref()}
+	href={isGlass ? undefined : resolve(conversationHref())}
 	data-testid="sidebar-session-card"
 	data-session-id={session.sessionId}
 	data-depth={depth}

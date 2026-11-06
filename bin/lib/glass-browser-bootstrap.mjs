@@ -25,9 +25,10 @@ const CHROME_PATH_CANDIDATES = ['google-chrome', 'google-chrome-stable', 'chromi
  *  playwright-core dependency (D3: no second hardcoded pin may exist).
  *  Returns null when the pin cannot be read — the caller then warns and
  *  skips the fetch; a null pin never spawns npx. */
+/** @param {string} packageRoot @returns {string | null} */
 export function pinnedPlaywrightVersion(packageRoot) {
 	try {
-		const doc = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf-8'));
+		const doc = /** @type {any} */ (JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf-8')));
 		const version = doc?.dependencies?.['playwright-core'];
 		return typeof version === 'string' && /^\d+\.\d+\.\d+/.test(version) ? version : null;
 	} catch {
@@ -37,6 +38,10 @@ export function pinnedPlaywrightVersion(packageRoot) {
 
 /** True when a system Google/Chromium browser is resolvable: PATH probes on
  *  Linux, the .app bundle on macOS (where PATH probing is always blind). */
+/** @param {(cmd: string, args?: string[], opts?: { stdio?: 'pipe' | 'inherit'; timeout?: number }) => { status: number | null }} spawnSync
+ *  @param {string} [platform]
+ *  @param {(p: string) => boolean} [exists]
+ *  @returns {boolean} */
 export function findSystemChrome(spawnSync, platform = process.platform, exists = existsSync) {
 	if (platform === 'darwin') {
 		return exists('/Applications/Google Chrome.app');
@@ -54,6 +59,9 @@ export function findSystemChrome(spawnSync, platform = process.platform, exists 
 /** True when ANY chromium-family build sits in the playwright cache (either
  *  platform root). The npx fetch is the revision authority — this probe is
  *  the cheap hint that avoids re-downloading what is already present. */
+/** @param {Record<string, string | undefined>} [env]
+ *  @param {(p: string) => string[]} [readdir]
+ *  @returns {boolean} */
 export function playwrightCacheHasChromium(env = process.env, readdir = readdirSync) {
 	const home = env.HOME ?? homedir();
 	const roots = [
@@ -78,6 +86,14 @@ export function playwrightCacheHasChromium(env = process.env, readdir = readdirS
  *   { action: 'warned',  reason } — no browser and the fetch failed/skipped;
  *                                   the floor still boots (D4)
  */
+/** @param {{
+ *   packageRoot: string,
+ *   spawnSync: (cmd: string, args?: string[], opts?: { stdio?: 'pipe' | 'inherit'; timeout?: number }) => { status: number | null },
+ *   env?: Record<string, string | undefined>,
+ *   log?: (msg: string) => void,
+ *   platform?: string
+ * }} options
+ * @returns {{ action: 'skip' | 'fetched' | 'warned', reason: string }} */
 export function ensureGlassBrowser({ packageRoot, spawnSync, env = process.env, log = () => {}, platform = process.platform }) {
 	if (env.DSI_SKIP_BROWSER_INSTALL === '1') {
 		log('dsi dsh: glass browser check skipped (DSI_SKIP_BROWSER_INSTALL=1)');
@@ -104,7 +120,8 @@ export function ensureGlassBrowser({ packageRoot, spawnSync, env = process.env, 
 			timeout: 300000
 		});
 	} catch (error) {
-		log(`dsi dsh: chromium fetch failed (${error?.message ?? error}) — the floor still boots; the glass needs: npx playwright@${pin} install chromium`);
+		const message = /** @type {any} */ (error)?.message ?? error;
+		log(`dsi dsh: chromium fetch failed (${message}) — the floor still boots; the glass needs: npx playwright@${pin} install chromium`);
 		return { action: 'warned', reason: 'fetch-error' };
 	}
 	if ((result?.status ?? 1) === 0) {

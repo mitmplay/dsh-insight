@@ -26,6 +26,19 @@
  */
 import { chromium } from 'playwright-core';
 
+/**
+ * @typedef {Object} GlassSession
+ * @property {string} id
+ * @property {number} [port]
+ * @property {string|null} [ownerSessionId]
+ * @property {string} [createdAt]
+ * @typedef {Object} PickResult
+ * @property {GlassSession|null|undefined} session
+ * @property {boolean} [degraded]
+ * @property {string} [note]
+ * @property {string} [error]
+ */
+
 // ── The Floor Seam (ADR "The Floor Seam" 2026-11-05, D1-D3) ────────────────
 // DSI_UI env verbatim when set; else parallel probe of both known floor
 // bases (5175 dev, 5174 build) with the D7 identity tiebreak. Tab identity
@@ -42,6 +55,7 @@ export function floorCandidates(env = process.env) {
 
 /** Resolve the live floor — one answer wins; both → pickSession per floor,
  *  my-glass floor wins, double-claim dies loud; none → die naming both. */
+/** @param {{ env?: Record<string, string|undefined>, fetchImpl?: typeof fetch, identity?: string|undefined, pickSessionFn?: (s: GlassSession[]|null|undefined, id: string|undefined) => PickResult, dieFn?: (msg: string) => never, timeoutMs?: number }} [opts] @returns {Promise<{ base: string, reg: { sessions: GlassSession[] } }>} — never resolves undefined: every fall-through path dies. */
 export async function resolveDsiBase({ env = process.env, fetchImpl = fetch, identity = undefined, pickSessionFn = pickSession, dieFn = die, timeoutMs = 3000 } = {}) {
   const candidates = floorCandidates(env);
   const probes = await Promise.all(candidates.map(async (base) => {
@@ -64,20 +78,22 @@ export async function resolveDsiBase({ env = process.env, fetchImpl = fetch, ide
     dieFn('a glass owned by you lives on BOTH floors (' + mine.map((m) => m.base).join(', ') +
       ') — set DSI_UI=<floor url> to name the floor; refusing to guess (D7)');
   }
-  dieFn('both floors answer but neither holds YOUR glass (' + answered.map((m) => m.base).join(', ') +
+  return dieFn('both floors answer but neither holds YOUR glass (' + answered.map((m) => m.base).join(', ') +
     ') — click the Browser chip in THIS conversation');
 }
 
-/** True when a tab url's ORIGIN is the resolved floor's origin (D2). */
+/** @param {string} url @param {string} base @returns {boolean} True when a tab url's ORIGIN is the resolved floor's origin (D2). */
 export function isFloorTab(url, base) {
   try { return new URL(url).origin === new URL(base).origin; } catch { return false; }
 }
 
+/** @param {string} msg @returns {never} */
 export function die(msg) {
   console.error(JSON.stringify({ error: msg, fallback: 'SKILL.md Step 1 — ask the OPERATOR to click the Browser chip IN THE RIGHT CONVERSATION, then catch the session via GET /api/browser. If DSH_SESSION_ID is absent from env, pass --owner-session <id> (the session id you already know from context).' }));
   process.exit(1);
 }
 
+/** @param {string[]} argv @returns {string|undefined} */
 export function identityFrom(argv) {
   const flag = argv.indexOf('--owner-session');
   if (flag !== -1 && argv[flag + 1]) return argv[flag + 1];
@@ -86,6 +102,7 @@ export function identityFrom(argv) {
   return undefined;
 }
 
+/** @param {GlassSession[]|null|undefined} sessions @param {string|undefined} envId @returns {PickResult} */
 export function pickSession(sessions, envId) {
   const list = sessions ?? [];
   if (envId) {
@@ -106,6 +123,7 @@ export function pickSession(sessions, envId) {
   return { session: null, error: 'multiple live glasses and no explicit identity — pass --owner-session <id> (or GLASS_OWNER_SESSION) from the session id you already know; refusing to guess (D7)' };
 }
 
+/** @returns {Promise<{ session: GlassSession, browser: import('playwright-core').Browser, ctx: import('playwright-core').BrowserContext, base: string }>} */
 export async function connect() {
   const { base, reg } = await resolveDsiBase({ env: process.env, identity: identityFrom(process.argv) });
   const { session, degraded, note, error } = pickSession(reg.sessions, identityFrom(process.argv));
@@ -116,6 +134,7 @@ export async function connect() {
   return { session, browser, ctx: browser.contexts()[0], base };
 }
 
+/** @param {import('playwright-core').BrowserContext} ctx @param {string} substr @returns {import('playwright-core').Page|undefined} */
 export function pick(ctx, substr) {
   return ctx.pages().find((p) => p.url().includes(substr));
 }

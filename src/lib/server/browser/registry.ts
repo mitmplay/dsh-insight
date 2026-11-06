@@ -1389,6 +1389,7 @@ const browser = context.browser();
 				const brain = entry.mcpInProcess as {
 					connection?: { close?: () => Promise<void> };
 					httpServer?: { closeAllConnections?: () => void; close?: (cb?: () => unknown) => unknown };
+					release?: () => void;
 				};
 				// OUR listener first, connections force-dropped (an open SSE
 				// client would hold server.close() forever), then the brain

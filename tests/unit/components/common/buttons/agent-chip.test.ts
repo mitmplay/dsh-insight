@@ -10,7 +10,22 @@ import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import AgentChip from '$lib/components/common/buttons/AgentChip.svelte';
 
-function mountChip(props: Record<string, unknown>) {
+interface ChipProps {
+	label: string;
+	count?: number | null;
+	interactive?: boolean;
+	selected?: boolean;
+	onpick?: (key: string) => void;
+	pickKey?: string;
+	title?: string;
+	testid?: string;
+	/** Legacy flag, no longer a declared AgentChip prop — ignored at runtime. */
+	compact?: boolean;
+	size?: 'compact' | 'pill' | 'chip';
+	maxWidth?: string;
+}
+
+function mountChip(props: ChipProps) {
 	const target = document.createElement('div');
 	document.body.appendChild(target);
 	const instance = mount(AgentChip, { target, props });

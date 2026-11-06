@@ -134,7 +134,7 @@
 	   field the hosts paint — white 6.47, wash 5.53, hover 5.27,
 	   selected 4.55. */
 	.status.run {
-		gap: 0.0625rem;
+		gap: 0.1rem;
 	}
 
 	.bar {

@@ -57,6 +57,7 @@ interface FakeES {
 	url: string;
 	closed: boolean;
 	onmessage: ((e: { data: string }) => void) | null;
+	onerror: (() => void) | null;
 	listeners: Map<string, Array<(e: MessageEvent) => void>>;
 	close(): void;
 	addEventListener(kind: string, fn: (e: MessageEvent) => void): void;
@@ -69,6 +70,7 @@ class FakeEventSource implements FakeES {
 	url: string;
 	closed = false;
 	onmessage: ((e: { data: string }) => void) | null = null;
+	onerror: (() => void) | null = null;
 	listeners = new Map<string, Array<(e: MessageEvent) => void>>();
 	constructor(url: string) {
 		this.url = url;

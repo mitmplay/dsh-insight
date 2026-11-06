@@ -1509,9 +1509,15 @@ describe('dsh-connection — W3 forwards (create / presets / historyPage)', () =
 		}) as unknown as typeof fetch;
 		const conn = new DshConnection({ fetchFn, wsFactory: (u) => new FakeWebSocket(u) as never, rpcIdFactory: () => 'rpc-test' });
 		await conn.createSession('/tmp/x', 'app-dev');
-		expect(seen[0].url).toContain('/api/session/create');
-		expect(seen[0].body.method).toBe('session/create');
-		expect((seen[0].body.payload as { args: unknown }).args).toEqual({ request: { cwd: '/tmp/x', agentPreset: 'app-dev' } });
+		// Birth Workspace Attach (2026-11-06, Frozen Roster amendment D5): the
+		// create may be preceded by the workspace-registry read the cwd →
+		// workspaceId resolution performs, so the create envelope is found by
+		// METHOD, not by call order. No registry baseline in this fixture →
+		// the legacy cwd form is the honest fallback (D6).
+		const createCall = seen.find((c) => c.body.method === 'session/create');
+		expect(createCall).toBeDefined();
+		expect(createCall!.url).toContain('/api/session/create');
+		expect((createCall!.body.payload as { args: unknown }).args).toEqual({ request: { cwd: '/tmp/x', agentPreset: 'app-dev' } });
 	});
 
 	it('listPresets normalizes rows (id/name/description/isDefault)', async () => {

@@ -60,6 +60,7 @@ export function zaiPatchPath() {
 	return path.join(homedir(), '.dsh', 'profiles', profile, 'cordis.patch.yml');
 }
 
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
 function isRecord(value) {
 	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -74,7 +75,8 @@ export function addZaiProvider(target = zaiPatchPath()) {
 		try {
 			parsed = parse(readFileSync(target, 'utf-8'));
 		} catch (error) {
-			throw new ZaiPatchError(`cannot parse ${target}: ${error?.message ?? error}`);
+			const message = /** @type {any} */ (error)?.message ?? error;
+			throw new ZaiPatchError(`cannot parse ${target}: ${message}`);
 		}
 		if (!Array.isArray(parsed) || parsed.some((row) => !isRecord(row))) {
 			throw new ZaiPatchError(`${target} is not a Cordis patch array of entries`);

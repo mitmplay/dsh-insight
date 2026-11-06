@@ -3,6 +3,25 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+/** Shape of the injected spawnSync the bootstrap module calls (matches
+ *  node child_process spawnSync's result: status is null on signal/skip). */
+type FakeSpawnResult = { status: number | null };
+type SpawnSyncFn = (
+	cmd: string,
+	args?: string[],
+	opts?: { stdio?: 'pipe' | 'inherit'; timeout?: number }
+) => FakeSpawnResult;
+/** Env vars the bootstrap reads (plus anything else a fake needs). */
+type GlassEnv = { HOME?: string; DSI_SKIP_BROWSER_INSTALL?: string };
+/** Injected options object for ensureGlassBrowser. */
+type GlassOpts = {
+	packageRoot: string;
+	spawnSync: SpawnSyncFn;
+	env: GlassEnv;
+	log: (line: string) => void;
+	platform: string;
+};
+
 import {
 	pinnedPlaywrightVersion,
 	findSystemChrome,
@@ -11,7 +30,7 @@ import {
 } from '../../bin/lib/glass-browser-bootstrap.mjs';
 
 /** A throwaway packageRoot whose package.json carries the given pin. */
-function fakePackageRoot(pin) {
+function fakePackageRoot(pin: string | null): string {
 	const root = mkdtempSync(path.join(tmpdir(), 'dsi-glass-bootstrap-'));
 	if (pin !== null) {
 		mkdirSync(root, { recursive: true });
@@ -41,10 +60,10 @@ describe('findSystemChrome', () => {
 		expect(findSystemChrome(() => { throw new Error('must not spawn'); }, 'darwin', () => true)).toBe(true);
 	});
 	it('probes the PATH candidates on linux and takes the first hit', () => {
-		const calls = [];
-		const verdict = findSystemChrome((cmd, args) => {
-			calls.push(args[0]);
-			return { status: args[0] === 'chromium-browser' ? 0 : 1 };
+		const calls: string[] = [];
+		const verdict = findSystemChrome((cmd: string, args?: string[]): FakeSpawnResult => {
+			calls.push(args?.[0] ?? '');
+			return { status: args?.[0] === 'chromium-browser' ? 0 : 1 };
 		}, 'linux');
 		expect(verdict).toBe(true);
 		expect(calls[0]).toBe('google-chrome');
@@ -70,28 +89,28 @@ describe('playwrightCacheHasChromium', () => {
 });
 
 describe('ensureGlassBrowser — the D2 decision tree', () => {
-	const base = () => ({
+	const base = (): GlassOpts => ({
 		packageRoot: fakePackageRoot('1.61.0'),
-		spawnSync: () => { throw new Error('must not spawn at probe stage'); },
+		spawnSync: (): never => { throw new Error('must not spawn at probe stage'); },
 		// A scratch HOME: an empty env would fall back to the REAL homedir,
 		// whose cache answers the probe with machine truth (caught live).
 		env: { HOME: mkdtempSync(path.join(tmpdir(), 'dsi-glass-empty-home-')) },
-		log: () => {},
+		log: (_line: string): void => {},
 		platform: 'linux'
 	});
 
 	it('skips on the escape hatch before ANY probe (D4)', () => {
 		const opts = base();
 		opts.env = { DSI_SKIP_BROWSER_INSTALL: '1' };
-		const lines = [];
-		opts.log = (l) => lines.push(l);
+		const lines: string[] = [];
+		opts.log = (l: string): void => { lines.push(l); };
 		expect(ensureGlassBrowser(opts)).toEqual({ action: 'skip', reason: 'env-escape-hatch' });
 		expect(lines.join('\n')).toContain('DSI_SKIP_BROWSER_INSTALL');
 	});
 
 	it('skips on system Chrome WITHOUT touching the cache or fetching (D2 order)', () => {
 		const opts = base();
-		opts.spawnSync = (cmd, args) => ({ status: args[0] === 'google-chrome' ? 0 : 1 });
+		opts.spawnSync = (_cmd: string, args?: string[]): FakeSpawnResult => ({ status: args?.[0] === 'google-chrome' ? 0 : 1 });
 		expect(ensureGlassBrowser(opts)).toEqual({ action: 'skip', reason: 'system-chrome' });
 	});
 
@@ -106,15 +125,15 @@ describe('ensureGlassBrowser — the D2 decision tree', () => {
 	});
 
 	it('fetches the PINNED playwright when nothing skips — loud line BEFORE spawn (D1/D3)', () => {
-		const order = [];
+		const order: string[] = [];
 		const opts = base();
-		opts.spawnSync = (cmd, args) => {
+		opts.spawnSync = (cmd: string, args?: string[]): FakeSpawnResult => {
 			// probe stage (which) answers MISS; only the fetch child succeeds
 			if (cmd === 'which') return { status: 1 };
-			order.push(`spawn:${cmd} ${args.join(' ')}`);
+			order.push(`spawn:${cmd} ${(args ?? []).join(' ')}`);
 			return { status: 0 };
 		};
-		opts.log = (l) => order.push(`log:${l}`);
+		opts.log = (l: string): void => { order.push(`log:${l}`); };
 		const verdict = ensureGlassBrowser(opts);
 		expect(verdict).toEqual({ action: 'fetched', reason: 'playwright@1.61.0' });
 		expect(order[0]).toMatch(/^log:.*downloading chromium/);
@@ -123,9 +142,9 @@ describe('ensureGlassBrowser — the D2 decision tree', () => {
 
 	it('warns and continues when the fetch FAILS — never throws (D4)', () => {
 		const opts = base();
-		opts.spawnSync = () => ({ status: 1 });
-		const lines = [];
-		opts.log = (l) => lines.push(l);
+		opts.spawnSync = (): FakeSpawnResult => ({ status: 1 });
+		const lines: string[] = [];
+		opts.log = (l: string): void => { lines.push(l); };
 		const verdict = ensureGlassBrowser(opts);
 		expect(verdict).toEqual({ action: 'warned', reason: 'fetch-failed' });
 		expect(lines.join('\n')).toContain('install chromium');

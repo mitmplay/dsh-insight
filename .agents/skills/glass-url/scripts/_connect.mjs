@@ -60,6 +60,7 @@ export function floorCandidates(env = process.env) {
  *  pickSession per floor with the caller's identity, the floor holding the
  *  caller's OWN glass wins, a double-claim dies loud (D7 stands); none
  *  answer → die naming BOTH ports and BOTH launch commands. */
+/** @param {{ env?: Record<string, string|undefined>, fetchImpl?: typeof fetch, identity?: string|undefined, pickSessionFn?: (s: GlassSession[]|null|undefined, id: string|undefined) => PickResult, dieFn?: (msg: string) => never, timeoutMs?: number }} [opts] @returns {Promise<{ base: string, reg: { sessions: GlassSession[] } }>} — never resolves undefined: every fall-through path dies. */
 export async function resolveDsiBase({ env = process.env, fetchImpl = fetch, identity = undefined, pickSessionFn = pickSession, dieFn = die, timeoutMs = 3000 } = {}) {
   const candidates = floorCandidates(env);
   const probes = await Promise.all(candidates.map(async (base) => {
@@ -83,12 +84,13 @@ export async function resolveDsiBase({ env = process.env, fetchImpl = fetch, ide
     dieFn('a glass owned by you lives on BOTH floors (' + mine.map((m) => m.base).join(', ') +
       ') — set DSI_UI=<floor url> to name the floor; refusing to guess (D7)');
   }
-  dieFn('both floors answer but neither holds YOUR glass (' + answered.map((m) => m.base).join(', ') +
+  return dieFn('both floors answer but neither holds YOUR glass (' + answered.map((m) => m.base).join(', ') +
     ') — click the Browser chip in THIS conversation');
 }
 
 /** True when a tab url's ORIGIN is the resolved floor's origin (D2): the
  *  DSI tab is the floor's own page, whatever port it landed on. */
+/** @param {string} url @param {string} base @returns {boolean} */
 export function isFloorTab(url, base) {
   try { return new URL(url).origin === new URL(base).origin; } catch { return false; }
 }
@@ -129,7 +131,7 @@ export function pickSession(sessions, envId) {
   return { session: null, error: 'multiple live glasses and no explicit identity — pass --owner-session <id> (or GLASS_OWNER_SESSION) from the session id you already know; refusing to guess (D7)' };
 }
 
-/** @returns {Promise<{ session: GlassSession, browser: import('playwright-core').Browser, ctx: import('playwright-core').BrowserContext }>} */
+/** @returns {Promise<{ session: GlassSession, browser: import('playwright-core').Browser, ctx: import('playwright-core').BrowserContext, base: string }>} */
 export async function connect() {
   const { base, reg } = await resolveDsiBase({ env: process.env, identity: identityFrom(process.argv) });
   const { session, degraded, note, error } = pickSession(reg.sessions, identityFrom(process.argv));

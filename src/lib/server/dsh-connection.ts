@@ -591,12 +591,30 @@ export class DshConnection {
 		return this.relay.historyPage(sessionId, beforeSeq);
 	}
 
-	/** session.create {cwd?, agentPreset?}. */
+	/**
+	 * session.create {cwd?|workspaceId?, agentPreset?} — Birth Workspace
+	 * Attach (2026-11-06, The Frozen Roster amendment D5/D6): an exact
+	 * canonical-path match between the requested cwd and a registered
+	 * workspace sends {workspaceId} so the host ATTACHES the session to
+	 * the roster at birth (the cwd is omitted — the host derives it from
+	 * the row). No match, empty registry, or a LOOKUP failure falls back
+	 * to {cwd} exactly as before — resolution failure never fails the
+	 * create (D6: no match is a silent fallback, never an auto-adopt).
+	 */
 	async createSession(
 		cwd?: string,
 		agentPreset?: string
 	): Promise<{ sessionId: string; agentPreset?: string }> {
-		return this.relay.createSession(cwd, agentPreset);
+		let workspaceId: string | undefined;
+		if (cwd !== undefined) {
+			try {
+				const { items } = await this.listWorkspaces();
+				workspaceId = items.find((w) => w.path === cwd)?.workspaceId;
+			} catch {
+				// registry unavailable — the cwd fallback below is the contract
+			}
+		}
+		return this.relay.createSession(cwd, agentPreset, workspaceId);
 	}
 
 	/** session/fork — the fork child. */

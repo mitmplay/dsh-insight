@@ -143,7 +143,7 @@ describe('TerminalSession.resize — the fitted dims reach the PTY (2026-11-03 a
 		// the child's winsize now reads 40 120 (rows cols) — before the fix
 		// the PTY stayed at the spawn dims and the shell's right prompt
 		// printed past the rendered viewport
-		expect(s.tail).toContain('40 120');
+		expect(s.getTail()).toContain('40 120');
 	});
 
 	it('resize clamps junk and is a no-op on an exited session', async () => {

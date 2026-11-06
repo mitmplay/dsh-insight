@@ -134,24 +134,3 @@
 		/>
 	{/if}
 </div>
-
-<style>
-	/* The filter-summary-chip-agent identity (SessionFilterHeader
-	   .chip.agent): border + 8% tint field + purple-deepened text at AA
-	   5.25:1 — sized to the header's chip (text-xs, roomier padding), so
-	   the agent dimension reads as one identity across sidebar and
-	   header. */
-	.agent-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		border: 1px solid color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 50%, #4c1d95);
-		border-radius: 9999px;
-		padding: 0.125rem 0.5rem;
-		font-size: 0.75rem;
-		line-height: 1;
-		white-space: nowrap;
-		color: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 50%, #4c1d95);
-		background: color-mix(in srgb, var(--color-accent-purple, var(--color-accent-purple)) 8%, transparent);
-	}
-</style>

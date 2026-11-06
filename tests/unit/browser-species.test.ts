@@ -114,7 +114,7 @@ describe('browser floor species (W2 2.2)', () => {
 		document.body.appendChild(target);
 		const instance = mount(ConversationHeader, {
 			target,
-			props: { sessionId: 's1', title: 't', initialTitle: 't', agent: 'x', isStreaming: true, onOpenBrowser: () => undefined }
+			props: { sessionId: 's1', title: 't', initialTitle: 't', ontitlechange: () => undefined, agent: 'x', isStreaming: true, onOpenBrowser: () => undefined }
 		});
 		// open-browser: icon + label span; the span is what the PanelColumn
 		// container query hides below 530px.
