@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
-import { autoTrace } from './src/lib/preprocess/auto-trace';
+import { autoTrace } from './src/lib/preprocess/auto-trace.ts';
 import { dshHostPlugin } from './vt-plugins/vite-dsh-host.ts';
 
 export default defineConfig({

@@ -1,7 +1,7 @@
 # installation in orb-stack vm (ubuntu)
 [Quick start orb-stack](https://docs.orbstack.dev/quick-start)
 - `orb sudo passwd $USER` - (password: orb)
-- `ssh orb`
+- `ssh ubuntu@orb`
 - <pre>sudo apt install zsh vim curl\
 	git-core unzip pkg-config\
 	openssh-server cargo\
@@ -76,7 +76,7 @@ github = "zsh-users/zsh-syntax-highlighting"
 apply = ["defer"]
 ```
 - exit from orb vm
-- `ssh orb`
+- `ssh ubuntu@orb`
 
 # install fnm
 curl -fsSL https://fnm.vercel.app/install | bash
@@ -91,7 +91,7 @@ if [ -d "$FNM_PATH" ]; then
 fi
 ```
 - exit from orb vm
-- `ssh orb`
+- `ssh ubuntu@orb`
 - `fnm install 26.13.0`
 - `npm install -g pnpm`
 

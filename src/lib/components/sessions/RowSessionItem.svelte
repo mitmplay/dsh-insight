@@ -109,7 +109,7 @@
 <a
 	class="row"
 	class:child={depth > 0}
-	href={isGlass ? undefined : resolve(conversationHref())}
+	href={isGlass ? undefined : resolve(conversationHref() as '/')}
 	data-testid="sidebar-session-card"
 	data-session-id={session.sessionId}
 	data-depth={depth}

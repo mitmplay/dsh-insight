@@ -38,4 +38,23 @@ describe('SettingsSkillsHeaderTabs', () => {
 		flushSync();
 		expect(ontabchange).toHaveBeenCalledWith('uninstall');
 	});
+
+	it('a passed tab=uninstall renders the uninstall segment ON', () => {
+		const target = mountGroup({ tab: 'uninstall' });
+		expect(target.querySelector('[data-testid="shelf-tab-uninstall"]')!.getAttribute('aria-pressed')).toBe('true');
+		expect(target.querySelector('[data-testid="shelf-tab-install"]')!.getAttribute('aria-pressed')).toBe('false');
+	});
+
+	it('clicking install reports the install intent (ternary normalizes foreign ids)', () => {
+		const ontabchange = vi.fn();
+		const target = mountGroup({ tab: 'uninstall', ontabchange });
+		target.querySelector<HTMLButtonElement>('[data-testid="shelf-tab-install"]')!.click();
+		flushSync();
+		expect(ontabchange).toHaveBeenCalledWith('install');
+	});
+
+	it('clicking a tab with NO ontabchange handler is safe (optional intent)', () => {
+		const target = mountGroup({});
+		expect(() => target.querySelector<HTMLButtonElement>('[data-testid="shelf-tab-uninstall"]')!.click()).not.toThrow();
+	});
 });

@@ -26,7 +26,7 @@ function mountSlider(props: {
 }
 
 afterEach(() => {
-	while (apps.length) unmount(apps.pop());
+	while (apps.length) unmount(apps.pop()!);
 	document.body.innerHTML = '';
 });
 

@@ -87,6 +87,17 @@ const makeResolve = () => ({
 		'$app/environment': path.resolve(import.meta.dirname, 'tests/stubs/app-environment.ts'),
 		'$app/state': path.resolve(import.meta.dirname, 'tests/stubs/app-state.ts'),
 		'$app/navigation': path.resolve(import.meta.dirname, 'tests/stubs/app-navigation.ts'),
+		// RowSessionItem's seed deep link passes conversationSeedUrl() through
+		// resolve() ($app/paths) — without this alias every suite whose import
+		// graph reaches the row (AppSidebar, SessionsList, RowSessionItem)
+		// fails at transform with "Failed to resolve import \"$app/paths\""
+		// and reports 0 tests / 0% coverage (observed 2026-11-06).
+		'$app/paths': path.resolve(import.meta.dirname, 'tests/stubs/app-paths.ts'),
+		// RowSessionItem (and any future sidebar row) imports resolve() from
+		// $app/paths — the route graph does not exist under vitest, so stub
+		// it like the other $app/* seams (2026-11-06: without this alias the
+		// whole +page.svelte graph fails transform and the route mounts 0%).
+		'$app/paths': path.resolve(import.meta.dirname, 'tests/stubs/app-paths.ts'),
 		// Mirror the vite.config monaco alias (ADR-0047 wave): settings-monaco
 		// imports the markdown Monarch grammar through the same deep path.
 		'monaco-editor/esm/vs': path.resolve(import.meta.dirname, 'node_modules/monaco-editor/esm/vs'),

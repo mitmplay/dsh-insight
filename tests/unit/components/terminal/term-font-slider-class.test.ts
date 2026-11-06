@@ -1,5 +1,6 @@
 import { describe, expect, it, afterEach } from 'vitest';
 import { mount, unmount, flushSync } from 'svelte';
+import type { ComponentProps } from 'svelte';
 import TermFontSlider from '$lib/components/terminal/TermFontSlider.svelte';
 
 // Focus: the class prop branch — default ('') keeps the wrapper's class
@@ -14,7 +15,7 @@ let target: HTMLElement | null = null;
 function mountSlider(classProp?: string): HTMLElement {
 	target = document.createElement('div');
 	document.body.appendChild(target);
-	const props: Record<string, unknown> = {
+	const props: ComponentProps<typeof TermFontSlider> = {
 		font: 12,
 		onchange: () => {},
 		label: 'terminal font size',
