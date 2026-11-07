@@ -505,5 +505,7 @@
 	"browserZoom": "Zoom konten",
 	"browserSessionDead": "sesi glass ditutup — peramban di balik panel ini sudah tiada",
 	"terminalFontSlider": "ukuran font terminal",
-	"browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile"
+	"browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile",
+	"browserCloneHint": "Mengkloning profil Chrome yang terakhir dipakai…",
+	"browserCloneFallback": "Gagal mengkloning profil — membuka glass bersih sebagai gantinya"
 }

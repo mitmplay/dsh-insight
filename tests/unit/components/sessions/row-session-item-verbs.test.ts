@@ -77,6 +77,7 @@ describe('RowSessionItem — click verbs', () => {
 	it('floor mounted, plain click: addPanelFromSidebar answers and nav is cancelled', () => {
 		const added: Array<{ sessionId: string; agentPreset: string | null }> = [];
 		registerAddPanel((req) => {
+			if (req.kind !== undefined && req.kind !== 'conversation') return false;
 			added.push({ sessionId: req.sessionId, agentPreset: req.agentPreset });
 			return true;
 		});
@@ -94,6 +95,7 @@ describe('RowSessionItem — click verbs', () => {
 		});
 		const replaced: string[] = [];
 		registerReplaceSelected((req) => {
+			if (req.kind !== undefined && req.kind !== 'conversation') return false;
 			replaced.push(req.sessionId);
 			return true;
 		});

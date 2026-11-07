@@ -128,7 +128,7 @@ describe('SidebarSessions — the data owner', () => {
 	});
 
 	it('an ok:false body flips to the error phase with the host message', async () => {
-		const h = await mountSessions({}, () =>
+		const h = await mountSessions({}, async () =>
 			jsonResponse({ ok: false, error: { code: 'boom', message: 'host down' } }, 500)
 		);
 		const text = h.textContent ?? '';
@@ -136,7 +136,7 @@ describe('SidebarSessions — the data owner', () => {
 	});
 
 	it('a non-ok response without an error body reports the status fallback', async () => {
-		const h = await mountSessions({}, () => jsonResponse({}, 503));
+		const h = await mountSessions({}, async () => jsonResponse({}, 503));
 		expect(h.textContent ?? '').toMatch(/503/);
 	});
 
@@ -148,7 +148,7 @@ describe('SidebarSessions — the data owner', () => {
 	});
 
 	it('missing arrays in an ok body default to empty (?? arms)', async () => {
-		const h = await mountSessions({}, () => jsonResponse({ ok: true }));
+		const h = await mountSessions({}, async () => jsonResponse({ ok: true }));
 		expect(h.querySelector('[data-testid="sidebar-sessions-empty"]')).not.toBeNull();
 	});
 

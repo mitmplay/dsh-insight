@@ -15,9 +15,39 @@ Every non-trivial task goes through the battle-tested flow, in order:
 Anchor the whole task in DSH's own memory tools so the model cannot drift
 or forget where it is:
 
+- ⛔ **HARD GATE (2026-11-07, earned twice)**: no product-code write before
+  the `dsi-task` SKILL.md is loaded in the current session. Writing the
+  spec's Tasks.md does NOT discharge this — the skill that consumes it
+  (Wave Executor 3.10 + Churn Discipline 3.11) is the only sanctioned
+  execution path. Skipping it re-burns exactly the spend the amendments
+  were written to save (2026-11-07: 10.6M lesson, then re-paid at 16.6M).
 - **At kickoff**, create a `goal` whose objective restates the task's
-  outcome, and declare the `todo` checklist `adr → spec → task → verify →
-  done`. This is the visible checklist — harness-tracked, not prose.
+  outcome, and declare the `todo` checklist `adr → spec → dsi-task (load
+  skill, declare waves) → verify → done`. The execution item must NAME the
+  skill — a bare "task — implement" item masquerades as the skill step and
+  is forbidden (it impersonated the gate once and cost ~3-4M tok).
+- ❌ **SPLIT-SESSION EXECUTION (2026-11-07, the 5.7M lesson; amended same
+  day — NORMAL AGENT, not a subagent)**: after the spec stage, the planner
+  does NOT run `dsi-task` in-session — hand execution to a NEW NORMAL
+  SESSION whose first prompt is: "load the dsi-task skill → execute
+  {spec-folder path from dev/specs/} → report completion + verification
+  evidence". Auto-spawn it MECHANICALLY with `schedule_create` target
+  `new_once` — a one-shot rule (`DTSTART` in the past,
+  `RRULE:FREQ=DAILY;COUNT=1`) delivers the dispatch prompt to the new
+  session at creation. It MUST be a normal
+  top-level agent, never a `subagent`: dsi-task's own body (Step 3.10 Wave
+  Executor + Step 4 Sub-Agent Safety) spawns and polls its own wave-children
+  and holds the deviation-protocol and commit-authority roles — all of that
+  breaks below depth 1 in this harness. The new session starts at near-zero
+  context and prices its steps at ~50-60k instead of the planner's ~100k
+  (measured: the 5.7M session; ~25-30% cut, growing on multi-wave runs).
+  The dispatch prompt MUST name the spec folder path; the planner-side
+  execution todo names the HANDOFF ("task — hand dsi-task to a new session
+  on {spec-folder}"), not a local skill load. The planner reads the new
+  session's completion report against the Tasks DoD before marking the
+  goal complete. Escape hatch: the operator may say "execute here" for a
+  tiny wave — then the in-session rules above apply unchanged. The ceremony
+  half does not get cheaper by this — never split mid-discovery.
 - **At every step**, keep the todos 1:1 with the ASDLC stage boundaries:
   mark the current stage `in_progress`, the finished one `completed`.
 - **On resume after a pause or fork**, re-arm with `update_goal resume`

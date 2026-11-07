@@ -30,7 +30,7 @@ function mountFooter(
 	document.body.appendChild(host);
 	instance = mount(SidebarFooter, {
 		target: host,
-		props: { preset: null, workspace: null, oncreated: vi.fn(), onreplace: null, ...props }
+		props: { preset: null, workspace: null, oncreated: vi.fn(), onreplace: undefined, ...props }
 	});
 	flushSync();
 	return host;
@@ -86,7 +86,7 @@ describe('SidebarFooter — the bottom strip', () => {
 		const oncreated = vi.fn();
 		const h = mountFooter(
 			{ preset: 'research', workspace: '/tmp/alpha', oncreated },
-			() => jsonResponse({ ok: true, sessionId: 's-new', agentPreset: null })
+			async () => jsonResponse({ ok: true, sessionId: 's-new', agentPreset: null })
 		);
 		(h.querySelector('[data-testid="new-chat-button"]') as HTMLButtonElement).click();
 		await new Promise((r) => setTimeout(r, 20));
@@ -99,7 +99,10 @@ describe('SidebarFooter — the bottom strip', () => {
 
 	it('a create without a workspace posts the preset-only body (host default cwd)', async () => {
 		const oncreated = vi.fn();
-		const fetchSpy = vi.fn(() => jsonResponse({ ok: true, sessionId: 's-nocwd' }));
+		const fetchSpy = vi.fn(
+			async (_input: RequestInfo | URL, _init?: RequestInit) =>
+				jsonResponse({ ok: true, sessionId: 's-nocwd' })
+		);
 		vi.stubGlobal('fetch', fetchSpy);
 		const h = mountFooter({ preset: 'main', workspace: null, oncreated });
 		(h.querySelector('[data-testid="new-chat-button"]') as HTMLButtonElement).click();
@@ -120,7 +123,7 @@ describe('SidebarFooter — the bottom strip', () => {
 		const onreplace = vi.fn();
 		const h = mountFooter(
 			{ preset: 'main', oncreated, onreplace },
-			() => jsonResponse({ ok: true, sessionId: 's-rep' })
+			async () => jsonResponse({ ok: true, sessionId: 's-rep' })
 		);
 		expect(h.querySelector('[data-testid="chat-mode-toggle"]')).not.toBeNull();
 		(h.querySelector('[data-testid="chat-mode-replace"]') as HTMLButtonElement).click();

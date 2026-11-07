@@ -14,7 +14,7 @@ describe('registry ownerSessionId (glass answers by name)', () => {
 	it('route contract: POST parses ownerSessionId and passes it to open()', async () => {
 		const src = (await import('node:fs')).readFileSync('src/routes/api/browser/+server.ts', 'utf8');
 		expect(src).toContain('ownerSessionId');
-		expect(src).toContain('browserRegistry.open({ width, height, ownerSessionId })');
+		expect(src).toContain('browserRegistry.open({ width, height, ownerSessionId, headedOpen })'); // headedOpen joined ADR-0046
 	});
 
 	it('open() stores the owner and list() exposes it', async () => {

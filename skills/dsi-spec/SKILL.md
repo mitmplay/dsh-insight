@@ -204,6 +204,12 @@ Save to: `{project-path}/dev/specs/{YYYY-MM}/{TODAY} - {Feature Name}/karpathy-c
 
 **Contents:** All 3 layers as structured markdown. This is the internal context file the task-executor loads when executing.
 
+**Self-sufficiency contract (2026-11-07, the 5.7M lesson):** under the split-session flow (AGENTS.md,
+Split-Session Execution) a fresh NORMAL session (auto-spawned via `schedule_create` `new_once`)
+executes from this folder alone — the planner is gone when it runs. Every file:line fact, decision rationale, rejected alternative, and verification command the
+executor will need MUST be written here while the planner still holds it; a gap means the child
+re-does the discovery, which is the exact cost the split exists to cut.
+
 ### Document 4: Tasks Machine Twin (Tasks.json)
 
 Save to: `{project-path}/dev/specs/{YYYY-MM}/{TODAY} - {Feature Name}/Tasks.json`
@@ -290,6 +296,8 @@ This is the ONLY checklist output to the user. Declared at the start. Verified a
 ---
 
 ## How This Skill Connects to task-executor
+
+⛔ **MANDATORY HANDOFF (2026-11-07, earned twice)**: when this skill's four deliverables are saved, the NEXT action in the same session is invoking `dsi-task` (repo skills copy: `skills/dsi-task/SKILL.md`) — its Step 3.10 Wave Executor and Step 3.11 Churn Discipline are the only sanctioned execution path for the produced waves. Do NOT implement the waves inline in the parent; do not end the turn with "deliverables ready" and treat execution as a separate discretionary task. Writing Tasks.md discharges NOTHING — the consuming skill does (AGENTS.md hard gate). Skipping it re-burns the spend the amendments were written to save (2026-11-07: 10.6M lesson, re-paid at 16.6M).
 
 After `/feature-spec` produces the deliverables, the user can run `/execute-tasks` to begin implementation. The task-executor skill loads the Karpathy context and tasks document produced by this skill.
 

@@ -505,5 +505,7 @@
 	"browserZoom": "Zoom de contenido",
 	"browserSessionDead": "sesión de glass cerrada — el navegador detrás de este panel ya no existe",
 	"terminalFontSlider": "tamaño de fuente de la terminal",
-	"browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile"
+	"browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile",
+	"browserCloneHint": "Clonando tu perfil de Chrome más reciente…",
+	"browserCloneFallback": "No se pudo clonar tu perfil — se abre un glass limpio en su lugar"
 }

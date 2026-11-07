@@ -91,6 +91,13 @@ Before any execution, load exactly these files:
 
 Read these files at the start. Do NOT carry them from previous conversation context — reload fresh.
 
+> **Handoff-valid (2026-11-07, the 5.7M lesson):** this skill is designed to be loaded by a FRESH
+> NORMAL session dispatched by the planner via `schedule_create` `new_once` (AGENTS.md, Split-Session
+> Execution — never a subagent: Step 3.10/Step 4 need depth-1 children) — Step 1's
+> two disk files ARE the whole contract, no planner context required. If the dispatch prompt names a
+> spec folder, resolve karpathy-context + Tasks from it and begin; anything the spec folder fails to
+> answer is a STOP-and-report, never a re-discovery.
+
 ---
 
 ## Step 1.5: Date Resolution ⛔ MANDATORY

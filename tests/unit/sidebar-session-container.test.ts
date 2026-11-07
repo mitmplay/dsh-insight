@@ -22,8 +22,8 @@ const session: DsiSessionSummary = {
 	workspace: '/tmp/alpha',
 	turns: null,
 	parentSessionId: null,
-	origin: 'user'
-} as DsiSessionSummary;
+	origin: null
+};
 
 const workspaces: DsiWorkspaceSummary[] = [];
 

@@ -1436,7 +1436,13 @@ const browser = context.browser();
 			if (entry.profileDir.startsWith(disposableRoot)) {
 				rmSync(entry.profileDir, { recursive: true, force: true });
 			} else {
-				errs.push(new Error('profile cleanup skipped - dir outside disposable root: ' + entry.profileDir));
+				// The guard is a NO-OP skip, not a close failure: since the Headed
+				// Downgrade (ADR-0047 amendment) open() only ever creates dirs
+				// under the disposable root, so this arm is reachable only for
+				// stale/foreign entries — refuse the delete, log, and let the
+				// close succeed (an intentional safety skip is not a teardown
+				// error; pushing it here flipped every clean-close pin to ok:false).
+				console.warn('profile cleanup skipped - dir outside disposable root: ' + entry.profileDir);
 			}
 		} catch (e) {
 			errs.push(e);
@@ -1685,6 +1691,13 @@ const browser = context.browser();
 					}
 				}
 				e.chrome = { w: cw, h: ch };
+				// ADR-0041 Amendment 5 (2026-11-07): a HEADED session keeps STEP 1
+				// and the final reseed, and SKIPS the bounce + flash/park below —
+				// the ladder may RESIZE a headed window, never move or hide it
+				// (the operator's Shift-click asked to see it where Chrome opened it).
+				if (e.headedOpen === true) {
+					console.log('[surface] headed session — bounce+flash skipped (ADR-0041 Amendment 5)');
+				} else {
 				// STEP 2 — the surface BOUNCE: with the bounds correct and the
 				// surface still stale, force the window server to reallocate.
 				await race(anyCdp.send('Browser.setWindowBounds', { windowId: win.windowId, bounds: { windowState: 'minimized' } }), null);
@@ -1715,6 +1728,7 @@ const browser = context.browser();
 				}
 				if (matched()) return;
 				console.log('[surface] ladder exhausted: bounce+flash ran, stream frames still', (() => { const d = dimsOf(handle.relay.latestFrame()); return d ? d.w + 'x' + d.h : 'unknown'; })());
+				} // the headed/headless chassis fork (ADR-0041 Amendment 5)
 			}
 		}
 		const cfg: BrowserConfig = readBrowserConfig();

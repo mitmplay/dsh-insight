@@ -505,5 +505,7 @@
 	"browserZoom": "内容缩放",
 	"browserSessionDead": "glass 会话已关闭 — 该面板背后的浏览器已不存在",
 	"terminalFontSlider": "终端字号",
-	"browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile"
+	"browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile",
+	"browserCloneHint": "正在克隆你最近使用的 Chrome 配置…",
+	"browserCloneFallback": "无法克隆你的配置 — 改用干净的 glass 打开"
 }
