@@ -266,6 +266,7 @@
 	"chordArmedTitle": "Alt+{prefix} armed",
 	"chordArmedLabel": "Alt+{prefix} chord armed — next key",
 	"chordTerminalNewTab": "New terminal tab",
+	"chordTerminalClear": "Clear current terminal tab (kill + prune)",
 	"chordTerminalSplitDown": "Split down current terminal tab",
 	"closePanelNamed": "Close panel {id}",
 	"closePanelHint": "Close panel — Shift+Click keeps its children open",

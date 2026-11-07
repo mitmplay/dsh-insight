@@ -102,6 +102,21 @@ export class TerminalRegistry {
 		return result.quiescent ? { quiescent: true } : { quiescent: false, lingeringPids: result.lingeringPids };
 	}
 
+	/** Destroy: run the close ladder, then PRUNE the entry (ADR amendment
+	 *  2026-11-07, D2 extension). The desk's clear chord is the caller —
+	 *  an exited session prunes without re-killing (close is idempotent
+	 *  on a settled session); the fence applies like every tokened verb. */
+	async destroy(sessionId: string, token: string): Promise<RegistryCloseResult & { pruned: boolean }> {
+		const entry = this.entries.get(sessionId);
+		if (!entry) throw new TerminalRegistryRefusal('NO_SESSION', 'no such terminal session');
+		if (entry.token !== token) throw new TerminalRegistryRefusal('FOREIGN_SESSION', 'this tab does not own the terminal');
+		const result = await entry.session.close();
+		this.entries.delete(sessionId);
+		return result.quiescent
+			? { quiescent: true, pruned: true }
+			: { quiescent: false, lingeringPids: result.lingeringPids, pruned: true };
+	}
+
 	readFrom(sessionId: string, fromByte: number): ReturnType<TerminalSession['readFrom']> {
 		// Reads are the watcher path — no token, per D7's open-watch posture.
 		const entry = this.entries.get(sessionId);

@@ -14,6 +14,7 @@
  */
 import { mount, unmount, flushSync } from 'svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetStreamHubForTests } from '../../src/lib/services/terminal/stream-hub.svelte';
 
 vi.mock('@xterm/xterm', () => ({
 	Terminal: class {
@@ -76,8 +77,19 @@ class FakeEventSource implements FakeES {
 		this.listeners.set(kind, arr);
 	}
 	emit(kind: string, data?: string) {
-		const ev = { data: data ?? '' } as MessageEvent;
-		if (kind === 'message') this.onmessage?.({ data: data ?? '' });
+		// the real hub wire ALWAYS tags frames with sessionId (ADR-0053):
+		// the fake injects the source's own id so test literals stay terse
+		let payload = data ?? '';
+		try {
+			const o = JSON.parse(payload) as Record<string, unknown>;
+			if (o && typeof o === 'object' && !('sessionId' in o)) {
+				const ids = JSON.parse(new URL('http://x' + this.url).searchParams.get('ids') ?? '[]') as string[];
+				o.sessionId = ids[0];
+				payload = JSON.stringify(o);
+			}
+		} catch { /* torn frame stays torn */ }
+		const ev = { data: payload } as MessageEvent;
+		if (kind === 'message') this.onmessage?.({ data: payload });
 		for (const fn of this.listeners.get(kind) ?? []) fn(ev);
 	}
 	fail() {
@@ -151,6 +163,7 @@ async function typeLine(target: HTMLElement, line: string): Promise<void> {
 }
 
 beforeEach(() => {
+	resetStreamHubForTests();
 	sources.length = 0;
 	lastES = null;
 	calls.length = 0;
@@ -201,7 +214,7 @@ describe('TerminalPanel — the token auto-heal (FOREIGN_SESSION 403)', () => {
 	});
 });
 
-describe('TerminalPanel — the SSE reconnect ladder', () => {
+describe('TerminalPanel — the HUB reconnect ladder (ADR-0053 D4, via the page\'s one source)', () => {
 	it('reconnects from the last painted offset after a stream failure, backoff doubling', async () => {
 		vi.stubGlobal(
 			'fetch',
@@ -217,7 +230,7 @@ describe('TerminalPanel — the SSE reconnect ladder', () => {
 		expect(first.closed).toBe(true); // the dead source is closed, not left auto-retrying
 		await tick(1200);
 		expect(sources).toHaveLength(2);
-		expect(sources[1].url).toContain('fromByte=4096'); // resumes where the view is, not from 0
+		expect(sources[1].url).toContain('resume=' + encodeURIComponent('{"s1":4096}')); // hub ladder resumes at the painted offset
 		// second failure doubles the backoff: 2s — not yet at 1.1s, yes at 2.2s
 		sources[1].fail();
 		await tick(1100);

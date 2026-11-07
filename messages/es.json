@@ -266,6 +266,7 @@
 	"chordArmedTitle": "Alt+{prefix} armado",
 	"chordArmedLabel": "Acordo Alt+{prefix} armado — siguiente tecla",
 	"chordTerminalNewTab": "Nueva pestaña de terminal",
+	"chordTerminalClear": "Limpiar la pestaña de terminal actual (matar y podar)",
 	"chordTerminalSplitDown": "Dividir hacia abajo la pestaña de terminal actual",
 	"closePanelNamed": "Cerrar panel {id}",
 	"closePanelHint": "Cerrar panel — Shift+clic mantiene sus hijos abiertos",

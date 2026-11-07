@@ -266,6 +266,7 @@
 	"chordArmedTitle": "Alt+{prefix} 已就绪",
 	"chordArmedLabel": "Alt+{prefix} 组合键已就绪 — 下一个按键",
 	"chordTerminalNewTab": "新建终端标签页",
+	"chordTerminalClear": "清除当前终端标签页（终止并修剪）",
 	"chordTerminalSplitDown": "向下拆分当前终端标签页",
 	"closePanelNamed": "关闭面板 {id}",
 	"closePanelHint": "关闭面板 — Shift+点击保持其子面板打开",

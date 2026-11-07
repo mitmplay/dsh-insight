@@ -266,6 +266,7 @@
 	"chordArmedTitle": "Alt+{prefix} diarmed",
 	"chordArmedLabel": "Kord Alt+{prefix} armed — tombol berikutnya",
 	"chordTerminalNewTab": "Tab terminal baru",
+	"chordTerminalClear": "Bersihkan tab terminal saat ini (matikan + pangkas)",
 	"chordTerminalSplitDown": "Pisahkan ke bawah tab terminal saat ini",
 	"closePanelNamed": "Tutup panel {id}",
 	"closePanelHint": "Tutup panel — Shift+Klik menjaga anak-anaknya tetap terbuka",

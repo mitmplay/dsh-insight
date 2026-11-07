@@ -8,6 +8,7 @@
  */
 import { mount, unmount, flushSync } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetStreamHubForTests } from '../../src/lib/services/terminal/stream-hub.svelte';
 import { readFileSync } from 'node:fs';
 
 // The first test in this file pays the one-time Svelte compile of
@@ -58,7 +59,18 @@ class FakeEventSource implements FakeES {
 		this.listeners.set(kind, arr);
 	}
 	emit(kind: string, data?: string) {
-		for (const fn of this.listeners.get(kind) ?? []) fn({ data: data ?? '' } as MessageEvent);
+		// the hub wire ALWAYS tags frames with sessionId (ADR-0053); the fake
+		// injects this source's first id so test literals stay terse
+		let payload = data ?? '';
+		try {
+			const o = JSON.parse(payload) as Record<string, unknown>;
+			if (o && typeof o === 'object' && !('sessionId' in o)) {
+				const ids = JSON.parse(new URL('http://x' + this.url).searchParams.get('ids') ?? '[]') as string[];
+				o.sessionId = ids[0];
+				payload = JSON.stringify(o);
+			}
+		} catch { /* torn frame stays torn */ }
+		for (const fn of this.listeners.get(kind) ?? []) fn({ data: payload } as MessageEvent);
 	}
 }
 
@@ -124,6 +136,7 @@ function route(): FetchRoute {
 }
 
 beforeEach(() => {
+	resetStreamHubForTests();
 	postOpens = 0;
 	closeCalls.length = 0;
 	eventSources.length = 0;
@@ -209,8 +222,9 @@ describe('TerminalDesk — D5 close cascades', () => {
 		deskRef!.applyAction('new-tab');
 		await tick();
 		flushSync();
+		// ADR-0053: both rows ride ONE hub source (the old per-row pair is the wound this fixes)
 		const before = eventSources.length;
-		expect(before).toBeGreaterThanOrEqual(2);
+		expect(before).toBe(1);
 		(h.target.querySelector('[data-testid="terminal-tab-close-1"]') as HTMLElement).click();
 		flushSync();
 		expect(closeCalls.filter((c) => c.endsWith('close')).length).toBeGreaterThanOrEqual(1);
@@ -314,9 +328,13 @@ describe('TerminalDesk — 3.2-T reload rebuild ladder (Terminal Desk ADR D3)', 
 		expect(c1.getAttribute('data-visible')).toBe('true'); // selection RESTORED to tab 1
 		expect(c0.querySelectorAll('[data-testid="terminal-panel"]').length).toBe(1);
 		expect(c1.querySelectorAll('[data-testid="terminal-panel"]').length).toBe(1);
-		// survivors RE-ATTACH (never re-opened) and REPLAY from byte 0
-		const urls = eventSources.map((es) => es.url).sort();
-		expect(urls).toEqual(['/api/terminal/sess-a/stream?fromByte=0', '/api/terminal/sess-c/stream?fromByte=0']);
+		// survivors RE-ATTACH through the HUB: one source whose id set settles
+		// to both remembered sessions (replay resumes from byte 0 per row)
+		await tick(320); // the 300ms set-diff debounce settles the second row in
+		expect(eventSources.length).toBe(2);
+		const lastUrl = eventSources[eventSources.length - 1].url;
+		const ids = JSON.parse(new URL('http://x' + lastUrl).searchParams.get('ids') ?? '[]') as string[];
+		expect(ids.sort()).toEqual(['sess-a', 'sess-c']);
 		expect(postOpens).toBe(0);
 		h.cleanup();
 	});

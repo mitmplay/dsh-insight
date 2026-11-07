@@ -13,6 +13,7 @@ import {
 	hasAnyPreset,
 	IDLE_CHORD,
 	isEditableTarget,
+	resolveTerminalChordPlan,
 	terminalChordOptions,
 	type ChordKey as CKey
 } from '$lib/utils/key-chords';
@@ -325,9 +326,27 @@ describe('the terminal chord (ADR-0052): Alt+T prefix table', () => {
 		expect(r.action).toEqual({ type: 'verb', verb: 'p', prefix: 's' });
 	});
 
-	it('terminalChordOptions: s row only when a desk holds a tab (D4/AC4)', () => {
-		expect(terminalChordOptions(0, { t: 'New terminal tab', s: 'Split down' }).map((r) => r.key)).toEqual(['t']);
-		expect(terminalChordOptions(2, { t: 'New terminal tab', s: 'Split down' }).map((r) => r.key)).toEqual(['t', 's']);
+	it('terminalChordOptions: s and c rows only when a desk holds a session (D4/AC4)', () => {
+		expect(terminalChordOptions(0, { t: 'New terminal tab', s: 'Split down', c: 'Clear tab' }).map((r) => r.key)).toEqual(['t']);
+		expect(terminalChordOptions(2, { t: 'New terminal tab', s: 'Split down', c: 'Clear tab' }).map((r) => r.key)).toEqual(['t', 's', 'c']);
+	});
+
+	it('resolveTerminalChordPlan: closed desk + new-tab = ADD ONLY (D3 amendment: no second spawn)', () => {
+		expect(resolveTerminalChordPlan('term-new-tab', false, 0)).toEqual({ kind: 'add' });
+	});
+
+	it('resolveTerminalChordPlan: closed desk + split-down = add, settle, then split', () => {
+		expect(resolveTerminalChordPlan('term-split-down', false, 0)).toEqual({ kind: 'add-then-split' });
+	});
+
+	it('resolveTerminalChordPlan: live desk with tabs applies the verb directly', () => {
+		expect(resolveTerminalChordPlan('term-new-tab', true, 2)).toEqual({ kind: 'apply', action: 'new-tab' });
+		expect(resolveTerminalChordPlan('term-split-down', true, 1)).toEqual({ kind: 'apply', action: 'split-down' });
+	});
+
+	it('resolveTerminalChordPlan: restoring desk (0 tabs) is a no-op — the ladder fills it', () => {
+		expect(resolveTerminalChordPlan('term-new-tab', true, 0)).toEqual({ kind: 'noop' });
+		expect(resolveTerminalChordPlan('term-split-down', true, 0)).toEqual({ kind: 'noop' });
 	});
 });
 

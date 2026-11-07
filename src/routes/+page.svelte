@@ -6,7 +6,7 @@
 	 * views live in services/panels/{floor-registry,floor-reads} — the
 	 * names below are wiring aliases so the markup reads unchanged.
 	 */
-	import { onMount, tick, untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import AppSidebar from '$lib/components/common/layout/AppSidebar.svelte';
@@ -52,6 +52,7 @@
 		decideChordKeydown,
 		hasAnyPreset,
 		IDLE_CHORD,
+		resolveTerminalChordPlan,
 		terminalChordOptions,
 		type ChordState,
 		type ChordVerb
@@ -99,7 +100,7 @@
 	pagePrefs.init(activeProfile);
 	pagePrefs.installSidebarAutoSave();
 	const initialPrefs = loadPanelPrefs(activeProfile);
-	let terminalDeskRef: { applyAction: (action: 'new-tab' | 'split-down') => void } | null = $state(null);
+	let terminalDeskRef: { applyAction: (action: 'new-tab' | 'split-down' | 'clear-tab') => void } | null = $state(null);
 	// The desk mirrors live in a PLAIN record bumped by a $state counter
 	// (2026-11-03): assigning fresh objects into a deep-$state proxy tripped
 	// assignment_value_stale on every publish (stored proxy ≠ raw RHS). The
@@ -394,14 +395,23 @@
 		const subagents = floorApi.floorSeam().getLineageFacts().subagentIds;
 		return floorApi.floor.panels.filter((p) => p.kind === 'conversation' && subagents.has(p.sessionId)).length;
 	}
+	function deskSessionCount(): number {
+		// ASSIGNED sessions, not tabs: the mirror publishes a tab before its
+		// row's self-open ladder lands a session (ADR-0052 amendment — the
+		// settle signal and the palette gating both read this).
+		return Object.values(terminalDeskMirrors).reduce(
+			(n, mir) => n + (mir.tabs?.reduce((a, tab) => a + tab.sessionIds.length, 0) ?? 0),
+			0
+		);
+	}
 	function chordPaletteRows() {
 		// ADR-0052 D4: the palette renders the ARMED prefix's table — Alt+T's
 		// terminal rows (labels via paraglide, i18n) instead of the Alt+S set.
 		if (chord.prefix === 't') {
-			const deskTabs = Object.values(terminalDeskMirrors).reduce((n, mir) => n + (mir.tabs?.length ?? 0), 0);
-			return terminalChordOptions(deskTabs, {
+			return terminalChordOptions(deskSessionCount(), {
 				t: t(() => m.chordTerminalNewTab()),
-				s: t(() => m.chordTerminalSplitDown())
+				s: t(() => m.chordTerminalSplitDown()),
+				c: t(() => m.chordTerminalClear())
 			});
 		}
 		const kinds = [...new Set(floorApi.floor.panels.map((p) => p.kind))];
@@ -413,7 +423,7 @@
 			focusedConversation: selected?.kind === 'conversation'
 		});
 	}
-	function dispatchChordVerb(verb: ChordVerb | 'term-new-tab' | 'term-split-down'): void {
+	function dispatchChordVerb(verb: ChordVerb | 'term-new-tab' | 'term-split-down' | 'term-clear-tab'): void {
 		const panels = floorApi.floor.panels;
 		const removeKind = (...kinds: string[]) =>
 			panels.filter((p) => kinds.includes(p.kind)).forEach((p) => floorApi.removePanel(p.id));
@@ -508,18 +518,34 @@
 			case 'term-split-down': {
 				// ADR-0052 D2/D3: the chord is the THIRD caller of the desk's
 				// action channel (after the desk buttons and the wire grammar).
-				// D3 create-the-target: a closed desk mounts first, then the
-				// newborn desk (binding terminalDeskRef on mount) gets the verb
-				// after the tick. `s` on a zero-tab desk degrades to new-tab —
-				// splitting nothing opens the first tab (truthful D4 gating).
+				// The routing is the PURE resolveTerminalChordPlan (D3 amendment
+				// 2026-11-07): closed desk → ADD only (the virgin self-open row
+				// IS the new tab — the old tick+applyAction raced the ladder and
+				// minted a second session); split-down waits for the settle
+				// signal, the mirror publishes only once ≥1 tab exists (10s cap).
 				const desk = panels.find((p) => p.kind === 'terminal');
-				const deskTabs = Object.values(terminalDeskMirrors).reduce((n, mir) => n + (mir.tabs?.length ?? 0), 0);
-				const action = verb === 'term-split-down' && deskTabs >= 1 ? ('split-down' as const) : ('new-tab' as const);
-				if (!desk) {
+				const plan = resolveTerminalChordPlan(verb, !!desk, deskSessionCount());
+				if (plan.kind === 'apply') return floorApi.floorSeam().applyTerminalDeskAction(plan.action);
+				if (plan.kind === 'add') return void floorApi.doAdd({ kind: 'terminal' });
+				if (plan.kind === 'add-then-split') {
 					floorApi.doAdd({ kind: 'terminal' });
-					return void tick().then(() => floorApi.floorSeam().applyTerminalDeskAction(action));
+					const started = Date.now();
+					const settle = setInterval(() => {
+						if (deskSessionCount() >= 1) {
+							clearInterval(settle);
+							floorApi.floorSeam().applyTerminalDeskAction('split-down');
+						} else if (Date.now() - started > 10_000) {
+							clearInterval(settle); // the desk never settled — give up silently, D4 truthful gating holds
+						}
+					}, 100);
 				}
-				return floorApi.floorSeam().applyTerminalDeskAction(action);
+				return; // noop: desk restoring — the ladder fills it
+			}
+			case 'term-clear-tab': {
+				// The clear verb (2026-11-07): truthful like the s row — the
+				// palette only offers c when the desk renders ≥1 session, and
+				// the desk's clearTabChord no-ops on an empty selection.
+				return floorApi.floorSeam().applyTerminalDeskAction('clear-tab');
 			}
 			case 't': {
 				const open = panels.find((p) => p.kind === 'terminal');

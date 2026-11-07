@@ -231,6 +231,33 @@ When a gate or spec pins a tag-filtered run (`--grep @tag`):
 Criterion: the tagged invocation reports the expected collected count, and every failure in a newly reachable suite is classified with git-log evidence.
 <!-- RCA: 2026-08-17 openclaw-insight Control Room Recovery W5 — the spec-pinned `--grep @orchestration` had selected zero tests ever since the base config gained its exclusion grep; a sibling config (spread base, clear only grep) un-buried the recovery spec (5/5 green) plus a 2026-08-08 suite asserting the removed pre-redesign page — stale, documented, not rewritten. -->
 
+
+### Step 3.10: Wave Executor — Cost-Driven Sub-Agent Delegation
+
+When a wave's declared tasks imply >= 8 mechanical execution steps (test authoring + reruns, sibling-suite surveys, file migrations, gate runs), delegate the execution loop to ONE sub-agent and keep decisions in the parent. Never delegate acceptance-scenario adjudication (Step 3.1), commits, or operator-gesture tasks (glass live passes).
+
+1. **Wave-pack**: mechanical extraction from Tasks.md + karpathy-context.md, verbatim — the wave header (tasks, touched-file contract, checklist, gate command), Layer-3 constraint/boundary/shared-layer excerpts, compatibility-matrix rows proved by this wave, risk-register rows pinned by this wave's -T tasks, behavioral commitments, TODAY.
+2. **Child runs scoped suites freely**; the parent re-runs the completion gate itself before marking the wave done.
+3. **Deviation protocol**: the child never silently expands the touched-file contract — out-of-contract need is PROPOSED to the parent (files + why), never executed unasked.
+4. **Escalation budget**: > 3 consecutive failing runs with the same root cause -> return `ESCALATED: <finding>` with evidence; never grind.
+5. **Parent duties**: adjudicate the structured return (gate output, git status, failure ledger with root causes, escalations), assert the touched-file contract including approved deviations, keep the checklist in the parent transcript. The child holds no commit or next-wave authority.
+6. **Rolling pool**: a -T task that is a cluster of >= 3 independent file migrations may run as TWO children, one wave-pack slice per file. Feature-code tasks never parallelize — they share files across waves.
+
+Criterion: delegated wave completes with parent-adjudicated gate output, touched-file contract asserted, and zero unapproved scope expansions.
+<!-- RCA: 2026-11-07 deepseek-insight Terminal Stream Hub — Waves 3+4 burned 61 percent of 10.6M tok on 47 percent of steps at 110-150k per-step context; a child runs the same steps at 20-60k. The streamEnded arc (unhandled rejection skipped the unmount cleanup) is the escalation-valve case: the child returns the finding, the parent decides with session memory. Real Wave-3 touched 7 files against a 3-file contract — hence the deviation protocol. -->
+
+### Step 3.11: Churn Discipline ⛔
+
+1. **Contract pins before consumer waves**: when a wave changes a shared contract (wire shapes, URL grammar, store fields), its -T tests pin the NEW contract first; dependent suites migrate only after the pin is green.
+2. **Batch-then-run**: author a wave's full test set, then one scoped run — no run-per-test authoring.
+3. **Scoped suites per wave**; the full suite only in the final gates wave (Step 5 already scopes this — apply it inside waves too).
+4. **Assertions match the implementation as written**: read the diff before finalizing test text; tests drafted from the intended design produce assertion churn.
+5. **Failure ledger**: every test-fix step classifies the failure test-side / regression / environment. Two consecutive test-side failures on the same suite -> stop, re-read the implementation, rewrite the test.
+6. **Churn budget**: a wave burning > 50 percent of its steps on fix loops triggers a scope-or-contract review — fix the cause, not the symptom.
+
+Criterion: a wave's fix-loop steps stay under half its step count, and every fix-loop step names its failure class.
+<!-- RCA: 2026-11-07 deepseek-insight Terminal Stream Hub — 17 of 111 steps were fix loops; 10 were test-side assertions drafted from intended design instead of the written code; batching + scoped suites would have collapsed most. Deferral of tests to feature-end rejected: it moves the same fix steps to maximum context with N-wave attribution bisection. -->
+
 ## Step 4: Sub-Agent Safety — When Spawning Children
 
 Only fires when a task requires spawning a sub-agent. If no sub-agents are spawned, mark `[⊘]` in the checklist and skip this step.

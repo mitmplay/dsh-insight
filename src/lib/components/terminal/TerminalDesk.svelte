@@ -250,6 +250,44 @@ import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 		});
 	}
 
+	/** Destroy ONE session through the prune verb, healing once on a stale
+	 *  token (reattach → retry the SAME DELETE). Pruned records never come
+	 *  back to list() — the corpse pile is the thing this chord removes. */
+	async function destroyRowSession(assigned: { sessionId: string; token: string }): Promise<void> {
+		const destroy = (token: string) =>
+			fetch('/api/terminal/' + assigned.sessionId + '/delete', {
+				method: 'DELETE',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ token })
+			});
+		let res = await destroy(assigned.token).catch(() => undefined);
+		if (res && res.status === 403) {
+			const re = await fetch('/api/terminal/' + assigned.sessionId + '/reattach', { method: 'POST' }).catch(() => undefined);
+			const body = (re && re.ok ? await re.json().catch(() => null) : null) as { token?: string } | null;
+			if (body?.token) res = await destroy(body.token).catch(() => undefined);
+		}
+	}
+
+	/** The chord's action (D6): destroy every session of the SELECTED tab
+	 *  (split included, live or exited — the server kills, no shell
+	 *  cooperation required), then remove the tab WITHOUT re-killing (the
+	 *  entries are already pruned; closeTab's send-close would only 404).
+	 *  Last tab ⇒ onShellExit removes the desk slot (the panel close). */
+	async function clearTabChord(): Promise<void> {
+		const tabIndex = selectedTab;
+		const tab = tabs[tabIndex];
+		if (!tab) return;
+		for (const row of tab.rows) {
+			if (row.assigned) await destroyRowSession(row.assigned);
+		}
+		tabs.splice(tabIndex, 1);
+		if (tabs.length === 0) {
+			onShellExit?.();
+			return;
+		}
+		selectedTab = Math.min(tabIndex, tabs.length - 1);
+	}
+
 	/** The truthful badge grammar (2026-11-04 amendment, ADR D5e/D5f):
 	 *  the shell-tab badge pairs the strip position with the session id —
 	 *  single row assigned → 'T1:7' (registry id t-7 → 7); split →
@@ -315,7 +353,14 @@ import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 	/** The floor's forwarded command action (ADR D2): --new-tab appends a
 	 *  tab and selects it; --split-down stacks a row on the SELECTED tab.
 	 *  Both open a fresh session (never re-attach). */
-	export function applyAction(action: 'new-tab' | 'split-down'): void {
+	export function applyAction(action: 'new-tab' | 'split-down' | 'clear-tab'): void {
+		if (action === 'clear-tab') {
+			// The Alt+T, c chord verb's desk half (2026-11-07): destroy every
+			// session of the selected tab (kill + prune), close the tab, and
+			// the last tab's removal closes the panel via onShellExit.
+			void clearTabChord();
+			return;
+		}
 		void (async () => {
 			const row = await mintSession();
 			if (!row) return;

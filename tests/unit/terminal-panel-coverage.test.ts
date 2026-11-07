@@ -9,6 +9,7 @@
  */
 import { mount, unmount, flushSync } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetStreamHubForTests } from '../../src/lib/services/terminal/stream-hub.svelte';
 
 const xtermState = vi.hoisted(() => ({ fail: false }));
 
@@ -88,8 +89,19 @@ class FakeEventSource implements FakeES {
 		if (kind === 'output' && this.onmessage === null) {
 			// named events never hit onmessage; keep parity with the component
 		}
-		const ev = { data: data ?? '' } as MessageEvent;
-		if (kind === 'message') this.onmessage?.({ data: data ?? '' });
+		// the real hub wire ALWAYS tags frames with sessionId (ADR-0053):
+		// the fake injects the source's own id so test literals stay terse
+		let payload = data ?? '';
+		try {
+			const o = JSON.parse(payload) as Record<string, unknown>;
+			if (o && typeof o === 'object' && !('sessionId' in o)) {
+				const ids = JSON.parse(new URL('http://x' + this.url).searchParams.get('ids') ?? '[]') as string[];
+				o.sessionId = ids[0];
+				payload = JSON.stringify(o);
+			}
+		} catch { /* torn frame stays torn */ }
+		const ev = { data: payload } as MessageEvent;
+		if (kind === 'message') this.onmessage?.({ data: payload });
 		for (const fn of this.listeners.get(kind) ?? []) fn(ev);
 	}
 }
@@ -152,7 +164,27 @@ function openRoute(sessions: Array<{ id: string; exited: boolean }> = []): Fetch
 	};
 }
 
+
+/** The hub transport's ids query — what the wave-3 swap made the wire. */
+function hubIds(url: string): string[] {
+	try {
+		const ids = new URL('http://x' + url).searchParams.get('ids') ?? '[]';
+		return JSON.parse(ids) as string[];
+	} catch {
+		return [];
+	}
+}
+function hubResume(url: string): Record<string, number> {
+	try {
+		const raw = new URL('http://x' + url).searchParams.get('resume') ?? '{}';
+		return JSON.parse(raw) as Record<string, number>;
+	} catch {
+		return {};
+	}
+}
+
 beforeEach(() => {
+	resetStreamHubForTests();
 	xtermState.fail = false;
 	onDataHandlers.length = 0;
 	roInstances.length = 0;
@@ -189,7 +221,9 @@ describe('TerminalPanel — enabled lifecycle (coverage)', () => {
 		expect(calls.some((c) => String(c[0]) === '/api/terminal' && (c[1] as RequestInit | undefined) !== undefined)).toBe(false);
 		// the stream REPLAYS the retained ring (from 0) into the fresh xterm,
 		// on the SAME session — the old scrollback must survive the reload
-		expect(lastES!.url).toBe('/api/terminal/s9/stream?fromByte=0');
+		// the hub transport: ONE source, ids=[s9], resume at 0 (ADR-0053)
+		expect(hubIds(lastES!.url)).toEqual(['s9']);
+		expect(hubResume(lastES!.url)).toEqual({ s9: 0 });
 		h.cleanup();
 	});
 
@@ -201,7 +235,8 @@ describe('TerminalPanel — enabled lifecycle (coverage)', () => {
 		const calls = vi.mocked(fetch).mock.calls;
 		expect(calls.some((c) => String(c[0]) === '/api/terminal/dead/reattach')).toBe(false);
 		expect(calls.some((c) => String(c[0]) === '/api/terminal' && (c[1] as RequestInit | undefined) !== undefined)).toBe(true);
-		expect(lastES!.url).toBe('/api/terminal/s1/stream?fromByte=0');
+		expect(hubIds(lastES!.url)).toEqual(['s1']);
+		expect(hubResume(lastES!.url)).toEqual({ s1: 0 });
 		h.cleanup();
 	});
 
@@ -252,7 +287,7 @@ describe('TerminalPanel — enabled lifecycle (coverage)', () => {
 		fetchRoute = openRoute();
 		const h = await mountPanel();
 		expect(lastES).not.toBeNull();
-		expect(lastES!.url).toBe('/api/terminal/s1/stream?fromByte=0');
+		expect(hubIds(lastES!.url)).toEqual(['s1']);
 
 		// buffered output BEFORE xterm attached → replayed into xterm
 		lastES!.emit('output', JSON.stringify({ text: 'buffered\\n' }));
@@ -355,9 +390,8 @@ describe('TerminalPanel — enabled lifecycle (coverage)', () => {
 		await tick();
 		flushSync();
 
-		// onmessage path: 'data: ...' with NO 'event:' line → guard returns
-		lastES!.onmessage?.({ data: JSON.stringify({ text: 'junk' }) });
-		lastES!.onmessage?.({ data: '' });
+		// (the old onmessage guard arm is gone — the hub parses SSE events;
+		// torn/untagged frames are dropped in the service, unit-pinned there)
 		// exit frame: the reducer's no-op arm
 		lastES!.emit('exit', JSON.stringify({ outcome: { exitCode: 0, signal: null } }));
 		// error frame: sets errored without closing
@@ -467,7 +501,7 @@ describe('TerminalPanel — token auto-heal + reconnect ladder (coverage)', () =
 		h.cleanup();
 	});
 
-	it('stream error closes the source and the ladder RE-ATTACHES from the last painted offset', async () => {
+	it('hub stream error closes the source and the HUB ladder re-opens from the painted offset (ADR-0053 D4)', async () => {
 		fetchRoute = openRoute();
 		const h = await mountPanel();
 		vi.useFakeTimers();
@@ -480,7 +514,8 @@ describe('TerminalPanel — token auto-heal + reconnect ladder (coverage)', () =
 			// backoff timer fires the manual reattach from lastOffset
 			vi.advanceTimersByTime(1000);
 			expect(lastES).not.toBe(dead);
-			expect(lastES!.url).toBe('/api/terminal/s1/stream?fromByte=4096');
+			expect(hubIds(lastES!.url)).toEqual(['s1']);
+			expect(hubResume(lastES!.url)).toEqual({ s1: 4096 }); // resumed where the view painted
 			// the delay doubled: the second error waits longer, still one ladder at a time
 			const second = lastES!;
 			second.onerror?.();
@@ -553,7 +588,9 @@ describe('TerminalPanel — row mode (Terminal Desk Wave 2, task 2.2-T)', () => 
 		expect(probed).toBe(false);
 		expect(onAssigned).toHaveBeenCalledWith('sess-row', 'tok-row');
 		// the stream attaches to the ASSIGNED session, replaying from 0
-		expect(lastES!.url).toBe('/api/terminal/sess-row/stream?fromByte=0');
+		// the hub transport: ids=[sess-row], replaying from 0
+		expect(hubIds(lastES!.url)).toEqual(['sess-row']);
+		expect(hubResume(lastES!.url)).toEqual({ 'sess-row': 0 });
 		h.cleanup();
 	});
 
@@ -567,4 +604,3 @@ describe('TerminalPanel — row mode (Terminal Desk Wave 2, task 2.2-T)', () => 
 		h.cleanup();
 	});
 });
-

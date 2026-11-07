@@ -36,10 +36,44 @@ export const IDLE_CHORD: ChordState = { armed: false, since: 0, prefix: 's' };
  *  (TerminalDesk.applyAction's latent empty-desk drop). The layer stays
  *  PURE: labels arrive localized (paraglide m.*) from the render site —
  *  this module never hardcodes copy (i18n, 4 locales). */
-export function terminalChordOptions(deskTabCount: number, labels: Record<'t' | 's', string>): ChordOptionRow[] {
+export function terminalChordOptions(deskSessionCount: number, labels: Record<'t' | 's' | 'c', string>): ChordOptionRow[] {
 	const rows: ChordOptionRow[] = [{ key: 't', label: labels.t }];
-	if (deskTabCount >= 1) rows.push({ key: 's', label: labels.s });
+	if (deskSessionCount >= 1) rows.push({ key: 's', label: labels.s });
+	// The clear verb (2026-11-07): truthful like s — nothing to clear unless
+	// the desk renders at least one session (kill + prune + close the tab).
+	if (deskSessionCount >= 1) rows.push({ key: 'c', label: labels.c });
 	return rows;
+}
+
+/** The Alt+T verb → floor action routing (ADR-0052 D3 amendment,
+ *  2026-11-07 double-spawn bug): PURE so the page adapter stays thin and
+ *  the routing unit-tests without DOM.
+ *  - desk live with ≥1 tab: apply the verb directly ('split-down' or
+ *    'new-tab') — the single-spawn path.
+ *  - closed desk: ADD ONLY — the virgin desk's self-open row IS the new
+ *    tab; the old doAdd+tick+applyAction raced the desk ladder and minted
+ *    a second session. Split-down additionally waits for the settle
+ *    (mirror publishes ≥1 tab) before applying ('add-then-split').
+ *  - desk live but 0 tabs (transient restore): the ladder fills it —
+ *    'noop'; splitting nothing is a no-op (truthful D4 gating). */
+export type TerminalChordPlan =
+	| { kind: 'apply'; action: 'new-tab' | 'split-down' }
+	| { kind: 'add' }
+	| { kind: 'add-then-split' }
+	| { kind: 'noop' };
+
+export function resolveTerminalChordPlan(
+	verb: 'term-new-tab' | 'term-split-down',
+	deskPresent: boolean,
+	deskTabCount: number
+): TerminalChordPlan {
+	if (deskPresent) {
+		if (deskTabCount < 1) return { kind: 'noop' };
+		return verb === 'term-split-down'
+			? { kind: 'apply', action: 'split-down' }
+			: { kind: 'apply', action: 'new-tab' };
+	}
+	return verb === 'term-split-down' ? { kind: 'add-then-split' } : { kind: 'add' };
 }
 
 export type ChordVerb = 'a' | 'b' | 'c' | 'g' | 'k' | 'n' | 'p' | 's' | 't' | 'w';
@@ -62,7 +96,7 @@ export type ChordAction =
 	| { type: 'none' }
 	| { type: 'disarm' }
 	| { type: 'apply'; n: number }
-	| { type: 'verb'; verb: ChordVerb | 'term-new-tab' | 'term-split-down'; prefix: ChordPrefix };
+	| { type: 'verb'; verb: ChordVerb | 'term-new-tab' | 'term-split-down' | 'term-clear-tab'; prefix: ChordPrefix };
 
 /** Minimal key shape the wiring feeds in (a real KeyboardEvent fits). */
 export interface ChordKey {
@@ -166,6 +200,9 @@ export function chordKey(
 		(/^Key([ABCGKNPSTW])$/.exec(ev.code ?? '')?.[1]?.toLowerCase());
 	if (letter) {
 		if (state.prefix === 't') {
+			// The clear verb (2026-11-07): c = kill + prune every session the
+			// selected tab renders, close the tab (panel close on the last).
+			if (letter === 'c') return { state: IDLE_CHORD, action: { type: 'verb', verb: 'term-clear-tab', prefix: 't' } };
 			if (letter !== 't' && letter !== 's') return { state: IDLE_CHORD, action: { type: 'disarm' } };
 			return {
 				state: IDLE_CHORD,

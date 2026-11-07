@@ -13,6 +13,7 @@ import TermFontSlider from './TermFontSlider.svelte';
 		reduceTerminalFrame,
 		type TerminalPanelState
 	} from './frame-state.js';
+	import { subscribeTerminalStream } from '$lib/services/terminal/stream-hub.svelte';
 
 	let {
 		/** Fired once after the shell exits (a settled frame with reason
@@ -151,18 +152,12 @@ import TermFontSlider from './TermFontSlider.svelte';
 		});
 	}
 
-	function applyFrame(raw: string): void {
-		const lines = raw.split('\n');
-		const ev = lines.find((l) => l.startsWith('event: '))?.slice(7);
-		const dataLine = lines.find((l) => l.startsWith('data: '))?.slice(6);
-		if (!ev || !dataLine) return;
-		const data = JSON.parse(dataLine) as Record<string, unknown>;
+	function applyFrame(ev: string, data: Record<string, unknown>): void {
 		if (ev === 'output') {
 			// The reconnect ladder resumes from HERE (attachStream reads
 			// lastOffset): the offset the view has actually painted.
 			const off = Number(data.nextOffset);
 			if (Number.isFinite(off)) lastOffset = off;
-			reconnectDelayMs = STREAM_RECONNECT_MIN_MS;
 			// THE view path: streamed bytes go to the visible terminal. The
 			// fallbackText mirror exists only for the no-xterm fallback.
 			if (xterm) xterm.write(String(data.text ?? ''));
@@ -277,7 +272,6 @@ import TermFontSlider from './TermFontSlider.svelte';
 		return () => {
 			window.removeEventListener('pagehide', markGoingAway);
 			if (shellExitTimer !== null) clearTimeout(shellExitTimer);
-			if (reconnectTimer !== null) clearTimeout(reconnectTimer); // the ladder dies with the panel
 			streamEnded = true;
 			resizeObserver?.disconnect();
 			xterm?.dispose();
@@ -355,43 +349,49 @@ import TermFontSlider from './TermFontSlider.svelte';
 			attachStream(resumeByte);
 			onAssigned?.(sessionId, token);
 		})();
+		// The connection-pool leak fix (2026-11-07): unmount MUST close the
+		// live SSE and kill the reconnect ladder — orphans held Chrome's
+		// per-host connection budget after the desk closed (every /api fetch
+		// queued, page reloads included).
+		return () => {
+			destroyed = true;
+			closeStream();
+		};
 	});
 
-	/** The SSE subscription, shared by both modes (solo ladder tail and
-	 *  desk row mode): named events forwarded into applyFrame; `closed`
-	 *  ends the source. Stream reconnect ladder (ADR amendment 2026-11-04):
-	 *  a dead EventSource must not freeze the view forever — EventSource's
-	 *  own auto-retry replays the SAME fromByte (duplicate scrollback) or
-	 *  dies silently on a non-SSE answer (a 404 JSON from a restarted dev
-	 *  server), so we close it and re-attach MANUALLY from the last offset
-	 *  the view actually painted, with capped backoff. A `closed` frame
-	 *  (the session really ended) stops the ladder. */
-	const STREAM_RECONNECT_MIN_MS = 1000;
-	const STREAM_RECONNECT_MAX_MS = 8000;
-	let lastOffset = 0;
-	let reconnectDelayMs = STREAM_RECONNECT_MIN_MS;
-	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-	let streamEnded = false;
+	/** The hub subscription, shared by both modes (solo ladder tail and
+	 *  desk row mode): ADR-0053 Wave 3 — the row no longer opens its own
+	 *  EventSource (one pipe per row saturated Chrome's 6-per-host
+	 *  budget). It subscribes to the page's ONE stream hub, which owns
+	 *  THE EventSource, the re-open debounce, the resume map and the
+	 *  hub-level reconnect ladder; frames arrive here already tagged and
+	 *  dispatched by sessionId. A `closed` frame (the session really
+	 *  ended) unsubscribes the row — the hub set shrinks (and closes at
+	 *  zero, BC-7); per-session failures ride error frames, never a row
+	 *  reconnect ladder. */
+	let streamEnded = false; // a closed/exit frame ends the row's interest in the stream
+	let lastOffset = 0; // the offset this row has painted (applyFrame tracks it)
+	let hubUnsub: (() => void) | null = null;
+	let destroyed = false;
+	function closeStream(): void {
+		hubUnsub?.();
+		hubUnsub = null;
+	}
 	function attachStream(resumeByte: number): void {
-		const es = new EventSource('/api/terminal/' + sessionId + '/stream?fromByte=' + resumeByte);
-		es.onmessage = (e) => applyFrame('data: ' + e.data);
-		for (const kind of ['output', 'settled', 'exit', 'closed', 'error']) {
-			es.addEventListener(kind, (e) => {
-				const data = 'data' in e ? (e as MessageEvent).data : '';
-				applyFrame('event: ' + kind + '\n' + 'data: ' + data);
+		if (destroyed || !sessionId) return; // post-unmount — never re-subscribe
+		closeStream(); // one live subscription at a time
+		hubUnsub = subscribeTerminalStream(sessionId, resumeByte, {
+			onFrame: (kind, data) => {
+				applyFrame(kind, data as Record<string, unknown>);
 				if (kind === 'closed' || kind === 'exit') streamEnded = true;
-				if (kind === 'closed') es.close();
-			});
-		}
-		es.onerror = () => {
-			es.close();
-			if (streamEnded || reconnectTimer !== null) return;
-			reconnectTimer = setTimeout(() => {
-				reconnectTimer = null;
-				attachStream(lastOffset);
-			}, reconnectDelayMs);
-			reconnectDelayMs = Math.min(reconnectDelayMs * 2, STREAM_RECONNECT_MAX_MS);
-		};
+				if (kind === 'closed') {
+					// the session ended: leave the hub set (its re-open serves
+					// the remaining rows; this row is done)
+					hubUnsub?.();
+					hubUnsub = null;
+				}
+			}
+		});
 	}
 
 	async function sendLine(): Promise<void> {

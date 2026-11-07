@@ -200,6 +200,28 @@ verified at the end.
 
 ---
 
+## --peek — the Read-Only Mode (2026-11-07, ADR amendment D7)
+
+\`/dsi-drive-terminal --peek {session or tab badge}\` checks WHAT IS GOING ON
+on the designated terminal and writes NOTHING. No baton is taken — watching
+is token-free, so the operator's tab never heals, never blinks.
+
+Recipe (all reads, zero writes):
+
+1. Resolve the session id from evidence — the badge law stands: read the
+   desk badge \`T{n}:{id}\` or \`GET /api/terminal\` (\`curl -s http://127.0.0.1:$PORT/api/terminal\`),
+   cross-check the \`exited\` flag. NEVER assume tab position = session id.
+2. Read the ring tail — the watcher path, no token:
+   \`curl -s "http://127.0.0.1:$PORT/api/terminal/$ID/output?fromByte=0"\`
+   (the retained ring is the authority; ANSI-strip the tail per Step 3).
+3. Report: session id, exited or live, the last screenful of output, and —
+   if live — the likely foreground command visible in the scrollback.
+
+Peek NEVER: reattaches, writes bytes, mints or accepts a token. If the
+operator then says "drive it", hand over to the full drive pipeline (Step 1).
+
+---
+
 ## How This Skill Connects to the Docs
 
 The skill is the DO-path; the docs carry the WHY and the CONTRACT.
