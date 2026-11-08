@@ -1,12 +1,29 @@
-# DeepSeek Insight
+<p align="center">
+	<img src="https://raw.githubusercontent.com/mitmplay/dsh-insight/refs/heads/main/docs/images/dsi-insight-pich.png"></img>
+</p>
 
-> [DeepSeek Insight](https://github.com/mitmplay/dsh-insight) (**DSI**) **See your multiple agents run on the floor (agent, sub-agent, etc)**, each **conversation on the floor are updated instantly**. 
+<p align="center">
+	A different style opinionate <strong>DSH web client</strong> - aka <strong>DSI</strong>
+<p>
+<p align="center">
+Screenshot: Sidebar, Workspace-explorer, Agent, Glass-browser, Subagent
+<p>
 
-> A `Control room` built on [Deepseek Harness's](https://github.com/deepseek-ai/deepseek-harness) (**DSH**) **records**: any (running) session, show side by side on the floor; **Lineage tree** of **parent to sub-agents**; Clean conversation with **tool-call(s) chips** with status **+** auto-expand **thingking chips**. 
+#### Where you can see mulltiple **agent** / **sub-agent**, plus+ non conversation panels:
+- keys panel: `Agent`, `Subagent`, `Workspace Explorer`, `Glass Browser`, `Terminal`, 
+- management panel: `Prompt`, `Skill`, `Plugins` and `Configs` Manager`
 
-> A `Prompt Input` with **Slash-command(/)**, **Macros(!)** and **Auto-complete(?)**. Prompt-manager you can search it and to manage macros & autocomplete; user-prompts worth keeping is one-click-away tobe reuse.
+> [!NOTE]
+> ["in a nutshell" - DSI](https://github.com/mitmplay/dsh-insight) make `Harness` present multiple conversations (`agent` or `sub-agent`), `keys` and `management` panels **side-by-side** `INSIDE Container` that can be **re-size** or **scale**.
 
-## Slash commands are available to execute various operations:
+## Quick Start
+
+```bash
+npx @deepseek-insight/dsi@latest dsh --sync --zai
+# Open http://localhost:5174
+```
+
+## Various operations can be Enter in Composer:
 - `/dsi-terminal` — Open a terminal session
 - `/dsi-prompts` — Open prompt manager
 - `/dsi-plugins` — Open plugin manager
@@ -48,12 +65,7 @@ The workspace explorer is DSI's window into the folder your agents are working i
 
 ---
 
-## Quick Start
 
-```bash
-npx @deepseek-insight/dsi@latest dsh --sync --zai
-# Open http://localhost:5174
-```
 
 - **`npx @deepseek-insight/dsi@latest`** — get latest DSI.
 - `dsh` — starts **DSH** (`dsh web`) and **DSI** together, as one pair and runs it.

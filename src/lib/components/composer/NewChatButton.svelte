@@ -27,7 +27,8 @@
 	 * it only hides the message — the next unarmed click re-raises it.
 	 */
 
-	import { Plus, Replace, X } from '@lucide/svelte';
+	import { Plus, Replace } from '@lucide/svelte';
+	import SelectionAlert from './SelectionAlert.svelte';
 
 	let {
 		/** Called with the fresh sessionId after a successful create. */
@@ -110,26 +111,13 @@
 </script>
 
 <div class="flex w-full flex-col items-start">
-	{#if alert && alertInline}
-		<p
-			data-testid="new-chat-selection-alert"
-			class="mb-1 flex w-full items-center justify-between gap-2 text-xs text-status-pending"
-			role="alert"
-		>
-			<span>{t(m.needAgent)}</span>
-			<!-- × dismiss — the PanelHeader close grammar (lucide X, aria-hidden,
-			     labeled button); hides the message without touching the pills. -->
-			<button
-				type="button"
-				class="shrink-0 rounded p-0.5 leading-none text-status-pending hover:bg-status-pending/20 hover:text-status-pending"
-				data-testid="new-chat-selection-alert-close"
-				aria-label={t(m.dismissAlert)}
-				title={t(m.dismiss)}
-				onclick={() => (alert = false)}
-			>
-				<X size={11} aria-hidden="true" />
-			</button>
-		</p>
+	{#if alertInline}
+		<!-- The shared missing-selection alert (SelectionAlert): the i18n
+		     sentence + a non-breaking (+ Workspace) span as sibling spans,
+		     so narrow widths wrap between them, never inside the
+		     parenthetical. × dismiss hides it; the next unarmed click
+		     re-raises it. -->
+		<SelectionAlert bind:alert />
 	{/if}
 	{#if errorMessage}
 		<p data-testid="new-chat-error" class="mb-1 text-xs text-status-fail" role="alert">{errorMessage}</p>

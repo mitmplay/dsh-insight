@@ -16,10 +16,8 @@
 	 * scoped rules cannot reach this component's DOM, so the border-top
 	 * frame travels with it.
 	 */
-	import { X } from '@lucide/svelte';
-	import * as m from '$lib/paraglide/messages';
-	import { t } from '$lib/services/locale/locale-state.svelte';
 	import NewChatButton from '$lib/components/composer/NewChatButton.svelte';
+	import SelectionAlert from '$lib/components/composer/SelectionAlert.svelte';
 	import LanguageMenu from '$lib/components/language-menu/LanguageMenu.svelte';
 	import ThemeToggle from '$lib/components/common/buttons/ThemeToggle.svelte';
 	import { APP_VERSION, DSH_VERSION } from '$lib/version';
@@ -56,20 +54,10 @@
 	<SidebarPromptSync />
 	<div class="footer-create">
 		{#if createAlert}
-			<!-- ROW 1 — hosted alert: message left, × dismiss right. -->
-			<p data-testid="new-chat-selection-alert" class="footer-create-alert" role="alert">
-				<span>{t(m.needAgent)}</span>
-				<button
-					type="button"
-					class="footer-create-alert-close"
-					data-testid="new-chat-selection-alert-close"
-					aria-label={t(m.dismissAlert)}
-					title={t(m.dismiss)}
-					onclick={() => (createAlert = false)}
-				>
-					<X size={11} aria-hidden="true" />
-				</button>
-			</p>
+			<!-- ROW 1 — hosted alert (SelectionAlert, 2026-11-08 refactor):
+			     message left, × dismiss right; inset = the .footer-create
+			     gap supplies the row spacing. -->
+			<SelectionAlert bind:alert={createAlert} inset />
 		{/if}
 		<!-- ROW 2 — the strip: version + New chat + language menu. -->
 		<div class="footer-create-strip">
@@ -114,29 +102,6 @@
 		display: flex;
 		align-items: center;
 		gap: 0.375rem;
-	}
-
-	/* ROW 1 — hosted selection alert: message left, × right. */
-	.footer-create-alert {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.5rem;
-		font-size: 0.75rem;
-		color: var(--color-accent-amber-ink);
-	}
-
-	.footer-create-alert-close {
-		flex-shrink: 0;
-		border-radius: 0.125rem;
-		line-height: 1;
-		color: var(--color-accent-amber-ink-deep);
-		cursor: pointer;
-	}
-
-	.footer-create-alert-close:hover {
-		background: var(--color-status-pending);
-		color: var(--color-accent-amber-ink-deep);
 	}
 
 	/* Version chip — before the create button (2026-09-07): the running
