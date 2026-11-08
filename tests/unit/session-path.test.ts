@@ -10,7 +10,7 @@
  *
  * Node env (environmentMatchGlobs) — server-only module.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -99,6 +99,28 @@ describe('resolveSessionPath', () => {
 		mkdirSync(join(project, 'session-abc-123-extra'), { recursive: true });
 		mkdirSync(join(project, 'prefix-abc-123'), { recursive: true });
 		await expect(resolveSessionPath(root, 'abc-123')).resolves.toBeNull();
+	});
+
+	it('returns null when the ROOT is a file (top-level readdir throws)', async () => {
+		// Distinct from the missing-root case: readdir resolves but rejects
+		// with ENOTDIR — same top-level catch, same honest null.
+		const root = tempRoot();
+		writeFileSync(join(root, 'a-file-not-a-root'), 'x', 'utf-8');
+		await expect(resolveSessionPath(join(root, 'a-file-not-a-root'), 'abc-123')).resolves.toBeNull();
+	});
+
+	it('skips a REAL directory unreadable by permission (EACCES inner catch)', async () => {
+		const root = tempRoot();
+		const locked = join(root, '--Users-op-locked--');
+		mkdirSync(locked, { recursive: true });
+		chmodSync(locked, 0o000); // readdir on it rejects — skip, keep scanning
+		try {
+			const project = join(root, '--Users-op-proj--');
+			mkdirSync(join(project, 'abc-123'), { recursive: true });
+			await expect(resolveSessionPath(root, 'abc-123')).resolves.toBe(join(project, 'abc-123'));
+		} finally {
+			chmodSync(locked, 0o755); // so afterEach's rmSync can reap it
+		}
 	});
 
 	it('UUID-shaped id needs no encoding — literal name match (risk register)', async () => {

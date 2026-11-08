@@ -1401,6 +1401,53 @@ describe('POST /api/dsh/workspaces', () => {
 		expect(res.status).toBe(400);
 	});
 
+	it('rejects invalid JSON with 400 bad-json (Wave D branch mop)', async () => {
+		const { workspaces } = await importRoutesFresh();
+		const res = await workspaces.POST(
+			mkEvent({ request: new Request('http://dsi/workspaces', { method: 'POST', body: 'not-json' }) })
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { ok: boolean; error: { code: string } };
+		expect(body.ok).toBe(false);
+		expect(body.error.code).toBe('bad-json');
+	});
+
+	it('rejects a non-string path (number) with 400 bad-path (Wave D branch mop)', async () => {
+		const { workspaces } = await importRoutesFresh();
+		const res = await workspaces.POST(
+			mkEvent({ request: new Request('http://dsi/workspaces', { method: 'POST', body: JSON.stringify({ path: 42 }) }) })
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe('bad-path');
+	});
+
+	it('rejects a null JSON body with 400 bad-path (Wave D branch mop)', async () => {
+		const { workspaces } = await importRoutesFresh();
+		const res = await workspaces.POST(
+			mkEvent({ request: new Request('http://dsi/workspaces', { method: 'POST', body: 'null' }) })
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe('bad-path');
+	});
+
+	it('passes the host created:false through unchanged (Wave D branch mop)', async () => {
+		const { workspaces } = await importRoutesFresh();
+		fake.createWorkspace = async () => ({
+			workspace: { workspaceId: 'ws-9', path: '/tmp/x', title: 'x', sessionIds: [], createdAt: 't', updatedAt: 't' },
+			created: false
+		});
+		const res = await workspaces.POST(
+			mkEvent({ request: new Request('http://dsi/workspaces', { method: 'POST', body: JSON.stringify({ path: '/tmp/x' }) }) })
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { ok: boolean; created: boolean; workspace: { workspaceId: string } };
+		expect(body.ok).toBe(true);
+		expect(body.created).toBe(false);
+		expect(body.workspace.workspaceId).toBe('ws-9');
+	});
+
 	it('maps a host failure through mapRpcFailure', async () => {
 		const { workspaces } = await importRoutesFresh();
 		fake.createWorkspace = async () => {

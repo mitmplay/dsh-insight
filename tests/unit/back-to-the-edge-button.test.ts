@@ -8,6 +8,7 @@
 import { mount, unmount, flushSync } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import BackToTheEdgeButton from '$lib/components/common/buttons/BackToTheEdgeButton.svelte';
+import BackToTheEdgeContainerGoneHost from '../fixtures/BackToTheEdgeContainerGoneHost.svelte';
 
 function mountInto(props: Record<string, unknown>) {
 	const target = document.createElement('div');
@@ -154,6 +155,43 @@ describe('BackToTheEdgeButton — branch arms (SA-3)', () => {
 		expect(el.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
 		cleanup();
 		el.remove();
+	});
+
+	it('container prop detaches after render (host fixture): the button persists (effect !el arm returns early) and a click hits jump\'s !container guard — no crash, no scroll', async () => {
+		const target = document.createElement('div');
+		document.body.appendChild(target);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const comp = mount(BackToTheEdgeContainerGoneHost as any, { target, props: {} });
+		const cleanup = () => { unmount(comp); target.remove(); };
+		flushSync();
+		const scroll = target.querySelector('[data-testid="bte-scroll"]') as HTMLElement;
+		// happy-dom has no layout: expose the real geometry via instance
+		// props (the makeContainer trick) BEFORE any refresh runs.
+		Object.defineProperty(scroll, 'scrollHeight', { value: 1000, configurable: true });
+		Object.defineProperty(scroll, 'clientHeight', { value: 100, configurable: true });
+		scroll.scrollTop = 300;
+		scroll.dispatchEvent(new Event('scroll'));
+		flushSync();
+		const btn = () => target.querySelector('[data-testid="back-to-top"]') as HTMLButtonElement | null;
+		expect(btn()).not.toBeNull();
+		const scrollTo = vi.fn();
+		(scroll as unknown as { scrollTo: unknown }).scrollTo = scrollTo;
+
+		// Overflow 900 > 10 and scrollTop 300 > 10 → top mode.
+		expect(btn()).not.toBeNull();
+
+		// Detach the container PROP (the effect `if (!el) return` arm —
+		// overflowed keeps its stale true, so the button survives).
+		(target.querySelector('[data-testid="bte-detach"]') as HTMLButtonElement).click();
+		flushSync();
+		expect(btn()).not.toBeNull();
+
+		// jump(): `if (!container) return` — no throw, no scrollTo, no
+		// onleavebottom (the !container guard precedes the optional call).
+		expect(() => btn()!.click()).not.toThrow();
+		await Promise.resolve();
+		expect(scrollTo).not.toHaveBeenCalled();
+		cleanup();
 	});
 
 	it('mode boundary: scrollTop exactly at threshold stays BOTTOM, one past flips TOP', () => {
