@@ -37,14 +37,19 @@
 {#if alert}
 	<p
 		data-testid={testid}
-		class="flex w-full items-center justify-between gap-2 text-xs text-status-pending"
+		class="flex w-full items-start justify-between gap-2 text-xs text-status-pending"
 		class:mb-1={!inset}
 		role="alert"
 	>
-		<!-- the inline space between the spans keeps the two units
-		     separate in the DOM text, while the nowrap span keeps
-		     "(+ Workspace)" unbreakable. -->
-		<span>{t(m.needAgent)}</span> <span class="whitespace-nowrap">{t(m.plusWorkspace)}</span>
+		<!-- One inline run in a flex-1 wrapper: the sentence flows first
+		     and "(+ Workspace)" (nowrap) follows as its own unbreakable
+		     unit — a narrow width wraps BETWEEN the spans, and the ×
+		     aligns with the FIRST line (items-start), never floats
+		     mid-line against a wrapped sentence. -->
+		<span class="min-w-0 flex-1">
+			<span>{t(m.needAgent)}</span>
+			<span class="whitespace-nowrap">{t(m.plusWorkspace)}</span>
+		</span>
 		<button
 			type="button"
 			class="shrink-0 rounded p-0.5 leading-none text-status-pending hover:bg-status-pending/20 hover:text-status-pending"
