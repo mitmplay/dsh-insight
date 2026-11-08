@@ -17,7 +17,7 @@ function stampedEnv(uiPort: string, mcpPort?: string): Record<string, string> {
 
 describe('stamped floor env (D1 — the launcher writes the seam)', () => {
 	it('helper builds DSI_UI and DSI_MCP_URL with the default brain port', () => {
-		// mirrors stampedFloorEnv's shape: UI port from the launch, brain from DSI_MCP_PORT ?? 9515
+		// mirrors stampedFloorEnv's shape: UI port from the launch, brain from GLASS_PORT ?? 9515
 		const env = stampedEnv('5174');
 		expect(env.DSI_UI).toBe('http://127.0.0.1:5174');
 	});
@@ -26,12 +26,12 @@ describe('stamped floor env (D1 — the launcher writes the seam)', () => {
 		// host spawn (sync script child)
 		expect(src).toContain('...stampedFloorEnv(uiPort)');
 		// build + dev UI halves
-		const stampSites = src.split('...stampedFloorEnv(process.env.PORT ?? defaultPort)').length - 1;
+		const stampSites = src.split('...stampedFloorEnv(process.env.DSI_PORT ?? defaultPort)').length - 1;
 		expect(stampSites).toBe(2);
 	});
 
-	it('source contract: brain port honors the DSI_MCP_PORT override', () => {
-		expect(src).toContain("process.env.DSI_MCP_PORT ?? 9515");
+	it('source contract: brain port honors the GLASS_PORT override', () => {
+		expect(src).toContain("process.env.GLASS_PORT ?? 9515");
 	});
 });
 

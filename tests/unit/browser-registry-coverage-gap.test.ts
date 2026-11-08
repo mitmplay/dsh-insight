@@ -206,7 +206,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.DSI_MCP_IN_PROCESS;
-  delete process.env.DSI_MCP_PORT;
+  delete process.env.GLASS_PORT;
   for (const id of [...(state()?.entries.keys() ?? [])]) state().entries.delete(id);
 });
 

@@ -86,7 +86,7 @@ describe('dsi.mjs — first-run config seed (ENOENT 2026-11-04)', () => {
 	it('defines ensureDsiConfig and calls it BEFORE the pair spawns any child', () => {
 		const def = cli.indexOf('function ensureDsiConfig');
 		const seedCall = cli.indexOf('\tensureDsiConfig();');
-		const hostSpawn = cli.indexOf("spawn('/bin/sh', [script, ...extraArgs]");
+		const hostSpawn = cli.indexOf("spawn('/bin/sh', [script, ...hostSpawnArgs]");
 		expect(def).toBeGreaterThan(-1);
 		expect(seedCall).toBeGreaterThan(def);
 		expect(seedCall).toBeLessThan(hostSpawn); // seed precedes the host child

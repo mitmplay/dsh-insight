@@ -33,7 +33,7 @@ export const PLAYWRIGHT_MCP_PIN = '0.0.83';
 /** The in-process brain's STABLE listener port — the static preset entry
  *  (dsh-app-dev-preset's mcp-client instance) points here, so the URL never
  *  moves. One brain at a time (the browser panel is a floor singleton). */
-export const MCP_BRAIN_PORT = Number(process.env.DSI_MCP_PORT ?? 9515);
+export const MCP_BRAIN_PORT = Number(process.env.GLASS_PORT ?? 9515);
 
 /** Layout-scale zoom (ADR-0041 amendment, 2026-10-31): the zoom knob is
  *  LAYOUT SCALE — the emulated viewport is the panel box divided by the
@@ -1168,10 +1168,10 @@ const browser = context.browser();
 			}
 		}
 
-		// Env override beats the yaml default (DSI_MCP_PORT; tests live in the
+		// Env override beats the yaml default (GLASS_PORT, ex DSI_MCP_PORT; tests live in the
 		// isolated 19515 range) — the operator's explicit env is still the
 		// sharpest instrument (ADR-0030 D3).
-		const brainPort = Number(process.env.DSI_MCP_PORT ?? cfg.brainPort);
+		const brainPort = Number(process.env.GLASS_PORT ?? cfg.brainPort);
 		if (cfg.enabled) this.ensureReaper(cfg.idleMs);
 		const entry: RegistryEntry = {
 			id, context, tabs, activeTargetId,

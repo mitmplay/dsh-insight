@@ -5,7 +5,7 @@ process.env.DSI_MCP_IN_PROCESS = '1';
 // ISOLATED brain range — a live floor's brains own 9515+; tests must never
 // collide with them (found 2026-10-20: floor brains on 9500/9501 ate the
 // test's fallback ports and the close probe hit the FLOOR's listener)
-process.env.DSI_MCP_PORT = '19515';
+process.env.GLASS_PORT = '19515';
 const registryMod = await import('$lib/server/browser/registry.js');
 const browserRegistry = registryMod.browserRegistry;
 const routeMod = await import('../../src/routes/api/browser/[id]/mcp/+server');

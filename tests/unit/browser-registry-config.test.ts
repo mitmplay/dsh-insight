@@ -22,7 +22,7 @@ describe('registry reads BrowserConfig at create', () => {
 		expect(src).toContain('readBrowserConfig()');
 		expect(src).toContain('options.headless ?? cfg.headless');
 		expect(src).toContain('join(cfg.profileRoot, id.slice(0, 8))');
-		expect(src).toContain('Number(process.env.DSI_MCP_PORT ?? cfg.brainPort)');
+		expect(src).toContain('Number(process.env.GLASS_PORT ?? cfg.brainPort)');
 		// the reaper arms from the same config read
 		expect(src).toContain('this.ensureReaper(cfg.idleMs)');
 	});

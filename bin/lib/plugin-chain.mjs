@@ -158,16 +158,17 @@ export function parseDevFloorPids(psOutput) {
 /** The port the floor's DSI UI answers on (ADR-0025 Wave 3 gate finding,
  *  2026-10-14): the host-bounce route is a DSI (vite) route, so the bounce
  *  chain must POST the VITE port - the DSH host port only knows the fence
- *  (401) or 404. Resolution order: PORT= in the floor env dump, then
- *  --port N on the vite command line, then the 5175 default the launcher
- *  pins. Pure: both inputs are strings read by dsi.mjs (ps -E and ps -o
- *  command), so unit tests pin all three arms.
+ *  (401) or 404. Resolution order: DSI_PORT= (the 2026-11-08 rename) then
+ *  legacy PORT= in the floor env dump, then --port N on the vite command
+ *  line, then the 5175 default the launcher pins. Pure: both inputs are
+ *  strings read by dsi.mjs (ps -E and ps -o command), so unit tests pin
+ *  all arms.
  *
  * @param {{ floorEnv?: string, command?: string }} params
  * @returns {number} the UI port
  */
 export function floorUiPort({ floorEnv = '', command = '' } = {}) {
-	const envPort = /(?:^|\s)PORT=(\d+)/.exec(floorEnv || '');
+	const envPort = /(?:^|\s)DSI_PORT=(\d+)/.exec(floorEnv || '') || /(?:^|\s)PORT=(\d+)/.exec(floorEnv || '');
 	if (envPort) return Number(envPort[1]);
 	const argPort = /--port\s+(\d+)/.exec(command || '');
 	if (argPort) return Number(argPort[1]);

@@ -199,6 +199,13 @@ describe('floorUiPort (ADR-0025 W3 - POST the vite port)', () => {
     })).toBe(6190);
   });
 
+  it('DSI_PORT= (2026-11-08 rename) beats legacy PORT= in the floor env dump', () => {
+    expect(floorUiPort({
+      floorEnv: 'TERM=x DSI_PORT=6191 PORT=6190 DSI_DEV_MODE=in-process',
+      command: 'vite dev --port 5175'
+    })).toBe(6191);
+  });
+
   it('else --port from the vite command line', () => {
     expect(floorUiPort({
       floorEnv: 'TERM=x DSI_DEV_MODE=in-process',

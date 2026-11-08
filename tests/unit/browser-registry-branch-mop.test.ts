@@ -165,7 +165,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.DSI_MCP_IN_PROCESS;
-  delete process.env.DSI_MCP_PORT;
+  delete process.env.GLASS_PORT;
   for (const id of [...(state()?.entries.keys() ?? [])]) state().entries.delete(id);
 });
 
@@ -249,7 +249,7 @@ describe('startInProcessMcp - scan fallback + http handler arms', () => {
     const blocker = net.createServer();
     await new Promise<void>((res) => blocker.listen(19541, '127.0.0.1', res));
     process.env.DSI_MCP_IN_PROCESS = '1';
-    process.env.DSI_MCP_PORT = '19541';
+    process.env.GLASS_PORT = '19541';
     try {
       mockLaunch();
       const info = await browserRegistry.open(); // MCP brain ON, in-process
@@ -268,7 +268,7 @@ describe('startInProcessMcp - scan fallback + http handler arms', () => {
 
   it('no bindable brain port at all -> the brain degrades with the scan error', async () => {
     process.env.DSI_MCP_IN_PROCESS = '1';
-    process.env.DSI_MCP_PORT = '65536'; // 65537..65596 are ALL past the port ceiling
+    process.env.GLASS_PORT = '65536'; // 65537..65596 are ALL past the port ceiling
     mockLaunch();
     const info = await browserRegistry.open(); // brain ON, in-process, no bindable port
     expect(info.mcp).toBe('none');
@@ -279,7 +279,7 @@ describe('startInProcessMcp - scan fallback + http handler arms', () => {
 
   it('http handler: non-/sse 404s; /sse notes traffic; a throwing handler still ends', async () => {
     process.env.DSI_MCP_IN_PROCESS = '1';
-    process.env.DSI_MCP_PORT = '19545';
+    process.env.GLASS_PORT = '19545';
     mockLaunch();
     const info = await browserRegistry.open(); // brain ON, in-process
     const e = state().entries.get(info.id) as Entry;
@@ -632,7 +632,7 @@ describe('navEntries / historyTravel / setZoom arms', () => {
 describe('evictBrainPort (BUGFIX 2026-10-25: the brain is a floor singleton)', () => {
   it('open() in-process re-homes the stable brain port away from the OLDER glass', async () => {
     process.env.DSI_MCP_IN_PROCESS = '1';
-    process.env.DSI_MCP_PORT = '19552';
+    process.env.GLASS_PORT = '19552';
     const old = seed({
       brainPort: 19552,
       mcpInProcess: {

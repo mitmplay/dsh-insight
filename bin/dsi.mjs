@@ -83,15 +83,17 @@ const USAGE = [
 	'',
 	'  Ports: `dsi dsh --sync` serves the DSI page on 5174 and opens your',
 	'  browser there. With --dev the Vite dev server takes 5175 instead',
-	'  and the browser follows. Override with PORT=<n>. The HOST half',
+	'  and the browser follows. Override with DSI_PORT=<n>. The HOST half',
 	'  takes 3080 by default; when that port is held by a dsh web you',
 	'  must keep running (another conversation floor), forward',
-	'  --port <n> — it goes to `dsh web` and DSI follows it automatically.',
+	'  --port <n> (or DSH_PORT=<n>; the flag wins) — it goes to `dsh web`',
+	'  and DSI follows it automatically. GLASS_PORT=<n> moves the brain',
+	'  (the glass browser MCP, default 9515).',
 	'',
 	'  All commands (flags — see above):',
 	'',
 	'      dsi web [--zai] [--ov] [--dev] [--token <token>]',
-	'                   serve the DSI page alone (PORT env default 5174,',
+	'                   serve the DSI page alone (DSI_PORT env default 5174,',
 	'                   HOST env default 127.0.0.1)',
 	'      dsi dsh --token <token>',
 	'                   store the dsh launch token in ~/.dsi/settings.yaml',
@@ -392,7 +394,7 @@ function setDshAuthToken(token) {
 function stampedFloorEnv(uiPort) {
 	return {
 		DSI_UI: 'http://127.0.0.1:' + uiPort,
-		DSI_MCP_URL: 'http://127.0.0.1:' + (process.env.DSI_MCP_PORT ?? 9515) + '/sse'
+		DSI_MCP_URL: 'http://127.0.0.1:' + (process.env.GLASS_PORT ?? 9515) + '/sse'
 	};
 }
 
@@ -489,7 +491,7 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = [], opts = {})
 	// takes 5175 instead (vite.config.ts pins 5174 strictPort, so pair mode
 	// passes 5175 explicitly), giving the two-port dev shape. in-process is
 	// also a vite floor: same 5175.
-	const uiPort = process.env.PORT ?? (mode === 'build' ? '5174' : '5175');
+	const uiPort = process.env.DSI_PORT ?? (mode === 'build' ? '5174' : '5175');
 	// The host half takes --port <n> when forwarded (a 3080 held by a
 	// dsh web this CLI does not own — e.g. another live conversation
 	// floor — is exactly the case the preflight must not kill). The
@@ -506,7 +508,16 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = [], opts = {})
 	// bug 2026-10-11: DSH_HOST_PORT=3477 booted the host there while the
 	// page dialed 3080 — the production floor — → "Failed to fetch".)
 	const pluginPort = inProcess && process.env.DSH_HOST_PORT ? parseInt(process.env.DSH_HOST_PORT, 10) : undefined;
-	const hostPort = hostPortFromArgs(extraArgs) ?? pluginPort ?? 3080;
+	// DSH_PORT (2026-11-08 rename): the env form of the forwarded --port flag —
+	// the CLI flag wins when both are set (explicit intent beats ambient env).
+	const envHostPort = /^\d+$/.test(process.env.DSH_PORT ?? '') ? Number(process.env.DSH_PORT) : undefined;
+	const flaggedHostPort = hostPortFromArgs(extraArgs);
+	const hostPort = flaggedHostPort ?? pluginPort ?? envHostPort ?? 3080;
+	// No forwarded flag but DSH_PORT set: forward it to `dsh web` as the flag
+	// it already understands — the host never learns the env name.
+	const hostSpawnArgs = !inProcess && flaggedHostPort === null && envHostPort !== undefined
+		? [...extraArgs, '--port', String(envHostPort)]
+		: extraArgs;
 	const dshBase = hostPort === 3080 ? undefined : `http://127.0.0.1:${hostPort}`;
 	if (inProcess) {
 		await preflightPort(uiPort, 'DSI page');
@@ -516,7 +527,7 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = [], opts = {})
 	}
 	// IN-PROCESS: no sync script, no host child — the vite plugin owns the
 	// host lifecycle (vite close hook stops it; one Ctrl-C, no orphan).
-	const host = inProcess ? null : spawn('/bin/sh', [script, ...extraArgs], {
+	const host = inProcess ? null : spawn('/bin/sh', [script, ...hostSpawnArgs], {
 		stdio: 'inherit',
 		env: { ...process.env, DSH_WEB_VERSION: dshWebVersion(), ...stampedFloorEnv(uiPort) }
 	});
@@ -766,7 +777,7 @@ function startDsiDevServer(defaultPort = '5175', dshBase = undefined, mode = 'pa
 	}
 	// --host matches the built server's 127.0.0.1 bind: vite's default
 	// 'localhost' can resolve ::1-only and strand a 127.0.0.1 client.
-	return spawn(process.execPath, [...execArgv, viteBin, 'dev', '--host', process.env.HOST ?? '127.0.0.1', '--port', process.env.PORT ?? defaultPort], {
+	return spawn(process.execPath, [...execArgv, viteBin, 'dev', '--host', process.env.HOST ?? '127.0.0.1', '--port', process.env.DSI_PORT ?? defaultPort], {
 		// D7: inspector flags lead the child argv — node consumes options before
 		// the script path, so `node --inspect vite.js dev` debugs THIS process
 		// (vite + the embedded DSH host share one heap). The spawn execArgv
@@ -785,7 +796,7 @@ function startDsiDevServer(defaultPort = '5175', dshBase = undefined, mode = 'pa
 			DSI_DEV: '1',
 			// D4/D6: the mode rides as env, never past the CLI to the host.
 			...devModeEnv(mode, { playwrightMcp: opts.playwrightMcp === true }),
-			...stampedFloorEnv(process.env.PORT ?? defaultPort),
+			...stampedFloorEnv(process.env.DSI_PORT ?? defaultPort),
 			// The Faithful Bounce (ADR 2026-10-13, D1): the inspector flags are
 			// part of the launch record — stamped so every restorer (the bounce
 			// boot via ps -E, the delayed re-serve via inherited env) can put
@@ -806,7 +817,7 @@ function startDsiServer(defaultPort = '5174', dshBase = undefined, opts = {}) {
 		stdio: 'inherit',
 		env: {
 			...process.env,
-			PORT: process.env.PORT ?? defaultPort,
+			PORT: process.env.DSI_PORT ?? defaultPort,
 			HOST: process.env.HOST ?? '127.0.0.1',
 			// First-start bootstrap seam: the server clones template/.dsi to ~/.dsi
 			// when the operator home is absent (src/lib/server/settings-document.ts).
@@ -815,7 +826,7 @@ function startDsiServer(defaultPort = '5174', dshBase = undefined, opts = {}) {
 			// vite child got it via startDsiDevServer's devModeEnv spread; the
 			// built server was silently dropping it (caught by the live gate).
 			...devModeEnv('build', { playwrightMcp: opts.playwrightMcp === true }),
-			...stampedFloorEnv(process.env.PORT ?? defaultPort),
+			...stampedFloorEnv(process.env.DSI_PORT ?? defaultPort),
 			...(dshBase !== undefined ? { DSH_BASE_URL: dshBase } : {})
 		}
 	});
@@ -909,7 +920,7 @@ if (command === 'web') {
 	// Same browser-follows-the-UI contract as the pair (runSyncedPair): open
 	// the default browser at the serving port — --dev's Vite server takes
 	// 5175, the built server 5174; PORT/HOST overrides apply.
-	openBrowser(`http://${process.env.HOST ?? '127.0.0.1'}:${process.env.PORT ?? (withDev ? '5175' : '5174')}/`);
+	openBrowser(`http://${process.env.HOST ?? '127.0.0.1'}:${process.env.DSI_PORT ?? (withDev ? '5175' : '5174')}/`);
 
 	for (const signal of ['SIGINT', 'SIGTERM']) {
 		process.on(signal, () => {

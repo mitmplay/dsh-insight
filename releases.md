@@ -1,3 +1,13 @@
+## 0.11.0
+
+Bumped from 0.10.2 — the port env names say what they mean: `DSI_PORT` for the UI, `GLASS_PORT` for the brain MCP, and a new `DSH_PORT` for the host. Clean break, no legacy names.
+
+### Features
+- **Port env rename: `PORT`→`DSI_PORT`, `DSI_MCP_PORT`→`GLASS_PORT`, new `DSH_PORT`** — the launcher's port knobs are renamed to name their surface: `DSI_PORT` (UI, default 5174 build / 5175 dev), `GLASS_PORT` (brain MCP SSE, default 9515, read in `bin/dsi.mjs` and `src/lib/server/browser/registry.ts`), and `DSH_PORT` (host, default 3080) as the env form of `--port` — the `--port` CLI flag wins when both are set, and `DSH_PORT` is forwarded to `dsh web` as `--port` when no flag is given. Old names are ignored (clean break, no back-compat). The Stamped Floor stamps are unchanged (`DSI_UI` / `DSI_MCP_URL` still carry the new ports). Pins: `tests/unit/stamped-floor.test.ts`, `browser-registry-config.test.ts`, `dsi-cli.test.ts`, `dsi-plugin-chain.test.ts` (new: `DSI_PORT=6191` beats legacy `PORT=6190`). README port table + example updated; design doc `docs/superpowers/specs/2026-11-08-port-env-rename-design.md`; ADR amendment in the Stamped Floor note. Commit `fc0a78db`.
+
+### Bug fixes
+- **The Probe Floor That Reached Through the Glass (RCA 2026-11-08)** — a verification floor booted with `--playwright-mcp` fired the launcher's `openBrowser` into the operator's real Chrome, and a pattern-kill teardown then severed endpoints mid-flight, erroring 15 tabs. RCA under `dev/kb/rca/2026-11-08 - RCA — The Probe Floor That Reached Through the Glass ….md`: 5-Why, flow + sequence diagrams, carry-forward rules (probe floors boot browser-less and glass-less with `--no-open`; never pattern-kill without enumerating pids; `DSI_HEADLESS_VERIFY=1` idea deferred). RCA note committed with this release, no code change.
+
 ## 0.10.2
 
 Bumped from 0.10.1 — the fresh-install seed finally lands: the shipped prompts DB is self-contained and a partial `~/.dsi` home gets topped up instead of skipped.

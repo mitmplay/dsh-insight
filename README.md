@@ -79,16 +79,16 @@ One "floor" is a pair: **DSH** (the harness host) and **DSI** (the page you watc
 
 | What | Default | How to move it | Plain meaning |
 |---|---|---|---|
-| DSH host | `3080` | `--port <n>` | the harness brain of the floor |
-| DSI page | `5174` | `PORT=<n>` env var | the page you open in the browser |
-| Browser brain | `9515` | `DSI_MCP_PORT=<n>` env var | the MCP endpoint agents use to drive the glass browser |
+| DSH host | `3080` | `--port <n>` or `DSH_PORT=<n>` env var (flag wins) | the harness brain of the floor |
+| DSI page | `5174` | `DSI_PORT=<n>` env var | the page you open in the browser |
+| Browser brain | `9515` | `GLASS_PORT=<n>` env var | the MCP endpoint agents use to drive the glass browser |
 
 **The browser brain.** By default the glass browser's assistant (the MCP brain that lets an agent click and type in the browser) runs as its **own separate helper process** — if it fails, you lose only the glass panel. Adding `--playwright-mcp` moves that brain **inside the DSI page server**: one less background process and a faster start, but a brain failure can now touch the page server itself. DSI prints a banner saying so whenever you use the flag — drop the flag to go back to the helper process.
 
 **Example — a second, self-contained floor beside a live one** (nothing on the running floor is touched):
 
 ```bash
-PORT=5176 DSI_MCP_PORT=19515 npx @deepseek-insight/dsi@latest dsh --sync --playwright-mcp --port 3081
+DSI_PORT=5176 DSH_PORT=3081 GLASS_PORT=19515 npx @deepseek-insight/dsi@latest dsh --sync --playwright-mcp
 # Page: http://localhost:5176 · host: 3081 · brain: http://127.0.0.1:19515/sse
 ```
 
