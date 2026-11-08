@@ -14,8 +14,11 @@ describe('headed launch shape (task 1.1-T)', () => {
 	it('headedOpen forces headless:false on the DISPOSABLE profile — never the host root', () => {
 		// the headless resolution: an explicit headedOpen wins, plain keeps cfg default
 		expect(src).toContain('options.headedOpen ? false : (options.headless ?? cfg.headless)');
-		// the profile dir is ALWAYS a fresh dir under the disposable root
-		expect(src).toContain('join(cfg.profileRoot, id.slice(0, 8))');
+		// the profile dir is ALWAYS a fresh dir under the disposable root.
+		// 2026-11-08 (Glass Chassis task 1.2): the naming moved verbatim into
+		// the shared birth-rules module (chassis-shared.ts) — the literal
+		// below is the shared call, same join(root, id.slice(0,8)) contract.
+		expect(src).toContain('disposableProfilePath(cfg.profileRoot, id)');
 	});
 
 	it('the host Chrome root can never appear as profileDir — no borrow imports, no mount args, no host-root resolution', () => {

@@ -1,3 +1,22 @@
+## 0.11.1
+
+Bumped from 0.11.0 — the Glass Brain learns to live away from home: env renames become operator-addressable (`GLASS_BRAIN_URL`) and the browser window is born where the operator's screen is (`GLASS_CHASSIS_URL`), plus a chassis parity fix series proven live from a VM floor.
+
+### Features
+- **GLASS_BRAIN_URL rename + operator override** — the brain MCP address is now an explicit env knob instead of a port guess: `GLASS_BRAIN_URL` replaces the port-name plumbing, with the operator able to override where the glass dials the brain (D1-D4). ADR + spec + feat: commits `101cb945`, `a60b2a4e`, `e2c056d3`; README explains the brain-vs-chassis split.
+- **GLASS_CHASSIS_URL — the window is born where the operator's screen is (ADR-0054, Wave 1, D1-D5)** — a remote floor (e.g. a VM over the OrbStack bridge) opens its glass on the operator's own screen: the floor dials a chassis address carried in `GLASS_CHASSIS_URL` instead of birthing a local window; the cdpTarget is rooted at the address the floor dialed (request `Host`), since bind is often loopback — the wrong machine for a remote floor (live witness: ECONNREFUSED from the VM). Commits `4fb24fca` (ADR-0054 + spec + RCA), `a582fdcb` (feat), `d71d7894` (Host-rooted target), `2265af08` (README stamps docs), `ca231e36` (Glass Brain Address scenario flipped: brain on the host, VM floors dial it brain-less).
+- **Skill: dsi-host-drive** — drive the HOST floor's terminal from a VM floor over the OrbStack bridge (the Glass Chassis drive, earned 2026-11-08), commit `2b2c0204`.
+
+### Bug fixes
+- **Plain click stays headless; only Shift+click births a visible window** — operator correction 2026-11-08: headless rides the `/open` body instead of opening a window on every plain click — commit `225ace91`.
+- **Mask HeadlessChrome UA on headless births** — anti-bot parity with the registry's PLAIN_IDENTITY; Google captcha'd the first VM plain click — commit `70df786f`.
+- **Pin the headless viewport to the requested box** — the mirror was cut off at the bottom; ADR-0041 viewport parity now carries across the machine boundary — commit `fe49bdbb`.
+- **Pin headless emulation to the panel box at every attach** — the mirror letterboxed when `defaultViewport` missed the remote context (ADR-0041 contract, deterministic) — commit `0d272722`.
+- **Truthful headless/headedOpen birth flags** — plain clicks took the headed resize path (window bounds on a nonexistent window) and the mirror never tracked the panel box — commit `2735bb22`.
+- **Prompt DB hygiene** — VACUUM on `template/prompts.sqlite` reclaims freelist pages after test-incident cleanup (53 rows intact, integrity ok) — commit `2b3e5598`.
+
+### Docs & tests
+- Token spend report — 29.7M tok, the host drive re-billed every keystroke (`b4ebe6f6`); ADR-0054 flipped to Accepted with the live-witness amendment restored plus four post-witness chassis fixes folded into completion notes (`01412721`, `0bc728c1`); coverage sweep raised the 10 lowest-covered files to 100%/near-100% lines (global 98.2% → 98.35% lines) — commit `0460b30b`; README CLI-ports scenario (`713064bf`).
 ## 0.11.0
 
 Bumped from 0.10.2 — the port env names say what they mean: `DSI_PORT` for the UI, `GLASS_PORT` for the brain MCP, and a new `DSH_PORT` for the host. Clean break, no legacy names.

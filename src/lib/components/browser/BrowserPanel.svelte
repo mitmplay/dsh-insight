@@ -746,7 +746,18 @@
 						...(headedOpen ? { headedOpen: true } : {})
 					})
 				});
-					if (!res.ok) throw new Error('open failed: ' + res.status);
+					if (!res.ok) {
+						// ADR-0054 (Glass Chassis) honesty: a chassis-stamped open
+						// failure's 500 body carries the registry's message — it NAMES
+						// the glass chassis (unreachable / writer-held refused). The
+						// operator must see that, not a generic "open failed: 500".
+						let reason = 'open failed: ' + res.status;
+						try {
+							const body = (await res.json()) as { message?: string };
+							if (body?.message) reason = body.message;
+						} catch { /* body not json — the generic reason stands */ }
+						throw new Error(reason);
+					}
 					const info = (await res.json()) as { id: string };
 					sessionId = info.id;
 					reBound = false;

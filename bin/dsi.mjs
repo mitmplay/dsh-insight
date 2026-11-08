@@ -88,7 +88,11 @@ const USAGE = [
 	'  must keep running (another conversation floor), forward',
 	'  --port <n> (or DSH_PORT=<n>; the flag wins) — it goes to `dsh web`',
 	'  and DSI follows it automatically. GLASS_PORT=<n> moves the brain',
-	'  (the glass browser MCP, default 9515).',
+	'  (the glass browser MCP, default 9515). A pre-set GLASS_BRAIN_URL',
+	'  overrides the computed brain address byte-for-byte. On a VM floor,',
+	'  stamp GLASS_CHASSIS_URL=http://<host>:<port> (run `node bin/dsi-chassis.mjs --bind <host>`',
+	'  there) and Shift+click births the visible glass window on THAT',
+	'  machine; unset, the window is born locally exactly as always.',
 	'',
 	'  All commands (flags — see above):',
 	'',
@@ -389,13 +393,26 @@ function setDshAuthToken(token) {
 /** The Stamped Floor (ADR 2026-11-05, D1): every floor announces its own
  *  addresses into the env it gives its children — the UI base (the Floor
  *  Seam D1a seam, finally with a writer) and the brain URL (the preset's
- *  !!js expression reads DSI_MCP_URL with a 9515 bare-boot fallback). The
- *  launcher is the only party that knows both ports at spawn time. */
+ *  !!js expression reads GLASS_BRAIN_URL with a 9515 bare-boot fallback).
+ *  The launcher is the only party that knows both ports at spawn time.
+ *  D2 (ADR 2026-11-08): an operator pre-set GLASS_BRAIN_URL passes through
+ *  byte-for-byte — no validation, no trim; the computed URL is only the
+ *  default.
+ *  GLASS_CHASSIS_URL (ADR-0054, 2026-11-08): the SECOND stamp — where the
+ *  glass WINDOW is born. Same ladder: an operator-exported value passes
+ *  through byte-for-byte; unset stamps nothing and the registry keeps its
+ *  local launch exactly as today (D5). It points at the host companion
+ *  (`node bin/dsi-chassis.mjs --bind <addr>`), not at raw Chrome. */
 function stampedFloorEnv(uiPort) {
-	return {
+	const env = {
 		DSI_UI: 'http://127.0.0.1:' + uiPort,
-		DSI_MCP_URL: 'http://127.0.0.1:' + (process.env.GLASS_PORT ?? 9515) + '/sse'
+		GLASS_BRAIN_URL: process.env.GLASS_BRAIN_URL ?? 'http://127.0.0.1:' + (process.env.GLASS_PORT ?? 9515) + '/sse'
 	};
+	// Unset means NOTHING is stamped (D5): byte-for-byte today's env shape.
+	if (process.env.GLASS_CHASSIS_URL !== undefined) {
+		env.GLASS_CHASSIS_URL = process.env.GLASS_CHASSIS_URL;
+	}
+	return env;
 }
 
 function dshWebVersion() {

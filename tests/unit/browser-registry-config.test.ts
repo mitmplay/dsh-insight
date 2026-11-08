@@ -21,7 +21,7 @@ describe('registry reads BrowserConfig at create', () => {
 		const src = readFileSync('src/lib/server/browser/registry.ts', 'utf8');
 		expect(src).toContain('readBrowserConfig()');
 		expect(src).toContain('options.headless ?? cfg.headless');
-		expect(src).toContain('join(cfg.profileRoot, id.slice(0, 8))');
+		expect(src).toContain('disposableProfilePath(cfg.profileRoot, id)') // 2026-11-08 Glass Chassis task 1.2: the naming moved verbatim into chassis-shared.ts (same join(root, id.slice(0,8)) contract);
 		expect(src).toContain('Number(process.env.GLASS_PORT ?? cfg.brainPort)');
 		// the reaper arms from the same config read
 		expect(src).toContain('this.ensureReaper(cfg.idleMs)');

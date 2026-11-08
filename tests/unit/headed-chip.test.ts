@@ -31,7 +31,7 @@ describe('headed chip (task 2.2-T)', () => {
 	});
 
 	it('borrow.ts is deleted and zero-referenced in code', async () => {
-		expect(readdirSync('src/lib/server/browser')).toEqual(['registry.ts', 'relay.ts']);
+		expect(readdirSync('src/lib/server/browser').sort()).toEqual(['chassis-shared.ts', 'registry.ts', 'relay.ts']); // 2026-11-08 Glass Chassis task 1.2: chassis-shared.ts joins (the shared birth rules)
 		for (const dir of ['src/lib', 'src/routes']) {
 			const { execSync } = await import('node:child_process');
 			const hits = execSync(

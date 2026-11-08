@@ -82,6 +82,7 @@ One "floor" is a pair: **DSH** (the harness host) and **DSI** (the page you watc
 | DSH host | `3080` | `--port <n>` or `DSH_PORT=<n>` env var (flag wins) | the harness brain of the floor |
 | DSI page | `5174` | `DSI_PORT=<n>` env var | the page you open in the browser |
 | Browser brain | `9515` | `GLASS_PORT=<n>` env var | the MCP endpoint agents use to drive the glass browser |
+| Glass chassis | *(this machine)* | `GLASS_CHASSIS_URL=<url>` env var | where Shift+click births its visible window — unset means right here |
 
 **The browser brain.** By default the glass browser's assistant (the MCP brain that lets an agent click and type in the browser) runs as its **own separate helper process** — if it fails, you lose only the glass panel. Adding `--playwright-mcp` moves that brain **inside the DSI page server**: one less background process and a faster start, but a brain failure can now touch the page server itself. DSI prints a banner saying so whenever you use the flag — drop the flag to go back to the helper process.
 
@@ -92,7 +93,50 @@ DSI_PORT=5176 DSH_PORT=3081 GLASS_PORT=19515 npx @deepseek-insight/dsi@latest ds
 # Page: http://localhost:5176 · host: 3081 · brain: http://127.0.0.1:19515/sse
 ```
 
-**Second floors are fully drivable.** At boot, a floor stamps its own addresses (`DSI_UI`, `DSI_MCP_URL`) into everything it starts — so agents in *that* floor's conversations drive *that* floor's glass automatically, and the preset brain entry follows the stamped port. Nothing on the primary floor changes: without a stamp (a bare `dsh web` boot), the brain falls back to `9515` and the drivers probe `5175` → `5174` exactly as before. One conversation = one glass owner; the driver refuses to touch another conversation's glass, and a session busy in the live floor shows `writer-held` if you try to prompt it from the second window (watch it there, prompt it on its own floor).
+**DSI in a VM, Glass on the host.** Run DSI/DSH inside OrbStack (or any VM) while
+the Glass brain stays on your Mac — that is where the headed glass can be seen
+(Shift+Click opens a visible Playwright window, and only the host display can
+show one). The VM floor boots **brain-less** (no brain flag — never spawn a
+second, invisible brain) and exports `GLASS_BRAIN_URL` pointing at the host;
+OrbStack exposes the Mac to its VMs at `host.internal`:
+
+```bash
+# inside the VM — floor lives here, brain dials the host
+DSI_PORT=5171 DSH_PORT=3081 GLASS_BRAIN_URL=http://host.internal:9515/sse npx @deepseek-insight/dsi@latest dsh --sync
+```
+
+```mermaid
+sequenceDiagram
+  participant M as host Mac
+  participant V as VM floor (OrbStack)
+  participant G as Glass brain (host 9515)
+  M->>M: dsi dsh --sync with the brain flag — Glass lives here
+  V->>V: dsi dsh --sync brain-less with GLASS_BRAIN_URL exported
+  V->>G: preset dials the host stamp
+  G->>G: Shift+Click opens a HEADED window on the host display
+  V->>G: tabs, panels, viewport — driven over the wire
+```
+
+```mermaid
+flowchart TD
+  A[floor boots] --> B{GLASS_BRAIN_URL exported?}
+  B -- yes --> C[dial that address — VM floor, host brain]
+  B -- no --> D[dial 127.0.0.1:GLASS_PORT — same machine]
+  C --> E[headed glass opens where the brain runs]
+  D --> E
+```
+
+**Second floors are fully drivable.** At boot, a floor stamps its own addresses (`DSI_UI`, `GLASS_BRAIN_URL`) into everything it starts — so agents in *that* floor's conversations drive *that* floor's glass automatically, and the preset brain entry follows the stamped port. Nothing on the primary floor changes: without a stamp (a bare `dsh web` boot), the brain falls back to `9515` and the drivers probe `5175` → `5174` exactly as before. One conversation = one glass owner; the driver refuses to touch another conversation's glass, and a session busy in the live floor shows `writer-held` if you try to prompt it from the second window (watch it there, prompt it on its own floor).
+
+**Two glass addresses: brain vs chassis.** The glass has two halves and each has its own stamp. The **brain** (`GLASS_BRAIN_URL`) is where *agents* dial in — the MCP endpoint. The **chassis** (`GLASS_CHASSIS_URL`) is where a Shift+click's *visible window* is born. By default both are "this machine" and nothing changes. When DSI runs on a machine with no screen (a VM) but your screens live on the host, stamp the chassis at the host and the window opens where you are looking:
+
+```bash
+# in the VM — the window is born on the host, the panel mirrors it
+node bin/dsi-chassis.mjs --bind 192.168.1.9 --port 9525   # on the HOST: the chassis companion
+DSI_PORT=5171 DSH_PORT=3081 GLASS_CHASSIS_URL=http://192.168.1.9:9525 pnpm dsi dsh --sync
+```
+
+The host-side **companion** (`dsi-chassis`) births each Shift+click glass on a fresh disposable profile — never your real Chrome profile — enforces the same one-conversation-one-glass rule on its side, binds only the address you name (never all interfaces), and bridges CDP back to the floor. When the stamp is set and the companion is down, the panel says so honestly instead of silently falling back to a screenless local launch; unset the stamp and every floor behaves exactly as before.
 
 ## License
 

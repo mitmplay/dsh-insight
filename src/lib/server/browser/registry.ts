@@ -25,6 +25,7 @@ import { chromium, type CDPSession, type BrowserContext, type Page } from 'playw
 
 
 import { readBrowserConfig, type BrowserConfig } from '$lib/server/insight-config.js';
+import { OWNER_MARKER, disposableProfilePath, pidOfPort, writeOwnerMarker } from './chassis-shared.js';
 
 /** The MCP brain version — PINNED (spec W3 3.1; the ADR-0029 D7 ledger: the
  *  package pins its own playwright copy, never float it). */
@@ -236,6 +237,11 @@ export interface OpenOptions {
 	/** ADR-0047 downgrade - Shift+Click's HEADED open: a visible window on
 	 *  a disposable profile. No host Chrome, no consent, nothing borrowed. */
 	headedOpen?: boolean;
+	/** ADR-0054 (Glass Chassis): set when this glass was born REMOTELY via
+	 *  the GLASS_CHASSIS_URL companion — close() posts /close to it (the
+	 *  companion kills the browser + removes the host-side disposable
+	 *  profile). Undefined for local births. */
+	chassisUrl?: string;
 }
 
 /** One attached page of the glass context: its own CDP session + relay
@@ -349,8 +355,9 @@ function state(): { entries: Map<string, RegistryEntry>; closed: Set<string> } {
 /** Boot-time sweep of profile dirs left by sessions that died without a
  *  close (crash, kill -9, reaper miss). keep = prefixes of LIVE entries —
  *  a module hot reload re-runs state() init against a process-global map
- *  that may hold live sessions, and this sweep must never delete one. */
-const OWNER_MARKER = ".dsi-owner.json";
+ *  that may hold live sessions, and this sweep must never delete one.
+ *  OWNER_MARKER lives in ./chassis-shared.js (task 1.2, one copy of the
+ *  birth rules shared with the chassis companion). */
 
 /** Fix 2026-11-05 (browser-proxy-verbs profile-dir flake): every profile dir
  *  open() creates carries an OWNER MARKER (the creating process's pid). Under
@@ -601,10 +608,9 @@ const listen = (server: import('node:http').Server, port: number): Promise<numbe
 		server.listen(port, '127.0.0.1');
 	});
 
-function pidOfPort(port: number): number | null {
-	const p = spawnSync('lsof', ['-ti', 'tcp:' + port, '-sTCP:LISTEN'], { stdio: 'pipe' });
-	return p.status === 0 ? Number(p.stdout.toString().trim().split('\n')[0]) : null;
-}
+// pidOfPort moved to ./chassis-shared.js (task 1.2) — re-exported here so
+// every existing consumer/import path keeps resolving.
+export { pidOfPort };
 
 function portFree(port: number): boolean {
 	return spawnSync('lsof', ['-ti', 'tcp:' + port, '-sTCP:LISTEN'], { stdio: 'pipe' }).status !== 0;
@@ -987,6 +993,13 @@ class BrowserRegistry {
 
 	async open(options: OpenOptions = {}): Promise<BrowserSessionInfo> {
 		const cfg: BrowserConfig = readBrowserConfig();
+		// ADR-0054 D1/D2 (Glass Chassis): the SECOND stamp. When the operator
+		// exported GLASS_CHASSIS_URL, the headed glass is born on the CHASSIS
+		// machine through the host companion, and the panel's existing CDP
+		// relay attaches to the returned target. Unset (D5) = byte-for-byte
+		// today's local launch — everything below this branch is untouched.
+		const chassisUrl = process.env.GLASS_CHASSIS_URL;
+		if (chassisUrl) return this.openViaChassis(chassisUrl, options, cfg);
 		const id = randomUUID();
 		const port = freePort(options.port);
 		// The Headed Downgrade (ADR-0047 retirement amendment, 2026-11-05):
@@ -995,16 +1008,14 @@ class BrowserRegistry {
 		// GONE (the borrowed wipe RCA 2026-11-05): the host Chrome root is
 		// never read, never mounted, never deletable from this code.
 		const headless = options.headedOpen ? false : (options.headless ?? cfg.headless);
-		const profileDir = join(cfg.profileRoot, id.slice(0, 8));
+		// task 1.2: dir naming + owner marker are the SHARED birth rules — the
+		// chassis companion uses the exact same functions for host-born glasses.
+		const profileDir = disposableProfilePath(cfg.profileRoot, id);
 		mkdirSync(profileDir, { recursive: true });
 		// Owner marker (fix 2026-11-05): lets a sibling process's boot sweep
 		// tell this LIVE session from an orphan (foreignLiveOwner). Best-effort
 		// — a missing marker just means the dir sweeps like any legacy leftover.
-		try {
-			writeFileSync(join(profileDir, OWNER_MARKER), JSON.stringify({ pid: process.pid, at: Date.now() }));
-		} catch {
-			// marker write must never fail the open
-		}
+		writeOwnerMarker(profileDir);
 
 
 		// launchPersistentContext is the ONLY way to hand a profile dir to
@@ -1334,6 +1345,163 @@ const browser = context.browser();
 		};
 	}
 
+	/**
+	 * ADR-0054 D2 — the chassis branch of open(): the glass is born on the
+	 * machine the stamp names. The companion enforces the birth rules on the
+	 * host side (disposable profile, one owner, writer-held); this side
+	 * attaches the SAME relay/screencast the local branch uses, so the
+	 * panel, tabs, zoom and stream modules move unchanged. Failures are
+	 * HONEST: an unreachable or refusing chassis throws a message naming
+	 * the chassis — never a silent local fallback (the operator stamped a
+	 * topology; hiding it would lie about where their glass lives).
+	 */
+	private async openViaChassis(chassisUrl: string, options: OpenOptions, cfg: BrowserConfig): Promise<BrowserSessionInfo> {
+		const base = chassisUrl.replace(/\/+$/, '');
+		let res: Response;
+		try {
+			res = await fetch(base + '/open', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					width: options.width,
+					height: options.height,
+					ownerSessionId: options.ownerSessionId,
+					// ADR-0054 D2 + operator correction (2026-11-08): the chassis
+					// is where glasses are BORN, not automatically a headed
+					// window factory — only the Shift+click headed open asks for
+					// a visible window; a plain click stays headless (no OS
+					// window, mirror only), exactly like the local path.
+					headless: options.headedOpen ? false : (options.headless ?? cfg.headless)
+				})
+			});
+		} catch (cause) {
+			throw new Error(
+				'glass chassis unreachable at ' + chassisUrl + ': ' +
+				(cause instanceof Error ? cause.message : String(cause)) +
+				' — the floor is chassis-stamped, so no local birth was attempted (ADR-0054)'
+			);
+		}
+		if (!res.ok) {
+			const body = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+			throw new Error(
+				'glass chassis (' + chassisUrl + ') refused open: ' + res.status +
+				(body?.message ? ' — ' + body.message : '')
+			);
+		}
+		const remote = (await res.json()) as { id: string; cdpTarget: string; pid: number | null; profileDir: string };
+		// ONE identity across the machine boundary: the companion's id IS the
+		// registry id, so close()'s /close post addresses the right glass.
+		const id = remote.id;
+		// Attach the panel's existing CDP plumbing to the remote-born glass.
+		const browser = await chromium.connectOverCDP(remote.cdpTarget);
+		const context = browser.contexts()[0] ?? (await browser.newContext());
+		const page = context.pages()[0] ?? (await context.newPage());
+		const cdp = await context.newCDPSession(page);
+		// ADR-0041's viewport contract, deterministic across the machine
+		// boundary: a HEADLESS chassis glass gets its emulation pinned to the
+		// panel's measured box at EVERY attach (defaultViewport alone can be
+		// missed on a remote context, and the local path pins it via the
+		// viewport option) — otherwise the mirror letterboxes (live witness
+		// 2026-11-08: YouTube frame centered in black bands). HEADED glasses
+		// stay window-driven — the OS window is the instrument.
+		if (options.headedOpen !== true) {
+			try {
+				await cdp.send('Emulation.setDeviceMetricsOverride', {
+					width: Math.max(200, Math.min(1920, options.width ?? 730)),
+					height: Math.max(120, Math.min(1080, options.height ?? 830)),
+					deviceScaleFactor: 1,
+					mobile: false
+				});
+			} catch {
+				// emulation pin is best-effort — a refusal falls back to the
+				// birth viewport
+			}
+		}
+		const relay = new BrowserRelay(cdp, cfg.screencastQuality, cfg.screencastMaxFps);
+		const tabs = new Map<string, TabHandle>();
+		let activeTargetId: string | null = null;
+		try {
+			const info = (await cdp.send('Target.getTargetInfo')) as { targetInfo?: { targetId?: string } };
+			activeTargetId = info.targetInfo?.targetId ?? null;
+		} catch {
+			// best-effort — listTabs/activate recover ids later
+		}
+		const tabIds = new Map<number, string>();
+		let nextTabId = 1;
+		if (activeTargetId) {
+			tabIds.set(1, activeTargetId);
+			nextTabId = 2;
+			tabs.set(activeTargetId, { targetId: activeTargetId, tabId: 1, cdp, relay, page });
+		}
+		await relay.start().catch(() => undefined);
+		// Same starter-page + first-frame contract as the local branch (the
+		// ring must never be born empty).
+		const start = options.url ?? 'data:text/html,<title>Glass Browser</title><body style="font-family:system-ui;color:gray;display:grid;place-items:center;height:100vh;margin:0">Glass Browser — waiting for the agent</body>';
+		await cdp.send('Page.enable').catch(() => undefined);
+		await cdp.send('Page.navigate', { url: start }).catch(() => undefined);
+		await new Promise((r) => setTimeout(r, 600));
+		if (relay.latestFrame() === null) {
+			for (let i = 0; i < 10 && relay.latestFrame() === null; i += 1) {
+				await new Promise((r) => setTimeout(r, 100));
+			}
+		}
+		if (relay.latestFrame() === null) {
+			const shot = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: cfg.screencastQuality }).catch(() => null);
+			if (shot) relay.seed({ seq: 0, jpeg: (shot as { data?: string }).data, metadata: { seeded: true } });
+		}
+		if (cfg.enabled) this.ensureReaper(cfg.idleMs);
+		// The "port" of a remote-born glass is the companion bridge's port
+		// (the cdpTarget's) — close() and status surfaces treat it as the
+		// session's address; no local pid/lsof handle exists on this machine.
+		const port = Number(new URL(remote.cdpTarget).port) || 0;
+		const entry: RegistryEntry = {
+			id, context, tabs, activeTargetId,
+			tabOrder: activeTargetId ? [activeTargetId] : [],
+			tabIds,
+			nextTabId,
+			viewport: { width: Math.max(200, Math.min(1920, options.width ?? 730)), height: Math.max(120, Math.min(1080, options.height ?? 830)) },
+			zoom: cfg.contentZoom,
+			// TRUTHFUL birth mode (operator sc#1 2026-11-08): a plain click IS a
+			// headless chassis glass — flagging it headed sent every resize down
+			// the window-bounds path (no OS window → no-op → the mirror kept its
+			// birth viewport while the panel moved on: the bottom band). The
+			// truthful flags route resizes into the headless branch, which pins
+			// the viewport through Playwright's own setViewportSize — the same
+			// one-writer contract as the local floor (BUG 2026-11-01).
+			headless: options.headedOpen !== true,
+			headedOpen: options.headedOpen === true,
+			port,
+			pid: remote.pid ?? null,
+			profileDir: remote.profileDir, // host-side path; close()'s rm guard skips it (outside the local disposable root)
+			// the brain cannot attach across the companion bridge — surfaced
+			// honestly (the mirror works; agents drive their own floor's glass)
+			brainPort: Number(process.env.GLASS_PORT ?? cfg.brainPort),
+			streamSubscribers: 0,
+			lastMcpActivity: Date.now(),
+			mcpChild: null,
+			mcpInProcess: null,
+			mcpHealth: 'down',
+			mcpError: 'glass born on the chassis machine — the local brain does not attach across the bridge (ADR-0054)',
+			closed: false,
+			ownerSessionId: options.ownerSessionId ?? null,
+			ownBirths: new Set<string>(),
+			chassisUrl,
+			createdAt: new Date().toISOString()
+		};
+		state().entries.set(id, entry);
+		// Headed: measure-and-compensate the OS window chrome exactly like the
+		// local birth (best-effort — a bridge hiccup must not fail the open).
+		await this.applyPanelViewport(entry, { cdp, relay }).catch(() => undefined);
+		return {
+			id, port, pid: entry.pid, profileDir: entry.profileDir, createdAt: entry.createdAt,
+			headedOpen: true,
+			ownerSessionId: entry.ownerSessionId,
+			mcp: 'none',
+			mcpHealth: entry.mcpHealth,
+			mcpError: entry.mcpError
+		};
+	}
+
 	/** Wave 3 (3.1) owns the real arg matrix; Wave 1 wires the spawn so close
 	 *  ordering (mcp child → cdp → browser) is pinned from day one. */
 	private spawnMcpChild(entry: RegistryEntry, mcpPin: string): void {
@@ -1424,6 +1592,22 @@ const browser = context.browser();
 			await entry.context.close();
 		} catch (e) {
 			errs.push(e);
+		}
+		// ADR-0054: a chassis-born glass dies ON THE HOST — the companion
+		// kills the browser and removes the host-side disposable profile.
+		// (The rm guard below correctly skips the host-side path; this arm
+		// is the owner-release across the machine boundary. Best-effort: a
+		// dead companion leaves the glass to the pid/profileDir close contract.)
+		if (entry.chassisUrl) {
+			try {
+				await fetch(entry.chassisUrl.replace(/\/+$/, '') + '/close', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ id: entry.id })
+				});
+			} catch (e) {
+				errs.push(e);
+			}
 		}
 		// profile cleanup (operator report 2026-10-20): the isolated
 		// --user-data-dir (D5) is session-scoped — closed means GONE, or

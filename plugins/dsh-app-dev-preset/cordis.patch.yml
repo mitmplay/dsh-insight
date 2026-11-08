@@ -228,7 +228,8 @@
     config:
       transport: streamable-http
       serverName: glass-browser
-      # The Stamped Floor (ADR 2026-11-05 D2): the floor stamps its own brain
-      # URL into DSI_MCP_URL at spawn; a bare `dsh web` boot (no stamp) keeps
-      # the historical 9515. Same !!js-env idiom as dsh-sdk-minimal.
-      url: !!js process.env.DSI_MCP_URL ?? 'http://127.0.0.1:9515/sse'
+      # The Stamped Floor (ADR 2026-11-05 D2; renamed 2026-11-08): the floor
+      # stamps its own brain URL into GLASS_BRAIN_URL at spawn; a bare
+      # `dsh web` boot (no stamp) keeps the historical 9515. Same !!js-env
+      # idiom as dsh-sdk-minimal.
+      url: !!js process.env.GLASS_BRAIN_URL ?? 'http://127.0.0.1:9515/sse'
