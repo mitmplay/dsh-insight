@@ -96,26 +96,40 @@ export function templateHomePath(templatePath?: string): string {
 }
 
 /** Outcome of a first-start bootstrap attempt. */
-export type EnsureHomeResult = 'exists' | 'cloned' | 'no-template';
+export type EnsureHomeResult = 'exists' | 'cloned' | 'merged' | 'no-template';
 
 /**
  * First-start home bootstrap (template/.dsi): when the DSI home directory is
  * absent, clone the shipped template (settings.yaml, prompts.sqlite seed,
- * a2a.sqlite ledger) into place. An existing home is NEVER touched; a missing
- * template is a silent no-op so builds without one degrade to the defaults
- * contract.
+ * a2a.sqlite ledger) into place. When the home exists but is a partial
+ * seed — the CLI (`dsi dsh --sync`, bin/dsi.mjs) writes settings.yaml (and
+ * so the home directory) BEFORE the server child runs — top the template's
+ * remaining files in WITHOUT clobbering anything already present. A bare
+ * "exists → skip" guard permanently skipped the DB clone on every fresh
+ * install (2026-11-08 RCA: ~/.dsi/prompts.sqlite empty, 0 of 49 prompts);
+ * the seed signature (settings.yaml present) keeps arbitrary pre-created
+ * directories untouched. A missing template is a silent no-op so builds
+ * without one degrade to the defaults contract.
  * @param homePath - test seam overriding the operator home directory.
  * @param templatePath - test seam overriding the template directory.
- * @returns `exists` (home present), `cloned` (template copied), or
+ * @returns `exists` (home present and nothing added), `cloned` (full template
+ *   copied into a missing home), `merged` (partial seed topped up), or
  *   `no-template` (nothing to copy from).
  */
 export function ensureDsiHome(homePath?: string, templatePath?: string): EnsureHomeResult {
 	const home = homePath ?? dirname(DSI_SETTINGS_PATH);
-	if (existsSync(home)) return 'exists';
 	const template = templateHomePath(templatePath);
 	if (!existsSync(template)) return 'no-template';
-	cpSync(template, home, { recursive: true });
-	return 'cloned';
+	if (!existsSync(home)) {
+		cpSync(template, home, { recursive: true });
+		return 'cloned';
+	}
+	// Seed signature: only a DSI home (settings.yaml written by the CLI seed
+	// or the token watcher) gets topped up — arbitrary pre-created dirs stay
+	// untouched.
+	if (!existsSync(join(home, 'settings.yaml'))) return 'exists';
+	cpSync(template, home, { recursive: true, force: false, errorOnExist: false });
+	return 'merged';
 }
 
 /** Atomic write: temp file in the target directory, then rename. */

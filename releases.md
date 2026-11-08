@@ -1,3 +1,12 @@
+## 0.10.2
+
+Bumped from 0.10.1 — the fresh-install seed finally lands: the shipped prompts DB is self-contained and a partial `~/.dsi` home gets topped up instead of skipped.
+
+### Bug fixes
+- **The empty prompts DB on fresh install (RCA 2026-11-08)** — a fresh `npx @deepseek-insight/dsi dsh --sync` cloned `template/.dsi/prompts.sqlite` with 0/49 prompts: the seed data lived in a 4.1MB WAL sidecar, so a clone of the main DB file alone landed empty. Fix: WAL checkpointed into the seed DB (356KB, self-contained, `-wal`/`-shm` removed) — `template/.dsi/prompts.sqlite`, commit `cdddae3f`.
+- **Partial home seed skipped** — the first-start clone (`ensureDsiHome`) only fired when `~/.dsi` was wholly absent; a home partially created earlier (e.g. `settings.yaml` seeded by the CLI before the server started) never received the prompts DB. Fix: top up missing template files into a partial home instead of skipping — `6cf93471` (dsi dsh --sync race, 0/49 prompts RCA).
+- **README Quick Start table** — the argument table used `|-|-|-|` rows as a fake header and rendered broken; replaced with a proper `| Argument | What it does |` header — `1c28b428`.
+
 ## 0.10.1
 
 Bumped from 0.10.0 — the borrowed Chrome is dead and buried: Shift+Click now opens a HEADED disposable glass, and every path that could point the close at home is audited, guarded, or deleted.

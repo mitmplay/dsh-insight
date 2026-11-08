@@ -23,6 +23,14 @@ npx @deepseek-insight/dsi@latest dsh --sync --zai
 # Open http://localhost:5174
 ```
 
+| Argument | What it does |
+|---|---|
+| `dsh` | starts **DSH** (`dsh web`) and **DSI** together, as one pair and runs it |
+| `--sync` | copies DSH token to DSI config — **one window, one Ctrl-C stops both** |
+| `--zai` | **optional.** It bootstraps the GLM (Z.AI) provider into the harness settings (`~/.dsh/settings.yaml`). **If you do not have a GLM account, simply leave it off** — DSI will use whatever provider your harness is already configured with |
+
+When it is up, your browser opens the page by itself (default `http://127.0.0.1:5174`).
+
 ## Various operations can be Enter in Composer:
 - `/dsi-terminal` — Open a terminal session
 - `/dsi-prompts` — Open prompt manager
@@ -64,18 +72,6 @@ The workspace explorer is DSI's window into the folder your agents are working i
 </details>
 
 ---
-
-
-
-- **`npx @deepseek-insight/dsi@latest`** — get latest DSI.
-- `dsh` — starts **DSH** (`dsh web`) and **DSI** together, as one pair and runs it.
-- `--sync` — copies DSH token to DSI config — **one window, one Ctrl-C stops both**.
-- `--zai` — **optional.** It bootstraps the GLM (Z.AI) provider into the harness settings (`~/.dsh/settings.yaml`). **If you do not have a GLM account, simply leave it off** — DSI will use whatever provider your harness is already configured with.
-
-
-
-
-When it is up, your browser opens the page by itself (default `http://127.0.0.1:5174`).
 
 ### Ports & the browser brain, in plain words
 

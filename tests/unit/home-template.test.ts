@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -35,11 +35,34 @@ describe('ensureDsiHome', () => {
 		expect(existsSync(join(home, 'prompts.sqlite'))).toBe(true);
 	});
 
-	it('never touches an existing home', () => {
+	it('tops up a settings-only seeded home without clobbering it (dsi dsh --sync race)', () => {
+		// bin/dsi.mjs seeds settings.yaml (and so the home directory) BEFORE the
+		// server child runs — the old exists-guard skipped the DB clone entirely
+		// (2026-11-08 RCA: fresh install shipped 0 of 49 template prompts).
 		mkdirSync(home, { recursive: true });
 		writeFileSync(join(home, 'settings.yaml'), 'home:\n  refreshMs: 9\n', 'utf-8');
+		expect(ensureDsiHome(home, template)).toBe('merged');
+		// seeded settings survive untouched…
+		expect(readSettingsDocument('dsi', join(home, 'settings.yaml')).text).toContain(
+			'refreshMs: 9'
+		);
+		// …while the template files the seed never wrote now land.
+		expect(readFileSync(join(home, 'prompts.sqlite'), 'utf-8')).toBe('seed-bytes');
+	});
+
+	it('merge never overwrites files the home already has', () => {
+		mkdirSync(home, { recursive: true });
+		writeFileSync(join(home, 'settings.yaml'), 'home:\n  refreshMs: 9\n', 'utf-8');
+		writeFileSync(join(home, 'prompts.sqlite'), 'live-bytes', 'utf-8');
+		expect(ensureDsiHome(home, template)).toBe('merged');
+		expect(readFileSync(join(home, 'prompts.sqlite'), 'utf-8')).toBe('live-bytes');
+	});
+
+	it('leaves an arbitrary pre-created directory without the seed signature alone', () => {
+		mkdirSync(home, { recursive: true });
 		expect(ensureDsiHome(home, template)).toBe('exists');
-		expect(readSettingsDocument('dsi', join(home, 'settings.yaml')).text).toContain('refreshMs: 9');
+		expect(existsSync(join(home, 'prompts.sqlite'))).toBe(false);
+		expect(existsSync(join(home, 'settings.yaml'))).toBe(false);
 	});
 
 	it('no-ops without a template', () => {
