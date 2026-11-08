@@ -32,6 +32,36 @@ import { st, openBrowserPanel } from '$lib/services/panels/floor-registry.svelte
 import { calls as browserCalls } from './stubs/wp4-browser-stub.svelte';
 import { calls as explorerCalls } from './stubs/wp4-explorer-stub.svelte';
 
+// The real monaco settings glue loads a chunk happy-dom cannot tear down —
+// record its calls instead (same double as settings-editor-panel.test.ts).
+const glueState = {
+	value: '',
+	initial: '',
+	onChange: (): void => {},
+	disposed: false
+};
+
+vi.mock('$lib/components/monaco/settings-monaco', () => ({
+	createYamlEditor: (
+		_container: HTMLElement,
+		initial: string,
+		onChange: () => void
+	) => {
+		glueState.value = initial;
+		glueState.initial = initial;
+		glueState.onChange = onChange;
+		return {
+			getValue: () => glueState.value,
+			setValue: (text: string) => {
+				glueState.value = text;
+			},
+			dispose: () => {
+				glueState.disposed = true;
+			}
+		};
+	}
+}));
+
 // The real BrowserManager only dies over the wire (fold/close POSTs) and
 // the real explorer never forwards a click to the page's onOpenFile prop
 // (The Settings Tree ADR D1 routed every click through onOpenTab), so the
@@ -163,6 +193,10 @@ async function openLoupe(column: HTMLElement) {
 }
 
 beforeEach(() => {
+	glueState.disposed = false;
+	glueState.value = '';
+	glueState.initial = '';
+	glueState.onChange = () => {};
 	installFetch();
 	vi.stubGlobal('EventSource', StubEventSource);
 	localStorage.clear();
