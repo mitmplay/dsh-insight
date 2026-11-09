@@ -1,3 +1,11 @@
+## 0.11.3
+
+Bumped from 0.11.2 — the Preview HTML Allow-List (ADR-0055) widens its sweep: tables, lists and code blocks now render as real markup inside collapsible <details> blocks, pinned against the repo's own README.
+
+### Features
+- **Wider allow-list sweep: full-HTML details blocks** — revived blocks now handle nested GitHub-style markup inside `<details>`: tables (`<table>/<th>/<td>`), lists (`<ul>/<ol>/<li>`) and command blocks (`<pre><code>`) render as markup, not literal tags. `src/lib/utils/markdown.ts`; commits `05dcf9d0`, `7e66129a`. Tests: 4 new pins in `tests/unit/markdown-preview-html.test.ts` (18 total) plus the real-README pin `tests/unit/markdown-preview-readme.test.ts` — the file that motivated the sweep, checked for escaped-table/escaped-pre regressions and mermaid fences staying source placeholders.
+- **Glass verification, wider sweep** — DOM-verified screenshots committed: `glass-verified-wider-sweep.png` / `glass-verified-wider-sweep-table.png` under the Preview HTML Allow-List spec folder; ADR-0055, PRD, Tasks and Completion Notes updated to match.
+
 ## 0.11.2
 
 Bumped from 0.11.1 — the file preview speaks GitHub: README-style raw HTML renders in the .md preview tab via a strict allow-list, while chat bubbles keep the byte-identical escape-first pipeline (ADR-0055).

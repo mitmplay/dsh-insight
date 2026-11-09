@@ -85,6 +85,46 @@ describe('renderPreviewMarkdown — revival allow-list', () => {
 	it('self-closing img revives with the slash kept', () => {
 		expect(renderPreviewMarkdown('<img src="https://x.test/a.png"/>')).toContain('<img src="https://x.test/a.png" />');
 	});
+
+	// ── 2026-11-09 wider formatting sweep (ADR-0055 D2 amendment 2) ──
+
+	it('revives an HTML table (converted README CLI Params shape)', () => {
+		const t = '<table><tr><th>Argument</th><th>What it does</th></tr><tr><td><code>dsh</code></td><td>starts <strong>DSH</strong></td></tr></table>';
+		const html = renderPreviewMarkdown(t);
+		expect(html).toContain('<table>');
+		expect(html).toContain('<th>Argument</th>');
+		expect(html).toContain('<td><code>dsh</code></td>');
+		expect(html).not.toContain('&lt;table');
+	});
+
+	it('revives lists, headings, hr, span, sub, sup', () => {
+		const html = renderPreviewMarkdown('<ul><li><code>/dsi-prompts</code> — Open prompt manager</li></ul><h2>Section</h2><hr><span align="center">s</span><sub>a</sub><sup>b</sup>');
+		expect(html).toContain('<ul><li><code>/dsi-prompts</code>');
+		expect(html).toContain('<h2>Section</h2>');
+		expect(html).toContain('<hr />');
+		expect(html).toContain('<span align="center">');
+		expect(html).toContain('<sub>a</sub>');
+		expect(html).toContain('<sup>b</sup>');
+	});
+
+	it('pre/code bodies stay escaped character data', () => {
+		const html = renderPreviewMarkdown('<pre><code>DSI_PORT=5176 npx dsi dsh --sync && echo <n></code></pre>');
+		expect(html).toContain('<pre><code>');
+		expect(html).toContain('&amp;&amp;');
+		expect(html).toContain('&lt;n&gt;');
+		expect(html).not.toContain('<pre><code>DSI_PORT=5176 npx dsi dsh --sync && echo');
+	});
+
+	it('hostile attribute on a swept tag escapes the WHOLE token', () => {
+		const out = renderPreviewMarkdown('<table onload="alert(1)"><tr><td>x</td></tr></table>');
+		expect(out).toContain('&lt;table onload=');
+		expect(out).not.toMatch(/<table/);
+	});
+
+	it('off-list tag after the sweep stays escaped (thead-less unknown)', () => {
+		const out = renderPreviewMarkdown('<video src="https://x.test/v.mp4"></video>');
+		expect(out).toContain('&lt;video');
+	});
 });
 
 describe('renderMarkdown — strict path unchanged (chat parity)', () => {

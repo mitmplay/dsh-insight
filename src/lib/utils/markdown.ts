@@ -449,12 +449,20 @@ function emphasis(text: string): string {
 // ── Preview HTML Allow-List (ADR-0055, 2026-11-09) ────────────────────
 
 /** The tags the FILE PREVIEW path may revive from source (ADR-0055 D2;
- * strong/em added 2026-11-09 amendment — real READMEs carry them INSIDE
- * revived <p> blocks, and they take no attributes): centered banners
- * (p/div/center + img), collapsibles (details/summary), br for README line
- * breaks, bold/italic for HTML-paragraph prose. Everything else stays
- * escaped text. */
-const PREVIEW_TAGS = ['p', 'div', 'img', 'br', 'details', 'summary', 'center', 'strong', 'em'] as const;
+ * amended 2026-11-09 twice). strong/em joined first (they live INSIDE
+ * revived <p> blocks); then the wider formatting sweep — tables
+ * (table/thead/tbody/tr/th/td), lists (ul/ol/li), code/pre, headings h1-h4,
+ * hr, span, sub, sup — after the README's <details> sections moved from
+ * markdown to raw HTML for GitHub parity. ALL added tags are attribute-free
+ * display markup: PREVIEW_ATTRS does not grow, so the weakest-point rule
+ * (one hostile attribute escapes the WHOLE token) carries the security
+ * argument unchanged. Everything off the list stays escaped text. */
+const PREVIEW_TAGS = [
+	'p', 'div', 'img', 'br', 'details', 'summary', 'center', 'strong', 'em',
+	'table', 'thead', 'tbody', 'tr', 'th', 'td',
+	'ul', 'ol', 'li', 'pre', 'code',
+	'h1', 'h2', 'h3', 'h4', 'hr', 'span', 'sub', 'sup'
+] as const;
 
 /** Attributes a revived tag may carry (ADR-0055 D2). `src` is the only URL
  * attribute and is additionally scheme-gated to http(s) below. */
@@ -477,7 +485,7 @@ const PREVIEW_TOKEN_RE = new RegExp(`</?(?:${PREVIEW_TAG_RE})(?:\\s[^>]*)?>`, 'g
  * lowercase; attr values are re-escaped before emission.
  */
 function revivePreviewToken(token: string): string {
-	const m = /^<(\/?)([A-Za-z]+)((?:\s[^>]*)?)(\/?)>$/.exec(token);
+	const m = /^<(\/?)((?:[A-Za-z][\w]*))((?:\s[^>]*)?)(\/?)>$/.exec(token); // name charset allows digits: h1-h4 revive (2026-11-09 sweep fix)
 	if (!m) return escapeHtml(token);
 	const closing = m[1] === '/';
 	const tag = (m[2] as string).toLowerCase();
@@ -507,7 +515,7 @@ function revivePreviewToken(token: string): string {
 		}
 		if (cursor !== attrRegion.length) return escapeHtml(token); // trailing junk
 	}
-	const void_ = tag === 'img' || tag === 'br';
+	const void_ = tag === 'img' || tag === 'br' || tag === 'hr'; // hr is void in HTML5
 	const slash = void_ || selfClose ? ' /' : '';
 	return `<${tag}${attrs.length > 0 ? ' ' + attrs.join(' ') : ''}${slash}>`;
 }
