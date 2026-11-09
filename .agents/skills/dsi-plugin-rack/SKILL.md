@@ -1,3 +1,8 @@
+---
+name: dsi-plugin-rack
+description: Use when asked to install or uninstall a dsh plugin from the plugins reference (~/.dsi/resources/plugins-reff.md) — dsh-delegated apply via rack.mjs, snapshot-first cache, manifest-recorded removes per the Plugin Rack ADR. Reserved keyword /dsi-plugin-rack.
+---
+
 # dsi-plugin-rack
 
 Install and uninstall dsh plugins from the plugins reference (~/.dsi/resources/plugins-reff.md), cached at ~/.dsi/resources/pgr-cache.json. Implements the ADR "The Plugin Rack" (dev/architectural-decission/2026-09/, 2026-09-27).

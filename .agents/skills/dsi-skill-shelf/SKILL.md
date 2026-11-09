@@ -1,3 +1,8 @@
+---
+name: dsi-skill-shelf
+description: Use when asked to install or uninstall agent skills from the SKR reference (~/.dsi/resources/skills-reff.md) — signed installs and signature-gated uninstalls via shelf.mjs, unstable tier opt-in, collision abort, per the Skill Shelf ADR. Reserved keyword /dsi-skill-shelf.
+---
+
 # dsi-skill-shelf
 
 Install and uninstall agent skills from the SKR reference (`~/.dsi/resources/skills-reff.md`). Implements the ADR 'The Skill Shelf' (dev/architectural-decission/2026-09/, 2026-09-20).
