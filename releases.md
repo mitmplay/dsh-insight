@@ -1,3 +1,18 @@
+## 0.11.2
+
+Bumped from 0.11.1 — the file preview speaks GitHub: README-style raw HTML renders in the .md preview tab via a strict allow-list, while chat bubbles keep the byte-identical escape-first pipeline (ADR-0055).
+
+### Features
+- **Preview HTML Allow-List (ADR-0055 D1-D4)** — `renderPreviewMarkdown` in `src/lib/utils/markdown.ts`: escape-first (stage 1 shared with the strict path) → allow-listed HTML tokens vaulted out of non-fence source (code fences stay source code by construction, D3) → strict render → whole-token revival with attribute allow-list (`align, src, alt, width, height`) and http(s)-only src; one hostile attribute leaves the WHOLE token escaped. Opt-in via the `allowHtml` prop (D4): the .md preview tab declares trust at its host — chat surfaces never take the path and their output is byte-identical. Commits `af502b37` + spec `91b03da6` + ADR-0055 `478d258d`. Tests: `tests/unit/markdown-preview-html.test.ts`, `tests/unit/markdown-content-preview.test.ts`; strict pin `tests/unit/markdown.test.ts` green unmodified; full suite 7833 green.
+- **D2 amendment, live-driven: strong/em join the tag list** — real READMEs carry <strong> INSIDE revived <p> blocks; both take no attributes, so the risk surface does not move (amendment recorded in ADR-0055).
+- **D4 scope correction: the trust surface is WorkspaceFile's preview tab** (via a new `allowHtml` pass-through on MarkdownPanel) — the first wiring hit FileContentViewer; live Glass DOM probing caught the real host. Lesson recorded in the ADR.
+
+### Verification (Glass)
+- README.md preview renders the centered banner image, bold prose, collapsible <details> sections and tables — screenshot committed at `dev/specs/2026-11/2026-11-09 - Preview HTML Allow-List/glass-verified-preview.png`; completion notes in the same folder.
+
+### Docs
+- README.md reworked to HTML-rich sections (centered paragraphs, <details> blocks, bold keys) — commits `9934ed4d`, `c57d31a9`; README CLI-ports scenario and brain-vs-chassis docs from the 0.11.1 train already on the mirror.
+
 ## 0.11.1
 
 Bumped from 0.11.0 — the Glass Brain learns to live away from home: env renames become operator-addressable (`GLASS_BRAIN_URL`) and the browser window is born where the operator's screen is (`GLASS_CHASSIS_URL`), plus a chassis parity fix series proven live from a VM floor.

@@ -446,6 +446,99 @@ function emphasis(text: string): string {
 		.replace(/~~(.+?)~~/g, '<del>$1</del>');
 }
 
+// ── Preview HTML Allow-List (ADR-0055, 2026-11-09) ────────────────────
+
+/** The tags the FILE PREVIEW path may revive from source (ADR-0055 D2;
+ * strong/em added 2026-11-09 amendment — real READMEs carry them INSIDE
+ * revived <p> blocks, and they take no attributes): centered banners
+ * (p/div/center + img), collapsibles (details/summary), br for README line
+ * breaks, bold/italic for HTML-paragraph prose. Everything else stays
+ * escaped text. */
+const PREVIEW_TAGS = ['p', 'div', 'img', 'br', 'details', 'summary', 'center', 'strong', 'em'] as const;
+
+/** Attributes a revived tag may carry (ADR-0055 D2). `src` is the only URL
+ * attribute and is additionally scheme-gated to http(s) below. */
+const PREVIEW_ATTRS = ['align', 'src', 'alt', 'width', 'height'] as const;
+
+const PREVIEW_TAG_RE = PREVIEW_TAGS.join('|');
+
+/** One raw HTML token shape the preview path may consider: an open or
+ * closing tag of an allow-listed name with no `>` inside. Malformed
+ * constructs (unterminated, stray `>` in attrs) never match and ride the
+ * strict path as plain text. */
+const PREVIEW_TOKEN_RE = new RegExp(`</?(?:${PREVIEW_TAG_RE})(?:\\s[^>]*)?>`, 'gi');
+
+/**
+ * Validate and rebuild ONE raw source token (ADR-0055 weakest-point rule):
+ * revival happens only when the tag name is allow-listed AND every
+ * attribute parses as name or name="value" AND is allow-listed AND the src
+ * value (the sole URL attribute) is http(s). ONE hostile attribute leaves
+ * the WHOLE token escaped — no partial revival. Uppercase normalizes to
+ * lowercase; attr values are re-escaped before emission.
+ */
+function revivePreviewToken(token: string): string {
+	const m = /^<(\/?)([A-Za-z]+)((?:\s[^>]*)?)(\/?)>$/.exec(token);
+	if (!m) return escapeHtml(token);
+	const closing = m[1] === '/';
+	const tag = (m[2] as string).toLowerCase();
+	// The greedy attr region swallows a trailing self-close `/` — peel it.
+	const attrRegion = (m[3] as string).replace(/\/$/, '').trim();
+	const selfClose = (m[4] as string) === '/';
+	if (closing) return attrRegion === '' ? `</${tag}>` : escapeHtml(token);
+	const attrs: string[] = [];
+	if (attrRegion !== '') {
+		const attrRe = /(^|\s+)([A-Za-z][A-Za-z0-9-]*)(?:=("[^"]*"|[^\s"'>]+))?(?=\s|$)/g;
+		let cursor = 0;
+		for (const a of attrRegion.matchAll(attrRe)) {
+			const starts = a.index as number;
+			if (starts !== cursor) return escapeHtml(token); // gap = unparseable bytes
+			const name = (a[2] as string).toLowerCase();
+			if (!PREVIEW_ATTRS.includes(name as (typeof PREVIEW_ATTRS)[number])) return escapeHtml(token);
+			let value = '';
+			if (a[3] !== undefined) {
+				value = a[3] as string;
+				const quoted = value.startsWith('"') && value.endsWith('"') && value.length >= 2;
+				value = quoted ? value.slice(1, -1) : value;
+				// src is the only URL attribute — http(s) or the token stays escaped.
+				if (name === 'src' && !/^https?:\/\/[^\s"']+$/i.test(value)) return escapeHtml(token);
+			} else if (name === 'src') return escapeHtml(token); // src without a value
+			attrs.push(`${name}="${escapeHtml(value)}"`);
+			cursor = starts + a[0].length;
+		}
+		if (cursor !== attrRegion.length) return escapeHtml(token); // trailing junk
+	}
+	const void_ = tag === 'img' || tag === 'br';
+	const slash = void_ || selfClose ? ' /' : '';
+	return `<${tag}${attrs.length > 0 ? ' ' + attrs.join(' ') : ''}${slash}>`;
+}
+
+/**
+ * Render markdown for the FILE PREVIEW surface (ADR-0055 D1, opt-in second
+ * path). Candidate allow-listed HTML tokens are VAULTED out of the raw
+ * source first (fence bodies stay in place — D3: fenced HTML is data,
+ * never markup), the strict escape-first pipeline then renders the
+ * remainder unchanged, and the vault is spliced back ONLY after
+ * whole-token validation above. Chat surfaces must keep calling
+ * renderMarkdown — they never touch this path.
+ */
+export function renderPreviewMarkdown(text: string): string {
+	if (text === '') return '';
+	// Carve fences OUT first and vault tokens only in non-fence segments.
+	const vault: string[] = [];
+	let body = '';
+	let last = 0;
+	for (const f of text.matchAll(/```[\s\S]*?(```|$)/g)) {
+		const head = text.slice(last, f.index);
+		body += head.replace(PREVIEW_TOKEN_RE, (t) => `\u0001${vault.push(t) - 1}\u0001`);
+		body += f[0];
+		last = (f.index as number) + f[0].length;
+	}
+	body += text.slice(last).replace(PREVIEW_TOKEN_RE, (t) => `\u0001${vault.push(t) - 1}\u0001`);
+	return renderMarkdown(body).replace(/\u0001(\d+)\u0001/g, (_m, i: string) =>
+		revivePreviewToken(vault[Number(i)] ?? '')
+	);
+}
+
 /**
  * [label](href) — http(s) hrefs become hardened external anchors; SCHEME-FREE
  * relative hrefs (assistant file links like [card](src/lib/…)) become same-

@@ -9,15 +9,21 @@
 	import MarkdownContent from '$lib/components/common/viewers/MarkdownContent.svelte';
 
 	let {
-		content
+		content,
+		allowHtml = false
 	}: {
 		/** The logged document text (never a live-file read). */
 		content: string;
+		/** Preview HTML Allow-List (ADR-0055 D4): the FILE preview surface
+		 *  declares trust at its host — the read-tab file preview passes true;
+		 *  transcript/logged-payload hosts keep the default false (strict
+		 *  BC-12 output). */
+		allowHtml?: boolean;
 	} = $props();
 </script>
 
 <div class="markdown-panel" data-testid="markdown-panel">
-	<MarkdownContent {content} />
+	<MarkdownContent {content} {allowHtml} />
 </div>
 
 <style>

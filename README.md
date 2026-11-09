@@ -5,86 +5,120 @@
 <p align="center">
 	A different style opinionate <strong>DSH web client</strong> - aka <strong>DSI</strong>
 <p>
+
 <p align="center">
 Screenshot: Sidebar, Workspace-explorer, Agent, Glass-browser, Subagent
 <p>
+<p align="center">
+<strong>Where you can see mulltiple agent / sub-agent plus+ non conversation panels:</strong>
+</p>
 
-#### Where you can see mulltiple **agent** / **sub-agent**, plus+ non conversation panels:
-- keys panel: `Agent`, `Subagent`, `Workspace Explorer`, `Glass Browser`, `Terminal`, 
-- management panel: `Prompt`, `Skill`, `Plugins` and `Configs` Manager`
+- keys panel: **Agent**, **Sub-agent**, **Workspace-explorer**, **Glass-browser**, **Terminal**, 
+- management panel: **Prompt**, **Skill**, **Plugins** and **Configs** Manager
 
 > [!NOTE]
-> ["in a nutshell" - DSI](https://github.com/mitmplay/dsh-insight) make `Harness` present multiple conversations (`agent` or `sub-agent`), `keys` and `management` panels **side-by-side** `INSIDE Container` that can be **re-size** or **scale**.
+> ["in a nutshell" - DSI](https://github.com/mitmplay/dsh-insight) make `Harness` present multiple conversations (**Agent** or **Sub-agent**), **keys** and **management** panels **side-by-side** `INSIDE Container` that can be **re-size** or **scale**.
 
-## Quick Start
+# Quick Start
 
 ```bash
-npx @deepseek-insight/dsi@latest dsh --sync --zai
-# Open http://localhost:5174
+npx @deepseek-insight/dsi@latest dsh --sync --zai # open http://localhost:5174
 ```
-
+<details><summary>**CLI Params**</strong></summary>
 | Argument | What it does |
 |---|---|
 | `dsh` | starts **DSH** (`dsh web`) and **DSI** together, as one pair and runs it |
 | `--sync` | copies DSH token to DSI config — **one window, one Ctrl-C stops both** |
 | `--zai` | **optional.** It bootstraps the GLM (Z.AI) provider into the harness settings (`~/.dsh/settings.yaml`). **If you do not have a GLM account, simply leave it off** — DSI will use whatever provider your harness is already configured with |
 
+</details>
+
 When it is up, your browser opens the page by itself (default `http://127.0.0.1:5174`).
 
 ## Various operations can be Enter in Composer:
-- `/dsi-terminal` — Open a terminal session
-- `/dsi-prompts` — Open prompt manager
-- `/dsi-plugins` — Open plugin manager
-- `/dsi-skills` — Open skill manager
 
-### Autocomplete (`?`)
+<details><summary><strong>Autocomplete (`?`)</strong></summary>
 
-Type `?` followed by a few letters, for example `?deploy`, and a small list appears showing the prompts you have saved before, best match first. Choosing one puts its text into the input, so you can read it and change a detail before sending. It keeps you from typing the same long prompts over and over, and from trying to remember where you saved them.
+Type `?` followed by a few letters, for example `?commit`, and a small list appears showing the prompts you have saved before, best match first. Choosing one puts its text into the input, so you can read it and change a detail before sending. It keeps you from typing the same long prompts over and over, and from trying to remember where you saved them.
+<img src="https://raw.githubusercontent.com/mitmplay/dsh-insight/refs/heads/main/docs/images/dsi-insight-8.ac-complete.png"/>
 
-### Macros (`!`)
+</details>
+
+<details><summary><strong>Macros (`!`)</strong></summary>
 
 `!` works the same way, but choosing a prompt runs it right away instead of filling the input. Save the prompts you use every day as macros, and routines like a code review or a session summary become a single short line. Use `?` when you want to look first, and `!` when you already know what you want.
+<img src="https://github.com/mitmplay/dsh-insight/blob/main/docs/images/dsi-insight-8.ac-macro.png?raw=true"/>
 
-### Prompt Manager (`/dsi-prompts`)
+</details>
+
+<details><summary><strong>Prompt Manager (`/dsi-prompts`)</strong></summary>
+- `/dsi-prompts` — Open prompt manager
+
 The prompt manager is where your saved prompts live, so the `?` and `!` tricks above always have something to find. Search across everything you have kept, open a prompt to tweak its wording, flag the ones you use daily as macros, and send a keeper straight back into the input with one click. A prompt you were proud of today becomes a shortcut tomorrow.
+<img src="https://github.com/mitmplay/dsh-insight/blob/main/docs/images/dsi-insight-7.prompt-manager.png?raw=true"/>
 
-### Plugin Manager (`/dsi-plugins`)
+</details>
+
+<details><summary><strong>Plugin Manager (`/dsi-plugins`)</strong></summary>
+- `/dsi-plugins` — Open plugin manager
+
 Plugins add whole features to DSI — the plugin manager shows what is on the rack. A simple install tab lists what you can add, uninstall lists what is already on, and each row shows the plugin's state so you always know what is running. You never touch a config file to add or remove one.
+<img src="https://github.com/mitmplay/dsh-insight/blob/main/docs/images/dsi-insight-7.plugin-rack.png?raw=true"/>
 
-### Skill Manager (`/dsi-skills`)
+</details>
+
+<details><summary><strong>Skill Manager (`/dsi-skills`)</strong></summary>
+- `/dsi-skills` — Open skill manager
+
 Skills are the instructions your agents can follow, and this panel is their shelf. Browse what is installed group by group, tick the ones you want gone, and anything you remove can come back later. If a skill stopped being useful, it is two clicks away from being off the shelf.
+<img src="https://github.com/mitmplay/dsh-insight/blob/main/docs/images/dsi-insight-7.skill-shelf.png?raw=true"/>
 
-### Terminal (`/dsi-terminal`)
+</details>
+
+<details><summary><strong>Terminal (`/dsi-terminal`)</strong></summary>
+- `/dsi-terminal` — Open a terminal session
+
 One terminal is rarely enough when agents are working, so this one opens several, each in its own tab. Open a tab per task, keep a long build running in the background, and your tabs survive a page refresh — come back and they are still there. When a session has ended, the tab tells you instead of leaving you to guess.
+<img src="https://github.com/mitmplay/dsh-insight/blob/main/docs/images/dsi-insight-9.terminall.png?raw=true"/>
 
-### Workspace explorer
+</details>
+
+<details><summary><strong>Workspace explorer</strong></summary>
+
 The workspace explorer is DSI's window into the folder your agents are working in. Click the workspace chip at the top of a conversation — or a file name in one of the assistant's replies — and the panel opens with that file ready. A directory tree shows the whole project, every opened file keeps its own tab so several can sit side by side, and files your agents have changed are marked in the tree, so the work is visible at a glance. One click turns any tab into a before-and-after diff when you want to see exactly what was edited.
+<img src="https://github.com/mitmplay/dsh-insight/blob/main/docs/images/dsi-insight-5.ws-explorer.png?raw=true"/>
+
+</details>
 
 ## Included skills for:
 - Coding agents: `/dsi-adr`, `/dsi-spec`, `/dsi-task`
 - Integration helper for [OpenViking](https://openviking.ai/): `/dsi-ov-setup` 
 
-**Your language.** The interface speaks English, Chinese, Indonesian & Spanish.
-
-<details>
-  <summary>Deepseek-insight-panels</summary>
+<details><summary>Deepseek-insight-panels</summary>
   <img src="https://raw.githubusercontent.com/mitmplay/dsh-insight/refs/heads/main/docs/images/dsi-panels.png"/>
 </details>
 
----
+# Ports & the browser brain, in plain words
 
-### Ports & the browser brain, in plain words
+**Floor** is a pair: **DSI** (the page you watch), **DSH** (the harness host). Each sits on its own port, and ports can be moved — handy when you want **next floor** tobe running.
 
-One "floor" is a pair: **DSH** (the harness host) and **DSI** (the page you watch). Each sits on its own port, and each port can be moved — handy when you want a second floor beside one that is already running.
+```bash
+npx @deepseek-insight/dsi@latest dsh --sync --zai 
+# similar commands with detail of env vars within default values
+DSI_PORT=5174 DSH_PORT=3080 GLASS_PORT=9515 npx @deepseek-insight/dsi@latest dsh --sync --zai
+```
+<details><summary><strong>Env vars</strong></summary>
 
 | What | Default | How to move it | Plain meaning |
 |---|---|---|---|
-| DSH host | `3080` | `--port <n>` or `DSH_PORT=<n>` env var (flag wins) | the harness brain of the floor |
 | DSI page | `5174` | `DSI_PORT=<n>` env var | the page you open in the browser |
+| DSH host | `3080` | `--port <n>` or `DSH_PORT=<n>` env var (flag wins) | the harness brain of the floor |
 | Browser brain | `9515` | `GLASS_PORT=<n>` env var | the MCP endpoint agents use to drive the glass browser |
 | Glass chassis | *(this machine)* | `GLASS_CHASSIS_URL=<url>` env var | where Shift+click births its visible window — unset means right here |
+</details>
 
-**The browser brain.** By default the glass browser's assistant (the MCP brain that lets an agent click and type in the browser) runs as its **own separate helper process** — if it fails, you lose only the glass panel. Adding `--playwright-mcp` moves that brain **inside the DSI page server**: one less background process and a faster start, but a brain failure can now touch the page server itself. DSI prints a banner saying so whenever you use the flag — drop the flag to go back to the helper process.
+<details><summary>**The browser brain.**</summary>
+By default the glass browser's assistant (the MCP brain that lets an agent click and type in the browser) runs as its **own separate helper process** — if it fails, you lose only the glass panel. Adding `--playwright-mcp` moves that brain **inside the DSI page server**: one less background process and a faster start, but a brain failure can now touch the page server itself. DSI prints a banner saying so whenever you use the flag — drop the flag to go back to the helper process.
 
 **Example — a second, self-contained floor beside a live one** (nothing on the running floor is touched):
 
@@ -93,7 +127,10 @@ DSI_PORT=5176 DSH_PORT=3081 GLASS_PORT=19515 npx @deepseek-insight/dsi@latest ds
 # Page: http://localhost:5176 · host: 3081 · brain: http://127.0.0.1:19515/sse
 ```
 
-**DSI in a VM, Glass on the host.** Run DSI/DSH inside OrbStack (or any VM) while
+</details>
+
+<details><summary>**DSI in a VM, Glass on the host.**</summary>
+Run DSI/DSH inside OrbStack (or any VM) while
 the Glass brain stays on your Mac — that is where the headed glass can be seen
 (Shift+Click opens a visible Playwright window, and only the host display can
 show one). The VM floor boots **brain-less** (no brain flag — never spawn a
@@ -128,7 +165,10 @@ flowchart TD
 
 **Second floors are fully drivable.** At boot, a floor stamps its own addresses (`DSI_UI`, `GLASS_BRAIN_URL`) into everything it starts — so agents in *that* floor's conversations drive *that* floor's glass automatically, and the preset brain entry follows the stamped port. Nothing on the primary floor changes: without a stamp (a bare `dsh web` boot), the brain falls back to `9515` and the drivers probe `5175` → `5174` exactly as before. One conversation = one glass owner; the driver refuses to touch another conversation's glass, and a session busy in the live floor shows `writer-held` if you try to prompt it from the second window (watch it there, prompt it on its own floor).
 
-**Two glass addresses: brain vs chassis.** The glass has two halves and each has its own stamp. The **brain** (`GLASS_BRAIN_URL`) is where *agents* dial in — the MCP endpoint. The **chassis** (`GLASS_CHASSIS_URL`) is where a Shift+click's *visible window* is born. By default both are "this machine" and nothing changes. When DSI runs on a machine with no screen (a VM) but your screens live on the host, stamp the chassis at the host and the window opens where you are looking:
+</details>
+
+<details><summary>**Two glass addresses: brain vs chassis.**</summary>
+The glass has two halves and each has its own stamp. The **brain** (`GLASS_BRAIN_URL`) is where *agents* dial in — the MCP endpoint. The **chassis** (`GLASS_CHASSIS_URL`) is where a Shift+click's *visible window* is born. By default both are "this machine" and nothing changes. When DSI runs on a machine with no screen (a VM) but your screens live on the host, stamp the chassis at the host and the window opens where you are looking:
 
 ```bash
 # in the VM — the window is born on the host, the panel mirrors it
@@ -138,7 +178,11 @@ DSI_PORT=5171 DSH_PORT=3081 GLASS_CHASSIS_URL=http://192.168.1.9:9525 pnpm dsi d
 
 The host-side **companion** (`dsi-chassis`) births each Shift+click glass on a fresh disposable profile — never your real Chrome profile — enforces the same one-conversation-one-glass rule on its side, binds only the address you name (never all interfaces), and bridges CDP back to the floor. When the stamp is set and the companion is down, the panel says so honestly instead of silently falling back to a screenless local launch; unset the stamp and every floor behaves exactly as before.
 
+</details>
+
 ## License
 
 [Apache-2.0](LICENSE) — Copyright © 2026 [Widi Harsojo](https://www.linkedin.com/in/wharsojo/)
 > OPEN TO WORK (SG_PR)
+
+**Your language.** The interface speaks English, Chinese, Indonesian & Spanish.

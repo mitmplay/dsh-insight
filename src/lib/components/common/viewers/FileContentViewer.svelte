@@ -65,7 +65,9 @@
 		<!-- No hideToggle (OCI parity, 2026-09-05): the markdown body keeps
 		     MarkdownContent's hover-revealed Copy/Raw pair top-right. -->
 		<div class="[padding:0_10px]" data-testid="file-viewer-markdown">
-			<MarkdownContent content={body} small />
+			<!-- allowHtml (ADR-0055): the markdown branch IS the preview mode;
+		     raw view is the code/plain branches below and never sees this. -->
+			<MarkdownContent content={body} small allowHtml />
 		</div>
 	{:else if view.lang !== undefined && isKnownCodeLang(view.lang)}
 		<!-- eslint-disable-next-line svelte/no-at-html-tags — highlightCode output is escaped/governed by hljs -->

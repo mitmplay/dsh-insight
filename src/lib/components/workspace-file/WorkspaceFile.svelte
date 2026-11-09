@@ -173,7 +173,10 @@
 		<div class="file-editor-host" data-testid="file-diff-view" bind:this={diffHost}></div>
 	{:else if isMarkdown && tab === 'preview'}
 		<div class="file-scroll">
-			<MarkdownPanel content={text ?? ''} />
+			<!-- allowHtml (ADR-0055 D4): the read-tab preview is a preview
+			     surface — the file's own HTML revives via the allow-list;
+			     the edit/raw branches below never take this path. -->
+			<MarkdownPanel content={text ?? ''} allowHtml />
 		</div>
 	{:else}
 		{#if !eof}<p class="note">{truncatedNote}</p>{/if}

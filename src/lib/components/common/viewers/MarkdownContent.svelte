@@ -30,7 +30,7 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import { browser } from '$app/environment';
 	import { mount, unmount } from 'svelte';
-	import { renderMarkdown } from '$lib/utils/markdown';
+	import { renderMarkdown, renderPreviewMarkdown } from '$lib/utils/markdown';
 	import { isFileLinkHref, normalizeFileLinkPath, parseFileLinkHref } from '$lib/utils/file-link';
 	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
 	import CopyButton from '$lib/components/common/buttons/CopyButton.svelte';
@@ -42,6 +42,10 @@
 		small = false,
 		hideToggle = false,
 		searchTerm = '',
+		/** Preview HTML Allow-List (ADR-0055): opt-in second renderer path for
+		 *  the FILE PREVIEW surface. Chat hosts MUST keep the default false —
+		 *  strict BC-12 output stays byte-identical there. */
+		allowHtml = false,
 		onFileLink = undefined
 	}: {
 		content: string;
@@ -58,7 +62,7 @@
 	let containerEl: HTMLDivElement | null = $state(null);
 
 	/** Sanitized HTML — BC-12: allow-listed tags only (never raw input). */
-	let renderedHtml = $derived(renderMarkdown(content));
+	let renderedHtml = $derived(allowHtml ? renderPreviewMarkdown(content) : renderMarkdown(content));
 
 	/** Highlight search term in rendered HTML — AFTER markdown rendering. */
 	let highlightedHtml = $derived.by(() => {
