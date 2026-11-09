@@ -1,6 +1,6 @@
 ---
 name: glass-dsh
-description: Use when a newly created DSH web-UI plugin (plugin_manager returned application: applied) must be verified live on the DSH page of the operator's glass browser — probe, real gestures, persistence and restore gates per ADR-0045. NOT for DSI's own workspace surface (that is glass-dsi) or arbitrary foreign URLs (that is glass-url). Reserved keyword /glass-dsh.
+description: "Use when a newly created DSH web-UI plugin (plugin_manager returned application=applied) must be verified live on the DSH page of the operator's glass browser — probe, real gestures, persistence and restore gates per ADR-0045. NOT for DSI's own workspace surface (that is glass-dsi) or arbitrary foreign URLs (that is glass-url). Reserved keyword /glass-dsh."
 ---
 
 # glass-dsh — verify a new DSH web-UI plugin on the operator's glass, creator mode
