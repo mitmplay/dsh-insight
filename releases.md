@@ -1,3 +1,15 @@
+## 0.11.4
+
+Bumped from 0.11.3 — the glass family gains its third hand (glass-dsh) and the repo skill copies get their YAML frontmatter house in order.
+
+### Features
+- **glass-dsh skill** — the third glass hand: verifies a newly created DSH web-UI plugin (plugin_manager `application=applied`) live on the DSH page of the operator's glass browser — probe, real gestures, persistence and restore gates per ADR-0045. Not for DSI's own surface (that stays glass-dsi) or arbitrary URLs (glass-url). Commit `95b85859`.
+- **YAML frontmatter for repo skill copies** — glass-dsh, dsi-plugin-rack and dsi-skill-shelf repo copies aligned with the slash-menu skill convention (name + description + reserved keyword). Commit `7a124fc0`.
+
+### Bug fixes
+- **glass-dsh frontmatter description was silently dropped** — a colon-space in the plain-scalar description made invalid YAML, so `parseSkillFile` discarded the whole skill. Root cause: unquoted scalar; fix: quote the description. Commit `dd5fad07`.
+- **Duplicate skill copies** — root-level `skills/glass-dsh` dropped; the canonical copy lives in `.agents/skills/glass-dsh`. Commit `3f299e75`.
+
 ## 0.11.3
 
 Bumped from 0.11.2 — the Preview HTML Allow-List (ADR-0055) widens its sweep: tables, lists and code blocks now render as real markup inside collapsible <details> blocks, pinned against the repo's own README.
