@@ -1,3 +1,10 @@
+## 0.11.6
+
+Bumped from 0.11.5 — a docs-only patch: the README's self-introduction rewritten to lead with the product name and say what DSI actually is.
+
+### Docs
+- **README tagline + hero line rewritten** — "A different style opinionate DSH web client" (typo included) became "**DSI** — A Different Style of Opinionated DSH web client"; the multi-panel description line reworded to plain benefit-first prose (multi-agent workspace, resizable/zoomable multi-column panels). Commit `d806105a`.
+
 ## 0.11.5
 
 Bumped from 0.11.4 — glass-dsh Wave 5 hardening, a proof-round of hygiene (svelte-check + coverage), and the README's last empty panel section filled.

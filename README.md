@@ -3,14 +3,14 @@
 </p>
 
 <p align="center">
-	A different style opinionate <strong>DSH web client</strong> - aka <strong>DSI</strong>
+	<strong>DSI</strong> — A Different Style of Opinionated <strong>DSH web client</strong>
 <p>
 
 <p align="center">
 Screenshot: Sidebar, Workspace-explorer, Agent, Glass-browser, Subagent
 <p>
 <p align="center">
-<strong>Where you can see mulltiple agent / sub-agent plus+ non conversation panels:</strong>
+<strong>A multi-agent workspace where you can see multiple agents and sub-agents working side by side, alongside non-conversational content, in resizable and zoomable multi-column panels:</strong>
 </p>
 
 - keys panel: **Agent**, **Sub-agent**, **Workspace-explorer**, **Glass-browser**, **Terminal**, 
