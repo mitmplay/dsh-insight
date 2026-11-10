@@ -193,6 +193,42 @@ function btoaUnicode(text: string): string {
 
 const ESCAPED_CODE_FENCE = /^```/;
 
+// GFM alert markers (ADR-0056, task 1.1): a blockquote whose first body line
+// is EXACTLY [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION]
+// (case-insensitive) renders as an alert block. Lines arrive PRE-ESCAPED, but
+// '[' and ']' are never escaped by escapeHtml, so the D4 regex can match the
+// collected (escaped) line directly. Icons are compile-time lucide-geometry
+// string constants — no input text can ever produce SVG attributes (BC-12).
+type AlertType = 'note' | 'tip' | 'important' | 'warning' | 'caution';
+
+/** 24x24 stroke-based lucide geometry, fill none; wrapped by alertIcon(). */
+const ALERT_ICON_PATHS: Record<AlertType, string> = {
+	note: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+	tip: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+	important: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+	warning: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+	caution: '<path d="M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86L7.86 2Z"/><path d="M12 8v4"/><path d="M12 16h.01"/>'
+};
+
+/** Title word shown next to the icon, per GFM convention. */
+const ALERT_TITLES: Record<AlertType, string> = {
+	note: 'Note',
+	tip: 'Tip',
+	important: 'Important',
+	warning: 'Warning',
+	caution: 'Caution'
+};
+
+/** Wrap lucide geometry in the alert icon svg (class + aria only, constants). */
+function alertIcon(type: AlertType): string {
+	return (
+		`<svg class="md-alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ALERT_ICON_PATHS[type]}</svg>`
+	);
+}
+
+/** D4 marker: the FULL first body line must be exactly [!TYPE] (+ trailing ws). */
+const ALERT_MARKER_RE = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/i;
+
 // ── <path> blocks → file links (2026-10-29) ────────────────────────────
 
 /**
@@ -324,6 +360,19 @@ export function renderMarkdown(text: string): string {
 			while (i < lines.length && /^&gt;\s?/.test(lines[i] as string)) {
 				body.push((lines[i] as string).replace(/^&gt;\s?/, ''));
 				i += 1;
+			}
+			// GFM alert detection (ADR-0056 D4): marker must be the FULL first
+			// body line, matched against the already-escaped text ('[' survives
+			// escaping untouched). Mid-line mentions, later-line markers and
+			// unknown [!FOO] fall through to the ordinary quote below.
+			const marker = body[0] !== undefined ? body[0].match(ALERT_MARKER_RE) : null;
+			if (marker) {
+				const type = (marker[1] as string).toLowerCase() as AlertType;
+				body.shift();
+				out.push(
+					`<blockquote class="md-alert md-alert-${type}"><p class="md-alert-title">${alertIcon(type)}${ALERT_TITLES[type]}</p><p>${renderInline(body.join(' '))}</p></blockquote>`
+				);
+				continue;
 			}
 			out.push(`<blockquote><p>${renderInline(body.join(' '))}</p></blockquote>`);
 			continue;

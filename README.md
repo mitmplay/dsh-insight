@@ -39,15 +39,15 @@ When it is up, your browser opens the page by itself (default `http://127.0.0.1:
 ## Various operations can be Enter in Composer:
 
 <details>
-<summary><strong>Autocomplete (<code>?</code>)</strong></summary>
-<p>Type <code>?</code> followed by a few letters, for example <code>?commit</code>, and a small list appears showing the prompts you have saved before, best match first. Choosing one puts its text into the input, so you can read it and change a detail before sending. It keeps you from typing the same long prompts over and over, and from trying to remember where you saved them.</p>
-<img src="https://raw.githubusercontent.com/mitmplay/dsh-insight/refs/heads/main/docs/images/dsi-insight-8.ac-complete.png"/>
-</details>
-
-<details>
 <summary><strong>Macros (<code>!</code>)</strong></summary>
 <p><code>!</code> works the same way, but choosing a prompt runs it right away instead of filling the input. Save the prompts you use every day as macros, and routines like a code review or a session summary become a single short line. Use <code>?</code> when you want to look first, and <code>!</code> when you already know what you want.</p>
 <img src="https://github.com/mitmplay/dsh-insight/blob/main/docs/images/dsi-insight-8.ac-macro.png?raw=true"/>
+</details>
+
+<details>
+<summary><strong>Autocomplete (<code>?</code>)</strong></summary>
+<p>Type <code>?</code> followed by a few letters, for example <code>?commit</code>, and a small list appears showing the prompts you have saved before, best match first. Choosing one puts its text into the input, so you can read it and change a detail before sending. It keeps you from typing the same long prompts over and over, and from trying to remember where you saved them.</p>
+<img src="https://raw.githubusercontent.com/mitmplay/dsh-insight/refs/heads/main/docs/images/dsi-insight-8.ac-complete.png"/>
 </details>
 
 <details>
