@@ -1726,6 +1726,36 @@ describe('ConversationPanel — answerer cards (cold pending + settled)', () => 
 		unmount(instance);
 	});
 
+	it('a FAILED answer lands the honest banner and keeps the card answerable', async () => {
+		// The carrier refuses ({ok:false, reason}) — onanswer's !result.ok
+		// arm: setError names why, and the orchestrator released the lock,
+		// so the approval card must come back answerable, not vanish.
+		stubPanelRoutes([
+			{ test: (url) => url.endsWith('/respond'), respond: () => jsonRes({ ok: false, reason: 'lock lost' }) }
+		]);
+		const { target, instance } = await mountPanel(
+			coldProps({
+				sessionId: 's-approve-fail',
+				pendingAnswers: [
+					{
+						rpcId: 'rpc-f1',
+						sessionId: 's-approve-fail',
+						kind: 'approval',
+						body: { approvalId: 'appr-f1', toolName: 'bash', callId: 'call-f1' },
+						receivedAt: 1
+					}
+				]
+			})
+		);
+		expect(target.querySelector('[data-testid="approval-allow"]')).not.toBeNull();
+		(target.querySelector('[data-testid="approval-allow"]') as HTMLButtonElement).click();
+		await settleAll();
+		expect(target.textContent).toContain('Answer not delivered — lock lost');
+		// The question stays answerable: the card is back with its buttons.
+		expect(target.querySelector('[data-testid="approval-allow"]')).not.toBeNull();
+		unmount(instance);
+	});
+
 	it('a withdrawn cold answer renders the dimmed settled card with no buttons', async () => {
 		stubPanelRoutes([]);
 		const { target, instance } = await mountPanel(

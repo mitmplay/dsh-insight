@@ -84,6 +84,12 @@ When it is up, your browser opens the page by itself (default `http://127.0.0.1:
 <img src="https://github.com/mitmplay/dsh-insight/blob/main/docs/images/dsi-insight-5.ws-explorer.png?raw=true"/>
 </details>
 
+<details>
+<summary><strong>Glass browser</strong></summary>
+<p>The Glass browser is a real browser living inside DSI. While you work, agents build and change DSI itself — plugins, panels, settings — and instead of telling you "it's done", they can prove it: the work runs right there in the Glass panel, and you watch it live. If a plugin breaks, you see exactly what broke with your own eyes instead of trusting a green test report — the browser is the receipt.</p>
+<img src="https://raw.githubusercontent.com/mitmplay/dsh-insight/refs/heads/main/docs/images/dsi-insight-3.glass-browser.png"/>
+</details>
+
 ## Included skills for:
 - Coding agents: `/dsi-adr`, `/dsi-spec`, `/dsi-task`
 - Integration helper for [OpenViking](https://openviking.ai/): `/dsi-ov-setup` 

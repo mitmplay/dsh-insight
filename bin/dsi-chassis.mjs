@@ -45,6 +45,21 @@ import {
 	writeOwnerMarker
 } from '../src/lib/server/browser/chassis-shared.ts';
 
+/** @typedef {{ ok: false, error: string } | { ok: true, addr: string }} BindVerdict */
+/** @typedef {{ bind: string | undefined, port: number | undefined }} ParsedArgs */
+/** @typedef {{ profileDir: string, args: string[], headless: boolean, width: number, height: number }} LaunchOptions */
+/** @typedef {{ pid: number | null, port: number, close: () => Promise<void> }} LaunchResult */
+/** @typedef {{ id: string, ownerSessionId: string, debugPort: number, pid: number | null, profileDir: string, close: () => Promise<void> }} Glass */
+/** @typedef {{
+ *   bind?: string,
+ *   port?: number,
+ *   debugPort?: number,
+ *   profileRoot?: string,
+ *   launch?: (o: LaunchOptions) => Promise<LaunchResult>,
+ *   portFor?: (preferred?: number) => Promise<number>
+ * }} CompanionOptions */
+/** @typedef {{ server: import('node:http').Server, port: number, glasses: Map<string, Glass>, stop: () => Promise<void> }} Companion */
+
 /** The companion's disposable root — the same default the floor config
  *  ships (insight-config). The companion runs on the host and answers to
  *  the Borrowed Chrome posture, so deletes are GUARDED to this root. */
@@ -53,6 +68,7 @@ const PROFILE_ROOT = join(homedir(), '.dsi', 'browser-profiles');
 /** D4 — the bind verdict. Pure: `--bind` is REQUIRED and 0.0.0.0 (and the
  *  IPv6 all-interfaces '::') are refused. The stamp already names the
  *  exact interface; bind-all buys nothing and invites every device. */
+/** @param {string | undefined} bind @returns {BindVerdict} */
 export function resolveBind(bind) {
 	if (bind === undefined || bind === '') {
 		return { ok: false, error: 'dsi-chassis: --bind <addr> is required (the private interface from the GLASS_CHASSIS_URL stamp); refusing to guess' };
@@ -64,7 +80,9 @@ export function resolveBind(bind) {
 }
 
 /** CLI arg parsing — pure, so the pins drive it directly. */
+/** @param {string[]} argv @returns {ParsedArgs} */
 export function parseArgs(argv) {
+	/** @type {ParsedArgs} */
 	const out = { bind: undefined, port: undefined };
 	for (let i = 0; i < argv.length; i += 1) {
 		const a = argv[i];
@@ -78,8 +96,10 @@ export function parseArgs(argv) {
 
 /** A free port for Chrome's debugging listener — net probe, no lsof
  *  dependency, same behavior on macOS and Linux hosts. */
+/** @param {number} [preferred] @returns {Promise<number>} */
 async function freeChassisPort(preferred) {
 	const { createServer: probeServer } = await import('node:net');
+	/** @param {number} port @returns {Promise<boolean>} */
 	const tryBind = (port) =>
 		new Promise((resolve) => {
 			const s = probeServer();
@@ -95,6 +115,7 @@ async function freeChassisPort(preferred) {
 /** The REAL launcher: headed Chromium on a disposable profile via the
  *  repo's pinned playwright-core, channel 'chrome' with the bundled
  *  chromium fallback — the same posture registry.open() births with. */
+/** @param {LaunchOptions} opts @returns {Promise<LaunchResult>} */
 async function defaultLaunch({ profileDir, args, headless, width, height }) {
 	const { chromium } = await import('playwright-core');
 	const ignoreDefaultArgs = ['--enable-automation', '--mute-audio', '--hide-scrollbars'];
@@ -136,6 +157,7 @@ async function defaultLaunch({ profileDir, args, headless, width, height }) {
  * whole open/close/ownership/bridge contract without a real Chromium.
  * Returns { server, port, glasses, stop }.
  */
+/** @param {CompanionOptions} [opts] @returns {Promise<Companion>} */
 export async function startChassisCompanion(opts = {}) {
 	const bindVerdict = resolveBind(opts.bind);
 	if (!bindVerdict.ok) throw new Error(bindVerdict.error);
@@ -150,7 +172,9 @@ export async function startChassisCompanion(opts = {}) {
 	// The ownership registry lives IN this process: one conversation = one
 	// glass, keyed by the requesting floor's ownerSessionId (karpathy edge
 	// case: two floors stamping the same companion each carry their own id).
+	/** @type {Map<string, Glass>} */
 	const glasses = new Map(); // id -> glass
+	/** @type {Map<string, string>} */
 	const byOwner = new Map(); // ownerSessionId -> id
 
 	const server = createServer(async (req, res) => {
@@ -165,6 +189,7 @@ export async function startChassisCompanion(opts = {}) {
 				const preq = httpRequest({ host: '127.0.0.1', port: glass.debugPort, path: cdp[2] + url.search, method: req.method, headers }, (pres) => {
 					const ctype = String(pres.headers['content-type'] ?? '');
 					if (ctype.includes('json')) {
+						/** @type {Buffer[]} */
 						const chunks = [];
 						pres.on('data', (c) => chunks.push(c));
 						pres.on('end', () => {
@@ -172,7 +197,7 @@ export async function startChassisCompanion(opts = {}) {
 							// through THIS companion — the floor never needs to know
 							// Chrome's loopback port (ADR fact 7, the Host hop).
 							const body = Buffer.concat(chunks).toString('utf8')
-								.split('ws://127.0.0.1:' + glass.debugPort).join('ws://' + (req.headers.host ?? bind + ':' + glass.boundPort) + '/cdp/' + glass.id);
+								.split('ws://127.0.0.1:' + glass.debugPort).join('ws://' + (req.headers.host ?? bind + ':' + glassPort(server)) + '/cdp/' + glass.id);
 							const headers = { ...pres.headers };
 							delete headers['transfer-encoding'];
 							res.writeHead(pres.statusCode ?? 200, { ...headers, 'content-length': Buffer.byteLength(body) });
@@ -197,6 +222,7 @@ export async function startChassisCompanion(opts = {}) {
 				return;
 			}
 			if (req.method === 'POST' && url.pathname === '/open') {
+				/** @type {Buffer[]} */
 				const chunks = [];
 				for await (const c of req) chunks.push(c);
 				let body;
@@ -232,12 +258,15 @@ export async function startChassisCompanion(opts = {}) {
 					'--autoplay-policy=no-user-gesture-required',
 					'--window-size=' + (width + 6) + ',' + (height + 70)
 				];
-				const born = await launch({ profileDir, args, headless: body.headless === true, width, height }).catch((e) => {
+				let born;
+				try {
+					born = await launch({ profileDir, args, headless: body.headless === true, width, height });
+				} catch (e) {
 					// a failed birth must not leave a profile dir behind (and the
 					// error rides the honest 500 to the floor's panel)
 					try { if (profileDir.startsWith(profileRoot)) rmSync(profileDir, { recursive: true, force: true }); } catch { /* best-effort */ }
 					throw e;
-				});
+				}
 				const glass = {
 					id,
 					ownerSessionId,
@@ -262,6 +291,7 @@ export async function startChassisCompanion(opts = {}) {
 				return;
 			}
 			if (req.method === 'POST' && url.pathname === '/close') {
+				/** @type {Buffer[]} */
 				const chunks = [];
 				for await (const c of req) chunks.push(c);
 				let body;
@@ -292,6 +322,7 @@ export async function startChassisCompanion(opts = {}) {
 		}
 	});
 
+	/** @param {Glass} glass @returns {Promise<void>} */
 	function releaseGlass(glass) {
 		glasses.delete(glass.id);
 		if (byOwner.get(glass.ownerSessionId) === glass.id) byOwner.delete(glass.ownerSessionId);
@@ -303,6 +334,7 @@ export async function startChassisCompanion(opts = {}) {
 		})();
 	}
 
+	/** @param {import('node:http').IncomingMessage} req @param {import('node:net').Socket} socket @param {Buffer} head */
 	const upgrade = (req, socket, head) => {
 		const m = (req.url ?? '').match(/^\/cdp\/([^/]+)(\/devtools\/.*)$/);
 		if (!m) { socket.destroy(); return; }
@@ -310,6 +342,7 @@ export async function startChassisCompanion(opts = {}) {
 		if (!glass) { socket.destroy(); return; }
 		// Raw pipe to Chrome's loopback port; the Host header is rewritten —
 		// recent Chrome validates it (ADR fact 7) and the companion is the hop.
+		/** @type {string[]} */
 		const headers = [];
 		const raw = req.rawHeaders;
 		for (let i = 0; i < raw.length; i += 2) {
@@ -328,13 +361,13 @@ export async function startChassisCompanion(opts = {}) {
 	server.on('upgrade', upgrade);
 
 	const wanted = opts.port ?? 9560;
-	const boundPort = await new Promise((res, rej) => {
+	const boundPort = await (/** @type {Promise<number>} */ (new Promise((res, rej) => {
 		server.once('error', rej);
 		server.listen(wanted, bind, () => {
 			const a = server.address();
 			res(typeof a === 'object' && a ? a.port : wanted);
 		});
-	});
+	})));
 	return {
 		server,
 		port: boundPort,
@@ -342,11 +375,12 @@ export async function startChassisCompanion(opts = {}) {
 		stop: async () => {
 			server.removeAllListeners('upgrade');
 			for (const g of [...glasses.values()]) await releaseGlass(g);
-			await new Promise((res) => server.close(() => res()));
+			await /** @type {Promise<void>} */ (new Promise((res) => server.close(() => res())));
 		}
 	};
 }
 
+/** @param {import('node:http').Server} server @returns {number} */
 function glassPort(server) {
 	const a = server.address();
 	return typeof a === 'object' && a ? a.port : 0;

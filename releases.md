@@ -1,3 +1,20 @@
+## 0.11.5
+
+Bumped from 0.11.4 — glass-dsh Wave 5 hardening, a proof-round of hygiene (svelte-check + coverage), and the README's last empty panel section filled.
+
+### Features
+- **glass-dsh Wave 5 (ADR-0045 Amendment 7)** — D16 self-resolving playwright-core bootstrap (no manual dependency pinning when the brain host moves) and D17 composite gesture run verb. Spec docs + completion notes. Commit `8ce0b215`.
+
+### Bug fixes
+- **54 svelte-check errors cleared across 14 files** — repo-wide type/hygiene sweep so `svelte-check` runs clean. Commit `b7c4df99`.
+
+### Tests
+- **Coverage mop** — hermetic env-keys pin fixed; ~78 branch-arm tests added across 22 files, all per-file metrics ≥ 80%. Commit `fdad7577`.
+
+### Docs
+- **RCA (2026-11-09)** — sticky-notes button labels rendered as tofu on glass: Unicode glyphs as artwork delegate rendering to the visitor's font closet; glass Chromium has no emoji fallback. Evidence captures + environment-side Noto font-pack remedy. Commit `2a2e43c8`.
+- **README Glass browser section** — the placeholder `<p>...</p>` filled with a benefit-first plain-words intro (watch agent work live; breakage is the receipt, not a green report). Commit `8fd63a60`.
+
 ## 0.11.4
 
 Bumped from 0.11.3 — the glass family gains its third hand (glass-dsh) and the repo skill copies get their YAML frontmatter house in order.

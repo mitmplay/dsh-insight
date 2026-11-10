@@ -71,6 +71,16 @@ describe('AgentChip — selection and pick', () => {
 		unmount(instance);
 	});
 
+	it('a click with NO onpick handler is a harmless no-op (optional-call arm)', () => {
+		const { target, instance } = mountChip({
+			label: 'coder', interactive: true, pickKey: 'coder', testid: 'chip-nopick'
+		});
+		expect(() => {
+			(target.querySelector('[data-testid="chip-nopick"]') as HTMLButtonElement).click();
+		}).not.toThrow();
+		unmount(instance);
+	});
+
 	it('forwards pickKey through onpick on click', () => {
 		const onpick = vi.fn();
 		const { target, instance } = mountChip({

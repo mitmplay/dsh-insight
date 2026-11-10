@@ -76,4 +76,63 @@ describe('ThemeToggle (3.1, LanguageMenu grammar)', () => {
 		expect(h.target.querySelector('[data-testid="theme-option-dark"]')?.getAttribute('data-active')).toBe('false');
 		cleanup(h.instance, h.target);
 	});
+
+	// Coverage mop (2026-11-10): the light icon arm ({:else if light} → Sun),
+	// the dropUp list placement arm, and the outside/inside click arms of
+	// the document listener.
+	it('light choice → the sun icon arm renders (choice light)', () => {
+		themePrefs.set('light');
+		const h = render();
+		const trigger = h.target.querySelector('[data-testid="theme-toggle-trigger"]') as HTMLElement;
+		expect(trigger.querySelectorAll('svg').length).toBe(1);
+		cleanup(h.instance, h.target);
+	});
+
+	it('all three option labels render each open (labels run for every choice)', () => {
+		themePrefs.set('light');
+		const h = render();
+		h.target.querySelector('[data-testid="theme-toggle-trigger"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		flushSync();
+		const labels = [...h.target.querySelectorAll('[data-testid^="theme-option-"]')].map((o) =>
+			o.textContent?.trim()
+		);
+		expect(labels).toHaveLength(3);
+		cleanup(h.instance, h.target);
+	});
+
+	it('dropUp → the list mounts upward (bottom-full arm)', () => {
+		const target = document.createElement('div');
+		document.body.appendChild(target);
+		const instance = mount(ThemeToggle, { target, props: { dropUp: true } });
+		target.querySelector('[data-testid="theme-toggle-trigger"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		flushSync();
+		const list = target.querySelector('[data-testid="theme-toggle-list"]') as HTMLElement;
+		expect(list.className).toContain('bottom-full');
+		expect(list.className).not.toContain('mt-1');
+		unmount(instance);
+		target.remove();
+	});
+
+	it('outside click closes the popup (listener true arm)', () => {
+		const h = render();
+		h.target.querySelector('[data-testid="theme-toggle-trigger"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		flushSync();
+		expect(h.target.querySelector('[data-testid="theme-toggle-list"]')).not.toBeNull();
+		document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		flushSync();
+		expect(h.target.querySelector('[data-testid="theme-toggle-list"]')).toBeNull();
+		cleanup(h.instance, h.target);
+	});
+
+	it('a click inside the root (the list shell) keeps the popup open (listener false arm)', () => {
+		const h = render();
+		h.target.querySelector('[data-testid="theme-toggle-trigger"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		flushSync();
+		const list = h.target.querySelector('[data-testid="theme-toggle-list"]') as HTMLElement;
+		expect(list).not.toBeNull();
+		list.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		flushSync();
+		expect(h.target.querySelector('[data-testid="theme-toggle-list"]')).not.toBeNull();
+		cleanup(h.instance, h.target);
+	});
 });

@@ -26,7 +26,43 @@
  *                          (never a port substring, never positional). Dies when
  *                          absent, naming the resolved origin.
  */
-import { chromium } from 'playwright-core';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+
+// D16 (ADR-0045 Amendment 7) — the driver resolves its own engine; the cwd is
+// never the contract. Resolution order: script-relative node_modules → the
+// cwd's package.json tree (the documented "run from the repo root" case) →
+// the stamped default repo (~/agentic-ai/deepseek-insight) or $DSI_REPO_ROOT →
+// die loudly with the exact remedy. ESM bare imports resolve from the script's
+// own directory, which is why cwd alone was never enough.
+function resolveChromium() {
+  const attempts = [];
+  const repoCandidates = [];
+  if (process.env.DSI_REPO_ROOT) repoCandidates.push(process.env.DSI_REPO_ROOT);
+  if (process.env.HOME) repoCandidates.push(join(process.env.HOME, 'agentic-ai', 'deepseek-insight'));
+  const tryRequire = (label, anchor) => {
+    try {
+      return createRequire(anchor)('playwright-core');
+    } catch (e) {
+      attempts.push(label + ': ' + (e?.code ?? e?.message ?? String(e)));
+      return null;
+    }
+  };
+  let mod = tryRequire('script-relative', import.meta.url);
+  if (!mod) mod = tryRequire('cwd', join(process.cwd(), 'package.json'));
+  for (const root of repoCandidates) {
+    if (mod) break;
+    mod = tryRequire('repo:' + root, join(root, 'package.json'));
+  }
+  if (!mod?.chromium) {
+    die('playwright-core not resolvable — tried: ' + attempts.join(' | ') +
+      '. Remedy: run from the DSI repo root (cwd with a package.json), copy these ' +
+      'scripts next to a node_modules that has playwright-core, export DSI_REPO_ROOT=<repo path>, ' +
+      'or clone the DSI repo to ~/agentic-ai/deepseek-insight.');
+  }
+  return mod.chromium;
+}
+const chromium = resolveChromium();
 
 const DEFAULT_FLOOR_BASES = ['http://127.0.0.1:5175', 'http://127.0.0.1:5174'];
 

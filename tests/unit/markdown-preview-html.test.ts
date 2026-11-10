@@ -38,7 +38,7 @@ describe('renderPreviewMarkdown — revival allow-list', () => {
 	it('javascript:/data:/relative src stays inert text', () => {
 		for (const src of ['javascript:alert(1)', 'data:text/html;base64,AAAA', 'img/local.png', '/workspace/banner.png']) {
 			const html = renderPreviewMarkdown(`<img src="${src}" alt="x">`);
-			expect(html).toContain('&lt;img', `src ${src} revived`);
+			expect(html).toContain('&lt;img');
 			expect(html).not.toMatch(/<img\b/);
 		}
 	});

@@ -77,6 +77,15 @@ describe('MarkdownContent onFileLink (File Link Intent W1.2)', () => {
 		cleanup();
 	});
 
+	it('a click that lands OFF any anchor emits nothing (the !anchor guard)', () => {
+		const onFileLink = vi.fn();
+		const { target, cleanup } = mountContent('just a paragraph, no links', onFileLink);
+		const el = target.querySelector('.md-content') as HTMLElement;
+		el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		expect(onFileLink).not.toHaveBeenCalled();
+		cleanup();
+	});
+
 	it('without the prop, anchors navigate natively (no listener installed)', () => {
 		const { target, cleanup } = mountContent('[card](src/a.ts)');
 		const anchor = target.querySelector('a[href="src/a.ts"]') as HTMLAnchorElement;

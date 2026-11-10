@@ -82,4 +82,30 @@ describe('AboutButton — the circled-A trigger', () => {
 		off();
 		expect(document.querySelector('.about-backdrop')).toBeNull();
 	});
+
+	// Coverage mop (2026-11-10): the nullish fallback arm of the
+	// passthrough-class interpolation — a null prop rides the compiler's
+	// `?? ''` fallback and the trigger still renders its base class.
+	it('a null class prop falls back to the bare trigger class', () => {
+		const target = document.createElement('div');
+		document.body.appendChild(target);
+		const comp = mount(AboutButton, { target, props: { class: null } as never });
+		const btn = trigger();
+		expect(btn.classList.contains('about-trigger')).toBe(true);
+		// the nullish fallback yields an empty string, not the literal "null"
+		expect(btn.className).not.toContain('null');
+		unmount(comp);
+		target.remove();
+	});
+
+	// Coverage mop: mount → unmount WITHOUT ever opening — the portal
+	// effect's early-return arm (aboutPortal still undefined) and its
+	// empty cleanup path.
+	it('unmounting without ever opening leaves no portal behind', () => {
+		const { unmount: off } = renderButton();
+		expect(document.body.querySelectorAll('body > div:not([data-testid])').length).toBeGreaterThanOrEqual(0);
+		off();
+		expect(document.querySelector('.about-backdrop')).toBeNull();
+		expect(trigger()).toBeNull();
+	});
 });

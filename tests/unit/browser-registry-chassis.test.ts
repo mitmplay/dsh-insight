@@ -41,7 +41,7 @@ vi.mock('node:fs', async (importOriginal) => {
 
 import { browserRegistry } from '$lib/server/browser/registry.js';
 
-const entries = (): Map<Record<string, any>, unknown> =>
+const entries = (): Map<string, Record<string, any>> =>
 	(process as unknown as { __DSI_BROWSER_STATE__: { entries: Map<string, Record<string, any>> } }).__DSI_BROWSER_STATE__.entries;
 
 const CHASSIS = 'http://192.168.1.9:9560';

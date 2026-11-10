@@ -123,6 +123,17 @@ describe('resolveSessionPath', () => {
 		}
 	});
 
+	it('skips a top-level FILE entry that sorts BEFORE the project dir', async () => {
+		// The !isDirectory() continue arm: the file entry must come first in
+		// scan order ('---' sorts before '--U'), or the loop returns on the
+		// real project before the non-directory branch is ever taken.
+		const root = tempRoot();
+		writeFileSync(join(root, '---not-a-project'), 'x', 'utf-8');
+		const project = join(root, '--Users-op-proj--');
+		mkdirSync(join(project, 'abc-123'), { recursive: true });
+		await expect(resolveSessionPath(root, 'abc-123')).resolves.toBe(join(project, 'abc-123'));
+	});
+
 	it('UUID-shaped id needs no encoding — literal name match (risk register)', async () => {
 		const root = tempRoot();
 		const id = '9f0c2e1a-4b3d-4e5f-8a7b-6c5d4e3f2a1b';

@@ -110,3 +110,45 @@ describe('session-filter-prefs — workspace profiles (dsi-session-filter_<profi
 		expect(loadSessionFilter('widi').blankMode).toBe('nonempty');
 	});
 });
+
+describe('session-filter-prefs — SSR and parse-catch arms', () => {
+	/** Temporarily hide the storage global so the typeof guards take the
+	 *  SSR arm (happy-dom always defines localStorage otherwise). */
+	function withoutStorage<T>(run: () => T): T {
+		const g = globalThis as { localStorage?: unknown };
+		const real = g.localStorage;
+		g.localStorage = undefined;
+		try {
+			return run();
+		} finally {
+			g.localStorage = real;
+		}
+	}
+
+	it('load without localStorage returns the defaults (SSR early return)', () => {
+		withoutStorage(() => {
+			expect(loadSessionFilter()).toEqual({ ...DEFAULT_SESSION_FILTER });
+			expect(loadSessionFilter('widi')).toEqual({ ...DEFAULT_SESSION_FILTER });
+		});
+	});
+
+	it('save without localStorage is a silent no-op (SSR early return)', () => {
+		withoutStorage(() => {
+			expect(() => saveSessionFilter({ workspace: '/w', preset: null, blankMode: 'any' })).not.toThrow();
+		});
+		// Nothing landed once storage is back.
+		expect(localStorage.getItem('dsi-session-filter')).toBeNull();
+	});
+
+	it('legacyBlankMode catches a junk legacy key and falls back to the default', () => {
+		localStorage.clear();
+		localStorage.setItem('dsi-blank-mode', '{not json');
+		// The new key carries an INVALID blankMode, so blankMode consults
+		// the legacy key — whose parse throws and lands on the default.
+		localStorage.setItem(
+			'dsi-session-filter',
+			JSON.stringify({ workspace: '/w', preset: null, blankMode: 'everything' })
+		);
+		expect(loadSessionFilter()).toEqual({ ...DEFAULT_SESSION_FILTER, workspace: '/w' });
+	});
+});

@@ -137,9 +137,15 @@ describe('defaultSpawner journal forensics', () => {
 			setChainSpawner(null);
 			expect(spawnRestartChain()).toBe(true);
 			const envLine = appendFileSyncMock.mock.calls.map((c) => String(c[1])).find((l) => l.includes('chain env keys:'));
-			// sorted, comma-joined — ambient DSH_ keys may ride along; pin the relative order
-			expect(envLine).toContain(',DSH_ZZZ,DSI_ABC,');
-			expect(envLine).toContain('DSI_BIN,DSI_BOUNCE_LOG');
+			expect(envLine).toBeDefined();
+			if (!envLine) return;
+			// sorted, comma-joined — ambient DSH_/DSI_ keys may ride along, so pin only
+			// what the test itself stamps: both keys present and in relative sort order.
+			const keys = envLine.slice(envLine.indexOf('chain env keys:') + 'chain env keys:'.length).trim().split(',');
+			expect(keys).toContain('DSH_ZZZ');
+			expect(keys).toContain('DSI_ABC');
+			expect([...keys].sort()).toEqual(keys);
+			expect(keys.indexOf('DSH_ZZZ')).toBeLessThan(keys.indexOf('DSI_ABC'));
 		} finally {
 			delete process.env.DSH_ZZZ;
 			delete process.env.DSI_ABC;

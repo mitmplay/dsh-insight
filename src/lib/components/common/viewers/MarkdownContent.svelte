@@ -52,6 +52,10 @@
 		small?: boolean;
 		hideToggle?: boolean;
 		searchTerm?: string;
+		/** Preview HTML Allow-List (ADR-0055): opt-in second renderer path for
+		 *  the FILE PREVIEW surface. Chat hosts MUST keep the default false —
+		 *  strict BC-12 output stays byte-identical there. */
+		allowHtml?: boolean;
 		/** File Link Intent (ADR 2026-09-25 D2): when set, clicks on scheme-free
 		 *  relative anchors are intercepted (preventDefault) and forwarded as
 		 *  workspace-relative paths. Absent = anchors navigate as today. */

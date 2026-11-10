@@ -55,10 +55,15 @@ The floor registry (glass sessions) is resolved separately: `DSI_UI` env when
 set, else probe `5175` then `5174` (`/api/browser`). A floor stamps its own
 addresses at boot — agents in a floor's conversations drive that floor's glass.
 
-## Environment contract (D6)
+## Environment contract (D6, amended by D16 2026-11-09)
 
-- Run `node skills/glass-dsh/scripts/*.mjs` from the **DSI repo root** so
-  `playwright-core` resolves; plain node ESM, no build step.
+- Plain node ESM, no build step. The driver resolves `playwright-core`
+  **itself** (D16): script-relative `node_modules` → the cwd's `package.json`
+  tree → `$DSI_REPO_ROOT` → loud death naming the remedy. Running from the DSI
+  repo root still works (the cwd fallback), but is no longer required; there is
+  NO symlink step. If the skill directory is read-only (harness workspace-write
+  mode), copying `scripts/` into the workspace is the sanctioned deployment —
+  the copy bootstraps itself.
 - Every verb prints ONE JSON verdict on stdout and exits 0/1; failures print
   `{"error": ...}` via `die()` — a refusal is an answer, quote it.
 - No state files between runs: every run re-derives session and tab from the
@@ -76,6 +81,15 @@ addresses at boot — agents in a floor's conversations drive that floor's glass
 3. **Gestures (Gates 3–4)** — one verb per process, composition in your hands:
    `glass-dsh.mjs eval --b64` for reads, `gesture.mjs click|type|drag|control|persist`
    for real input. Each verb prints `{before, after, moved}` — quote the pair.
+   For gesture SEQUENCES prefer the D17 composite (one process, one CDP session,
+   one verdict per step):
+   `node gesture.mjs run steps.json` where steps.json is an array like
+   `[{"verb":"click","selector":"…","label":"open"},{"verb":"drag","selector":"…","dx":-433,"dy":-303},{"verb":"type","selector":"…","text":"…"},{"verb":"control","expr":"…"}]`
+   → `{"verb":"run","steps":4,"executed":N,"failedAt":null,"ok":true,"results":[…per-step verdicts…]}`
+   and exit 1 if any step failed. The composite STOPS at the first failed gate
+   (control `pass:false`, gesture `moved:false`, any `die`) and reports the
+   completed prefix — quote the prefix, do not improvise onward (D11). Single
+   verbs stay for one-off reads and re-runs of a single failed step.
 4. **Restore (Gate 5)** — clear seeded state via the page's own store, reload,
    re-probe: launcher present, console clean, store empty.
 5. **Report** — table of before/after numbers, the gesture that produced them,

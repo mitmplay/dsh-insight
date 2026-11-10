@@ -229,7 +229,7 @@ describe('dsi-chassis CDP bridge (the fact-7 Host hop)', () => {
 		await new Promise<void>((res) => fake.listen(19555, '127.0.0.1', () => res()));
 		const c = await startChassisCompanion({
 			bind: '127.0.0.1', port: 0, profileRoot: root(),
-			launch: async ({ args }) => {
+			launch: async ({ args }: { args: string[] }) => {
 				const port = Number(args.find((a) => a.startsWith('--remote-debugging-port='))?.split('=')[1]);
 				return { pid: 424242, port, close: async () => undefined };
 			},

@@ -221,6 +221,44 @@ describe('submit through the ladder (D5)', () => {
 		expect(h.textarea().value).toBe('still here');
 		h.cleanup();
 	});
+
+	it('a streaming composer refuses the broadcast submit (the guard arm)', async () => {
+		const h = mountInput({ isStreaming: true });
+		setSyncChecked(SID, true);
+		pushSharedText('during a run');
+		flushSync();
+		const result = await submitAll();
+		flushSync();
+		// submit() returns false at the isStreaming||locked guard — the
+		// ladder never fires and the text counts as kept.
+		expect(result.dispatched).toBe(0);
+		expect(result.kept).toEqual([SID]);
+		expect(h.onsubmit).not.toHaveBeenCalled();
+		expect(h.textarea().value).toBe('during a run');
+		h.cleanup();
+	});
+
+	it('blur without a session skips the draft flush (no-session arm)', () => {
+		const h = mountInput({ sessionId: undefined });
+		const ta = h.textarea();
+		ta.focus();
+		ta.dispatchEvent(new FocusEvent('blur'));
+		flushSync();
+		expect(() => h.cleanup()).not.toThrow();
+	});
+
+	it('a run-shaped draft (! line) is never sent through the ladder', async () => {		const h = mountInput();
+		setSyncChecked(SID, true);
+		pushSharedText('!run tests');
+		flushSync();
+		const result = await submitAll();
+		flushSync();
+		// The run shape returns false before the wire — the strip owns it.
+		expect(result.dispatched).toBe(0);
+		expect(h.onsubmit).not.toHaveBeenCalled();
+		expect(h.textarea().value).toBe('!run tests');
+		h.cleanup();
+	});
 });
 
 describe('membership lifecycle (D1/D2)', () => {

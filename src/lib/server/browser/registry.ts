@@ -341,6 +341,10 @@ export interface RegistryEntry {
 	 *  browser modules (the very thing that severed SSEs this RCA chased)
 	 *  cannot strand the registry-side half of the handshake. */
 	deathListeners?: Set<(reason: string) => void>;
+	/** ADR-0054: chassis-born glasses record the companion bridge's base
+	 *  URL here — close() posts the owner-release to it across the machine
+	 *  boundary. Undefined for locally-born sessions. */
+	chassisUrl?: string;
 }
 
 function state(): { entries: Map<string, RegistryEntry>; closed: Set<string> } {
@@ -1447,7 +1451,7 @@ const browser = context.browser();
 		}
 		if (relay.latestFrame() === null) {
 			const shot = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: cfg.screencastQuality }).catch(() => null);
-			if (shot) relay.seed({ seq: 0, jpeg: (shot as { data?: string }).data, metadata: { seeded: true } });
+			if (shot) relay.seed({ seq: 0, jpeg: (shot as { data?: string }).data ?? '', metadata: { seeded: true } });
 		}
 		if (cfg.enabled) this.ensureReaper(cfg.idleMs);
 		// The "port" of a remote-born glass is the companion bridge's port

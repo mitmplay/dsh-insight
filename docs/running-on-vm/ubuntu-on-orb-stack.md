@@ -34,7 +34,11 @@ sudo apt install -y \
 	libxdamage1 \
 	libxfixes3 \
 	libxrandr2 \
-	libatspi2.0-0t64</pre>
+	libatspi2.0-0t64 \
+	fonts-noto-core \
+	fonts-noto-cjk \
+	fonts-noto-color-emoji
+	</pre>
 
 ## switch to zsh
 - `sudo usermod -s "$(which zsh)" "$(whoami)"` ← PREFER THIS (root, no password prompt)

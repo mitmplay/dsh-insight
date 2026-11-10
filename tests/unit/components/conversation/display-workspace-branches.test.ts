@@ -91,4 +91,24 @@ describe('DisplayWorkspace — render branches (Wave D)', () => {
 		expect(onOpenExplorer).toHaveBeenCalledTimes(1);
 		view.cleanup();
 	});
+
+	// Coverage mop (2026-11-10): the `workspaces = []` prop default —
+	// every earlier mount passed the registry explicitly. With no
+	// registry the chip falls back to the basename label and rides the
+	// ghost cue (an unregistered path).
+	it('no workspaces prop → the registry default kicks in (basename + ghost)', () => {
+		const target = document.createElement('div');
+		document.body.appendChild(target);
+		const instance = mount(DisplayWorkspace, {
+			target,
+			props: { workspace: '/ws/orphan' }
+		});
+		flushSync();
+		const chip = target.querySelector<HTMLElement>('[data-testid="session-workspace"]');
+		expect(chip).not.toBeNull();
+		expect(chip?.querySelector<HTMLElement>('.chip-label')?.textContent).toBe('orphan');
+		expect(chip?.classList.contains('ghost')).toBe(true);
+		unmount(instance);
+		target.remove();
+	});
 });
