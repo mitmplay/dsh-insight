@@ -23,6 +23,8 @@ Screenshot: Sidebar, Workspace-explorer, Agent, Glass-browser, Subagent
 
 ```bash
 npx @deepseek-insight/dsi@latest dsh --sync --zai # open http://localhost:5174
+
+DSH_VERSION=0.2.2-rc.1 npx @deepseek-insight/dsi@latest dsh --sync --zai # npm downgrade
 ```
 <details>
 <summary><strong>CLI Params</strong></summary>

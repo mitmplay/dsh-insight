@@ -24,7 +24,9 @@
 // the published npm pin — `DSH_PATH=~/agentic-ai/deepseek-harness pnpm dsi
 // dsh --sync` synthesizes the DSH_WEB_CMD launcher (`pnpm --dir <path> dsh`)
 // the sync script already honors, so an npm release that has not landed yet
-// cannot block the floor. An explicit DSH_WEB_CMD wins.
+// cannot block the floor. An explicit DSH_WEB_CMD wins. DSH_VERSION=x.y.z
+// (same day) downgrades to a specific npm version instead — DSH_PATH wins
+// if both are set.
 
 import { spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
@@ -111,6 +113,8 @@ const USAGE = [
 	'                   dsi — see the recommended command above',
 	'                   DSH_PATH=<dsh checkout> runs the host from that source',
 	'                   tree instead of the npm pin (needs pnpm install there)',
+	'                   DSH_VERSION=x.y.z runs that npm version instead of the pin',
+	'                   (DSH_PATH wins if both are set)',
 	'      dsi dsh --ov',
 	'                   install the OpenViking memory plugin into the active',
 	'                   dsh profile (idempotent; alone, without --sync)',
@@ -208,6 +212,7 @@ if (command === 'dsh') {
 		if (withOv) runOvPlugin();
 		runSkillsMirror();
 		applyDshPathSugar();
+		applyDshVersionSugar();
 		// The Glass Bootstrap (ADR 2026-11-05, D1): probe the glass browser
 		// BEFORE the pair spawns — system Chrome first, cached chromium second,
 		// a one-time pinned fetch last (soft failure; DSI_SKIP_BROWSER_INSTALL=1
@@ -442,7 +447,26 @@ function applyDshPathSugar() {
 		process.exit(66);
 	}
 	process.env.DSH_WEB_CMD = `pnpm --dir ${root} dsh`;
+	if (process.env.DSH_VERSION || process.env.DSH_WEB_VERSION) {
+		console.log(`dsi dsh: DSH_VERSION ignored — DSH_PATH takes precedence (source tree runs whatever the checkout has)`);
+	}
 	console.log(`dsi dsh: DSH_PATH=${p} — the host runs from the SOURCE tree (${root}), not the npm pin`);
+}
+
+/** DSH_VERSION sugar (2026-11-11): run the host from a SPECIFIC npm version
+ *  instead of the package.json pin — `DSH_VERSION=0.2.2-rc.1 pnpm dsi dsh
+ *  --sync` downgrades past a publish lag. Maps onto DSH_WEB_VERSION, the
+ *  ambient override the sync script and plugin launcher already honor. No
+ *  npm-view preflight: a typo version fails with npx's own clear notarget
+ *  error (zero added latency; the operator said let-npx-fail). DSH_PATH
+ *  takes precedence (a source tree runs what the checkout has); explicit
+ *  DSH_WEB_CMD beats both. */
+function applyDshVersionSugar() {
+	const v = process.env.DSH_VERSION;
+	if (!v) return;
+	if (process.env.DSH_WEB_CMD) return; // DSH_PATH's synthesized launcher (or an explicit one) already owns the launch
+	if (!process.env.DSH_WEB_VERSION) process.env.DSH_WEB_VERSION = v;
+	console.log(`dsi dsh: DSH_VERSION=${v} — the host runs npm @deepseek-ai/dsh@${process.env.DSH_WEB_VERSION} instead of the package.json pin`);
 }
 
 function dshWebVersion() {
@@ -576,7 +600,10 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = [], opts = {})
 	// host lifecycle (vite close hook stops it; one Ctrl-C, no orphan).
 	const host = inProcess ? null : spawn('/bin/sh', [script, ...hostSpawnArgs], {
 		stdio: 'inherit',
-		env: { ...process.env, DSH_WEB_VERSION: dshWebVersion(), ...stampedFloorEnv(uiPort) }
+		// DSH_VERSION/DSH_WEB_VERSION survive: an ambient override must not be
+		// clobbered by the package.json pin (bug found while wiring DSH_VERSION
+		// 2026-11-11 — the old line re-pinned the env unconditionally).
+		env: { ...process.env, DSH_WEB_VERSION: process.env.DSH_WEB_VERSION ?? dshWebVersion(), ...stampedFloorEnv(uiPort) }
 	});
 	const ui = mode === 'build' ? startDsiServer(uiPort, dshBase, opts) : startDsiDevServer(uiPort, dshBase, mode, execArgv, opts);
 	// The browser follows the UI: the built page (5174) — or, in --dev mode,
