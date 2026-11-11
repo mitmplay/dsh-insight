@@ -15,7 +15,7 @@
 	 * build gate). Language is guessed from the file extension.
 	 */
 	import { appConfig } from '$lib/services/config/app-config.svelte';
-	import type { YamlEditorHandle } from '../monaco/settings-monaco';
+	import type { YamlEditorHandle } from '../common/settings-monaco';
 	import SettingsHomeToolbar from './SettingsHomeToolbar.svelte';
 
 	let { home, path }: { home: 'dsi' | 'dsh'; path: string } = $props();
@@ -101,7 +101,7 @@
 			const host = editorHost;
 			if (host !== null) {
 				// The shared lazy seam — the ONLY legal route to monaco-editor.
-				const { createTextEditor } = await import('../monaco/settings-monaco');
+				const { createTextEditor } = await import('../common/settings-monaco');
 				if (editor !== null) {
 					// A tab switch re-runs load() on the SAME instance: the
 					// language rides the extension, so dispose + recreate.

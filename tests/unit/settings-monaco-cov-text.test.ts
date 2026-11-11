@@ -84,7 +84,7 @@ vi.mock('$lib/components/monaco/settings-html-worker?worker', () => ({ default: 
 vi.mock('$lib/components/monaco/settings-json-worker?worker', () => ({ default: class {} }));
 vi.mock('$lib/components/monaco/yaml-worker-entry?worker', () => ({ default: class {} }));
 
-import { createTextEditor } from '$lib/components/monaco/settings-monaco';
+import { createTextEditor } from '$lib/components/common/settings-monaco';
 
 beforeEach(() => {
 	monacoState.createCalls.length = 0;

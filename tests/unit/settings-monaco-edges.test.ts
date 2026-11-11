@@ -80,7 +80,7 @@ vi.mock('$lib/components/monaco/settings-html-worker?worker', () => ({ default: 
 vi.mock('$lib/components/monaco/settings-json-worker?worker', () => ({ default: class {} }));
 vi.mock('$lib/components/monaco/yaml-worker-entry?worker', () => ({ default: class {} }));
 
-import { monacoThemeFor, createYamlEditor, createTextEditor } from '$lib/components/monaco/settings-monaco';
+import { monacoThemeFor, createYamlEditor, createTextEditor } from '$lib/components/common/settings-monaco';
 
 const htmlEl = document.documentElement;
 
@@ -112,13 +112,13 @@ describe('module-load theme application (setTheme present)', () => {
 	it('applies the document theme through monaco.editor.setTheme on load', async () => {
 		htmlEl.setAttribute('data-theme', 'dark');
 		vi.resetModules();
-		await import('$lib/components/monaco/settings-monaco');
+		await import('$lib/components/common/settings-monaco');
 		expect(monacoState.setTheme).toHaveBeenCalledWith('dsi-dark');
 	});
 
 	it('falls back to vs when the document has no data-theme', async () => {
 		vi.resetModules();
-		await import('$lib/components/monaco/settings-monaco');
+		await import('$lib/components/common/settings-monaco');
 		expect(monacoState.setTheme).toHaveBeenCalledWith('dsi-light');
 	});
 });
@@ -126,7 +126,7 @@ describe('module-load theme application (setTheme present)', () => {
 describe('MutationObserver data-theme watcher', () => {
 	it('retargets every live editor when data-theme flips', async () => {
 		vi.resetModules();
-		await import('$lib/components/monaco/settings-monaco');
+		await import('$lib/components/common/settings-monaco');
 		expect(monacoState.setTheme).toHaveBeenCalledWith('dsi-light');
 		// flip the lamp: the observer on documentElement fires applyThemeFromDocument
 		htmlEl.setAttribute('data-theme', 'dark');
@@ -140,7 +140,7 @@ describe('MutationObserver data-theme watcher', () => {
 describe('yaml prewarm model lifecycle', () => {
 	it('the prewarm model is disposed 5s after module load', async () => {
 		vi.resetModules();
-		await import('$lib/components/monaco/settings-monaco');
+		await import('$lib/components/common/settings-monaco');
 		const prewarm = monacoState.models[0]!;
 		expect(prewarm.value).toBe('prewarm: true');
 		expect(prewarm.disposed).toBe(false);
@@ -154,7 +154,7 @@ describe('yaml prewarm model lifecycle', () => {
 describe('theme reaches create-call options', () => {
 	it('createYamlEditor stamps the current document theme', async () => {
 		vi.resetModules();
-		await import('$lib/components/monaco/settings-monaco');
+		await import('$lib/components/common/settings-monaco');
 		htmlEl.setAttribute('data-theme', 'dark');
 		createYamlEditor(document.createElement('div'), 'a: 1', () => {});
 		expect(monacoState.createCalls[0]!.options.theme).toBe('dsi-dark');

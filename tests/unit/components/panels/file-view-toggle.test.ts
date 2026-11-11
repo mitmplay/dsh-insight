@@ -8,7 +8,7 @@ import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$lib/components/monaco/settings-monaco', () => ({
+vi.mock('$lib/components/common/settings-monaco', () => ({
 	createTextEditor: vi.fn(() => ({
 		getValue: () => '',
 		setValue: vi.fn(),

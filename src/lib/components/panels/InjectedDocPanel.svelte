@@ -20,7 +20,7 @@
 	import { injectedRecordFor, SYSTEM_PROMPT_DISPLAY_PATH } from '$lib/services/conversation/injected-shelf';
 	import { liveConversationEntries } from '$lib/services/conversation/store.svelte';
 	import MarkdownPanel from './MarkdownPanel.svelte';
-	import type { YamlEditorHandle } from '../monaco/settings-monaco';
+	import type { YamlEditorHandle } from '../common/settings-monaco';
 
 	let {
 		sourceSessionId,
@@ -72,7 +72,7 @@
 		void (async () => {
 			// The lazy Monaco glue — its own chunk, never the floor's paint;
 			// readOnly blocks USER edits (D1), programmatic setValue stays.
-			const { createYamlEditor } = await import('../monaco/settings-monaco');
+			const { createYamlEditor } = await import('../common/settings-monaco');
 			if (token !== initSeq || editor !== null) return;
 			editor = createYamlEditor(host, text, () => {}, { readOnly: true });
 		})();

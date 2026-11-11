@@ -22,7 +22,7 @@ let diffDisposed = false;
 /** The mounted editor handles, in creation order — tests drive setValue. */
 const glueHandles: Array<{ getValue(): string; setValue(t: string): void }> = [];
 
-vi.mock('$lib/components/monaco/settings-monaco', () => ({
+vi.mock('$lib/components/common/settings-monaco', () => ({
 	createTextEditor: (
 		_container: HTMLElement,
 		initial: string,

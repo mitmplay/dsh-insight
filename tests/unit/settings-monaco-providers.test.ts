@@ -47,7 +47,7 @@ describe('settings-monaco module-body providers + warmup', () => {
 	});
 
 	it('registers four no-op yaml providers whose callbacks return empty payloads', async () => {
-		await import('$lib/components/monaco/settings-monaco');
+		await import('$lib/components/common/settings-monaco');
 		for (const key of ['registerFoldingRangeProvider', 'registerDocumentSymbolProvider', 'registerLinkProvider', 'registerCodeActionProvider']) {
 			expect(reg[key]).toHaveBeenCalledWith('yaml', expect.anything());
 		}
@@ -70,7 +70,7 @@ describe('settings-monaco module-body providers + warmup', () => {
 		const fakeModel = { disposed: false, dispose() { this.disposed = true; } };
 		createModel.mockReturnValueOnce(fakeModel);
 		vi.resetModules(); // a fresh module body schedules a fresh warmup timer
-		await import('$lib/components/monaco/settings-monaco');
+		await import('$lib/components/common/settings-monaco');
 		expect(createModel).toHaveBeenCalledWith('prewarm: true', 'yaml', expect.anything());
 		expect(fakeModel.disposed).toBe(false);
 		vi.advanceTimersByTime(5000);

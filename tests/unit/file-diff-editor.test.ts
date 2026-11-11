@@ -47,7 +47,7 @@ vi.mock('monaco-editor', () => ({
 	}
 }));
 
-import { createDiffEditor } from '$lib/components/monaco/settings-monaco';
+import { createDiffEditor } from '$lib/components/common/settings-monaco';
 
 describe('createDiffEditor — the File Eye diff surface (3.1-T)', () => {
 	it('renders side-by-side, READ-ONLY, with both models', () => {

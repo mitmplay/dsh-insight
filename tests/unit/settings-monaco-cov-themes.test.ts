@@ -73,7 +73,7 @@ vi.mock('$lib/components/monaco/settings-json-worker?worker', () => ({ default: 
 vi.mock('$lib/components/monaco/yaml-worker-entry?worker', () => ({ default: makeWorker('yaml') }));
 
 import * as monaco from 'monaco-editor';
-import { monacoThemeFor } from '$lib/components/monaco/settings-monaco';
+import { monacoThemeFor } from '$lib/components/common/settings-monaco';
 
 type EditorStub = {
 	defineTheme?: (name: string, data: Record<string, unknown>) => void;
@@ -82,7 +82,7 @@ type EditorStub = {
 
 /** Re-runs the module body so its top-level side effects see the staged mock. */
 function freshImport() {
-	return import('$lib/components/monaco/settings-monaco');
+	return import('$lib/components/common/settings-monaco');
 }
 
 beforeEach(() => {

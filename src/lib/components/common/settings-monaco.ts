@@ -11,12 +11,12 @@
  */
 
 import * as monaco from 'monaco-editor';
-import EditorWorker from './settings-editor-worker?worker';
-import TsWorker from './settings-ts-worker?worker';
-import CssWorker from './settings-css-worker?worker';
-import HtmlWorker from './settings-html-worker?worker';
-import JsonWorker from './settings-json-worker?worker';
-import YamlWorker from './yaml-worker-entry?worker';
+import EditorWorker from '../monaco/settings-editor-worker?worker';
+import TsWorker from '../monaco/settings-ts-worker?worker';
+import CssWorker from '../monaco/settings-css-worker?worker';
+import HtmlWorker from '../monaco/settings-html-worker?worker';
+import JsonWorker from '../monaco/settings-json-worker?worker';
+import YamlWorker from '../monaco/yaml-worker-entry?worker';
 import { configureMonacoYaml } from 'monaco-yaml';
 
 /**

@@ -92,7 +92,7 @@ vi.mock('$lib/components/monaco/settings-json-worker?worker', () => ({ default: 
 vi.mock('$lib/components/monaco/yaml-worker-entry?worker', () => ({ default: makeWorker('yaml') }));
 
 import * as monaco from 'monaco-editor';
-import { monacoThemeFor, createYamlEditor, createDiffEditor } from '$lib/components/monaco/settings-monaco';
+import { monacoThemeFor, createYamlEditor, createDiffEditor } from '$lib/components/common/settings-monaco';
 
 beforeEach(() => {
 	for (const arr of [monacoState.createCalls, monacoState.editors, monacoState.models, monacoState.modelLanguages, monacoState.diffs, monacoState.diffCalls, monacoState.ranges]) {
@@ -125,7 +125,7 @@ describe('monacoThemeFor (the Three-State Lamp mapping, L30-32)', () => {
 
 describe('applyThemeFromDocument module-load arms (L35-39)', () => {
 	function freshImport() {
-		return import('$lib/components/monaco/settings-monaco');
+		return import('$lib/components/common/settings-monaco');
 	}
 
 	it('applies the dark theme when setTheme exists and data-theme is dark (true arms of L36 + L37)', async () => {
@@ -157,7 +157,7 @@ describe('module-load MutationObserver guard (L40)', () => {
 	it('survives the module load when MutationObserver is unavailable (false arm)', async () => {
 		vi.stubGlobal('MutationObserver', undefined);
 		vi.resetModules();
-		await expect(import('$lib/components/monaco/settings-monaco')).resolves.toBeTruthy();
+		await expect(import('$lib/components/common/settings-monaco')).resolves.toBeTruthy();
 	});
 });
 

@@ -9,6 +9,12 @@ const FIXTURE = resolve(ROOT, 'tests/unit/fixtures/frozen-crossings.json');
 
 interface Crossing { from: string; to: string }
 
+/** The scanner and the script's --write-fixture both emit fromDomain/toDomain
+ *  alongside from/to (script dep-graph.mjs:67); the gate pins the SET of
+ *  crossings (from=>to), so both sides compare on the 2-key shape. (ADR-0060
+ *  amendment 2026-11-11: the regenerated 4-key fixture failed this exact-equal
+ *  compare on schema keys alone.) */
+
 function runGraph(args: string[]): string {
   return execFileSync('node', [SCRIPT, ...args], { encoding: 'utf8', cwd: ROOT });
 }
@@ -46,7 +52,9 @@ describe('dep-graph boundary gate (ADR-0018 D1)', () => {
   });
 
   it('live tree matches the frozen fixture exactly (no silent drift)', () => {
-    expect(liveCrossings()).toEqual([...JSON.parse(readFileSync(FIXTURE, 'utf8')).crossings].sort((a: Crossing, b: Crossing) => (a.from + '=>' + a.to).localeCompare(b.from + '=>' + b.to)));
+    expect(liveCrossings()).toEqual([...JSON.parse(readFileSync(FIXTURE, 'utf8')).crossings]
+      .map((c: Crossing) => ({ from: c.from, to: c.to }))
+      .sort((a: Crossing, b: Crossing) => (a.from + '=>' + a.to).localeCompare(b.from + '=>' + b.to)));
   });
 
   it('--check passes when every crossing is frozen', () => {

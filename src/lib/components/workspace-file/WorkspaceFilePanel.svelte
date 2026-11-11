@@ -25,7 +25,7 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import WorkspaceFile from './WorkspaceFile.svelte';
-	import type { YamlEditorHandle } from '../monaco/settings-monaco';
+	import type { YamlEditorHandle } from '../common/settings-monaco';
 	// The File Eye (ADR D2): the diff factory rides the SAME lazy chunk —
 	// the chunk gate stays a single dynamic import point.
 
@@ -377,7 +377,7 @@
 		const current = editor !== null ? editor.getValue() : (text ?? '');
 		const token = ++diffSeq;
 		void (async () => {
-			const { createDiffEditor } = await import('../monaco/settings-monaco');
+			const { createDiffEditor } = await import('../common/settings-monaco');
 			if (token !== diffSeq || diffHandle !== null) return;
 			// Stale-host guard (operator bug 2026-09-17, Edit-Diff-Edit-Diff):
 			// a captured host from a PREVIOUS diff entry is detached — reject
@@ -539,7 +539,7 @@
 		if (host === null || initial === null || editor !== null) return;
 		const token = ++initSeq;
 		void (async () => {
-			const { createTextEditor } = await import('../monaco/settings-monaco');
+			const { createTextEditor } = await import('../common/settings-monaco');
 			if (token !== initSeq || editor !== null) return;
 			editor = createTextEditor(host, initial, () => {
 				dirty = editor !== null && editor.getValue() !== baseline;

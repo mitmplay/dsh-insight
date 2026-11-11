@@ -44,7 +44,7 @@ vi.mock('$lib/components/monaco/yaml-worker-entry?worker', () => ({ default: cla
 
 const MARKDOWN_MOD = 'monaco-editor/esm/vs/languages/definitions/markdown/markdown.js';
 
-const MODULE_PATH = '$lib/components/monaco/settings-monaco';
+const MODULE_PATH = '$lib/components/common/settings-monaco';
 
 /** calls to setMonarchTokensProvider for the 'markdown' language only (the mermaid registration also lands here) */
 function markdownCalls() {

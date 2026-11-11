@@ -17,7 +17,7 @@ import { reactiveProps } from '../../helpers/reactive-props.svelte.js';
 const glueCalls: Array<{ initial: string }> = [];
 const glueDisposed: boolean[] = [];
 
-vi.mock('$lib/components/monaco/settings-monaco', () => ({
+vi.mock('$lib/components/common/settings-monaco', () => ({
 	createTextEditor: (_container: HTMLElement, initial: string) => {
 		glueCalls.push({ initial });
 		let value = initial;

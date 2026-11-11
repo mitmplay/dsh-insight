@@ -1,6 +1,6 @@
 /**
  * Coverage tests for the createDiffEditor region of settings-monaco
- * (src/lib/components/monaco/settings-monaco.ts:367-405) — model
+ * (src/lib/components/common/settings-monaco.ts:367-405) — model
  * creation, option wiring (language default, theme, readOnly default
  * TRUE, forced inline-view-off), setModel, and the dispose ORDER pin
  * (setModel(null) BEFORE editor.dispose() BEFORE model disposals).
@@ -76,7 +76,7 @@ vi.mock('$lib/components/monaco/settings-html-worker?worker', () => ({ default: 
 vi.mock('$lib/components/monaco/settings-json-worker?worker', () => ({ default: makeWorker('json') }));
 vi.mock('$lib/components/monaco/yaml-worker-entry?worker', () => ({ default: makeWorker('yaml') }));
 
-import { createDiffEditor } from '$lib/components/monaco/settings-monaco';
+import { createDiffEditor } from '$lib/components/common/settings-monaco';
 
 // skip the module-load prewarm model (uri-less calls only)
 function diffModelCalls() {

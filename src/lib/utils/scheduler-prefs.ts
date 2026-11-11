@@ -1,6 +1,8 @@
 /**
  * Scheduler shelf prefs (ADR-0058 D2/D3, W2 task 2.2) — the persisted
- * collapsed state of the sidebar's SchedulerShelf. One JSON blob under
+ * collapsed + filter state of the sidebar's SchedulerShelf (Filter
+ * Cluster ADR D5: nameFilter / dateFilter / viewMode ride beside the
+ * fold; strict reads, junk falls back per field). One JSON blob under
  * localStorage['dsi-scheduler']; a workspace profile (`?profile=…`)
  * suffixes the key like every dsi-* key (storage-profile.ts), so each
  * desk remembers its own fold.
@@ -28,14 +30,24 @@ export function schedulerPrefsKey(profile?: string | null): string {
 	return dsiKey(SCHEDULER_PREFS_KEY, profile);
 }
 
-/** The shelf's persisted shape (D3): just the fold. */
+/** The shelf's view slice (Filter Cluster ADR D2): all rows, only rows
+ *  with a scheduledAt, or only ended rows carrying a delivery receipt. */
+export type SchedulerViewMode = 'all' | 'scheduled' | 'delivered';
+
+/** The shelf's persisted shape (D3 fold + Filter Cluster ADR D5 filters). */
 export interface SchedulerShelfPrefs {
 	collapsed: boolean;
+	/** Title-substring filter ('' = unfiltered). */
+	nameFilter: string;
+	/** Scheduled-day filter (YYYY-MM-DD, '' = unfiltered). */
+	dateFilter: string;
+	/** The tri-state delivery view (D2). */
+	viewMode: SchedulerViewMode;
 }
 
-/** Persisted defaults when nothing (usable) is stored — collapsed (D2/D3). */
+/** Persisted defaults when nothing (usable) is stored — collapsed, unfiltered (D2/D3 + D5). */
 export function defaultSchedulerPrefs(): SchedulerShelfPrefs {
-	return { collapsed: true };
+	return { collapsed: true, nameFilter: '', dateFilter: '', viewMode: 'all' };
 }
 
 /**
@@ -51,8 +63,18 @@ export function loadSchedulerPrefs(profile?: string | null): SchedulerShelfPrefs
 		if (!raw) return defaultSchedulerPrefs();
 		const parsed = JSON.parse(raw) as Partial<SchedulerShelfPrefs> | null;
 		if (parsed === null || typeof parsed !== 'object') return defaultSchedulerPrefs();
-		// Strict boolean: only true/false pass; anything else → collapsed.
-		return { collapsed: typeof parsed.collapsed === 'boolean' ? parsed.collapsed : true };
+		// Strict reads (Filter Cluster ADR D5): only the exact shapes pass;
+		// junk — including old fold-only blobs — falls back per field without
+		// throwing and without inventing states.
+		return {
+			collapsed: typeof parsed.collapsed === 'boolean' ? parsed.collapsed : true,
+			nameFilter: typeof parsed.nameFilter === 'string' ? parsed.nameFilter : '',
+			dateFilter: typeof parsed.dateFilter === 'string' ? parsed.dateFilter : '',
+			viewMode:
+				parsed.viewMode === 'scheduled' || parsed.viewMode === 'delivered'
+					? parsed.viewMode
+					: 'all'
+		};
 	} catch {
 		return defaultSchedulerPrefs();
 	}

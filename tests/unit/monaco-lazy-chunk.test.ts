@@ -43,7 +43,7 @@ describe('monaco lazy-chunk seam (W4 4.1-T)', () => {
 
 	it('the panel loads the glue ONLY through a dynamic import (no static path)', () => {
 		const panel = readFileSync(join(SRC, 'lib/components/panels/SettingsEditorPanel.svelte'), 'utf-8');
-		expect(panel).toContain("await import('../monaco/settings-monaco')");
+		expect(panel).toContain("await import('../common/settings-monaco')");
 		// A type-only import is erased at compile time and pulls no chunk;
 		// any VALUE import would fold Monaco into the floor chunk.
 		expect(panel).not.toMatch(
@@ -55,7 +55,7 @@ describe('monaco lazy-chunk seam (W4 4.1-T)', () => {
 // ── Loadinjected W1 1.3-T — the readOnly seam (2026-09-07 ADR D1) ──
 
 describe('monaco readOnly seam (Loadinjected W1 1.3-T)', () => {
-	const glue = readFileSync(join(SRC, 'lib/components/monaco/settings-monaco.ts'), 'utf-8');
+	const glue = readFileSync(join(SRC, 'lib/components/common/settings-monaco.ts'), 'utf-8');
 
 	it('the glue declares a readOnly option that reaches editor.create, defaulting off', () => {
 		// The option exists on the creation contract (optional — the
@@ -70,7 +70,7 @@ describe('monaco readOnly seam (Loadinjected W1 1.3-T)', () => {
 
 	it('the settings path is unchanged — its caller passes no readOnly yet', () => {
 		const panel = readFileSync(join(SRC, 'lib/components/panels/SettingsEditorPanel.svelte'), 'utf-8');
-		expect(panel).toContain("await import('../monaco/settings-monaco')");
+		expect(panel).toContain("await import('../common/settings-monaco')");
 		expect(panel).not.toMatch(/readOnly/);
 	});
 });

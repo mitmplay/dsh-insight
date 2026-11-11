@@ -83,7 +83,7 @@ import {
 	createYamlEditor,
 	monacoThemeFor,
 	type YamlEditorHandle
-} from '$lib/components/monaco/settings-monaco';
+} from '$lib/components/common/settings-monaco';
 
 const reg = monaco.languages as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -91,7 +91,7 @@ async function loadModule(): Promise<unknown> {
 	// Fresh module body per test: the router install, provider registration,
 	// configureMonacoYaml call and prewarm timer all run in the module body.
 	vi.resetModules();
-	return import('$lib/components/monaco/settings-monaco');
+	return import('$lib/components/common/settings-monaco');
 }
 
 function getWorker(label: string): { tag: string } {

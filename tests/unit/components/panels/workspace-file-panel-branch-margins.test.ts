@@ -22,7 +22,7 @@ const glueHandles: Array<{
 }> = [];
 const hlCalls: Array<{ start: number; end: number }> = [];
 
-vi.mock('$lib/components/monaco/settings-monaco', () => ({
+vi.mock('$lib/components/common/settings-monaco', () => ({
 	createTextEditor: (
 		_container: HTMLElement,
 		initial: string,

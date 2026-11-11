@@ -125,7 +125,7 @@ vi.mock('$lib/components/monaco/settings-html-worker?worker', () => ({ default: 
 vi.mock('$lib/components/monaco/settings-json-worker?worker', () => ({ default: makeWorker('json') }));
 vi.mock('$lib/components/monaco/yaml-worker-entry?worker', () => ({ default: makeWorker('yaml') }));
 
-import { createYamlEditor, createTextEditor, createDiffEditor } from '$lib/components/monaco/settings-monaco';
+import { createYamlEditor, createTextEditor, createDiffEditor } from '$lib/components/common/settings-monaco';
 import { configureMonacoYaml } from 'monaco-yaml';
 
 function getWorker(label: string): { tag: string } {
@@ -148,7 +148,7 @@ describe('settings-monaco glue', () => {
 	it('wires the shared editor worker into MonacoEnvironment once per app', async () => {
 		delete (window as { MonacoEnvironment?: unknown }).MonacoEnvironment;
 		vi.resetModules();
-		await import('$lib/components/monaco/settings-monaco');
+		await import('$lib/components/common/settings-monaco');
 		const env = (window as { MonacoEnvironment?: { getWorker: () => Worker } }).MonacoEnvironment!;
 		expect(typeof env.getWorker).toBe('function');
 		expect(env.getWorker()).toBeTruthy(); // default label -> editor worker
@@ -159,7 +159,7 @@ describe('settings-monaco glue', () => {
 		// deterministic router.
 		(window as { MonacoEnvironment?: unknown }).MonacoEnvironment = { getWorker: () => ({} as Worker) };
 		vi.resetModules(); // force the glue's module body to re-run
-		await import('$lib/components/monaco/settings-monaco');
+		await import('$lib/components/common/settings-monaco');
 		expect(typeof ((window as { MonacoEnvironment?: { getWorker: unknown } }).MonacoEnvironment!).getWorker).toBe('function');
 		expect(getWorker('yaml').tag).toBe('yaml');
 	});
@@ -167,7 +167,7 @@ describe('settings-monaco glue', () => {
 	it('routes workers by language label (yaml / ts+js / css+scss+less / html / json / fallback)', async () => {
 		delete (window as { MonacoEnvironment?: unknown }).MonacoEnvironment;
 		vi.resetModules();
-		await import('$lib/components/monaco/settings-monaco');
+		await import('$lib/components/common/settings-monaco');
 		getWorker('typescript');
 		getWorker('javascript');
 		getWorker('css');

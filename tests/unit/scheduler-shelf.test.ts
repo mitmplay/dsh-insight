@@ -13,7 +13,14 @@
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addPanelFromSidebar } from '$lib/services/panels/panel-registry';
-import SidebarSessionScheduler, { armedCount, humanizeCountdown } from '../../src/lib/components/sidebar/session-scheduler/SidebarSessionScheduler.svelte';
+import SidebarSessionScheduler, {
+	armedCount,
+	collectShelfDates,
+	deliveredCountOf,
+	filterShelfTasks,
+	humanizeCountdown,
+	shelfDateStamp
+} from '../../src/lib/components/sidebar/session-scheduler/SidebarSessionScheduler.svelte';
 import { SCHEDULER_PREFS_KEY } from '$lib/utils/scheduler-prefs';
 import type { DsiScheduledTask } from '$lib/types';
 
@@ -122,7 +129,7 @@ describe('scheduler-shelf rendered rows', () => {
 		flushSync();
 		expect((h.host.querySelector('[data-testid="scheduler-shelf-toggle"]') as HTMLButtonElement).getAttribute('aria-expanded')).toBe('false');
 		expect(h.host.querySelector('[data-testid="scheduler-shelf-row"]')).toBeNull();
-		expect(h.host.querySelector('[data-testid="scheduler-shelf-count"]')?.textContent).toBe('0');
+		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('0');
 		// The lazy-fetch discipline: a quiet shelf is a silent one — mounting
 		// the sidebar never adds wire traffic by itself (sessions-list suites
 		// share this mount and count their own fetches strictly).
@@ -132,7 +139,7 @@ describe('scheduler-shelf rendered rows', () => {
 
 	it('empty ledger: header count 0 and an honest empty line when expanded', async () => {
 		const h = await expandedShelf([]);
-		expect(h.host.querySelector('[data-testid="scheduler-shelf-count"]')?.textContent).toBe('0');
+		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('0');
 		// Wait on the EMPTY LINE itself — a 0-row predicate is vacuously true
 		// before the mount fetch resolves and `loaded` flips. The honest empty
 		// line is the em-dash (nothing to show, said without copy).
@@ -156,34 +163,47 @@ describe('scheduler-shelf rendered rows', () => {
 			mkTask({ id: 'bare', title: '', kind: null })
 		];
 		const h = await expandedShelf(items);
-		// armed/active: 'armed', 'no-next', 'bare' (mkTask defaults active) = 3.
-		expect(h.host.querySelector('[data-testid="scheduler-shelf-count"]')?.textContent).toBe('3');
+		// Unfiltered view (D4): the pending pill counts surviving rows with
+		// NO receipt (4 of 5); the delivered pill counts ended-with-receipt rows (1).
+		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('4');
+		expect(h.host.querySelector('[data-testid="scheduler-delivered-count"]')?.textContent).toBe('1');
 		const rows = [...h.host.querySelectorAll('[data-testid="scheduler-shelf-row"]')];
 		expect(rows.length).toBe(items.length);
-		const byRow = (index: number): { dot: Element | null; title: string | null; chip: string | null; meta: string | null } => {
+		const byRow = (index: number): { dot: Element | null; title: string | null; kind: string | null; kindIcon: Element | null; icon: Element | null; meta: string | null } => {
 			const row = rows[index] as HTMLElement;
 			return {
 				dot: row.querySelector('.dot'),
 				title: row.querySelector('.title')?.textContent ?? null,
-				chip: row.querySelector('.chip')?.textContent ?? null,
-				meta: row.querySelector('.meta')?.textContent ?? null
+				kind: row.querySelector('.kind')?.textContent?.trim() ?? null,
+				kindIcon: row.querySelector('.kind svg'),
+				icon: row.querySelector('.meta svg'),
+				meta: row.querySelector('.meta')?.textContent?.trim() ?? null
 			};
 		};
 		// armed row: green dot + an 'in N…' countdown (shape, not value —
 		// render-time Date.now() may have ticked past the fixture's now).
 		expect(byRow(0).dot?.classList.contains('armed')).toBe(true);
 		expect(byRow(0).meta ?? '').toMatch(/^in \d/);
+		// the recurrence cell: wire kind + its glyph (operator 2026-11-11
+		// [icon]{label} column, left-aligned fixed width).
+		expect(byRow(0).kind).toBe('at');
+		expect(byRow(0).kindIcon).not.toBeNull();
 		// absent scheduledAt on an active row → the em-dash, never invented.
 		expect(byRow(1).meta).toBe('—');
 		// paused → amber dot + em-dash meta.
 		expect(byRow(2).dot?.classList.contains('paused')).toBe(true);
 		expect(byRow(2).meta).toBe('—');
-		// ended with a receipt → gray dot + 'delivered <date>'.
+		// ended with a receipt → gray dot + CheckCheck icon (last) +
+		// relative age (operator 2026-11-11; exact date in the title).
 		expect(byRow(3).dot?.classList.contains('ended')).toBe(true);
-		expect((byRow(3).meta ?? '').startsWith('delivered ')).toBe(true);
-		// absent title/kind → em-dashes, never invented text.
+		expect(byRow(3).icon).not.toBeNull();
+		expect(byRow(3).meta ?? '').toMatch(/^(just now|\ds ago|\dm ago|\dh ago|\dd ago|—)$/);
+		// absent title/kind → em-dashes, never invented text (operator
+		// 2026-11-11: the kind cell renders the dash with NO glyph when
+		// the wire kind is unknown).
 		expect(byRow(4).title).toBe('—');
-		expect(byRow(4).chip).toBe('—');
+		expect(byRow(4).kind).toBe('—');
+		expect(byRow(4).kindIcon).toBeNull();
 		teardown(h);
 	});
 
@@ -200,11 +220,73 @@ describe('scheduler-shelf rendered rows', () => {
 		toggle.click();
 		flushSync();
 		expect(toggle.getAttribute('aria-expanded')).toBe('true');
-		// D3: persisted under the base key (no profile on this mount).
-		expect(localStorage.getItem(SCHEDULER_PREFS_KEY)).toBe('{"collapsed":false}');
+		// D3 + D5: the whole view blob persists under the base key (no
+		// profile on this mount); an unfiltered shelf stores the defaults.
+		expect(localStorage.getItem(SCHEDULER_PREFS_KEY)).toBe('{"collapsed":false,"nameFilter":"","dateFilter":"","viewMode":"all"}');
 		// Every expand re-reads the ledger (exactly 1 read so far; no timer).
 		await vi.waitFor(() => expect(vi.mocked(fetch).mock.calls.length).toBe(1));
 		teardown(h);
+	});
+});
+
+describe('scheduler-shelf filter pipeline (Filter Cluster 1.2-T)', () => {
+	const T = (over: Partial<DsiScheduledTask> & { id: string }): DsiScheduledTask => mkTask(over);
+	const receipt = { deliveredAt: '2026-11-09T08:30:00Z', targetSessionId: 's-1' };
+	const ledger = [
+		T({ id: 'armed-sched', status: 'active', title: 'Nightly report', scheduledAt: '2026-11-11T09:00:00Z' }),
+		T({ id: 'paused-sched', status: 'paused', title: 'Digest', scheduledAt: '2026-11-12T09:00:00Z' }),
+		T({ id: 'ended-receipt', status: 'ended', title: 'Ping', scheduledAt: '2026-11-14T09:00:00Z', lastDelivery: receipt }),
+		T({ id: 'ended-bare', status: 'ended', title: 'Bare end', scheduledAt: null, lastDelivery: null }),
+		T({ id: 'bad-date', status: 'active', title: 'Broken clock', scheduledAt: 'not-a-date' }),
+		T({ id: 'other-day', status: 'active', title: 'report follower', scheduledAt: '2026-11-13T09:00:00Z' })
+	];
+
+	it('shelfDateStamp mirrors deliveryDate: YYYY-MM-DD or empty', () => {
+		expect(shelfDateStamp('2026-11-11T09:00:00Z')).toBe('2026-11-11');
+		expect(shelfDateStamp(null)).toBe('');
+		expect(shelfDateStamp('')).toBe('');
+		expect(shelfDateStamp('not-a-date')).toBe('');
+	});
+
+	it('collectShelfDates stamps only parseable scheduledAt days', () => {
+		// insertion order — the delivered fixture row precedes other-day
+		expect([...collectShelfDates(ledger)]).toEqual(['2026-11-11', '2026-11-12', '2026-11-14', '2026-11-13']);
+		expect([...collectShelfDates([])]).toEqual([]);
+	});
+
+	it('deliveredCountOf counts only ended-with-receipt rows', () => {
+		expect(deliveredCountOf(ledger)).toBe(1);
+		expect(deliveredCountOf([])).toBe(0);
+	});
+
+	it('name stage: substring on title; empty title matches only the empty filter', () => {
+		expect(filterShelfTasks(ledger, 'report', '', 'all').map((t) => t.id)).toEqual(['armed-sched', 'other-day']);
+		expect(filterShelfTasks([T({ id: 'blank', title: '' })], '', '', 'all').length).toBe(1);
+		expect(filterShelfTasks([T({ id: 'blank', title: '' })], 'report', '', 'all').length).toBe(0);
+	});
+
+	it('date stage: only rows scheduled on the picked day survive', () => {
+		expect(filterShelfTasks(ledger, '', '2026-11-12', 'all').map((t) => t.id)).toEqual(['paused-sched']);
+		// unparseable scheduledAt never matches a day
+		expect(filterShelfTasks(ledger, '', '2026-11-11', 'all').map((t) => t.id)).toEqual(['armed-sched']);
+	});
+
+	it('view stage S (SC#1): pending delivery only — scheduledAt present, no receipt', () => {
+		// armed + paused + other-day await fire; the DELIVERED row with a
+		// scheduledAt (ended-receipt, 11-14) is excluded — it already fired.
+		expect(filterShelfTasks(ledger, '', '', 'scheduled').map((t) => t.id)).toEqual(['armed-sched', 'paused-sched', 'other-day']);
+		// unparseable scheduledAt is not a schedule
+		expect(filterShelfTasks([T({ id: 'bad', status: 'active', scheduledAt: 'not-a-date' })], '', '', 'scheduled')).toEqual([]);
+	});
+
+	it('view stage D: only ended-with-receipt rows survive; zero receipts reads empty', () => {
+		expect(filterShelfTasks(ledger, '', '', 'delivered').map((t) => t.id)).toEqual(['ended-receipt']);
+		expect(filterShelfTasks([T({ id: 'bare', status: 'ended', lastDelivery: null })], '', '', 'delivered')).toEqual([]);
+	});
+
+	it('the pipeline composes name → date → view', () => {
+		expect(filterShelfTasks(ledger, 'report', '2026-11-11', 'scheduled').map((t) => t.id)).toEqual(['armed-sched']);
+		expect(filterShelfTasks([], '', '', 'delivered')).toEqual([]);
 	});
 });
 
@@ -239,6 +321,109 @@ describe('scheduler-shelf click gate', () => {
 		flushSync();
 		expect(opener).toHaveBeenCalledTimes(1);
 		expect(opener).toHaveBeenCalledWith({ sessionId: 's-9', agentPreset: null });
+		teardown(h);
+	});
+});
+
+describe('scheduler-shelf host wiring (Filter Cluster 2.3-T)', () => {
+	const items = [
+		mkTask({ id: 'a', title: 'Nightly report', scheduledAt: '2026-11-11T09:00:00Z' }),
+		mkTask({ id: 'b', title: 'Morning digest', scheduledAt: '2026-11-12T09:00:00Z' }),
+		mkTask({ id: 'c', status: 'ended', title: 'One-shot ping', lastDelivery: { deliveredAt: '2026-11-09T08:30:00Z', targetSessionId: 's-1' } })
+	];
+
+	beforeEach(() => {
+		localStorage.clear();
+		vi.mocked(addPanelFromSidebar).mockClear();
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+		localStorage.clear();
+	});
+
+	it('typing in the filter shrinks rows and both pills; clearing restores', async () => {
+		const h = await expandedShelf(items);
+		const input = h.host.querySelector('[data-testid="sidebar-scheduler-filter"]') as HTMLInputElement;
+		input.value = 'report';
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		flushSync();
+		expect(h.host.querySelectorAll('[data-testid="scheduler-shelf-row"]').length).toBe(1);
+		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('1');
+		expect(h.host.querySelector('[data-testid="scheduler-delivered-count"]')?.textContent).toBe('0');
+		input.value = '';
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		flushSync();
+		expect(h.host.querySelectorAll('[data-testid="scheduler-shelf-row"]').length).toBe(3);
+		teardown(h);
+	});
+
+	it('a no-match filter renders the honest 0 + em-dash line', async () => {
+		const h = await expandedShelf(items);
+		const input = h.host.querySelector('[data-testid="sidebar-scheduler-filter"]') as HTMLInputElement;
+		input.value = 'zzz-no-match';
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		flushSync();
+		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('0');
+		expect(h.host.querySelector('.empty')?.textContent).toBe('—');
+		teardown(h);
+	});
+
+	it('the D toggle keeps only receipt rows; re-click returns to all', async () => {
+		const h = await expandedShelf(items);
+		(h.host.querySelector('[data-testid="scheduler-view-toggle-d"]') as HTMLButtonElement).click();
+		flushSync();
+		expect(h.host.querySelectorAll('[data-testid="scheduler-shelf-row"]').length).toBe(1);
+		expect(h.host.querySelector('[data-testid="scheduler-delivered-count"]')?.textContent).toBe('1');
+		// D-mode honesty: the only visible row is delivered — pending reads 0.
+		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('0');
+		(h.host.querySelector('[data-testid="scheduler-view-toggle-d"]') as HTMLButtonElement).click();
+		flushSync();
+		expect(h.host.querySelectorAll('[data-testid="scheduler-shelf-row"]').length).toBe(3);
+		teardown(h);
+	});
+
+	it('filter callbacks persist the prefs blob', async () => {
+		const h = await expandedShelf(items);
+		const input = h.host.querySelector('[data-testid="sidebar-scheduler-filter"]') as HTMLInputElement;
+		input.value = 'digest';
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		flushSync();
+		(h.host.querySelector('[data-testid="scheduler-view-toggle-s"]') as HTMLButtonElement).click();
+		flushSync();
+		expect(JSON.parse(localStorage.getItem(SCHEDULER_PREFS_KEY) ?? '{}')).toEqual({
+			collapsed: false,
+			nameFilter: 'digest',
+			dateFilter: '',
+			viewMode: 'scheduled'
+		});
+		teardown(h);
+	});
+
+	it('prefs seed the filters on mount (reloaded shelf reopens filtered)', async () => {
+		localStorage.setItem(
+			SCHEDULER_PREFS_KEY,
+			'{"collapsed":false,"nameFilter":"digest","dateFilter":"","viewMode":"all"}'
+		);
+		installFetch(items);
+		const h = mountShelf();
+		await vi.waitFor(() => {
+			expect(h.host.querySelectorAll('[data-testid="scheduler-shelf-row"]').length).toBe(1);
+		});
+		expect((h.host.querySelector('[data-testid="sidebar-scheduler-filter"]') as HTMLInputElement).value).toBe('digest');
+		teardown(h);
+	});
+
+	it('click-through is unaffected by filters (the filtered row still opens)', async () => {
+		const h = await expandedShelf([mkTask({ id: 'opens', title: 'Nightly report', targetSessionId: 's-9' })]);
+		const input = h.host.querySelector('[data-testid="sidebar-scheduler-filter"]') as HTMLInputElement;
+		input.value = 'Nightly';
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		flushSync();
+		(h.host.querySelector('[data-testid="scheduler-shelf-row"]') as HTMLElement).click();
+		flushSync();
+		expect(vi.mocked(addPanelFromSidebar)).toHaveBeenCalledWith({ sessionId: 's-9', agentPreset: null });
 		teardown(h);
 	});
 });

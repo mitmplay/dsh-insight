@@ -4,6 +4,7 @@
 	 * them directly, no mount required). Honest-em-dash discipline lives
 	 * here so the markup stays a pure projection of ledger truth.
 	 */
+	import { SvelteSet } from 'svelte/reactivity';
 
 	/**
 	 * The armed-count pill value: rows with status 'active'. The ledger's
@@ -39,17 +40,77 @@
 	}
 
 	/**
-	 * The delivery receipt's date (YYYY-MM-DD, deterministic across
-	 * locales); absent or unparseable → the em-dash.
+	 * A scheduledAt's day stamp (YYYY-MM-DD, deterministic across
+	 * locales) — the FilterDateButton dot rule + the day match (Filter
+	 * Cluster ADR D3). Absent, empty, or unparseable → '' (excluded
+	 * from the dot set, the day match, and S-mode presence).
 	 */
-	function deliveryDate(iso: string | null): string {
-		if (iso === null || iso === '') return '—';
-		const at = Date.parse(iso);
-		if (!Number.isFinite(at)) return '—';
+	export function shelfDateStamp(scheduledAt: string | null): string {
+		if (scheduledAt === null || scheduledAt === '') return '';
+		const at = Date.parse(scheduledAt);
+		if (!Number.isFinite(at)) return '';
 		const d = new Date(at);
 		const pad = (n: number): string => String(n).padStart(2, '0');
 		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 	}
+
+	/** Days holding at least one scheduled task — the calendar's dot set (D3).
+	 *  SvelteSet: the set crosses the reactivity boundary as a derived source. */
+	export function collectShelfDates(tasks: ReadonlyArray<{ scheduledAt: string | null }>): SvelteSet<string> {
+		const dates = new SvelteSet<string>();
+		for (const task of tasks) {
+			const stamp = shelfDateStamp(task.scheduledAt);
+			if (stamp !== '') dates.add(stamp);
+		}
+		return dates;
+	}
+
+	/** Ended rows carrying a delivery receipt — the D slice + its pill (D2/D4). */
+	export function deliveredCountOf(tasks: ReadonlyArray<{ status: string; lastDelivery: unknown }>): number {
+		let n = 0;
+		for (const task of tasks) if (task.status === 'ended' && task.lastDelivery !== null) n += 1;
+		return n;
+	}
+
+	/**
+	 * Rows in the view still awaiting a delivery receipt — the pending
+	 * pill (operator amendment 2026-11-11): everything the delivered
+	 * pill does not count, slice-faithful (D4). An ended row without a
+	 * receipt is pending, not delivered.
+	 */
+	export function pendingCountOf(tasks: ReadonlyArray<{ status: string; lastDelivery: unknown }>): number {
+		return tasks.length - deliveredCountOf(tasks);
+	}
+
+	/**
+	 * The filter pipeline (Filter Cluster ADR flowchart): name → date →
+	 * view. Empty filters pass their stage; 'scheduled' (operator
+	 * amendment SC#1 2026-11-11) keeps rows still awaiting delivery —
+	 * scheduledAt present-and-parseable AND no receipt yet (a delivered
+	 * row is no longer scheduled to fire); 'delivered' keeps ended rows
+	 * with a receipt only.
+	 */
+	export function filterShelfTasks<T extends { title: string; scheduledAt: string | null; status: string; lastDelivery: unknown }>(
+		tasks: ReadonlyArray<T>,
+		nameFilter: string,
+		dateFilter: string,
+		viewMode: 'all' | 'scheduled' | 'delivered'
+	): T[] {
+		const kept: (typeof tasks)[number][] = [];
+		for (const task of tasks) {
+			// Stage 1 — name: a non-empty filter keeps title substrings (an
+			// empty title matches only the empty filter — never invented).
+			if (nameFilter !== '' && !task.title.includes(nameFilter)) continue;
+			// Stage 2 — date: a picked day keeps rows scheduled on it.
+			if (dateFilter !== '' && shelfDateStamp(task.scheduledAt) !== dateFilter) continue;
+			// Stage 3 — view (D2; S = pending delivery, SC#1 2026-11-11).
+			if (viewMode === 'scheduled' && (shelfDateStamp(task.scheduledAt) === '' || (task.status === 'ended' && task.lastDelivery !== null))) continue;
+			if (viewMode === 'delivered' && !(task.status === 'ended' && task.lastDelivery !== null)) continue;
+			kept.push(task);
+		}
+		return kept;
+	}
+
 </script>
 
 <script lang="ts">
@@ -58,8 +119,10 @@
 	 * W2 task 2.3): a collapsed-by-default line between SidebarOpenPanels
 	 * and SidebarSessionFilter (D2 placement, D3 per-profile fold) that,
 	 * expanded, lists the host's scheduled tasks — status dot (armed
-	 * green / paused amber / ended gray), kind chip, honest countdown or
-	 * delivery receipt, em-dash for every absent field.
+	 * green / paused amber / ended gray), honest countdown or delivery
+	 * receipt (CheckCheck + relative age), em-dash for every absent
+	 * field. The kind chip is gone (operator 2026-11-11: every row read
+	 * the same 'rrule' — noise, not information).
 	 *
 	 * READ-ONLY surface (D4): the only wire traffic is the unary
 	 * schedule/list read behind GET /api/dsh/schedule — fetched on mount
@@ -73,11 +136,10 @@
 	 */
 	import { onMount } from 'svelte';
 	import SidebarSessionSchedulerHeader from './SidebarSessionSchedulerHeader.svelte';
-	import { resolve } from '$app/paths';
-	import { addPanelFromSidebar } from '$lib/services/panels/panel-registry';
+	import SidebarSessionSchedulerList from './SidebarSessionSchedulerList.svelte';
 	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
-	import { conversationSeedUrl } from '$lib/utils/seed-url';
-	import { loadSchedulerPrefs, saveSchedulerPrefs } from '$lib/utils/scheduler-prefs';
+	import { addPanelFromSidebar } from '$lib/services/panels/panel-registry';
+	import { loadSchedulerPrefs, saveSchedulerPrefs, type SchedulerViewMode } from '$lib/utils/scheduler-prefs';
 	import type { DsiScheduledTask } from '$lib/types';
 
 	/** The active workspace profile — the sidebar-row source of truth. */
@@ -85,12 +147,38 @@
 		return getWorkspaceState()?.profile ?? null;
 	}
 
-	// D2/D3: the fold seeds ONCE at component init from the persisted prefs
-	// (SSR has no localStorage → the collapsed default); every toggle
-	// persists immediately. No mount effect, no state assignment in one.
-	let collapsed = $state(loadSchedulerPrefs(currentProfile()).collapsed);
+	// D2/D3 + Filter Cluster D5: the fold AND the filters seed ONCE at
+	// component init from the persisted prefs (SSR has no localStorage →
+	// the defaults); every change persists immediately. No mount effect,
+	// no state assignment in one.
+	const seededPrefs = loadSchedulerPrefs(currentProfile());
+	let collapsed = $state(seededPrefs.collapsed);
+	let nameFilter = $state(seededPrefs.nameFilter);
+	let dateFilter = $state(seededPrefs.dateFilter);
+	let viewMode = $state<SchedulerViewMode>(seededPrefs.viewMode);
 	let tasks = $state.raw<DsiScheduledTask[]>([]);
 	let loaded = $state(false);
+
+	/** Persist the whole view blob (fold + filters) — best-effort (D5). */
+	function persistPrefs(): void {
+		saveSchedulerPrefs({ collapsed, nameFilter, dateFilter, viewMode }, currentProfile());
+	}
+
+	/** Filter-row callbacks — the header stays stateless (D1), the host owns + persists. */
+	function onFilterInput(event: Event): void {
+		nameFilter = (event.currentTarget as HTMLInputElement).value;
+		persistPrefs();
+	}
+
+	function onDateChange(date: string): void {
+		dateFilter = date;
+		persistPrefs();
+	}
+
+	function onViewChange(next: SchedulerViewMode): void {
+		viewMode = next;
+		persistPrefs();
+	}
 
 	async function fetchTasks(): Promise<void> {
 		try {
@@ -121,7 +209,7 @@
 	/** Chevron click — fold/unfold, persist, and re-read the ledger on expand. */
 	function toggle(): void {
 		collapsed = !collapsed;
-		saveSchedulerPrefs({ collapsed }, currentProfile());
+		persistPrefs();
 		if (!collapsed) void fetchTasks();
 	}
 
@@ -129,6 +217,8 @@
 	 * Row click-through — ONLY with a target session (the click gate):
 	 * the sidebar-row verb (addPanelFromSidebar); handled → the anchor's
 	 * default navigation is swallowed, no floor → the seed href navigates.
+	 * (Rendered by SidebarSessionSchedulerList; the gate logic stays with
+	 * the host so the List remains a pure projection.)
 	 */
 	function onRowClick(event: MouseEvent, task: DsiScheduledTask): void {
 		if (task.targetSessionId === null || task.targetSessionId === '') return;
@@ -136,75 +226,51 @@
 		if (handled) event.preventDefault();
 	}
 
-	/** The seed deep link's query part for a target-bearing row (no-floor fallback). */
-	function shelfSeed(task: DsiScheduledTask): string {
-		return conversationSeedUrl(task.targetSessionId ?? '', currentProfile());
-	}
-
-	/** The row's honest trailing meta: countdown / receipt / em-dash. */
-	const rowMeta = $derived.by(() => {
-		return new Map(
-			tasks.map((task) => [
-				task.id,
-				task.status === 'active'
-					? humanizeCountdown(task.scheduledAt, Date.now())
-					: task.status === 'ended' && task.lastDelivery !== null
-						? `delivered ${deliveryDate(task.lastDelivery.deliveredAt)}` // i18n-skip: keys pending approval
-						: '—'
-			])
-		);
-	});
+	// The filter pipeline (Filter Cluster ADR): the ledger's truth stays
+	// in `tasks`; everything below is a recomputed projection.
+	const shelfDates = $derived(collectShelfDates(tasks));
+	const filteredTasks = $derived(filterShelfTasks(tasks, nameFilter, dateFilter, viewMode));
 </script>
 
 <div class="shelf" data-testid="scheduler-shelf">
-	<SidebarSessionSchedulerHeader {collapsed} count={armedCount(tasks)} ontoggle={toggle} />
+	<SidebarSessionSchedulerHeader
+		{collapsed}
+		pendingCount={pendingCountOf(filteredTasks)}
+		deliveredCount={deliveredCountOf(filteredTasks)}
+		{nameFilter}
+		{dateFilter}
+		{viewMode}
+		sessionDates={shelfDates}
+		ontoggle={toggle}
+		onfilterinput={onFilterInput}
+		ondatechange={onDateChange}
+		onviewchange={onViewChange}
+	/>
 	{#if !collapsed}
-		<div class="rows">
-			{#if !loaded}
-				<!-- first read in flight: show nothing rather than a premature empty line -->
-			{:else if tasks.length === 0}
-				<!-- the honest empty line: nothing to show, said without copy -->
-				<p class="empty">—</p>
-			{:else}
-				{#each tasks as task (task.id)}
-					{#if task.targetSessionId !== null && task.targetSessionId !== ''}
-						<a
-							class="row"
-							href={resolve(shelfSeed(task) as '/')}
-							data-testid="scheduler-shelf-row"
-							onclick={(event) => onRowClick(event, task)}
-						>
-							{@render rowBody(task)}
-						</a>
-					{:else}
-						<!-- inert: 'new'-kind targets reserve no session to open -->
-						<div class="row" data-testid="scheduler-shelf-row">
-							{@render rowBody(task)}
-						</div>
-					{/if}
-				{/each}
-			{/if}
-		</div>
+		<SidebarSessionSchedulerList tasks={filteredTasks} {loaded} onrowclick={onRowClick} />
 	{/if}
 </div>
-
-{#snippet rowBody(task: DsiScheduledTask)}
-	<span
-		class="dot"
-		class:armed={task.status === 'active'}
-		class:paused={task.status === 'paused'}
-		class:ended={task.status === 'ended'}
-	></span>
-	<span class="title">{task.title !== '' ? task.title : '—'}</span>
-	<span class="chip">{task.kind ?? '—'}</span>
-	<span class="meta">{rowMeta.get(task.id) ?? '—'}</span>
-{/snippet}
 
 <style>
 	/* The panel-group box grammar (SidebarSessionFilter's sibling voice):
 	   accent-tinted border, radius, margins — the shelf reads as a
 	   sibling of the Focused/Filter boxes above/below it. */
 	.shelf {
+		/* Animated gradient surface (Filter Cluster ADR D6, task 3.1) — a
+		   component-local copy of the AppSidebarHeader rail-header grammar
+		   (KEEP IN SYNC with AppSidebarHeader.svelte — the rail gradient is
+		   the grammar's OWNER): oversized 300% x 300% linear-gradient panned
+		   by a 12s background-position loop. Stops are light pastel maroon
+		   (the #fbe4e4 / #f5d0d5 / #f8dede family), AA-checked against the
+		   shelf's text inks: --color-text-primary #212529 = ~12.7:1 on the
+		   palest stop — the shelf's titles always clear AA; the secondary
+		   tone (chips/meta) sits on its own pill/hover fields, per the rail
+		   header precedent. Dark lamp (ADR-0023): the same hues re-tuned
+		   with luminance-dropped stops under html[data-theme='dark']. */
+		--shelf-gradient: linear-gradient(120deg, #fbe4e4, #f5d0d5, #f8dede, #fbe4e4);
+		background: var(--shelf-gradient);
+		background-size: 300% 300%;
+		animation: shelf-gradient 12s ease-in-out infinite;
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
@@ -215,76 +281,30 @@
 		border-radius: 0.5rem;
 	}
 
-	.rows {
-		display: flex;
-		flex-direction: column;
-		gap: 0.125rem;
-		min-width: 0;
+	/* Dark lamp: same maroon hues, dropped luminance — the shelf stays a
+	   readable sibling of the dark rail. */
+	:global(html[data-theme='dark']) .shelf {
+		--shelf-gradient: linear-gradient(120deg, #402a2a, #33201f, #3c2626, #402a2a);
 	}
 
-	.row {
-		display: flex;
-		align-items: center;
-		gap: 0.3rem;
-		min-width: 0;
-		padding: 0.2rem 0.3rem;
-		border-radius: 0.375rem;
-		font-size: 0.6875rem;
-		color: var(--color-text-primary, #212529);
-		text-decoration: none;
+	@keyframes shelf-gradient {
+		0% {
+			background-position: 0% 50%;
+		}
+		50% {
+			background-position: 100% 50%;
+		}
+		100% {
+			background-position: 0% 50%;
+		}
 	}
 
-	a.row:hover {
-		background-color: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
+	/* Reduced motion: the pan is decoration — turn the ANIMATION off, the
+	   gradient tint itself stays (AppSidebarHeader grammar). */
+	@media (prefers-reduced-motion: reduce) {
+		.shelf {
+			animation: none;
+		}
 	}
 
-	/* Status dots — armed green / paused amber / ended gray, via the
-	   theme's status tokens (both themes). */
-	.dot {
-		width: 0.5rem;
-		height: 0.5rem;
-		flex-shrink: 0;
-		border-radius: 999px;
-		background: var(--color-text-muted, #868e96);
-	}
-	.dot.armed {
-		background: var(--color-status-pass, #10b981);
-	}
-	.dot.paused {
-		background: var(--color-status-pending, #f59e0b);
-	}
-	.dot.ended {
-		background: var(--color-text-muted, #868e96);
-	}
-
-	.title {
-		flex: 1;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.chip {
-		flex-shrink: 0;
-		padding: 0 0.3rem;
-		border-radius: 0.25rem;
-		font-size: 0.625rem;
-		color: var(--color-text-secondary, #6c757d);
-		background: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
-	}
-
-	.meta {
-		flex-shrink: 0;
-		font-size: 0.625rem;
-		color: var(--color-text-secondary, #6c757d);
-		white-space: nowrap;
-	}
-
-	.empty {
-		margin: 0;
-		padding: 0.15rem 0.3rem;
-		font-size: 0.6875rem;
-		color: var(--color-text-secondary, #6c757d);
-	}
 </style>

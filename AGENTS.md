@@ -48,6 +48,18 @@ or forget where it is:
   goal complete. Escape hatch: the operator may say "execute here" for a
   tiny wave — then the in-session rules above apply unchanged. The ceremony
   half does not get cheaper by this — never split mid-discovery.
+- ⛔ **NO POLLING ROUNDS ONCE THE SCHEDULE EXISTS (2026-11-11, the
+  12-round burn)**: after the `schedule_create` handoff is created, the
+  planner's job is DONE for this stage — do NOT sit in goal-round
+  continuation polling the clock or `git status` waiting for the executor
+  session to fire (12 rounds of "still 17:31" burned pure tokens). The
+  schedule is the waiting mechanism; its delivery wakes the executor, and
+  the executor's completion report reaches the operator, not the planner.
+  Instead: `update_goal pause` immediately after creating the schedule,
+  post a standing-state summary (what is committed, which session, what
+  the resume instruction is), and idle. Resume only when the operator
+  brings the executor's report (or asks to check on it) — then
+  `update_goal resume` and run the DoD verification gate.
 - **At every step**, keep the todos 1:1 with the ASDLC stage boundaries:
   mark the current stage `in_progress`, the finished one `completed`.
 - **On resume after a pause or fork**, re-arm with `update_goal resume`
