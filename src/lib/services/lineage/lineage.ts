@@ -325,7 +325,7 @@ export function familyRenderOrder<TPanel extends FamilyMember, TGhost extends Fa
  * SUB-AGENT visible ANYWHERE under an open panel's subtree (as panel row
  * or nested ghost) never renders as a spine row. Remaining sub-agents
  * stay in the list — they nest under their parent when the parent row
- * renders (SidebarSessionsList, task 4.1) or degrade to root.
+ * renders (SidebarSessionList, task 4.1) or degrade to root.
  *
  * DELIBERATELY spawn-only (2026-09-01): a fork child is never suppressed.
  * A closed fork renders NOWHERE but the spine — it is not a panel row, not

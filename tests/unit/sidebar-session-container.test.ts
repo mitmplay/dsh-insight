@@ -1,6 +1,6 @@
 /**
  * SidebarSessionContainer unit tests — the sidebar's session-rows shell:
- * the separator plus the filtered recency spine (SidebarSessionsList)
+ * the separator plus the filtered recency spine (SidebarSessionList)
  * threaded through untouched. Purely presentational — the tests pin the
  * pass-through wiring (rows render, depth map rides along, spine
  * changes relay up to onspinechange).
@@ -64,7 +64,7 @@ describe('SidebarSessionContainer — rows shell', () => {
 		expect(h.querySelector('[data-testid="sidebar-sessions-list"]')).not.toBeNull();
 		expect(h.querySelector('hr')).not.toBeNull();
 		expect(h.querySelector('[data-testid="sidebar-spine-group"]')).not.toBeNull();
-		// The spine renders the session row through SidebarSessionsList.
+		// The spine renders the session row through SidebarSessionList.
 		expect(h.querySelector('[data-testid="sidebar-spine-group-rows"]')).not.toBeNull();
 	});
 

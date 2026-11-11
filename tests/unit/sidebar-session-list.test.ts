@@ -1,5 +1,5 @@
 /**
- * SidebarSessionsList unit tests — the sidebar's filtered session rows
+ * SidebarSessionList unit tests — the sidebar's filtered session rows
  * (the recency spine group). Direct mounts with the owner's view state
  * as a plain prop; every interaction reports through onspinechange.
  *
@@ -14,7 +14,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import SidebarSessionsList from '../../src/lib/components/sessions/SidebarSessionsList.svelte';
+import SidebarSessionList from '../../src/lib/components/sidebar/session-list/SidebarSessionList.svelte';
 import { heartbeatScope } from '../../src/lib/services/jobs/heartbeat-scope.svelte';
 import { defaultSpineGroupPrefs } from '../../src/lib/utils/spine-group-prefs';
 import type { DsiSessionSummary, DsiWorkspaceSummary } from '../../src/lib/types';
@@ -50,7 +50,7 @@ let host: HTMLElement | null = null;
 function mountList(props: Partial<Record<string, unknown>> = {}): HTMLElement {
 	host = document.createElement('div');
 	document.body.appendChild(host);
-	instance = mount(SidebarSessionsList, {
+	instance = mount(SidebarSessionList, {
 		target: host,
 		props: {
 			current: null,
@@ -75,7 +75,7 @@ afterEach(() => {
 	heartbeatScope.reset();
 });
 
-describe('SidebarSessionsList — the recency spine group', () => {
+describe('SidebarSessionList — the recency spine group', () => {
 	it('renders rows for the visible list through RowSessionItem', () => {
 		const h = mountList();
 		expect(h.querySelector('[data-testid="sidebar-spine-pane"]')).not.toBeNull();
@@ -94,7 +94,7 @@ describe('SidebarSessionsList — the recency spine group', () => {
 		// Mount again in the collapsed state → the report flips back.
 		const h2host = document.createElement('div');
 		document.body.appendChild(h2host);
-		const i2 = mount(SidebarSessionsList, {
+		const i2 = mount(SidebarSessionList, {
 			target: h2host,
 			props: {
 				current: null,

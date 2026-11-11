@@ -10,6 +10,7 @@
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import AppSidebar from '$lib/components/common/layout/AppSidebar.svelte';
+	import DeadSessionCard from '$lib/components/sessions/DeadSessionCard.svelte';
 	import ConversationPanel from '$lib/components/conversation/panel/ConversationPanel.svelte';
 	import PromptManagerPanel from '$lib/components/prompt-manager/PromptManagerPanel.svelte';
 	import ChordPalette from '$lib/components/panels/ChordPalette.svelte';
@@ -272,7 +273,9 @@
 	);
 	const sidebarPlacement = $derived(appConfig().sidebar.placement);
 	const sidebarInZoom = $derived(sidebarPlacement === 'panels-zoom' && !pagePrefs.sidebarCollapsed);
-	pageFeeds.installFeeds(() => conversationPanels.map((p) => p.sessionId));
+	// ADR-0059 D1: the wire fetcher arms the ledger-birth watcher — a dead
+	// panel whose reserved session is born self-heals (clear + cold re-run).
+	pageFeeds.installFeeds(() => conversationPanels.map((p) => p.sessionId), (id) => floorApi.fetchColdFromWire(id));
 
 	async function ensureCold(sessionId: string): Promise<void> {
 		await pageFeeds.runCold(sessionId, floorApi.fetchColdFromWire);
@@ -877,16 +880,13 @@
 		{@const p = panel}
 		{#key p.sessionId}
 			{#if pageFeeds.deadSessions[p.sessionId]}
-				<div class="panel-error" data-testid="panel-error" role="alert">
-					<p>{pageFeeds.deadSessions[p.sessionId]}</p>
-					<button
-						type="button"
-						data-testid="panel-error-close"
-						onclick={() => floorApi.removePanel(p.id)}
-					>
-						Close
-					</button>
-				</div>
+				<!-- Born-Late Panel (ADR-0059 T3): the dead card is one owned
+				     component; the retry rides the route's wire fetcher. -->
+				<DeadSessionCard
+					message={pageFeeds.deadSessions[p.sessionId]}
+					onretry={() => void pageFeeds.retryDead(p.sessionId, (id) => floorApi.fetchColdFromWire(id))}
+					onclose={() => floorApi.removePanel(p.id)}
+				/>
 			{:else if pageFeeds.coldCache[p.sessionId]}
 				{@const cold = pageFeeds.coldCache[p.sessionId]!}
 				<ConversationPanel
@@ -1056,30 +1056,6 @@
 		flex: 1;
 		min-width: 0;
 		min-height: 0;
-	}
-
-	.panel-error {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.75rem;
-		height: 100%;
-		padding: 1rem;
-		text-align: center;
-		color: var(--si-run);
-		background: var(--color-danger-wash);
-		font-size: 0.8125rem;
-	}
-
-	.panel-error button {
-		border: 1px solid var(--color-danger-wash-border);
-		border-radius: 0.375rem;
-		background: var(--color-surface-elevated);
-		color: var(--si-run);
-		padding: 0.25rem 0.75rem;
-		font-size: 0.75rem;
-		cursor: pointer;
 	}
 
 	.panel-loading {

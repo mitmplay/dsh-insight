@@ -37,7 +37,7 @@
 	let {
 		/** Fresh session created in the adopted workspace — parent navigates. */
 		oncreated,
-		/** Selected agent preset (SessionFilterRow pill) — rides the create
+		/** Selected agent preset (SidebarSessionFilter pill) — rides the create
 		 *  so the fresh session runs THAT agent (2026-09-15 bug: the create
 		 *  always landed on the host default). Null falls back to the host
 		 *  default, as before. */

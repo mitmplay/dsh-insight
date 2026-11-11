@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * Workspaces — the workspace pill group of SessionFilterRow (extracted
+	 * Workspaces — the workspace pill group of SidebarSessionFilter (extracted
 	 * 2026-08-24): Folder/blue pills A–Z over the union of session cwds
 	 * and registry workspaces, session-count badged — a freshly adopted
 	 * folder renders selectable at count 0 (the pills arm + New chat, not
@@ -21,7 +21,7 @@
 	 * visible is noise. The pills return the moment the view lifts.
 	 * Ghosts are never removed from the DERIVATION — only from this
 	 * render. Purely presentational — the option list arrives derived
-	 * (session-filters), the filter state lives in SessionFilterRow; a
+	 * (session-filters), the filter state lives in SidebarSessionFilter; a
 	 * pick reports the key upward and the owner toggles the dimension.
 	 *
 	 * The trailing divider (2026-09-04 — the group now LEADS the row's

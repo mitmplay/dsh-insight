@@ -336,7 +336,7 @@ export function removePanel(panelId: string, opts: { family?: boolean } = {}): v
 	// 2026-10-24 (Glass Close Ladder Amendment 2): a cascade dooms the
 	// browser PANEL only. The wire session SURVIVES the opener close — the
 	// slot tick folds it and the lineage-tree ghost nests it under the
-	// opener family in SidebarSessionsList. The ONLY wire killers are the
+	// opener family in SidebarSessionList. The ONLY wire killers are the
 	// header trash (the route's onclose → releaseGlasses) and the reaper.
 	// A browser with no provenance (ControlBar open) has no family and
 	// survives every cascade.

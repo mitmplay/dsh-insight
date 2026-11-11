@@ -1,6 +1,6 @@
 /**
  * Spine-group preferences — persisted state for the sidebar's session
- * spine group (SidebarSessionsList's collapse/expand header, 2026-09-01):
+ * spine group (SidebarSessionList's collapse/expand header, 2026-09-01):
  * the collapsed flag, the session-name filter text, the sub-agent
  * visibility toggle, and the date filter (2026-09-04). One key for one
  * state object; every field survives a hard reload per workspace desk.

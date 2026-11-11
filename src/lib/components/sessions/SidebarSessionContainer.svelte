@@ -2,9 +2,9 @@
 	/**
 	 * SidebarSessionContainer — the sidebar's session-rows shell: the
 	 * scrolling column assembling the separator and the filtered recency
-	 * spine (SidebarSessionsList). The pinned panel group
+	 * spine (SidebarSessionList). The pinned panel group
 	 * (SidebarOpenPanels) moved OUT to SessionsList (2026-08-26) —
-	 * it now renders above the SessionFilterRow pills, outside this
+	 * it now renders above the SidebarSessionFilter pills, outside this
 	 * column. Purely presentational: data loading and filter derivation
 	 * live in SidebarSessions (the owner).
 	 *
@@ -23,7 +23,7 @@
 	 */
 	import type { SpineGroupPrefs } from '$lib/utils/spine-group-prefs';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
-	import SidebarSessionsList from './SidebarSessionsList.svelte';
+	import SidebarSessionList from '../sidebar/session-list/SidebarSessionList.svelte';
 
 	let {
 		/** Pinned current session — rendered first, never filtered away. */
@@ -58,7 +58,7 @@
 
 <div class="list" data-testid="sidebar-sessions-list">
 	<hr/>
-	<SidebarSessionsList {current} {visible} {depthById} {workspaces} {sessionDates} {spine} {onspinechange} />
+	<SidebarSessionList {current} {visible} {depthById} {workspaces} {sessionDates} {spine} {onspinechange} />
 </div>
 
 <style>

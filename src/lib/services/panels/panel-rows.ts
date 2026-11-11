@@ -283,6 +283,10 @@ export function panelRowsFor(input: PanelRowsInput): PanelRow[] {
 			kind: 'panel' as const,
 			parentSessionId,
 			fork: parentSessionId !== null && (summary?.origin ?? null) !== 'subagent',
+			// Scheduled Mark (ADR-0057 D1): the spine summary's origin rides
+			// to the row so the SCH pill derives in the row-item layer —
+			// display passthrough only, never a behavior branch (D3).
+			origin: summary?.origin ?? null,
 			spawnerTitle,
 			siblingIndex:
 				parentSessionId !== null

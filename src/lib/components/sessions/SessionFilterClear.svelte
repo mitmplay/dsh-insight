@@ -2,7 +2,7 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	/**
-	 * SessionFilterClear — the `All` pill of SessionFilterRow (extracted
+	 * SessionFilterClear — the `All` pill of SidebarSessionFilter (extracted
 	 * 2026-09-04): one button that clears EVERY dimension — workspace,
 	 * preset, and the count toggle's blankMode. Fully presentational:
 	 * the live filter state arrives, the clear REQUEST reports upward

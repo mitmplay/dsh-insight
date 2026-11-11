@@ -4,7 +4,7 @@
 	/**
 	 * NewChatButton — one-click session create (2026-08-24 revision).
 	 *
-	 * The agent/workspace pills in SessionFilterRow ARE the selection: this
+	 * The agent/workspace pills in SidebarSessionFilter ARE the selection: this
 	 * button creates the session directly from them — no picker dialog.
 	 * The agent dimension must be armed: an unselected agent is
 	 * answered with an inline alert ("You cannot chat unless you select an
@@ -36,9 +36,9 @@
 		/** Called with the fresh sessionId when the Replace verb runs;
 		 *  absent = the mode toggle does not render. */
 		onreplace = null,
-		/** Selected agent preset id (SessionFilterRow pill) — required. */
+		/** Selected agent preset id (SidebarSessionFilter pill) — required. */
 		agent = null,
-		/** Selected workspace cwd (SessionFilterRow pill) — optional; when
+		/** Selected workspace cwd (SidebarSessionFilter pill) — optional; when
 		 *  null the host serves the session from its own default directory. */
 		workspace = null,
 		/** Compact variant — full-width ghost button for tight containers

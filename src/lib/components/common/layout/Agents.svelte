@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * Agents — the agent pill group of SessionFilterRow (extracted
+	 * Agents — the agent pill group of SidebarSessionFilter (extracted
 	 * 2026-08-24): Bot/purple pills A–Z, one per preset the HOST offers
 	 * (agentPreset.list), session-count badged — count 0 for agents with
 	 * no sessions yet. Labels are the host's display names (DSH picker
@@ -11,7 +11,7 @@
 	 * they filter the list AND arm + New chat with the selected agent,
 	 * so an available-but-unused agent must render selectable. Purely
 	 * presentational — the option list arrives derived (session-filters),
-	 * the filter state lives in SessionFilterRow; a pick reports the key
+	 * the filter state lives in SidebarSessionFilter; a pick reports the key
 	 * upward and the owner toggles the dimension.
 	 */
 	import AgentChip from '../buttons/AgentChip.svelte';

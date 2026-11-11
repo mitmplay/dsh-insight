@@ -80,9 +80,9 @@
 	import { familyRenderOrder } from '$lib/services/lineage/lineage';
 	import type { DsiWorkspaceSummary } from '$lib/types';
 	import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
-	import SidebarOpenPanelHeader from './SidebarOpenPanelHeader.svelte';
-	import SidebarOpenPanelRows from './SidebarOpenPanelRows.svelte';
-	import SidebarOpenPanelTree from './SidebarOpenPanelTree.svelte';
+	import SidebarOpenPanelHeader from '../../sessions/SidebarOpenPanelHeader.svelte';
+	import SidebarOpenPanelRows from '../../sessions/SidebarOpenPanelRows.svelte';
+	import SidebarOpenPanelTree from '../../sessions/SidebarOpenPanelTree.svelte';
 
 	let {
 		workspaces
@@ -654,7 +654,7 @@
 		min-width: 0;
 	}
 	/* Sub-agent view-filter button (2026-10-31): a byte-faithful port of
-	   the spine's .subagents-btn grammar (SidebarSessionsList) — one
+	   the spine's .subagents-btn grammar (SidebarSessionList) — one
 	   button, one look, the two headers can never drift. */
 	.subagents-btn {
 		flex-shrink: 0;

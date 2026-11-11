@@ -111,7 +111,7 @@
 	} = $props();
 
 	// Session-filter state: owned HERE so the body's one filter row (pills
-	// AND the conversation-count toggle inside SessionFilterRow) shares a
+	// AND the conversation-count toggle inside SidebarSessionFilter) shares a
 	// single state with anything else the rail ever reads. Layout state
 	// (collapsed/width) stays page-owned — list-filtering is a sidebar
 	// concern, not a page one. The WHOLE filter (pills + toggle) seeds

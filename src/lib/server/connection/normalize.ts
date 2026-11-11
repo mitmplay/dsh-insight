@@ -178,8 +178,9 @@ export interface RawSessionRow {
 	agentPreset?: string;
 	parentSessionId?: string;
 	/** Coarse durable origin (DSH session.list passthrough) — 'subagent'
-	 *  marks spawned sessions; absent on user-created ones. */
-	origin?: 'subagent';
+	 *  marks spawned sessions; 'scheduled' marks scheduler-born ones
+	 *  (ADR-0057 D1); absent on user-created ones. */
+	origin?: 'subagent' | 'scheduled';
 	/** Host stats block on the session.list projection (2026-08-25 a2a
 	 *  watermark — Watcher ADR §2); absent on hosts/rows without stats. */
 	sessionStats?: { turns?: unknown };
@@ -231,8 +232,9 @@ export interface DsiSessionSummaryPlus {
 	turns: number | null;
 	/** Spawner session id (fork/spawn lineage passthrough); null for roots. */
 	parentSessionId: string | null;
-	/** 'subagent' when the harness spawned this session; null for user-made. */
-	origin: 'subagent' | null;
+	/** 'subagent' when the harness spawned this session, 'scheduled'
+	 *  when the scheduler opened it (ADR-0057 D1); null for user-made. */
+	origin: 'subagent' | 'scheduled' | null;
 }
 
 function readTitle(row: RawSessionRow): string | null {

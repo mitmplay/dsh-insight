@@ -1,6 +1,6 @@
 /**
  * SessionFilterClear unit tests — pins the presentational contract of
- * SessionFilterClear.svelte (the `All` pill of SessionFilterRow,
+ * SessionFilterClear.svelte (the `All` pill of SidebarSessionFilter,
  * extracted 2026-09-04):
  *  - one button, testid `filter-all`, title "Clear every filter";
  *  - `on` + aria-pressed="true" only when NOTHING filters (workspace,

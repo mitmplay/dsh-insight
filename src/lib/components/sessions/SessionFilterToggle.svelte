@@ -4,8 +4,8 @@
 	/**
 	 * SessionFilterToggle — the conversation-count/workspace segmented
 	 * toggle (EmptySessionFilter until 2026-08-26; SessionFilter until
-	 * 2026-09-04; extracted from SessionFilterRow 2026-08-23). Rendered
-	 * BY SessionFilterRow, immediately after the `All` clear pill
+	 * 2026-09-04; extracted from SidebarSessionFilter 2026-08-23). Rendered
+	 * BY SidebarSessionFilter, immediately after the `All` clear pill
 	 * (SessionFilterClear since 2026-09-04): one filter row, one
 	 * reading order, no second placement to miss.
 	 *

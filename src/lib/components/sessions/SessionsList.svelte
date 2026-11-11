@@ -6,7 +6,7 @@
 	 * SidebarSessions, 2026-08-24): the phase branches (loading / error /
 	 * ready), the pinned panel group (SidebarOpenPanels, moved here
 	 * 2026-08-26 — above the pills, so the floor's live set stays visible
-	 * without scrolling past the filter controls), the SessionFilterRow
+	 * without scrolling past the filter controls), the SidebarSessionFilter
 	 * pills, the rows (SidebarSessionContainer), and the "+ New chat"
 	 * footer (SidebarFooter, extracted 2026-09-04). Purely presentational:
 	 * data loading, the refresh cadence, and filter derivation stay in
@@ -16,8 +16,9 @@
 	import type { SpineGroupPrefs } from '$lib/utils/spine-group-prefs';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
 	import type { FilterOption, SessionFilterState } from '$lib/utils/session-filters';
-	import SidebarOpenPanels from './SidebarOpenPanels.svelte';
-	import SessionFilterRow from './SessionFilterRow.svelte';
+	import SidebarOpenPanels from '../sidebar/session-open/SidebarOpenPanels.svelte';
+	import SidebarSessionScheduler from '../sidebar/session-scheduler/SidebarSessionScheduler.svelte';
+	import SidebarSessionFilter from '../sidebar/session-filter/SidebarSessionFilter.svelte';
 	import SidebarSessionContainer from './SidebarSessionContainer.svelte';
 	import SidebarFooter from './SidebarFooter.svelte';
 	import { heartbeatScope } from '$lib/services/jobs/heartbeat-scope.svelte';
@@ -85,7 +86,8 @@
 		<p class="hint error" data-testid="sidebar-sessions-error" role="alert">{message}</p>
 	{:else}
 		<SidebarOpenPanels {workspaces} />
-		<SessionFilterRow workspaces={wsPills} {presets} {filter} onchange={onfilterchange} {oncreated} registry={workspaces} />
+		<SidebarSessionScheduler />
+		<SidebarSessionFilter workspaces={wsPills} {presets} {filter} onchange={onfilterchange} {oncreated} registry={workspaces} />
 
 		<!-- ADR-0034 D2 — the ALWAYS set (panels + current) is fed to the
 		     heartbeat scope from the script effect below, not from markup. -->

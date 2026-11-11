@@ -1,5 +1,5 @@
 /**
- * SidebarSessionsList — header VIEW state rendering (unit lane).
+ * SidebarSessionList — header VIEW state rendering (unit lane).
  *
  * Component-direct mount (sidebar-panel-list.test.ts / sessions-list.test.ts
  * pattern): the shell receives resolved spine view state and reports writes
@@ -31,7 +31,7 @@ vi.mock('$lib/components/common/buttons/FilterDateButton.svelte', async () => {
 	return { default: FilterDateButtonStub };
 });
 
-import SidebarSessionsList from '$lib/components/sessions/SidebarSessionsList.svelte';
+import SidebarSessionList from '$lib/components/sidebar/session-list/SidebarSessionList.svelte';
 
 /** One summary row — the full DsiSessionSummary shape. */
 function summary(
@@ -60,7 +60,7 @@ function mountList(props: {
 }) {
 	const target = document.createElement('div');
 	document.body.appendChild(target);
-	const instance = mount(SidebarSessionsList, {
+	const instance = mount(SidebarSessionList, {
 		target,
 		props: {
 			current: props.current ?? null,
@@ -82,7 +82,7 @@ afterEach(() => {
 	localStorage.clear();
 });
 
-describe('SidebarSessionsList — header VIEW state', () => {
+describe('SidebarSessionList — header VIEW state', () => {
 	it('expanded: the toggle renders ChevronDown with aria-expanded=true', () => {
 		const { target, instance } = mountList({
 			visible: [summary('s-one')],

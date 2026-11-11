@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
 	 * SessionFilterMeta — the filter row's meta controls in one
-	 * right-pinned container (extracted from SessionFilterRow
+	 * right-pinned container (extracted from SidebarSessionFilter
 	 * 2026-09-04): `All` (SessionFilterClear) beside the
 	 * conversation-count/workspace toggle (SessionFilterToggle). These
 	 * are NOT dimension pills — they are the row's state verbs: one
@@ -9,7 +9,7 @@
 	 * Both build their FULL next state here and report it upward through
 	 * onchange; the owner stays the state choke point.
 	 *
-	 * The [folder] ghost rule rides along (moved from SessionFilterRow):
+	 * The [folder] ghost rule rides along (moved from SidebarSessionFilter):
 	 * the registered-only view excludes ghost sessions, so a selected
 	 * GHOST workspace pill would contradict it (and the pill hides) —
 	 * selecting [folder] lifts the ghost workspace selection in the SAME

@@ -132,7 +132,23 @@ export const DSH_METHODS = {
 	// host serves job/list stream-only; DSI consumes the stream, never a
 	// unary call. Name kept for wire-map completeness only.
 	jobList: 'job/list',
-	jobKill: 'job/kill'
+	jobKill: 'job/kill',
+	/**
+	 * The Scheduler Shelf read face (ADR-0058 D1/D4, W2 task 2.1) — the host
+	 * scheduler ledger's READ-ONLY unary pair (no create/edit/run method
+	 * exists here; D4 forbids one). Host wire truth:
+	 * ~/agentic-ai/deepseek-harness packages/schedule/schedule/src/types.ts
+	 * 452-528, verified 2026-11-10. schedule/list args
+	 * `{request:{active?,limit?,offset?}}` → `{items,shown,total,limit,offset}`;
+	 * schedule/view args `{request:{id}}` → a full DshScheduleEntry OR the
+	 * body-code miss `{id, code:'schedule_not_found'}` — a 200 carrying the
+	 * named discriminator, never an empty 200. The request wrapper is
+	 * mandatory: a bare args object rejects gateway/arguments-invalid (the
+	 * session/fork precedent; descriptor parameter name is 'request').
+	 */
+	scheduleList: 'schedule/list',
+	/** args `{request:{id}}` — see scheduleList; unknown id = the body-code miss. */
+	scheduleView: 'schedule/view'
 } as const;
 
 /** Per-endpoint args-key layout: the JS parameter name on the wire (0.1.2). */
@@ -197,7 +213,13 @@ export const DSH_ARGS = {
 	jobList: (sessionId: string): Record<string, unknown> => ({ request: { sessionId } }),
 	jobKill: (sessionId: string, jobId: string): Record<string, unknown> => ({
 		request: { sessionId, jobId }
-	})
+	}),
+	/** Scheduler Shelf (ADR-0058 W2): request-wrapped like skillsList —
+	 *  schedule/list `{request:{active?,limit?,offset?}}`; the no-arg call
+	 *  sends `{request:{}}` = the host's list defaults. */
+	scheduleList: (request: Record<string, unknown> = {}): Record<string, unknown> => ({ request }),
+	/** schedule/view `{request:{id}}` — the wrapper is mandatory (fork precedent). */
+	scheduleView: (id: string): Record<string, unknown> => ({ request: { id } })
 } as const;
 
 /**
@@ -310,6 +332,55 @@ export interface DshWorkspaceDirectoryListing {
 	truncated: boolean;
 }
 
+/**
+ * schedule/list + schedule/view row (ADR-0058 D1, Scheduler Shelf W2) —
+ * one ScheduleCatalogEntry mirrored verbatim from the host's scheduler
+ * ledger view (~/agentic-ai/deepseek-harness
+ * packages/schedule/schedule/src/types.ts 460, verified 2026-11-10).
+ * FLAT intersection shape: ScheduleRecord & { target, status, ... } — so
+ * kind/title/scheduledAt ride at the ENTRY's top level (the nested
+ * `record` member was a storage-shape misread that rendered every real
+ * title as an em-dash; fixed 2026-11-10). Kind-shaped extras vary by kind
+ * — unknown keys stay unknown; the host owns every value and DSI renders
+ * it, never guesses (the shelf shows an honest em-dash for any absent
+ * field). READ-ONLY surface: DSI never mutates a task (D4).
+ */
+export interface DshScheduleEntry {
+	id: string;
+	/** FLAT wire shape: ScheduleCatalogEntry = ScheduleRecord & { ... }
+	 *  (host packages/schedule/schedule/src/types.ts 460) — the record
+	 *  members ride at the entry's top level, not nested. */
+	kind: 'after' | 'at' | 'every' | 'daily' | 'weekly' | 'cron' | 'rrule';
+	title: string;
+	/** Next fire time (ISO) when the ledger carries one; kind-dependent. */
+	scheduledAt?: string;
+	/** Storage-shaped echo (tables.tasks[id].record); the host does NOT
+	 *  send it on the wire — retained only as a legacy guard. */
+	record?: { [key: string]: unknown };
+	target: { kind: 'session' | 'new_once' | 'new'; sessionId?: string };
+	involvedSessionIds: string[];
+	status: 'active' | 'paused' | 'ended';
+	createdAt?: string;
+	updatedAt?: string;
+	lastDelivery?: { scheduledAt: string; deliveredAt: string; messageId: string; targetSessionId: string };
+}
+
+/** schedule/list receipt value: one ledger page plus its paging echoes. */
+export interface DshScheduleListResult {
+	items: DshScheduleEntry[];
+	shown: number;
+	total: number;
+	limit: number;
+	offset: number;
+}
+
+/**
+ * schedule/view receipt value (ADR-0058 W2 task 2.1): the full entry OR
+ * the body-code miss — a 200 whose value carries the named
+ * `schedule_not_found` discriminator instead of an RpcError. The relay
+ * matches the miss and normalizes it to null (never an empty guess).
+ */
+export type DshScheduleViewResult = DshScheduleEntry | { id: string; code: 'schedule_not_found' };
 /**
  * The ONE stream carrier (0.1.2): `/api/remote.mux` WebSocket multiplexing
  * logical streams — `{type:'open',streamId,endpoint,payload}` opens one,

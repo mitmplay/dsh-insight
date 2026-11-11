@@ -233,7 +233,7 @@ test('06 · workspace attributes: chips, pills, hide-empty, and inheritance', as
 	// Uniqueness (2026-08-24 duplication scare): the pinned current row
 	// renders EXACTLY once — SidebarOpenPanels is mounted only by
 	// SessionsList (above the filter pills, 2026-08-26), never also
-	// inside SidebarSessionsList.
+	// inside SidebarSessionList.
 	await expect(page.getByTestId('sidebar-session-current')).toHaveCount(1);
 	await expect(
 		page.getByTestId('sidebar-session-current').getByTestId('sidebar-workspace-chip')
@@ -429,7 +429,7 @@ test('07 · blank-mode preference survives a hard reload; All clears it', async 
 });
 
 test('08 · attribute pills survive a hard reload (with their filtering)', async ({ page }) => {
-	// SessionFilterRow persistence (2026-08-23): the whole filter state —
+	// SidebarSessionFilter persistence (2026-08-23): the whole filter state —
 	// pills AND toggle — survives a reload. Stub rows: current (main, /tmp,
 	// titled), blank (app-dev, harness), chat (main, deepseek-chat).
 	// State restore: spec 06's New chat repointed the stub list at its

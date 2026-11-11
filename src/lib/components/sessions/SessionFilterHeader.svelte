@@ -3,7 +3,7 @@
 	import * as m from '$lib/paraglide/messages';
 	/**
 	 * SessionFilterHeader — the ALWAYS-VISIBLE one-line header of
-	 * SessionFilterRow (extracted 2026-09-04): the collapse button
+	 * SidebarSessionFilter (extracted 2026-09-04): the collapse button
 	 * (chevron + `{t(m.filterBy)}` summary) with the meta controls
 	 * (SessionFilterMeta) pinned to its RIGHT end. The head and the
 	 * meta controls are SIBLINGS under one flex row — a button must
@@ -11,7 +11,7 @@
 	 * the count toggle stay reachable while the dimension pills are
 	 * folded; the fold hides only the Agents/Workspaces pills.
 	 *
-	 * Summary contract (moved verbatim from SessionFilterRow): a CHIP
+	 * Summary contract (moved verbatim from SidebarSessionFilter): a CHIP
 	 * per selected dimension in the pills' kind grammar — Folder/blue
 	 * workspace (grey when ghost), Bot/purple agent — with the ` - ` /
 	 * ` + ` separators as plain text, so the summary's textContent
@@ -63,7 +63,7 @@ import AgentChip from '../common/buttons/AgentChip.svelte';
 		workspaces: FilterOption[];
 		presets: FilterOption[];
 		filter: SessionFilterState;
-		/** Fold state — owned by SessionFilterRow, never persisted. */
+		/** Fold state — owned by SidebarSessionFilter, never persisted. */
 		collapsed: boolean;
 		/** Flip the fold. */
 		ontoggle: () => void;

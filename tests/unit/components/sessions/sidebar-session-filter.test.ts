@@ -1,12 +1,12 @@
 /**
- * SessionFilterRow (2026-09-05): the row-level pick contract — the
+ * SidebarSessionFilter (2026-09-05): the row-level pick contract — the
  * dimension pills toggle their selection OFF on a second pick (the
  * pick* guards' both arms), and the fold hides the pills while the
  * header stays.
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import SessionFilterRow from '$lib/components/sessions/SessionFilterRow.svelte';
+import SidebarSessionFilter from '$lib/components/sidebar/session-filter/SidebarSessionFilter.svelte';
 import type { FilterOption, SessionFilterState } from '$lib/utils/session-filters';
 
 const WS: FilterOption[] = [
@@ -26,7 +26,7 @@ function mountRow(filter: SessionFilterState = REST) {
 		handled.push(next);
 	});
 	const handled: SessionFilterState[] = [];
-	const comp = mount(SessionFilterRow, {
+	const comp = mount(SidebarSessionFilter, {
 		target,
 		props: { workspaces: WS, presets: PRESETS, filter, onchange, oncreated: vi.fn(), registry: [] }
 	});
@@ -42,7 +42,7 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-describe('SessionFilterRow — picks and the fold', () => {
+describe('SidebarSessionFilter — picks and the fold', () => {
 	it('picking a workspace selects it; picking it again clears it', () => {
 		const h = mountRow();
 		const pills = h.target.querySelectorAll('[role="group"][aria-label="Filter sessions"] button');

@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
 	 * RowSessionItem — ONE spine row: the anchor a session gets on
-	 * the recency list (extracted from SidebarSessionsList,
+	 * the recency list (extracted from SidebarSessionList,
 	 * 2026-08-28). Owns everything a row IS: the seed href, the
 	 * floor verbs (plain click adds a panel, Shift+click replaces the
 	 * selected panel — ADR-0006 R5 verbs, reversed 2026-08-28), the
@@ -29,6 +29,7 @@
 	import { conversationSeedUrl } from '$lib/utils/seed-url';
 	import { resolve } from '$app/paths';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
+	import { isScheduledSession, refreshScheduleLedger } from '$lib/services/schedule-ledger.svelte';
 
 	let {
 		session,
@@ -56,6 +57,16 @@
 	 *  no seed href, and the click summons the glass (the ONE summon
 	 *  seam, ADR-0037 D4) instead of the floor add/replace verbs. */
 	const isGlass = $derived((session.origin as string | null | undefined) === 'browser');
+
+	/** Scheduled Mark (ADR-0057 D2 + Amendment 2026-11-11 D1-prime): the
+	 *  fact source is the schedule-ledger join (the pinned host writes no
+	 *  origin); header origin stays as the forward-compatible second key.
+	 *  WorkspaceRowItem takes a dumb boolean; no behavior keys to it (D3). */
+	const scheduled = $derived(session.origin === 'scheduled' || isScheduledSession(session.sessionId));
+
+	$effect(() => {
+		void refreshScheduleLedger();
+	});
 
 	/** Tooltip (W4 4.2): workspace path + affordance when on the floor.
 	 *  (Row attribute — no props, no state: pure function of the row.
@@ -122,6 +133,7 @@
 		workspace={session.workspace}
 		{workspaces}
 		label={session.title ?? 'untitled'}
+		{scheduled}
 		{depth}
 		fork={session.parentSessionId != null && session.origin !== 'subagent' && !isGlass}
 	/>

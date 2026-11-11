@@ -418,7 +418,7 @@ export interface DsiSessionSummary {
 	 *  wire session at all; its sessionId is the browser-session registry id,
 	 *  and RowSessionItem routes the click to the summon verb, never to a
 	 *  conversation open. */
-	origin?: 'subagent' | 'browser' | null;
+	origin?: 'subagent' | 'scheduled' | 'browser' | null;
 }
 
 /**
@@ -1006,4 +1006,28 @@ export type DsiJobFollowEvent =
 /** Receipt after the registry accepted the human kill request. */
 export interface DsiJobKillResult {
 	outcome: 'requested' | 'already-finished';
+}
+/**
+ * One scheduler-ledger row as the shelf renders it (ADR-0058 D1, W2 task
+ * 2.1): the RPC-relay normalization of a DshScheduleEntry. NULL-WHEN-ABSENT
+ * discipline (normalize.ts): consumers get null, never undefined, never a
+ * guess — every absent ledger field stays null and the shelf renders an
+ * honest em-dash for it. A junk row (unreadable id or foreign status)
+ * never reaches this shape: the normalizer skips it.
+ */
+export interface DsiScheduledTask {
+	id: string;
+	title: string;
+	status: 'active' | 'paused' | 'ended';
+	/** The record's scheduling kind ('at' | 'cron' | …); null when unreadable. */
+	kind: string | null;
+	/** Next fire time (ISO) when the ledger carries one; null otherwise. */
+	scheduledAt: string | null;
+	/** Target species ('session' | 'new_once' | 'new'); null when unreadable. */
+	targetKind: string | null;
+	/** The session to open on click-through; null when the target carries none.
+	 *  ('new'-kind targets reserve no id — the row is honest and inert.) */
+	targetSessionId: string | null;
+	/** Delivery receipt once the task has fired; null while it has not. */
+	lastDelivery: { deliveredAt: string | null; targetSessionId: string | null } | null;
 }

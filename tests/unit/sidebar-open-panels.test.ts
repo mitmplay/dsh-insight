@@ -13,7 +13,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import SidebarOpenPanels from '../../src/lib/components/sessions/SidebarOpenPanels.svelte';
+import SidebarOpenPanels from '../../src/lib/components/sidebar/session-open/SidebarOpenPanels.svelte';
 import {
 	setWorkspaceState,
 	type PanelRow,

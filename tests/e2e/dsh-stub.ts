@@ -529,6 +529,17 @@ export interface StubState {
 	 *  carrying parentSessionId (origin ABSENT: a fork child is an ordinary
 	 *  wire session) and a COPIED source ledger (createdLedgers). */
 	forkedSessions: Array<{ sessionId: string; parentSessionId: string; title: string; ageMs?: number }>;
+	/** Scheduled Mark (ADR-0057, task 2.3): scheduler-born fixture rows —
+	 *  session.list rows carrying origin 'scheduled' and NO parentSessionId
+	 *  (D1: top-level). Empty default is byte-neutral for every pre-existing
+	 *  spec; seeded via POST /__e2e/state like lineageSessions. */
+	scheduledSessions: Array<{ sessionId: string; title: string; ageMs?: number; cwd?: string }>;
+	/** Scheduler Shelf (ADR-0058, task 3.1): fixture schedule/list rows —
+	 *  verbatim ScheduleCatalogEntry shapes (host
+	 *  packages/schedule/schedule/src/types.ts 452-528). Empty default is
+	 *  byte-neutral for every pre-existing spec; seeded via POST
+	 *  /__e2e/state like scheduledSessions. */
+	scheduleTasks: Array<Record<string, unknown>>;
 	/** session/fork call log (spec assertions; atSeq null = omitted). */
 	forkCalls: Array<{ sessionId: string; atSeq: number | null }>;
 	/** POC-3 W4: pending answerable waterfalls keyed by eventId (replayed on
@@ -850,6 +861,8 @@ export class DshStubHost {
 			listSessionId: STUB_SESSION_ID,
 			extraSessions: [],
 			lineageSessions: [],
+			scheduledSessions: [],
+			scheduleTasks: [],
 			forkedSessions: [],
 			forkCalls: [],
 			pendingFrames: new Map(),
@@ -1161,7 +1174,7 @@ export class DshStubHost {
 		cwd: string | null;
 		title?: string;
 		parentSessionId?: string;
-		origin?: 'subagent';
+		origin?: 'subagent' | 'scheduled';
 	}): Record<string, unknown> {
 		const values: Record<string, unknown> = {
 			...(row.title !== undefined ? { title: row.title } : {}),
@@ -1295,6 +1308,22 @@ export class DshStubHost {
 						title: row.title,
 						parentSessionId: row.parentSessionId,
 						origin: 'subagent'
+					});
+				}
+				// Scheduled Mark (ADR-0057 D1): scheduler-born rows — origin
+				// 'scheduled', NO parentSessionId (top-level), like the host
+				// runtime stamps at delivery (Wave 1).
+				for (const row of this.state.scheduledSessions) {
+					if (row.sessionId === focused) continue;
+					cfgs.push({
+						sessionId: row.sessionId,
+						agentPreset: 'main',
+						running: false,
+						blank: false,
+						updatedAt: Date.now() - (row.ageMs ?? 0),
+						cwd: row.cwd ?? '/tmp',
+						title: row.title,
+						origin: 'scheduled'
 					});
 				}
 				// The Fork Button ADR (2026-09-01): forked children — ordinary
@@ -1515,6 +1544,21 @@ export class DshStubHost {
 					}
 				]
 			};
+		}
+		// Scheduler Shelf (ADR-0058, task 3.1): the unary ledger reads —
+		// request-wrapped like skills/list (descriptor parameter 'request').
+		// list answers the paged ScheduleListResult (active first); view
+		// answers the entry or the host's 200 body-miss discriminator —
+		// never a thrown error for a plain miss.
+		case 'schedule/list': {
+			const items = this.state.scheduleTasks;
+			return { items, shown: items.length, total: items.length, limit: 100, offset: 0 };
+		}
+		case 'schedule/view': {
+			const id = String(req.id ?? '');
+			return (
+				this.state.scheduleTasks.find((task) => task.id === id) ?? { id, code: 'schedule_not_found' }
+			);
 		}
 		// Workspace Explorer W2 (2026-09-09): flat args — agentId/path/range,
 		// NO request wrapper (descriptor-exact). The in-memory fs fixture
@@ -2299,6 +2343,11 @@ export class DshStubHost {
 		// Lineage sidebar W5: spawned fixture children are REAL sessions —
 		// empty ledger (blank transcript), never session-not-found.
 		if (typeof sessionId === 'string' && this.state.lineageSessions.some((row) => row.sessionId === sessionId)) {
+			return [];
+		}
+		// Scheduled Mark (ADR-0057): scheduler-born fixture sessions are REAL
+		// sessions — empty ledger, never session-not-found.
+		if (typeof sessionId === 'string' && this.state.scheduledSessions.some((row) => row.sessionId === sessionId)) {
 			return [];
 		}
 		if (typeof sessionId === 'string' && this.state.createdSessions.includes(sessionId)) {

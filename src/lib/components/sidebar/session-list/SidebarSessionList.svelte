@@ -2,7 +2,7 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	/**
-	 * SidebarSessionsList — the sidebar's filtered session rows (extracted
+	 * SidebarSessionList — the sidebar's filtered session rows (extracted
 	 * from SidebarSessionContainer, 2026-08-24): the recency spine below
 	 * the filter pills — empty-state hints or one RowSessionItem per
 	 * visible session, workspace chip always in its column.
@@ -41,7 +41,7 @@
 	import { appConfig } from '$lib/services/config/app-config.svelte';
 	import { heartbeatScope } from '$lib/services/jobs/heartbeat-scope.svelte';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
-	import RowSessionItem from './RowSessionItem.svelte';
+	import RowSessionItem from '../../sessions/RowSessionItem.svelte';
 
 	let {
 		current,

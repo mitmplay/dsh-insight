@@ -196,9 +196,9 @@ const R = [
 	['src/lib/components/sessions/SidebarOpenPanelTree.svelte', 'aria-label="Expand all sessions with lineage"', 'aria-label={m.expandLineage()}'],
 	['src/lib/components/sessions/SidebarOpenPanelTree.svelte', 'title="Expand all sessions with lineage"', 'title={m.expandLineage()}'],
 	['src/lib/components/sessions/SidebarOpenPanelTree.svelte', 'aria-label="Lineage fold"', 'aria-label={m.lineageFold()}'],
-	['src/lib/components/sessions/SidebarSessionsList.svelte', '>Sessions<', '>{m.sessions()}<'],
-	['src/lib/components/sessions/SidebarSessionsList.svelte', 'placeholder="Filter by session name..."', 'placeholder={m.filterBySessionName()}'],
-	['src/lib/components/sessions/SidebarSessionsList.svelte', 'aria-label="Filter by session name"', 'aria-label={m.filterBySessionNameLabel()}'],
+	['src/lib/components/sidebar/session-list/SidebarSessionList.svelte', '>Sessions<', '>{m.sessions()}<'],
+	['src/lib/components/sidebar/session-list/SidebarSessionList.svelte', 'placeholder="Filter by session name..."', 'placeholder={m.filterBySessionName()}'],
+	['src/lib/components/sidebar/session-list/SidebarSessionList.svelte', 'aria-label="Filter by session name"', 'aria-label={m.filterBySessionNameLabel()}'],
 	['src/lib/components/sessions/WorkspaceActionsMenu.svelte', 'aria-label="Workspace actions"', 'aria-label={m.workspaceActions()}'],
 	['src/routes/+error.svelte', '← Back to the workspace', '{m.backToWorkspace()}']
 ];

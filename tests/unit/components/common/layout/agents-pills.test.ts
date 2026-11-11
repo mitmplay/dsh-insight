@@ -1,6 +1,6 @@
 /**
  * Agents pill group unit tests — pins the presentational contract of
- * Agents.svelte (the agent pill group of SessionFilterRow):
+ * Agents.svelte (the agent pill group of SidebarSessionFilter):
  *  - no presets → nothing renders (the {#if} empty branch);
  *  - one Bot pill per preset option, badged with its session count
  *    (count 0 for a preset with no sessions yet still renders);

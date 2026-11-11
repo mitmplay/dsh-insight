@@ -1,5 +1,5 @@
 /**
- * SidebarSessionsList — the ticker-cap $effect (ADR-0034 D1).
+ * SidebarSessionList — the ticker-cap $effect (ADR-0034 D1).
  *
  * The component feeds the heartbeat scope two ways: the mode flip
  * (setMode from appConfig().conversation.heartbeatType) and, ONLY in
@@ -14,7 +14,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import SidebarSessionsList from '$lib/components/sessions/SidebarSessionsList.svelte';
+import SidebarSessionList from '$lib/components/sidebar/session-list/SidebarSessionList.svelte';
 import {
 	appConfig,
 	loadAppConfig,
@@ -67,7 +67,7 @@ interface MountHandle {
 function mountList(visible: DsiSessionSummary[]): MountHandle {
 	const target = document.createElement('div');
 	document.body.appendChild(target);
-	const instance = mount(SidebarSessionsList, {
+	const instance = mount(SidebarSessionList, {
 		target,
 		props: {
 			current: null,
@@ -84,7 +84,7 @@ function mountList(visible: DsiSessionSummary[]): MountHandle {
 function mountListProxy(visible: DsiSessionSummary[]): MountHandle {
 	const target = document.createElement('div');
 	document.body.appendChild(target);
-	const instance = mount(SidebarSessionsList, {
+	const instance = mount(SidebarSessionList, {
 		target,
 		props: {
 			current: null,
@@ -127,7 +127,7 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-describe('SidebarSessionsList — ticker-cap spine feed (ADR-0034 D1)', () => {
+describe('SidebarSessionList — ticker-cap spine feed (ADR-0034 D1)', () => {
 	it('ticker-cap: setSpine is called with the rendered session ids', async () => {
 		await landHeartbeatType('ticker-cap');
 		const { instance } = mountList([summary('s-one'), summary('s-two'), summary('s-three')]);

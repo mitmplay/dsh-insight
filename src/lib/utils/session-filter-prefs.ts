@@ -1,5 +1,5 @@
 /**
- * Session-filter preferences — the persisted SessionFilterRow state
+ * Session-filter preferences — the persisted SidebarSessionFilter state
  * (workspace + preset pills, and the conversation-count toggle), 2026-08-23.
  *
  * Review decision: the ENTIRE filter state survives a hard reload — a

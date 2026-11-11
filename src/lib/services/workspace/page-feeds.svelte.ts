@@ -18,6 +18,7 @@
  */
 import { SvelteSet } from 'svelte/reactivity';
 import { pruneSync } from '$lib/services/chat/prompt-sync.svelte';
+import { bornAt, refreshScheduleLedger } from '$lib/services/schedule-ledger.svelte';
 import { spineFeed, subscribeSpineFeed } from '$lib/services/conversation/spine-feed.svelte';
 import type { DsiEntry } from '$lib/types';
 
@@ -46,6 +47,9 @@ class PageFeeds {
 	coldInFlight = $state(new SvelteSet<string>());
 	deadSessions = $state<Record<string, string>>({});
 	edgeCache = $state<Record<string, string>>({});
+	/** ADR-0059 D1: a ledger birth heals a dead entry ONCE - the guard
+	 *  keeps a second ledger tick (or a re-recorded card) from looping. */
+	private autoHealDone = new Set<string>();
 
 	/** Seed-arrival prime: the seed panel mounts with full cold props on
 	 *  paint one (SSR parity for the seed path). Load-time constant. */
@@ -85,6 +89,23 @@ class PageFeeds {
 		}
 	}
 
+	/** ADR-0059 D2: the dead card's manual retry. Clears the honest-404
+	 *  entry and re-runs the cold load; the still-dead result re-records
+	 *  the card (honest). Respects the same guards as runCold: a cached
+	 *  load just drops the card; an in-flight cold is not re-entered —
+	 *  the card stays until that flight settles and re-records. */
+	async retryDead(sessionId: string, fetchCold: (id: string) => Promise<ColdLoad | null>): Promise<void> {
+		if (this.coldCache[sessionId] !== undefined) {
+			const { [sessionId]: _drop, ...rest } = this.deadSessions;
+			this.deadSessions = rest;
+			return;
+		}
+		if (this.coldInFlight.has(sessionId)) return;
+		const { [sessionId]: _clear, ...rest } = this.deadSessions;
+		this.deadSessions = rest;
+		await this.runCold(sessionId, fetchCold);
+	}
+
 	/** The floor's two lifecycle feeds (call during component init —
 	 *  `$effect` needs an owner):
 	 *  - Prompt Sync hygiene (ADR "The Prompt Sync" D1/D6): a session
@@ -94,13 +115,49 @@ class PageFeeds {
 	 *    mount, stopped on destroy; the a2a window rides the floor's
 	 *    conversation senders (first sender per tick, never per panel).
 	 *  Returns the spine subscription's cleanup. */
-	installFeeds(getConversationSessionIds: () => string[]): () => void {
+	installFeeds(
+		getConversationSessionIds: () => string[],
+		/** ADR-0059 D1: when provided, dead entries whose session id gains a
+		 *  schedule-ledger birth fact (lastDelivery landed) are cleared and
+		 *  the cold load re-runs once - the born-late panel self-heals with
+		 *  no reload and no clicks. The ledger fetch stays the shared
+		 *  single-flight read (no new wire traffic). */
+		fetchCold?: (id: string) => Promise<ColdLoad | null>
+	): () => void {
 		$effect(() => {
 			pruneSync(new Set(getConversationSessionIds()));
 		});
 		$effect(() => {
 			return subscribeSpineFeed(getConversationSessionIds);
 		});
+		if (fetchCold) {
+			// One shared ledger prime at install (single-flight — the sidebar
+			// mount path already fires it; this only guarantees a first tick).
+			void refreshScheduleLedger();
+			// The pulse (Born-Late Panel T4 fix, live-verified 2026-11-11): the
+			// Shelf's own 30s poll uses its OWN fetch and never touches the
+			// shared join, so without a pulse the born map never refreshes while
+			// a dead panel sits open and D1 starves. The pulse rides the SAME
+			// shared single-flight read, arms ONLY while a dead entry exists,
+			// and only fires when the page is visible — zero steady-state wire
+			// traffic for healthy floors, none while hidden.
+			$effect(() => {
+				const hasDead = Object.keys(this.deadSessions).length > 0;
+				if (!hasDead) return;
+				const timer = setInterval(() => {
+					if (document.visibilityState === 'visible') void refreshScheduleLedger();
+				}, 30_000);
+				return () => clearInterval(timer);
+			});
+			$effect(() => {
+				for (const id of Object.keys(this.deadSessions)) {
+					const born = bornAt(id); // reactive read: re-runs on ledger ticks
+					if (born === null || this.autoHealDone.has(id)) continue;
+					this.autoHealDone.add(id);
+					void this.retryDead(id, fetchCold);
+				}
+			});
+		}
 		return () => {};
 	}
 }

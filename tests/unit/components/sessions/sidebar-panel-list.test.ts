@@ -2,7 +2,7 @@
  * sidebar-panel-list unit tests (Panel Floor W4 tasks 4.1-T + 4.2-T,
  * spec-check GAP-2: component-direct mount — home-page.test.ts mounts the
  * home page, which renders NEITHER component; this suite mounts
- * SidebarOpenPanels and SidebarSessionsList directly, the
+ * SidebarOpenPanels and SidebarSessionList directly, the
  * chat-components.test.ts pattern).
  *
  * 4.1-T: panel rows render from workspace context; click selects via
@@ -22,8 +22,8 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import SidebarOpenPanels from '$lib/components/sessions/SidebarOpenPanels.svelte';
-import SidebarSessionsList from '$lib/components/sessions/SidebarSessionsList.svelte';
+import SidebarOpenPanels from '$lib/components/sidebar/session-open/SidebarOpenPanels.svelte';
+import SidebarSessionList from '$lib/components/sidebar/session-list/SidebarSessionList.svelte';
 import {
 	registerAddPanel,
 	registerMovePanel,
@@ -170,7 +170,7 @@ function mountSpine(props: {
 	document.body.appendChild(target);
 	const onspinechange =
 		props.onspinechange ?? vi.fn<(partial: Partial<SpineGroupPrefs>) => void>();
-	const instance = mount(SidebarSessionsList, {
+	const instance = mount(SidebarSessionList, {
 		target,
 		props: {
 			current: props.current ?? null,
@@ -989,9 +989,9 @@ describe('SidebarOpenPanels — reveal-on-focus (2026-09-03)', () => {
 	});
 });
 
-// ── 4.2-T: spine verbs in SidebarSessionsList ───────────────────────
+// ── 4.2-T: spine verbs in SidebarSessionList ───────────────────────
 
-describe('SidebarSessionsList — spine verbs (task 4.2-T)', () => {
+describe('SidebarSessionList — spine verbs (task 4.2-T)', () => {
 	it('shift+click emits replace via registry and prevents the anchor default', () => {
 		const calls = registerRecorder();
 		const { target, instance } = mountSpine({ visible: [summary('s-new')] });
@@ -1686,13 +1686,13 @@ describe('SidebarOpenPanels — lineage render (task 3.1-T)', () => {
 });
 
 // ── Spine group (2026-09-01): collapse + name filter + sub-agent toggle ──
-// SidebarSessionsList's rows live inside a collapsible group whose header
+// SidebarSessionList's rows live inside a collapsible group whose header
 // carries the session-name filter input, its [x] clear, and the sub-agent
 // visibility toggle. Presentational: every change reports upward via
 // onspinechange; the OWNER (SidebarSessions) applies + persists — the
 // owner wiring is pinned in sessions-list.test.ts.
 
-describe('SidebarSessionsList — spine group header', () => {
+describe('SidebarSessionList — spine group header', () => {
 	it('default props render the group expanded with title Sessions and the filter input', () => {
 		const { target, instance } = mountSpine({ visible: [summary('s-one')] });
 		expect(target.querySelector('[data-testid="sidebar-spine-group"]')).not.toBeNull();

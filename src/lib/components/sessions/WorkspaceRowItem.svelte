@@ -3,7 +3,7 @@
 	 * WorkspaceRowItem — the shared INTERIOR of a session row (extracted
 	 * 2026-08-26): status icon + workspace chip + label, the grammar
 	 * ADR-0005 pins. TWO list surfaces render the identical triple —
-	 * the spine (SidebarSessionsList rows) and the pinned panel group
+	 * the spine (SidebarSessionList rows) and the pinned panel group
 	 * (SidebarOpenPanels rows) — and had drifted into copy-paste
 	 * twins; this component is the one home for that markup now.
 	 *
@@ -37,6 +37,7 @@
 	 */
 	import { isRegisteredWorkspace, workspaceDisplayLabel } from '$lib/utils/session-filters';
 	import type { DsiWorkspaceSummary } from '$lib/types';
+	import { Clock } from '@lucide/svelte';
 	import SessionStatus from './SessionStatus.svelte';
 	import WorkspaceChip from '../common/WorkspaceChip.svelte';
 
@@ -51,7 +52,8 @@
 		wsChild = false,
 		workspace,
 		workspaces,
-		label
+		label,
+		scheduled = false
 	}: {
 		/** Live-turn flag — bars when true, static dot when false. */
 		running: boolean;
@@ -94,6 +96,12 @@
 		/** RESOLVED row label — the caller owns the fallback grammar
 		 *  (spine: 'untitled'; panel group: the session id). */
 		label: string;
+		/** Scheduled Mark pill (ADR-0057 D2, 2026-11-10): show the muted
+		 *  clock+SCH pill. The CALLER derives this from the session's
+		 *  origin — this presenter never sees origin itself (dumb boolean,
+		 *  D3: no behavior keys to the badge). Default false = every row
+		 *  before this wave renders byte-identically. */
+		scheduled?: boolean;
 	} = $props();
 </script>
 
@@ -136,6 +144,16 @@
 	/>
 {:else}
 	<span class="ws-slot" aria-hidden="true"></span>
+{/if}
+{#if scheduled}
+	<!-- Scheduled Mark pill (ADR-0057 D2): a muted clock+SCH badge riding
+	     BEFORE the label on scheduler-born rows. Pure decoration — the
+	     title string is untouched and nothing behaves differently
+	     (ADR-0057 D3). The glyph is aria-hidden; the SCH text stays
+	     readable (assistive tech + Playwright role/text selectors). -->
+	<span class="sch-badge" data-testid="sidebar-sch-badge"
+		><Clock size={8} aria-hidden="true" /><span class="sch-text">SCH</span></span
+	>
 {/if}
 <span class="label">{label}</span>
 
@@ -244,5 +262,32 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	/* ── Scheduled pill (ADR-0057 D2, 2026-11-10) ────────────────────
+	   Muted pill BEFORE the label on origin-'scheduled' rows, per the
+	   operator screenshot palette: hairline border, muted ink, tiny
+	   fixed footprint. flex-shrink 0 keeps it whole while the label's
+	   ellipsize grammar (above) absorbs the shortened name column —
+	   the pill never squeezes and the title never overflows. Both
+	   paints are theme vars, so light + dark need no overrides. */
+	.sch-badge {
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.125rem;
+		padding: 0 0.3125rem;
+		border: 1px solid var(--color-surface-border, #dee2e6);
+		border-radius: 9999px;
+		background: var(--color-surface-elevated, #ffffff);
+		color: var(--color-text-muted, #6c757d);
+		font-size: 0.5625rem;
+		line-height: 1.2;
+		letter-spacing: 0.02em;
+	}
+
+	/* The SCH text carries the weight so the 8px glyph reads with it. */
+	.sch-text {
+		font-weight: 600;
 	}
 </style>

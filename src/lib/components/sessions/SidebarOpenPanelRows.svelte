@@ -9,6 +9,7 @@
 	import RowButtonMoveDown from './RowButtonMoveDown.svelte';
 	import RowButtonMoveUp from './RowButtonMoveUp.svelte';
 	import WorkspaceRowItem from './WorkspaceRowItem.svelte';
+	import { isScheduledSession, refreshScheduleLedger } from '$lib/services/schedule-ledger.svelte';
 
 </script>
 
@@ -70,6 +71,21 @@
 		/** Ghost click — the host adopts the ghost as a real panel. */
 		onadopt: (ghost: PanelRow) => void;
 	} = $props();
+
+	/** Scheduled Mark derivation (ADR-0057 D2 + Amendment 2026-11-11
+	 *  D1-prime): fact source is the schedule-ledger join (the pinned host
+	 *  writes no origin); header origin stays as the forward-compatible
+	 *  second key. Display only, no behavior keys to it (D3). */
+	function scheduledRow(row: PanelRow): boolean {
+		return (
+			row.origin === 'scheduled' ||
+			(row.panel.kind === 'conversation' && isScheduledSession(row.panel.sessionId))
+		);
+	}
+
+	$effect(() => {
+		void refreshScheduleLedger();
+	});
 </script>
 
 <div class="group-rows" id="sidebar-panel-group-rows">
@@ -120,6 +136,7 @@
 							workspace={row.workspace}
 							{workspaces}
 							label={row.title ?? sid ?? row.panel.id}
+							scheduled={scheduledRow(row)}
 						/>
 						{#if row.spawnerTitle}
 							<!-- Orphan hint (ADR D4): the spawner exists on the host but

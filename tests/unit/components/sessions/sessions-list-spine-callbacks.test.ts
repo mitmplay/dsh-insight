@@ -1,5 +1,5 @@
 /**
- * SidebarSessionsList spine-callback tests — the view-state report
+ * SidebarSessionList spine-callback tests — the view-state report
  * contract, component-direct (sessions-list.test.ts mount pattern).
  *
  * The component only RENDERS the spine header and REPORTS upward — the
@@ -23,7 +23,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import SidebarSessionsList from '$lib/components/sessions/SidebarSessionsList.svelte';
+import SidebarSessionList from '$lib/components/sidebar/session-list/SidebarSessionList.svelte';
 import { defaultSpineGroupPrefs, type SpineGroupPrefs } from '$lib/utils/spine-group-prefs';
 import type { DsiSessionSummary } from '$lib/types';
 
@@ -46,7 +46,7 @@ function mountList(opts: { spine?: Partial<SpineGroupPrefs> } = {}) {
 	document.body.appendChild(target);
 	const spine: SpineGroupPrefs = { ...defaultSpineGroupPrefs(), ...opts.spine };
 	const onspinechange = vi.fn<(partial: Partial<SpineGroupPrefs>) => void>();
-	const instance = mount(SidebarSessionsList, {
+	const instance = mount(SidebarSessionList, {
 		target,
 		props: {
 			current: null,
@@ -77,7 +77,7 @@ afterEach(() => {
 	localStorage.clear();
 });
 
-describe('SidebarSessionsList — spine view-state callbacks', () => {
+describe('SidebarSessionList — spine view-state callbacks', () => {
 	it('group-toggle click reports { collapsed: !spine.collapsed }', () => {
 		const { target, instance, onspinechange } = mountList();
 		expect(

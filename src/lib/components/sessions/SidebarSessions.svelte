@@ -14,7 +14,7 @@
 	 * create-session handoff.
 	 *
 	 * DSH's model is flat — workspace and preset are row ATTRIBUTES, not
-	 * containers — so both dimensions filter through SessionFilterRow
+	 * containers — so both dimensions filter through SidebarSessionFilter
 	 * pills and never nest. The pills list EVERY host preset and EVERY
 	 * registry workspace (count 0 included): they are the selection
 	 * surface for + New chat, which creates directly from them (no

@@ -1,5 +1,5 @@
 /**
- * SidebarSessionsList unit tests — the empty states + row mapping.
+ * SidebarSessionList unit tests — the empty states + row mapping.
  *
  * Component-direct mount (sidebar-session-container.test.ts pattern):
  * the list is purely presentational, so every behavior reads from the
@@ -15,7 +15,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
-import SidebarSessionsList from '$lib/components/sessions/SidebarSessionsList.svelte';
+import SidebarSessionList from '$lib/components/sidebar/session-list/SidebarSessionList.svelte';
 import { defaultSpineGroupPrefs } from '$lib/utils/spine-group-prefs';
 import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
 
@@ -47,7 +47,7 @@ function mountList(props: {
 }) {
 	const target = document.createElement('div');
 	document.body.appendChild(target);
-	const instance = mount(SidebarSessionsList, {
+	const instance = mount(SidebarSessionList, {
 		target,
 		props: {
 			current: props.current ?? null,
@@ -65,7 +65,7 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-describe('SidebarSessionsList — empty states', () => {
+describe('SidebarSessionList — empty states', () => {
 	it('empty list, no current session: the "No sessions match." hint', () => {
 		const { target, instance } = mountList({ visible: [] });
 		const hint = target.querySelector('[data-testid="sidebar-sessions-empty"]');
@@ -87,7 +87,7 @@ describe('SidebarSessionsList — empty states', () => {
 	});
 });
 
-describe('SidebarSessionsList — depthById prop', () => {
+describe('SidebarSessionList — depthById prop', () => {
 	it('default (prop omitted): every row renders at depth 0', () => {
 		const { target, instance } = mountList({ visible: [summary('s-one')] });
 		const row = target.querySelector('[data-testid="sidebar-session-card"]');
@@ -114,7 +114,7 @@ describe('SidebarSessionsList — depthById prop', () => {
 	});
 });
 
-describe('SidebarSessionsList — row mapping', () => {
+describe('SidebarSessionList — row mapping', () => {
 	it('one RowSessionItem per visible session, keyed by sessionId', () => {
 		const { target, instance } = mountList({
 			visible: [summary('s-one'), summary('s-two'), summary('s-three')]

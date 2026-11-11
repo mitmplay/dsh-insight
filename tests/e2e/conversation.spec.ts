@@ -725,7 +725,7 @@ test('13c · stick-to-bottom toggle: maroon live state, grey on release, click r
 });
 
 test('14 · New chat from pill selection → create → navigate → prompt on the fresh session', async ({ page }) => {
-	// 2026-08-24: no picker dialog — the SessionFilterRow pills ARE the
+	// 2026-08-24: no picker dialog — the SidebarSessionFilter pills ARE the
 	// selection. Agent pill + workspace pill, then + New chat creates the
 	// session with BOTH over the wire.
 	await page.goto('/');

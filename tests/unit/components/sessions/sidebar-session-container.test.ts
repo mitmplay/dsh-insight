@@ -6,7 +6,7 @@
  * DOM through its own and its child's data-testids:
  *
  *  - the scrolling column assembles the separator + the recency spine
- *    (SidebarSessionsList) from (current, visible, workspaces)
+ *    (SidebarSessionList) from (current, visible, workspaces)
  *  - the paneledSessionIds prop is OPTIONAL — the default [] path
  *    (the uncovered L35 branch) and the explicit-array path render
  *    identically through the spine

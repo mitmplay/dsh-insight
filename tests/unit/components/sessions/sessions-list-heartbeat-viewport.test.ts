@@ -1,5 +1,5 @@
 /**
- * SidebarSessionsList — the viewport-cap heartbeat $effect (ADR-0034).
+ * SidebarSessionList — the viewport-cap heartbeat $effect (ADR-0034).
  *
  * Mounts the sidebar list component directly and spies on the
  * heartbeatScope seam:
@@ -16,7 +16,7 @@
 
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import SidebarSessionsList from '$lib/components/sessions/SidebarSessionsList.svelte';
+import SidebarSessionList from '$lib/components/sidebar/session-list/SidebarSessionList.svelte';
 import { heartbeatScope } from '$lib/services/jobs/heartbeat-scope.svelte';
 import { defaultSpineGroupPrefs } from '$lib/utils/spine-group-prefs';
 import type { DsiSessionSummary } from '$lib/types';
@@ -71,7 +71,7 @@ class FakeIntersectionObserver {
 function mountList(visible: DsiSessionSummary[]) {
 	const target = document.createElement('div');
 	document.body.appendChild(target);
-	const instance = mount(SidebarSessionsList, {
+	const instance = mount(SidebarSessionList, {
 		target,
 		props: {
 			current: null,
@@ -115,7 +115,7 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-describe('SidebarSessionsList — viewport-cap heartbeat effect', () => {
+describe('SidebarSessionList — viewport-cap heartbeat effect', () => {
 	it('no IntersectionObserver (happy-dom): the fallback reports ALL rendered ids via setViewport', () => {
 		// This happy-dom build ships an observer; the no-observer DOM still
 		// must take the fallback, so stub the global away explicitly.

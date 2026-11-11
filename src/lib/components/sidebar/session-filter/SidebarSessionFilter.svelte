@@ -2,7 +2,7 @@
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	/**
-	 * SessionFilterRow — pill filters over a session list, now a thin
+	 * SidebarSessionFilter — pill filters over a session list, now a thin
 	 * composition (2026-09-04): SessionFilterHeader — the always-visible
 	 * line carrying the collapse button, the `Filter by` summary, and
 	 * the right-pinned meta controls (SessionFilterMeta: `All` + the
@@ -26,9 +26,9 @@
 	 */
 	import type { FilterOption, SessionFilterState } from '$lib/utils/session-filters';
 	import type { DsiWorkspaceSummary } from '$lib/types';
-	import SessionFilterHeader from './SessionFilterHeader.svelte';
-	import Agents from '../common/layout/Agents.svelte';
-	import Workspaces from '../common/layout/Workspaces.svelte';
+	import SessionFilterHeader from '../../sessions/SessionFilterHeader.svelte';
+	import Agents from '../../common/layout/Agents.svelte';
+	import Workspaces from '../../common/layout/Workspaces.svelte';
 
 	let {
 		workspaces,

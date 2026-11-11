@@ -1892,6 +1892,51 @@ describe('dsh-connection — lineage passthrough (normalizeSessionRow)', () => {
 	});
 });
 
+// ── origin 'scheduled' passthrough (ADR-0057 D1, Wave 2 task 2.1-T) ────
+// The scheduler-born origin rides the same passthrough: carried when
+// present, null when absent, and NEVER entering the subagent label
+// branch — identification only (D3), the label path stays exact-match.
+describe('dsh-connection — origin scheduled passthrough (normalizeSessionRow)', () => {
+	it('origin scheduled passes through unchanged', () => {
+		const out = normalizeSessionRow({ sessionId: 'sched', updatedAt: 7, origin: 'scheduled' });
+		expect(out.origin).toBe('scheduled');
+	});
+
+	it('origin subagent keeps the existing descriptor-label behavior', () => {
+		const out = normalizeSessionRow({
+			sessionId: 'kid',
+			origin: 'subagent',
+			projections: {
+				values: { subagent: { mode: 'continuable', label: 'Wave-2 probe child', seq: 1 } }
+			}
+		});
+		expect(out.origin).toBe('subagent');
+		expect(out.title).toBe('Wave-2 probe child');
+	});
+
+	it('absent origin normalizes to null (never undefined, never a guess)', () => {
+		const out = normalizeSessionRow({ sessionId: 'plain' });
+		expect(out.origin).toBeNull();
+	});
+
+	it('scheduled rows do NOT get the subagent label path (exact-match branch)', () => {
+		const out = normalizeSessionRow({
+			sessionId: 'sched-labelled',
+			origin: 'scheduled',
+			projections: {
+				values: {
+					subagent: { mode: 'continuable', label: 'must-not-lead', seq: 1 },
+					title: 'Nightly report'
+				}
+			}
+		});
+		// The label branch is exact-match 'subagent' — a scheduled row with
+		// a subagent-shaped projections block still titles from the title.
+		expect(out.title).toBe('Nightly report');
+		expect(out.title).not.toBe('must-not-lead');
+	});
+});
+
 
 describe('dsh-connection — W2: workspace/follow + session/control state streams', () => {
 	/** Deliver one state-stream item (workspaces-/control- prefixes). */

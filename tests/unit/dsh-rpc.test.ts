@@ -379,3 +379,107 @@ describe('dsh-rpc fork method (The Fork Button ADR, 2026-09-01)', () => {
 		expect(envelope.payload).toEqual({ request: { sessionId: 'session-x' } });
 	});
 });
+describe('dsh-rpc scheduler methods (ADR-0058 W2 — the read-only shelf face)', () => {
+	/**
+	 * Wire pins — host truth (~/agentic-ai/deepseek-harness
+	 * packages/schedule/schedule/src/types.ts 452-528, verified by the
+	 * planner 2026-11-10): schedule/list args
+	 * `{request:{active?,limit?,offset?}}` → {items,shown,total,limit,offset};
+	 * schedule/view args `{request:{id}}` → a full entry OR the body-code
+	 * miss `{id, code:'schedule_not_found'}` — a 200 with the named
+	 * discriminator, never an empty 200. The request wrapper is MANDATORY:
+	 * a bare args object rejects gateway/arguments-invalid (the fork
+	 * precedent above). D4: these two are the ONLY scheduler methods DSI
+	 * carries — the set stays read-only by construction.
+	 */
+
+	it('pins the method strings verbatim (BC-6 grow-by-spec entries)', () => {
+		expect(DSH_METHODS.scheduleList).toBe('schedule/list');
+		expect(DSH_METHODS.scheduleView).toBe('schedule/view');
+	});
+
+	it('scheduleList builder: no-arg call sends the empty request wrapper', () => {
+		expect(DSH_ARGS.scheduleList()).toEqual({ request: {} });
+	});
+
+	it('scheduleList builder: filters ride inside request', () => {
+		expect(DSH_ARGS.scheduleList({ active: true, limit: 10, offset: 20 })).toEqual({
+			request: { active: true, limit: 10, offset: 20 }
+		});
+	});
+
+	it('scheduleView builder: {request:{id}} — the descriptor-exact arg', () => {
+		expect(DSH_ARGS.scheduleView('x')).toEqual({ request: { id: 'x' } });
+	});
+
+	it('builders never leak extra keys (exact-match args contract)', () => {
+		expect(Object.keys(DSH_ARGS.scheduleList())).toEqual(['request']);
+		expect(Object.keys(DSH_ARGS.scheduleView('task-9'))).toEqual(['request']);
+		expect(Object.keys(DSH_ARGS.scheduleView('task-9').request as object)).toEqual(['id']);
+	});
+
+	it('schedule/list envelope round-trip: items page echoes back', () => {
+		const envelope = JSON.parse(
+			encodeRequest('pin-sched-list', DSH_METHODS.scheduleList, DSH_ARGS.scheduleList())
+		) as { method: string; payload: unknown };
+		expect(envelope.method).toBe('schedule/list');
+		expect(envelope.payload).toEqual({ request: {} });
+		const hostReply = JSON.stringify({
+			type: 'server-response',
+			rpcId: 'pin-sched-list',
+			result: {
+				ok: true,
+				value: {
+					items: [
+						{
+							id: 'task-1',
+							kind: 'at',
+							title: 'Dispatch',
+							scheduledAt: '2026-11-10T12:00:00Z',
+							target: { kind: 'new_once', sessionId: 's-born' },
+							involvedSessionIds: ['s-born'],
+							status: 'active'
+						}
+					],
+					shown: 1,
+					total: 1,
+					limit: 100,
+					offset: 0
+				}
+			}
+		});
+		expect(parseResponse(hostReply, 'pin-sched-list')).toMatchObject({ shown: 1, total: 1 });
+	});
+
+	it('schedule/view envelope round-trip: entry value and the body-code miss', () => {
+		const envelope = JSON.parse(
+			encodeRequest('pin-sched-view', DSH_METHODS.scheduleView, DSH_ARGS.scheduleView('task-9'))
+		) as { method: string; payload: unknown };
+		expect(envelope.method).toBe('schedule/view');
+		expect(envelope.payload).toEqual({ request: { id: 'task-9' } });
+		const entryReply = JSON.stringify({
+			type: 'server-response',
+			rpcId: 'pin-sched-view',
+			result: {
+				ok: true,
+				value: {
+					id: 'task-9',
+					kind: 'cron',
+					title: 'Nightly',
+					target: { kind: 'session', sessionId: 's-1' },
+					involvedSessionIds: ['s-1'],
+					status: 'paused'
+				}
+			}
+		});
+		expect(parseResponse(entryReply, 'pin-sched-view')).toMatchObject({ id: 'task-9', status: 'paused' });
+		// The miss: a 200 whose value carries the named discriminator —
+		// matched by the relay, never an RpcError, never an empty 200.
+		const missReply = JSON.stringify({
+			type: 'server-response',
+			rpcId: 'pin-sched-view',
+			result: { ok: true, value: { id: 'task-404', code: 'schedule_not_found' } }
+		});
+		expect(parseResponse(missReply, 'pin-sched-view')).toEqual({ id: 'task-404', code: 'schedule_not_found' });
+	});
+});

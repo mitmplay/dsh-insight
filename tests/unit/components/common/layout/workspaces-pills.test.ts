@@ -1,6 +1,6 @@
 /**
  * Workspaces pill group unit tests — pins the presentational contract of
- * Workspaces.svelte (the workspace pill group of SessionFilterRow):
+ * Workspaces.svelte (the workspace pill group of SidebarSessionFilter):
  *  - no workspaces → nothing renders, not even the divider;
  *  - hybrid registry truth: registered=true paints .reg, registered=false
  *    paints .ghost + the registry annotation in the tooltip and

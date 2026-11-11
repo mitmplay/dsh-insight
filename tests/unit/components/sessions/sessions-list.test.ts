@@ -367,7 +367,7 @@ describe('SessionsList — footer verb toggle (dual-purpose New chat, 2026-08-31
 });
 
 // ── 4.1-T: spine nesting render (2026-08-27 W4, ADR D6) ───────────────
-describe('SidebarSessionsList — lineage nesting (task 4.1-T)', () => {
+describe('SidebarSessionList — lineage nesting (task 4.1-T)', () => {
 	it('depth rows align — the branch slot carries the cue, the row never pads', () => {
 		const s = (sessionId: string): DsiSessionSummary => summary(sessionId);
 		const { target, instance } = mountList({
@@ -837,7 +837,7 @@ describe('SidebarSessions — offline spine + create/replace handoff', () => {
 });
 
 // ── Chip label parity (Chip Menu ADR D5, propagated 2026-09-07) ──────
-describe('SidebarSessionsList — workspace chip label (title-first, D5 parity)', () => {
+describe('SidebarSessionList — workspace chip label (title-first, D5 parity)', () => {
 	it('a registered workspace renders its registry title, never the basename', () => {
 		const { target, instance } = mountList({
 			visible: [summary('main', { workspace: '/Users/x/harness' })],

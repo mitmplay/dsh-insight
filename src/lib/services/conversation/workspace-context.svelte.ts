@@ -72,6 +72,13 @@ export interface PanelRow {
 	 *  from a spawned sub-agent (VIOLET) or a fork (GREEN). Optional;
 	 *  absent/false keeps the muted spawn line. */
 	wsChild?: boolean;
+	/** Coarse origin passthrough (ADR-0057 D1, Scheduled Mark): the
+	 *  spine summary's origin — CLOSED union, mirroring DsiSessionSummary
+	 *  (the synthetic 'browser' is the folded-glass spine species; ghost
+	 *  and glass rows stay null). DISPLAY ONLY — the row-item layer
+	 *  derives a boolean for the SCH pill; no behavior keys to it
+	 *  (ADR-0057 D3). Optional; consumers default null. */
+	origin?: 'subagent' | 'scheduled' | 'browser' | null;
 }
 
 /** The state the floor owner publishes to descendants. */

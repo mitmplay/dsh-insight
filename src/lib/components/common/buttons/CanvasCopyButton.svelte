@@ -293,7 +293,7 @@
 		for (const el of scrollers) {
 			if (el.scrollTop === 0) continue;
 			// ALL element children shift, not just the first: scrollers like
-			// SidebarSessionsList's .group-rows are multi-child flex columns
+			// SidebarSessionList's .group-rows are multi-child flex columns
 			// (one child per row + gap) — moving only the first child shifts
 			// one row and leaves the rest at their scroll origin (2026-09-19
 			// sidebar bug). Transforms don't affect layout, so every child

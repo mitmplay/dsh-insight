@@ -17,6 +17,9 @@ import type {
 	DshCommandReceipt,
 	DshCommandRow,
 	DshPromptContent,
+	DshScheduleEntry,
+	DshScheduleListResult,
+	DshScheduleViewResult,
 	DshSkillList,
 	DshWorkspaceDirectoryListing,
 	DshWorkspaceFileBytes,
@@ -40,6 +43,7 @@ import type {
 	DsiJobView,
 	DsiModelDirectory,
 	DsiModelSelection,
+	DsiScheduledTask,
 } from '$lib/types';
 import { readDshPresetEnglishConfig } from '$lib/server/insight-config';
 import { normalizeModelDirectory, normalizeModelSelection, normalizePreset, normalizeSessionRow, expandRecords } from './normalize';
@@ -105,6 +109,57 @@ export type JobRosterListener = (sessionId: string, jobs: readonly DsiJobView[])
 interface SubagentAddressHint {
 	parentSessionId: string;
 	mode: 'one-shot' | 'continuable';
+}
+
+/**
+ * Normalize ONE schedule/list row into the shelf's DsiScheduledTask
+ * (ADR-0058 W2 task 2.1) — the NULL-WHEN-ABSENT discipline (origin/
+ * parentSessionId precedent): every absent field is null, the title
+ * defaults to '' (an empty label the shelf renders as an em-dash), and a
+ * junk row — no readable id, or a status outside the ledger's three
+ * values — is SKIPPED, never defaulted. Read-only input; never throws.
+ */
+export function normalizeScheduledEntry(raw: unknown): DsiScheduledTask | null {
+	if (raw === null || typeof raw !== 'object') return null;
+	const entry = raw as {
+		id?: unknown;
+		status?: unknown;
+		// Flat ScheduleCatalogEntry members (the wire shape); `record` is the
+		// storage-shaped fallback only.
+		title?: unknown;
+		kind?: unknown;
+		scheduledAt?: unknown;
+		record?: { kind?: unknown; title?: unknown; scheduledAt?: unknown } | null;
+		target?: { kind?: unknown; sessionId?: unknown } | null;
+		lastDelivery?: { deliveredAt?: unknown; targetSessionId?: unknown } | null;
+	};
+	if (typeof entry.id !== 'string' || entry.id.length === 0) return null;
+	if (entry.status !== 'active' && entry.status !== 'paused' && entry.status !== 'ended') return null;
+	const rec = entry.record ?? null;
+	const tgt = entry.target ?? null;
+	// Wire truth (host packages/schedule/schedule/src/types.ts 460): the
+	// ScheduleCatalogEntry is FLAT — ScheduleRecord & { ... } — so title/kind/
+	// scheduledAt sit at the entry's TOP level. The nested `record` member is
+	// storage-shaped (tables.tasks[id].record), kept as a defensive fallback.
+	const title = typeof entry.title === 'string' ? entry.title : rec?.title;
+	const kind = typeof entry.kind === 'string' ? entry.kind : rec?.kind;
+	const scheduledAt = typeof entry.scheduledAt === 'string' ? entry.scheduledAt : rec?.scheduledAt;
+	const delivery = entry.lastDelivery ?? null;
+	const deliveredAt = typeof delivery?.deliveredAt === 'string' ? delivery.deliveredAt : null;
+	const deliveryTarget = typeof delivery?.targetSessionId === 'string' ? delivery.targetSessionId : null;
+	const sessionId = tgt?.sessionId;
+	return {
+		id: entry.id,
+		title: typeof title === 'string' ? title : '',
+		status: entry.status,
+		kind: typeof kind === 'string' ? kind : null,
+		scheduledAt: typeof scheduledAt === 'string' ? scheduledAt : null,
+		targetKind: typeof tgt?.kind === 'string' ? tgt.kind : null,
+		// An empty string is no session — the click gate needs a non-empty id.
+		targetSessionId: typeof sessionId === 'string' && sessionId.length > 0 ? sessionId : null,
+		lastDelivery:
+			deliveredAt !== null || deliveryTarget !== null ? { deliveredAt, targetSessionId: deliveryTarget } : null
+	};
 }
 
 export class RpcRelay {
@@ -827,6 +882,38 @@ export class RpcRelay {
 	/** session.cancel */
 	async cancel(sessionId: string): Promise<{ accepted: boolean }> {
 		return (await this.conn.rpc(DSH_METHODS.cancel, DSH_ARGS.cancel({ sessionId }))) as { accepted: boolean };
+	}
+
+	// ── Scheduler Shelf (ADR-0058 D1/D4, W2 task 2.1) ───────────────────
+
+	/**
+	 * schedule/list — the whole scheduler ledger page, normalized
+	 * NULL-WHEN-ABSENT. READ-ONLY (D4): no mutation method exists on this
+	 * relay. Junk rows (normalizeScheduledEntry null) skip — the shelf
+	 * renders the ledger's honest subset, never invented rows.
+	 */
+	async listScheduledTasks(): Promise<DsiScheduledTask[]> {
+		const raw = (await this.conn.rpc(DSH_METHODS.scheduleList, DSH_ARGS.scheduleList())) as DshScheduleListResult;
+		const items = Array.isArray(raw?.items) ? raw.items : [];
+		const out: DsiScheduledTask[] = [];
+		for (const entry of items) {
+			const row = normalizeScheduledEntry(entry);
+			if (row !== null) out.push(row);
+		}
+		return out;
+	}
+
+	/**
+	 * schedule/view — one task by id. The host answers the entry OR the
+	 * body-code miss `{id, code:'schedule_not_found'}` (a 200 with the named
+	 * discriminator, never an empty 200) — the miss is matched HERE and
+	 * normalized to null; the consumer gets null, never a guess.
+	 */
+	async viewScheduledTask(id: string): Promise<DsiScheduledTask | null> {
+		const raw = (await this.conn.rpc(DSH_METHODS.scheduleView, DSH_ARGS.scheduleView(id))) as DshScheduleViewResult;
+		if (raw === null || typeof raw !== 'object') return null;
+		if ((raw as { code?: unknown }).code === 'schedule_not_found') return null;
+		return normalizeScheduledEntry(raw);
 	}
 
 	// ── Jobs (ADR-0026 D2/D3, Job Badge Wave 1) ──────────────────────────
