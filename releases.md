@@ -1,3 +1,16 @@
+## 0.11.8
+
+Bumped from 0.11.7 — the CLI gains DSH_VERSION so a stalled npm publish can be downgraded past, plus the DSH_WEB_VERSION clobber fix it uncovered.
+
+### Features
+- **DSH_VERSION npm downgrade** — `DSH_VERSION=0.2.2-rc.1 pnpm dsi dsh --sync --dev --playwright-mcp` runs a specific npm `@deepseek-ai/dsh` version instead of the package.json pin, dodging publish lag without needing a source checkout. Maps onto the ambient `DSH_WEB_VERSION` the sync script and plugin launcher already honor; precedence `DSH_WEB_CMD` > `DSH_PATH` > `DSH_VERSION` (DSH_PATH prints an ignored-notice when both are set); no `npm view` preflight — a typo fails with npx's own notarget error. Commit `4ea93d5d`.
+
+### Bug fixes
+- **DSH_WEB_VERSION clobber in runSyncedPair** — the spawn env re-pinned `DSH_WEB_VERSION` from package.json unconditionally, so any ambient override (old or new) never reached the sync script; now `process.env.DSH_WEB_VERSION ?? dshWebVersion()`. Plain `DSH_WEB_VERSION=x` users benefit too. Found while wiring DSH_VERSION; pinned by the precedence/resolution smokes. Commit `4ea93d5d`.
+
+### Docs
+- **README** — two-line operator sweep. Commit `5a55ced4`.
+
 ## 0.11.7
 
 Bumped from 0.11.6 — the scheduler shelf gets its filter row, delivery receipts, and a recurrence column; the CLI learns DSH_PATH to dodge npm publish lag; and two sidebar refactors move the rows components home to their sidebar domains.
