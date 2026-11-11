@@ -36,13 +36,13 @@ function liveCrossings(): Crossing[] {
 describe('dep-graph boundary gate (ADR-0018 D1)', () => {
   it('fixture holds the frozen nine, all component-to-component, distinct', () => {
     const doc = JSON.parse(readFileSync(FIXTURE, 'utf8'));
-    expect(doc.crossings).toHaveLength(31);
+    expect(doc.crossings).toHaveLength(32);
     for (const c of doc.crossings as Crossing[]) {
       expect(c.from).toMatch(/^components\//);
       expect(c.to).toMatch(/^components\//);
     }
     const keys = (doc.crossings as Crossing[]).map((c) => c.from + '=>' + c.to);
-    expect(new Set(keys).size).toBe(31);
+    expect(new Set(keys).size).toBe(32);
   });
 
   it('live tree matches the frozen fixture exactly (no silent drift)', () => {
@@ -50,7 +50,7 @@ describe('dep-graph boundary gate (ADR-0018 D1)', () => {
   });
 
   it('--check passes when every crossing is frozen', () => {
-    expect(runGraph(['--check'])).toContain('boundary check passed: 31 crossings');
+    expect(runGraph(['--check'])).toContain('boundary check passed: 32 crossings');
   });
 
   it('--check exits 1 when a crossing is unfrozen', () => {

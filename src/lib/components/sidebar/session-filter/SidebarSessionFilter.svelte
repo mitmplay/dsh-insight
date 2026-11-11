@@ -26,7 +26,7 @@
 	 */
 	import type { FilterOption, SessionFilterState } from '$lib/utils/session-filters';
 	import type { DsiWorkspaceSummary } from '$lib/types';
-	import SessionFilterHeader from '../../sessions/SessionFilterHeader.svelte';
+	import SidebarSessionFilterHeader from './SidebarSessionFilterHeader.svelte';
 	import Agents from '../../common/layout/Agents.svelte';
 	import Workspaces from '../../common/layout/Workspaces.svelte';
 
@@ -62,7 +62,7 @@
 </script>
 
 <div class="filters" data-testid="session-filter-row">
-	<SessionFilterHeader
+	<SidebarSessionFilterHeader
 		{workspaces}
 		{presets}
 		{filter}

@@ -38,6 +38,7 @@
 	import { isRegisteredWorkspace, workspaceDisplayLabel } from '$lib/utils/session-filters';
 	import type { DsiWorkspaceSummary } from '$lib/types';
 	import { Clock } from '@lucide/svelte';
+	import * as m from '$lib/paraglide/messages';
 	import SessionStatus from './SessionStatus.svelte';
 	import WorkspaceChip from '../common/WorkspaceChip.svelte';
 
@@ -152,7 +153,7 @@
 	     (ADR-0057 D3). The glyph is aria-hidden; the SCH text stays
 	     readable (assistive tech + Playwright role/text selectors). -->
 	<span class="sch-badge" data-testid="sidebar-sch-badge"
-		><Clock size={8} aria-hidden="true" /><span class="sch-text">SCH</span></span
+		><Clock size={8} aria-hidden="true" /><span class="sch-text">{m.scheduledBadge()}</span></span
 	>
 {/if}
 <span class="label">{label}</span>

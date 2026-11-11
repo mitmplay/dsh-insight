@@ -277,6 +277,7 @@
   "filterSessions": "Filtrar sesiones",
   "focused": "Enfocado",
   "broadcast": "Difusión ·",
+  "schedulerShelf": "Programador",
   "broadcastSyncedTo": "Prompt de difusión… sincronizado con {count} panel marcado",
   "discardBroadcastTitle": "Descartar la difusión y restaurar el borrador de cada panel",
   "discardBroadcast": "Descartar la difusión",
@@ -509,5 +510,6 @@
   "browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile",
   "browserCloneHint": "Clonando tu perfil de Chrome más reciente…",
   "browserCloneFallback": "No se pudo clonar tu perfil — se abre un glass limpio en su lugar",
-  "tryAgain": "Reintentar"
+  "tryAgain": "Reintentar",
+  "scheduledBadge": "SCH"
 }

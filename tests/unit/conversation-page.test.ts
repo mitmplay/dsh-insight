@@ -1096,17 +1096,20 @@ describe('+page.svelte — a2a chip join on the spine cadence (W4 4.2-T)', () =>
 			trackPage(mount(Page, { target }));
 			await settle();
 			await settle();
-			// The PRE-EXISTING trio plus the Subagent Anchor's own poll
-			// (2026-10-26, ADR D3 — the anchor button deliberately owns one
-			// 4s timer feeding the subagent-clock registry): the spine feed
-			// (2x5s, one per subscription lifetime; concurrent floors SHARE
-			// one — the BC-7 win) + the poll orchestrator (5s) + the anchor
-			// (4s). An A2A-owned timer does not exist — the join rides
-			// loadSpineRows.
-			expect(intervals.length).toBe(4);
+			// The PRE-EXISTING trio plus two deliberate single-owner timers:
+			// the Subagent Anchor's poll (2026-10-26, ADR D3 — 4s, feeding the
+			// subagent-clock registry) and the Scheduler Shelf's expanded
+			// refresh (ADR-0058 D4 amendment 2026-11-11 — 30s, keeps the
+			// shelf rows honest): the spine feed (2x5s, one per subscription
+			// lifetime; concurrent floors SHARE one — the BC-7 win) + the
+			// poll orchestrator (5s) + the anchor (4s) + the shelf (30s).
+			// An A2A-owned timer does not exist — the join rides
+			// loadSpineRows. The GATE: zero NEW spine-cadence (5s) timers.
+			expect(intervals.length).toBe(5);
 			const spineCadence = intervals.filter(([, ms]) => ms === 5_000);
 			expect(spineCadence.length).toBe(3); // the pre-existing spine trio, cadence untouched
 			expect(intervals.filter(([, ms]) => ms === 4_000).length).toBe(1); // the anchor poll only
+			expect(intervals.filter(([, ms]) => ms === 30_000).length).toBe(1); // the scheduler shelf refresh only
 			// ADR-0018 W2: the spine subscription effect moved into
 			// services/workspace/page-feeds.svelte.ts — same single timer,
 			// new stack site. Route + feed service together = the one effect.

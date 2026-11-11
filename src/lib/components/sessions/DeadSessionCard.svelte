@@ -28,7 +28,7 @@
 		{m.tryAgain()}
 	</button>
 	<button type="button" data-testid="panel-error-close" onclick={onclose}>
-		Close
+		{m.close()}
 	</button>
 </div>
 

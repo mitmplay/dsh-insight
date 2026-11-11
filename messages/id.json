@@ -277,6 +277,7 @@
   "filterSessions": "Filter sesi",
   "focused": "Terfokus",
   "broadcast": "Broadcast ·",
+  "schedulerShelf": "Penjadwal",
   "broadcastSyncedTo": "Broadcast prompt… tersinkron ke {count} panel tercentang",
   "discardBroadcastTitle": "Buang broadcast dan pulihkan draf setiap panel",
   "discardBroadcast": "Buang broadcast",
@@ -509,5 +510,6 @@
   "browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile",
   "browserCloneHint": "Mengkloning profil Chrome yang terakhir dipakai…",
   "browserCloneFallback": "Gagal mengkloning profil — membuka glass bersih sebagai gantinya",
-  "tryAgain": "Coba lagi"
+  "tryAgain": "Coba lagi",
+  "scheduledBadge": "SCH"
 }

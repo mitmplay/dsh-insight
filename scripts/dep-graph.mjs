@@ -69,6 +69,25 @@ for (const [id, g] of Object.entries(graph)) {
   }
 }
 
+// --write-fixture mode: regenerate the frozen fixture from the CURRENT
+// crossings. ADR-0018: ONLY with operator sign-off (e.g. a commit-all-and-push
+// instruction naming the relocation), and always update the _comment to record
+// who signed off and why. Renamed/relocated components keep their crossings —
+// this re-freezes the same budget at the new paths.
+if (process.argv.includes('--write-fixture')) {
+  const doc = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+  const comment = process.argv[process.argv.indexOf('--write-fixture') + 1];
+  if (!comment) {
+    console.error('usage: dep-graph.mjs --write-fixture "<sign-off note for _comment>"');
+    process.exit(2);
+  }
+  doc._comment = comment;
+  doc.crossings = cross.sort((a, b) => (a.from + a.to).localeCompare(b.from + b.to));
+  writeFileSync(FIXTURE, JSON.stringify(doc, null, 2) + '\n');
+  console.log('frozen-crossings regenerated: ' + doc.crossings.length + ' crossing(s)');
+  process.exit(0);
+}
+
 // --check mode: every current crossing must appear in the frozen fixture
 if (process.argv.includes('--check')) {
   if (!existsSync(FIXTURE)) {

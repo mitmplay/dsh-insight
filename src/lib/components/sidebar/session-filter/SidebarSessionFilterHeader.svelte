@@ -39,10 +39,10 @@
 	 * hover area.
 	 */
 	import { ChevronDown, ChevronRight } from '@lucide/svelte';
-import AgentChip from '../common/buttons/AgentChip.svelte';
-	import SessionFilterMeta from './SessionFilterMeta.svelte';
-	import WorkspaceChip from '../common/WorkspaceChip.svelte';
-	import WorkspaceActionsMenu from './WorkspaceActionsMenu.svelte';
+import AgentChip from '../../common/buttons/AgentChip.svelte';
+	import SessionFilterMeta from '../../sessions/SessionFilterMeta.svelte';
+	import WorkspaceChip from '../../common/WorkspaceChip.svelte';
+	import WorkspaceActionsMenu from '../../sessions/WorkspaceActionsMenu.svelte';
 	import {
 		workspaceLabel,
 		type FilterOption,

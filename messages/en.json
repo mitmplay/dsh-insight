@@ -277,6 +277,7 @@
   "filterSessions": "Filter sessions",
   "focused": "Focused",
   "broadcast": "Broadcast ·",
+  "schedulerShelf": "Scheduler",
   "broadcastSyncedTo": "Broadcast prompt… synced to {count} checked panel",
   "discardBroadcastTitle": "Discard the broadcast and restore every panel's draft",
   "discardBroadcast": "Discard the broadcast",
@@ -509,5 +510,6 @@
   "browserHeadedHint": "Shift opens a HEADED glass - a visible window on a disposable profile",
   "browserCloneHint": "Cloning your last-used Chrome profile…",
   "browserCloneFallback": "Couldn't clone your profile — opening a clean glass instead",
-  "tryAgain": "Try again"
+  "tryAgain": "Try again",
+  "scheduledBadge": "SCH"
 }

@@ -72,7 +72,7 @@
 	 * targets reserve none; their rows render inert).
 	 */
 	import { onMount } from 'svelte';
-	import { ChevronDown, ChevronRight, Clock } from '@lucide/svelte';
+	import SidebarSessionSchedulerHeader from './SidebarSessionSchedulerHeader.svelte';
 	import { resolve } from '$app/paths';
 	import { addPanelFromSidebar } from '$lib/services/panels/panel-registry';
 	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
@@ -157,19 +157,7 @@
 </script>
 
 <div class="shelf" data-testid="scheduler-shelf">
-	<button
-		class="head"
-		type="button"
-		data-testid="scheduler-shelf-toggle"
-		aria-expanded={!collapsed}
-		onclick={toggle}
-	>
-		{#if collapsed}<ChevronRight size={12} />{:else}<ChevronDown size={12} />{/if}
-		<Clock size={12} />
-		<!-- i18n-skip: locale keys pending planner approval (W2 report proposal) -->
-		<span class="label">Scheduler</span>
-		<span class="pill" data-testid="scheduler-shelf-count">{armedCount(tasks)}</span>
-	</button>
+	<SidebarSessionSchedulerHeader {collapsed} count={armedCount(tasks)} ontoggle={toggle} />
 	{#if !collapsed}
 		<div class="rows">
 			{#if !loaded}
@@ -225,39 +213,6 @@
 		margin: 0.125rem 0;
 		border: 1px solid color-mix(in srgb, var(--color-accent-blue, #3b82f6) 35%, var(--color-surface-elevated));
 		border-radius: 0.5rem;
-	}
-
-	.head {
-		display: flex;
-		align-items: center;
-		gap: 0.3rem;
-		min-width: 0;
-		padding: 0.15rem 0.3rem;
-		border: none;
-		background: transparent;
-		border-radius: 0.375rem;
-		cursor: pointer;
-		/* The sidebar's 11px coherence rule (RowSessionItem 2026-11-06). */
-		font-size: 0.6875rem;
-		color: var(--color-text-primary, #212529);
-		text-align: left;
-	}
-
-	.label {
-		flex: 1;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.pill {
-		flex-shrink: 0;
-		padding: 0 0.35rem;
-		border-radius: 999px;
-		font-size: 0.625rem;
-		color: var(--color-text-secondary, #6c757d);
-		background: color-mix(in srgb, var(--color-accent-purple) 14%, transparent);
 	}
 
 	.rows {

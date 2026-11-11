@@ -16,7 +16,7 @@
 	import type { SpineGroupPrefs } from '$lib/utils/spine-group-prefs';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
 	import type { FilterOption, SessionFilterState } from '$lib/utils/session-filters';
-	import SidebarOpenPanels from '../sidebar/session-open/SidebarOpenPanels.svelte';
+	import SidebarOpenPanels from '../sidebar/session-open/SidebarSessionOpen.svelte';
 	import SidebarSessionScheduler from '../sidebar/session-scheduler/SidebarSessionScheduler.svelte';
 	import SidebarSessionFilter from '../sidebar/session-filter/SidebarSessionFilter.svelte';
 	import SidebarSessionContainer from './SidebarSessionContainer.svelte';

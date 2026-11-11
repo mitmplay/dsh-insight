@@ -1,5 +1,5 @@
 {
-  "_comment": "ADR-0018 D1 frozen budget - component-to-component cross-domain imports. Regenerated 2026-11-11 (sidebar consolidation: sessions/ components moved to sidebar/{session-open,session-filter,session-list,session-scheduler}, operator-directed rename alignment) — previous regeneration 2026-11-06 with operator sign-off (commit-all-and-push instruction) for the shared AgentChip pill (AgentChip Shared Pill ADR 2026-11-06): sessions headers consume components/common/buttons/AgentChip.svelte. Prior baseline: regenerated 2026-10-30 for WidthBadge.",
+  "_comment": "ADR-0018 D1 frozen budget - component-to-component cross-domain imports. Regenerated 2026-11-11 (header extractions: SidebarSessionOpenHeader / SidebarSessionFilterHeader / SidebarSessionListHeader / SidebarSessionSchedulerHeader carry their host's pre-existing crossings at the new file paths - operator sign-off via commit-all-and-push instruction, matching the 2026-11-06 AgentChip precedent). Previous regeneration 2026-11-11 sidebar consolidation; before that 2026-11-06 with operator sign-off for the shared AgentChip pill, and 2026-10-30 for WidthBadge.",
   "crossings": [
     {
       "from": "components/common/layout/AppSidebar.svelte",
@@ -38,16 +38,28 @@
       "to": "components/monaco/settings-monaco.ts"
     },
     {
-      "from": "components/sessions/SessionFilterHeader.svelte",
-      "to": "components/common/buttons/AgentChip.svelte"
-    },
-    {
-      "from": "components/sessions/SessionFilterHeader.svelte",
-      "to": "components/common/WorkspaceChip.svelte"
-    },
-    {
       "from": "components/sessions/SessionFilterMeta.svelte",
       "to": "components/common/layout/AddWorkspaceButton.svelte"
+    },
+    {
+      "from": "components/sessions/SessionsList.svelte",
+      "to": "components/sidebar/session-filter/SidebarSessionFilter.svelte"
+    },
+    {
+      "from": "components/sessions/SessionsList.svelte",
+      "to": "components/sidebar/session-open/SidebarSessionOpen.svelte"
+    },
+    {
+      "from": "components/sessions/SessionsList.svelte",
+      "to": "components/sidebar/session-scheduler/SidebarSessionScheduler.svelte"
+    },
+    {
+      "from": "components/sessions/SidebarSessionContainer.svelte",
+      "to": "components/sidebar/session-list/SidebarSessionList.svelte"
+    },
+    {
+      "from": "components/sessions/WorkspaceRowItem.svelte",
+      "to": "components/common/WorkspaceChip.svelte"
     },
     {
       "from": "components/sidebar/session-filter/SidebarSessionFilter.svelte",
@@ -58,8 +70,36 @@
       "to": "components/common/layout/Workspaces.svelte"
     },
     {
-      "from": "components/sessions/WorkspaceRowItem.svelte",
+      "from": "components/sidebar/session-filter/SidebarSessionFilterHeader.svelte",
+      "to": "components/common/buttons/AgentChip.svelte"
+    },
+    {
+      "from": "components/sidebar/session-filter/SidebarSessionFilterHeader.svelte",
       "to": "components/common/WorkspaceChip.svelte"
+    },
+    {
+      "from": "components/sidebar/session-filter/SidebarSessionFilterHeader.svelte",
+      "to": "components/sessions/SessionFilterMeta.svelte"
+    },
+    {
+      "from": "components/sidebar/session-filter/SidebarSessionFilterHeader.svelte",
+      "to": "components/sessions/WorkspaceActionsMenu.svelte"
+    },
+    {
+      "from": "components/sidebar/session-list/SidebarSessionList.svelte",
+      "to": "components/sessions/RowSessionItem.svelte"
+    },
+    {
+      "from": "components/sidebar/session-open/SidebarSessionOpen.svelte",
+      "to": "components/sessions/SidebarOpenPanelRows.svelte"
+    },
+    {
+      "from": "components/sidebar/session-open/SidebarSessionOpenHeader.svelte",
+      "to": "components/sessions/SidebarOpenPanelHeader.svelte"
+    },
+    {
+      "from": "components/sidebar/session-open/SidebarSessionOpenHeader.svelte",
+      "to": "components/sessions/SidebarOpenPanelTree.svelte"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
@@ -88,42 +128,6 @@
     {
       "from": "components/workspace-file/WorkspaceFilePanel.svelte",
       "to": "components/monaco/settings-monaco.ts"
-    },
-    {
-      "from": "components/sessions/SessionsList.svelte",
-      "to": "components/sidebar/session-open/SidebarOpenPanels.svelte"
-    },
-    {
-      "from": "components/sessions/SessionsList.svelte",
-      "to": "components/sidebar/session-scheduler/SidebarSessionScheduler.svelte"
-    },
-    {
-      "from": "components/sessions/SessionsList.svelte",
-      "to": "components/sidebar/session-filter/SidebarSessionFilter.svelte"
-    },
-    {
-      "from": "components/sessions/SidebarSessionContainer.svelte",
-      "to": "components/sidebar/session-list/SidebarSessionList.svelte"
-    },
-    {
-      "from": "components/sidebar/session-filter/SidebarSessionFilter.svelte",
-      "to": "components/sessions/SessionFilterHeader.svelte"
-    },
-    {
-      "from": "components/sidebar/session-list/SidebarSessionList.svelte",
-      "to": "components/sessions/RowSessionItem.svelte"
-    },
-    {
-      "from": "components/sidebar/session-open/SidebarOpenPanels.svelte",
-      "to": "components/sessions/SidebarOpenPanelHeader.svelte"
-    },
-    {
-      "from": "components/sidebar/session-open/SidebarOpenPanels.svelte",
-      "to": "components/sessions/SidebarOpenPanelRows.svelte"
-    },
-    {
-      "from": "components/sidebar/session-open/SidebarOpenPanels.svelte",
-      "to": "components/sessions/SidebarOpenPanelTree.svelte"
     }
   ]
 }

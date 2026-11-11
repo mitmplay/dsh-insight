@@ -1,6 +1,6 @@
 /**
- * SessionFilterHeader unit tests — pins the contract of
- * SessionFilterHeader.svelte (the row's always-visible line, extracted
+ * SidebarSessionFilterHeader unit tests — pins the contract of
+ * SidebarSessionFilterHeader.svelte (the row's always-visible line, extracted
  * 2026-09-04):
  *  - the collapse button (filter-toggle): aria-expanded tracks the
  *    fold, aria-controls points at the row's pills group, a click
@@ -16,7 +16,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import SessionFilterHeader from '$lib/components/sessions/SessionFilterHeader.svelte';
+import SidebarSessionFilterHeader from '$lib/components/sidebar/session-filter/SidebarSessionFilterHeader.svelte';
 import type { FilterOption, SessionFilterState } from '$lib/utils/session-filters';
 import type { DsiWorkspaceSummary } from '$lib/types';
 
@@ -50,7 +50,7 @@ function mountHeader(
 	document.body.appendChild(target);
 	const ontoggle = vi.fn();
 	const onchange = vi.fn();
-	const instance = mount(SessionFilterHeader, {
+	const instance = mount(SidebarSessionFilterHeader, {
 		target,
 		props: { workspaces, presets, filter, collapsed, ontoggle, onchange, oncreated: vi.fn(), registry }
 	});
@@ -68,7 +68,7 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-describe('SessionFilterHeader — collapse button', () => {
+describe('SidebarSessionFilterHeader — collapse button', () => {
 	it('tracks the fold: aria-expanded + chevron, click reports ontoggle', () => {
 		const { target, instance, ontoggle } = mountHeader(ALL_CLEAR, { collapsed: true });
 		const button = head(target);
@@ -88,7 +88,7 @@ describe('SessionFilterHeader — collapse button', () => {
 	});
 });
 
-describe('SessionFilterHeader — chip menu gesture (Chip Menu ADR D1/D4)', () => {
+describe('SidebarSessionFilterHeader — chip menu gesture (Chip Menu ADR D1/D4)', () => {
 	const WS_FILTER: SessionFilterState = { workspace: '/tmp/ws', preset: null, blankMode: 'any' };
 	const REGISTRY: DsiWorkspaceSummary[] = [
 		{ workspaceId: 'w-1', title: 'Harness', path: '/tmp/ws', sessionIds: [] }
@@ -149,7 +149,7 @@ describe('SessionFilterHeader — chip menu gesture (Chip Menu ADR D1/D4)', () =
 	});
 });
 
-describe('SessionFilterHeader — meta on the header line', () => {
+describe('SidebarSessionFilterHeader — meta on the header line', () => {
 	it('renders `All` folded or not (meta is always visible)', () => {
 		const folded = mountHeader(ALL_CLEAR, { collapsed: true });
 		expect(folded.target.querySelector('[data-testid="filter-all"]')).not.toBeNull();
@@ -160,7 +160,7 @@ describe('SessionFilterHeader — meta on the header line', () => {
 	});
 });
 
-describe('SessionFilterHeader — summary string contract', () => {
+describe('SidebarSessionFilterHeader — summary string contract', () => {
 	it('placeholder when nothing filters', () => {
 		const { target, instance } = mountHeader(ALL_CLEAR);
 		expect(summary(target).textContent?.replace(/\s+/g, ' ').trim()).toBe(
@@ -185,7 +185,7 @@ describe('SessionFilterHeader — summary string contract', () => {
 	});
 });
 
-describe('SessionFilterHeader — disclosure', () => {
+describe('SidebarSessionFilterHeader — disclosure', () => {
 	it('the head tooltip discloses the full state, count included', () => {
 		const { target, instance } = mountHeader({
 			workspace: '/tmp/ws',
@@ -210,7 +210,7 @@ describe('SessionFilterHeader — disclosure', () => {
 	});
 });
 
-describe('SessionFilterHeader — chip menu gesture + tooltip arms (coverage pass 2026-09-14)', () => {
+describe('SidebarSessionFilterHeader — chip menu gesture + tooltip arms (coverage pass 2026-09-14)', () => {
 	const REGISTRY: DsiWorkspaceSummary[] = [
 		{
 			workspaceId: 'w1',
