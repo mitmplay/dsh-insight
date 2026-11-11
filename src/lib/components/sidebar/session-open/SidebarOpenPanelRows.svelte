@@ -8,7 +8,7 @@
 	import RowButtonClose from './RowButtonClose.svelte';
 	import RowButtonMoveDown from './RowButtonMoveDown.svelte';
 	import RowButtonMoveUp from './RowButtonMoveUp.svelte';
-	import WorkspaceRowItem from './WorkspaceRowItem.svelte';
+	import WorkspaceRowItem from '../../sessions/WorkspaceRowItem.svelte';
 	import { isScheduledSession, refreshScheduleLedger } from '$lib/services/schedule-ledger.svelte';
 
 </script>

@@ -40,7 +40,7 @@
 	import { appConfig } from '$lib/services/config/app-config.svelte';
 	import { heartbeatScope } from '$lib/services/jobs/heartbeat-scope.svelte';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
-	import RowSessionItem from '../../sessions/RowSessionItem.svelte';
+	import RowSessionItem from './RowSessionItem.svelte';
 
 	let {
 		current,

@@ -13,8 +13,8 @@
 import { flushSync } from 'svelte';
 import { mount, unmount, type ComponentProps } from 'svelte';
 import { describe, expect, it } from 'vitest';
-import RowButtonClose from '$lib/components/sessions/RowButtonClose.svelte';
-import RowButtonFold from '$lib/components/sessions/RowButtonFold.svelte';
+import RowButtonClose from '$lib/components/sidebar/session-open/RowButtonClose.svelte';
+import RowButtonFold from '$lib/components/sidebar/session-open/RowButtonFold.svelte';
 
 function mountClose(props: ComponentProps<typeof RowButtonClose>) {
 	const target = document.createElement('div');

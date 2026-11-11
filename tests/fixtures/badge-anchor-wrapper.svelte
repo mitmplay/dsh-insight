@@ -4,7 +4,7 @@
 	 * and lets the test swap the list for FRESH objects with the same ids,
 	 * reproducing the tick's fresh-proxy rebuild (ADR-0033 D1).
 	 */
-	import RowJobBadge from '../../src/lib/components/sessions/RowJobBadge.svelte';
+	import RowJobBadge from '../../src/lib/components/sidebar/session-list/RowJobBadge.svelte';
 
 	let { initial = [] }: { initial: { sessionId: string }[] } = $props();
 	// Override state + $derived: the prop is read reactively (no

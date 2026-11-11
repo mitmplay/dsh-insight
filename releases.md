@@ -1,3 +1,26 @@
+## 0.11.7
+
+Bumped from 0.11.6 — the scheduler shelf gets its filter row, delivery receipts, and a recurrence column; the CLI learns DSH_PATH to dodge npm publish lag; and two sidebar refactors move the rows components home to their sidebar domains.
+
+### Features
+- **DSH_PATH source-checkout launcher** — `DSH_PATH=~/agentic-ai/deepseek-harness pnpm dsi dsh --sync --dev --playwright-mcp` runs the host from a DSH source tree instead of the npm pin, so publish lag (`notarget No matching version found for @deepseek-ai/dsh@0.2.2-rc.2`) stops blocking the floor. Synthesizes the `DSH_WEB_CMD` launcher the sync script already honors (`pnpm --dir <path> dsh`); fails loud (exit 66) on a missing checkout or `node_modules`; explicit `DSH_WEB_CMD` wins. Commit `e0bfbc9c`.
+- **Scheduler Filter Cluster** — the shelf learns the filter row (ADR D1–D7). Commit `461e40d0`.
+- **Scheduler delivery states read at a glance** — Clock/CheckCheck toggle icons; row receipt becomes CheckCheck + relativeTime with the exact date in the title; the kind chip dropped (every row reads rrule). Commit `b90c133e`.
+- **Recurrence column returns as [icon]{label}** — fixed-width left-aligned kind cell (CalendarRange/Timer/Repeat/… by wire kind) and fixed-width right-aligned meta so both trailing columns lock to the edge. Commit `6a1ba880`.
+- **Scheduler Shelf + Scheduled Mark ledger join, Born-Late Panel** — ADR-0056..0059 waves (GFM alert blocks, dead-card Try again, ledger-birth self-heal). Commits `fed92815`, `14d76de5`, `1fad8c35`.
+
+### Refactors
+- **Sidebar consolidation, two moves** — `RowSessionItem` + row-private `RowJobBadge` moved to `sidebar/session-list`; `SidebarOpenPanelRows` + its row-private entourage (`RowButton*`, `sidebar-open-panel-rows-types`) moved to `sidebar/session-open`; `WorkspaceRowItem` stays shared in `sessions/`. The `sessions/` domain empties of sidebar-owned rows. Commits `5602ee31`, `288b2e5f`, `a61b52c4`, `56af32a6`.
+- **SidebarSessionSchedulerList extracted** — the scheduler rows block (markup, rowBody snippet, delivery helpers, row styles) moves to a pure-projection child; rows cap past 10 with scroll; `filterShelfTasks` genericized fixing type erasure. Commit `d61ee1b5`.
+
+### Bug fixes
+- **The Healed Gates** — the scheduler cluster pays its copy and its crossings (ADR-0060). Commit `58565249`.
+
+### Tests & docs
+- **Coverage gate raised** — rpc-relay branch slices A/B + dsh/schedule endpoint tests (targets 98.05%/100%, zero files below 80%). Commit `0952bfad`.
+- **AGENTS.md** — no polling goal-rounds once the split-session schedule exists (the 2026-11-11 12-round burn lesson). Commit `43e1b974`.
+- **Scheduler Filter Cluster ADR + spec** — D1–D7 decision record with PRD/Tasks/karpathy context. Commit `928294a5`.
+
 ## 0.11.6
 
 Bumped from 0.11.5 — a docs-only patch: the README's self-introduction rewritten to lead with the product name and say what DSI actually is.

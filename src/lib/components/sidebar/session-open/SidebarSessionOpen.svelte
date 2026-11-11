@@ -80,7 +80,7 @@
 	import type { DsiWorkspaceSummary } from '$lib/types';
 	import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
 	import SidebarSessionOpenHeader from './SidebarSessionOpenHeader.svelte';
-	import SidebarOpenPanelRows from '../../sessions/SidebarOpenPanelRows.svelte';
+	import SidebarOpenPanelRows from './SidebarOpenPanelRows.svelte';
 
 	let {
 		workspaces

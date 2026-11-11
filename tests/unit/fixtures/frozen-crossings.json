@@ -1,5 +1,5 @@
 {
-  "_comment": "ADR-0060 D2/D3 sign-off - scheduler filter cluster straddle crossings frozen (13), settings-monaco rehomed to common/ (1 retired) - operator instruction: heal gates via ASDLC, 2026-11-11",
+  "_comment": "Operator moves 2026-11-11: RowSessionItem+RowJobBadge to sidebar/session-list, then SidebarOpenPanelRows + row-private entourage (RowButtonFold/Close/MoveDown/MoveUp + sidebar-open-panel-rows-types) to sidebar/session-open. Net crossings stay 32: the sessions-domain rows moved home to the sidebar domain; the only sessions crossing each keeps is the shared WorkspaceRowItem. Regenerated with operator approval under the never-ask policy.",
   "crossings": [
     {
       "from": "components/common/layout/AppSidebar.svelte",
@@ -128,16 +128,16 @@
       "to": "components/sessions/WorkspaceActionsMenu.svelte"
     },
     {
-      "from": "components/sidebar/session-list/SidebarSessionList.svelte",
+      "from": "components/sidebar/session-list/RowSessionItem.svelte",
       "fromDomain": "sidebar",
       "toDomain": "sessions",
-      "to": "components/sessions/RowSessionItem.svelte"
+      "to": "components/sessions/WorkspaceRowItem.svelte"
     },
     {
-      "from": "components/sidebar/session-open/SidebarSessionOpen.svelte",
+      "from": "components/sidebar/session-open/SidebarOpenPanelRows.svelte",
       "fromDomain": "sidebar",
       "toDomain": "sessions",
-      "to": "components/sessions/SidebarOpenPanelRows.svelte"
+      "to": "components/sessions/WorkspaceRowItem.svelte"
     },
     {
       "from": "components/sidebar/session-open/SidebarSessionOpenHeader.svelte",

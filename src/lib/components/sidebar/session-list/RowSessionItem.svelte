@@ -17,7 +17,7 @@
 	 * registry's graceful no-op lets the <a> navigate).
 	 */
 	import { relativeTime } from '$lib/utils/time';
-	import WorkspaceRowItem from './WorkspaceRowItem.svelte';
+	import WorkspaceRowItem from '../../sessions/WorkspaceRowItem.svelte';
 	import RowJobBadge from './RowJobBadge.svelte';
 	import {
 		addPanelFromSidebar,

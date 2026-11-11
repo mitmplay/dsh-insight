@@ -8,7 +8,7 @@
  */
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import RowJobBadge from '../../src/lib/components/sessions/RowJobBadge.svelte';
+import RowJobBadge from '../../src/lib/components/sidebar/session-list/RowJobBadge.svelte';
 import { jobsRoster } from '../../src/lib/services/jobs/roster-store.svelte';
 import { heartbeatScope } from '../../src/lib/services/jobs/heartbeat-scope.svelte';
 

@@ -9,7 +9,7 @@
 import { flushSync, mount, unmount } from 'svelte';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import RowSessionItemHost from '../fixtures/RowSessionItemHost.svelte';
-import RowJobBadge from '../../src/lib/components/sessions/RowJobBadge.svelte';
+import RowJobBadge from '../../src/lib/components/sidebar/session-list/RowJobBadge.svelte';
 import { heartbeatScope } from '../../src/lib/services/jobs/heartbeat-scope.svelte';
 import type { DsiSessionSummary, DsiWorkspaceSummary } from '../../src/lib/types';
 

@@ -20,6 +20,11 @@
 // `dsi dsh --ov` (or --sync --ov, or web --ov) installs the OpenViking
 // memory plugin into
 // the active dsh profile by delegating to `dsh plugin ... add` (idempotent).
+// DSH_PATH (2026-11-11): point --sync at a DSH SOURCE CHECKOUT instead of
+// the published npm pin — `DSH_PATH=~/agentic-ai/deepseek-harness pnpm dsi
+// dsh --sync` synthesizes the DSH_WEB_CMD launcher (`pnpm --dir <path> dsh`)
+// the sync script already honors, so an npm release that has not landed yet
+// cannot block the floor. An explicit DSH_WEB_CMD wins.
 
 import { spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
@@ -104,6 +109,8 @@ const USAGE = [
 	'      dsi dsh --sync [--zai] [--dev] [--ov]',
 	'                   run dsh-web-synced.sh (dsh web + token sync) AND serve',
 	'                   dsi — see the recommended command above',
+	'                   DSH_PATH=<dsh checkout> runs the host from that source',
+	'                   tree instead of the npm pin (needs pnpm install there)',
 	'      dsi dsh --ov',
 	'                   install the OpenViking memory plugin into the active',
 	'                   dsh profile (idempotent; alone, without --sync)',
@@ -200,6 +207,7 @@ if (command === 'dsh') {
 		if (withZai) addZaiProvider();
 		if (withOv) runOvPlugin();
 		runSkillsMirror();
+		applyDshPathSugar();
 		// The Glass Bootstrap (ADR 2026-11-05, D1): probe the glass browser
 		// BEFORE the pair spawns — system Chrome first, cached chromium second,
 		// a one-time pinned fetch last (soft failure; DSI_SKIP_BROWSER_INSTALL=1
@@ -413,6 +421,28 @@ function stampedFloorEnv(uiPort) {
 		env.GLASS_CHASSIS_URL = process.env.GLASS_CHASSIS_URL;
 	}
 	return env;
+}
+
+/** DSH_PATH sugar (2026-11-11): when DSH_PATH points at a DSH source
+ *  checkout and no explicit DSH_WEB_CMD is set, synthesize the launcher the
+ *  sync script already honors (`pnpm --dir <path> dsh`). Fails LOUD on a
+ *  missing checkout or a missing node_modules — a silent pnpm install would
+ *  hide real breakage behind a slow first launch. An explicit DSH_WEB_CMD
+ *  always wins: explicit intent beats ambient env (the DSH_PORT rule). */
+function applyDshPathSugar() {
+	const p = process.env.DSH_PATH;
+	if (!p || process.env.DSH_WEB_CMD) return;
+	const root = p.startsWith('~') ? path.join(homedir(), p.slice(1)) : path.resolve(p);
+	if (!existsSync(path.join(root, 'package.json'))) {
+		console.error(`dsi dsh: DSH_PATH=${p} has no package.json — not a DSH checkout (${root})`);
+		process.exit(66);
+	}
+	if (!existsSync(path.join(root, 'node_modules'))) {
+		console.error(`dsi dsh: DSH_PATH=${root} has no node_modules — run \`pnpm install\` in the checkout first, then retry`);
+		process.exit(66);
+	}
+	process.env.DSH_WEB_CMD = `pnpm --dir ${root} dsh`;
+	console.log(`dsi dsh: DSH_PATH=${p} — the host runs from the SOURCE tree (${root}), not the npm pin`);
 }
 
 function dshWebVersion() {

@@ -12,7 +12,7 @@ import {
 	registerAddPanel,
 	registerSummonGlass
 } from '$lib/services/panels/panel-registry';
-import RowSessionItem from '$lib/components/sessions/RowSessionItem.svelte';
+import RowSessionItem from '$lib/components/sidebar/session-list/RowSessionItem.svelte';
 
 const calls: string[] = [];
 const summonOpts: Array<{ replace: boolean; keepSelection?: boolean }> = [];

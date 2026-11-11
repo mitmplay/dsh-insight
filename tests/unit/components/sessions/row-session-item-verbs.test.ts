@@ -22,10 +22,10 @@ import {
 	panelRegistryActive,
 	resetPanelRegistryForTests
 } from '$lib/services/panels/panel-registry';
-import RowSessionItem from '$lib/components/sessions/RowSessionItem.svelte';
+import RowSessionItem from '$lib/components/sidebar/session-list/RowSessionItem.svelte';
 import type { DsiSessionSummary } from '$lib/types';
 
-vi.mock('$lib/components/sessions/RowJobBadge.svelte', () => ({ default: () => '' }));
+vi.mock('$lib/components/sidebar/session-list/RowJobBadge.svelte', () => ({ default: () => '' }));
 
 function rowSession(over: Partial<DsiSessionSummary> = {}): DsiSessionSummary {
 	return {
