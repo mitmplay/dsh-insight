@@ -26,6 +26,8 @@ npx @deepseek-insight/dsi@latest dsh --sync --zai # open http://localhost:5174
 
 DSH_VERSION=0.2.2-rc.1 npx @deepseek-insight/dsi@latest dsh --sync --zai # npm downgrade
 ```
+When it is up, your browser opens the page by itself (default `http://127.0.0.1:5174`).
+
 <details>
 <summary><strong>CLI Params</strong></summary>
 <table>
@@ -36,9 +38,13 @@ DSH_VERSION=0.2.2-rc.1 npx @deepseek-insight/dsi@latest dsh --sync --zai # npm d
 </table>
 </details>
 
-When it is up, your browser opens the page by itself (default `http://127.0.0.1:5174`).
+## Surfaces you can work on:
 
-## Various operations can be Enter in Composer:
+<details>
+<summary><strong>Sidebar</strong></summary>
+<p>The sidebar is DSI's list of every conversation on this floor, kept in one slim rail so agents stay findable at a glance. Type a few letters to filter by session name, jump to a day with the date picker, tuck sub-agents out of sight when the list gets busy, and flip to the scheduler view to see what is queued to run later. When you need the full width for panels, the whole rail folds away and comes back with one key.</p>
+<img src="https://raw.githubusercontent.com/mitmplay/dsh-insight/refs/heads/main/docs/images/dsi-insight-1.sidebar.png"/>
+</details>
 
 <details>
 <summary><strong>Macros (<code>!</code>)</strong></summary>
