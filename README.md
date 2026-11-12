@@ -106,10 +106,6 @@ When it is up, your browser opens the page by itself (default `http://127.0.0.1:
 - Coding agents: `/dsi-adr`, `/dsi-spec`, `/dsi-task`
 - Integration helper for [OpenViking](https://openviking.ai/): `/dsi-ov-setup` 
 
-<details><summary>Deepseek-insight-panels</summary>
-  <img src="https://raw.githubusercontent.com/mitmplay/dsh-insight/refs/heads/main/docs/images/dsi-panels.png"/>
-</details>
-
 # Ports & the browser brain, in plain words
 
 **Floor** is a pair: **DSI** (the page you watch), **DSH** (the harness host). Each sits on its own port, and ports can be moved — handy when you want **next floor** tobe running.
