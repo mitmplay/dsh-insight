@@ -1,3 +1,16 @@
+## 0.11.9
+
+Bumped from 0.11.8 — the glass browser learns the wire clipboard and wire selection (ADR-0061), and the scheduler shelf header slims down.
+
+### Features
+- **The wire clipboard** — paste crosses the wire, never the OS (ADR-0061): clipboard writes/reads ride the DSH wire into the glass browser panel. New `src/lib/utils/browser-paste.ts` and `paste-chunks.ts`, panel wiring in `BrowserPanel.svelte` + `browser/registry.ts`, pinned by `tests/unit/browser-panel-paste.test.ts`, `paste-chunks.test.ts`, `browser-header-paste.test.ts` and the e2e `tests/e2e/browser-panel-paste.spec.ts`. Commit `85db02e5`.
+- **Selection on the wire** — drag, double-click, Cmd+A and Cmd+C work inside the glass panel via the same wire surface (ADR-0061 D6–D8). Commit `008fdbe7`.
+
+### Changes
+- **Scheduler shelf header** — the fold toggle drops the Clock icon (chevron only), and the pending/delivered pills merge into one `(pending/delivered)` pill under testid `scheduler-counts`; header row gap tightened. Tests updated in `scheduler-shelf-header.test.ts`, `scheduler-shelf.test.ts`, `scheduler-shelf.spec.ts`. Commit `404af9d8`.
+
+### Docs
+- **README** — sidebar layman blurb, surfaces section rename, Plugin/Config singular grammar, "DSI makes" grammar note, image sweep. Commits `65397455`, `6dcab3b0`, `a7217a02`, `3794fdbb`, `0a532e4a`.
 ## 0.11.8
 
 Bumped from 0.11.7 — the CLI gains DSH_VERSION so a stalled npm publish can be downgraded past, plus the DSH_WEB_VERSION clobber fix it uncovered.
