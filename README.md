@@ -21,7 +21,7 @@ Screenshot: Sidebar, Workspace-explorer, Agent, Glass-browser, Subagent
 - management panel: **Prompt**, **Skill**, **Plugins** and **Configs** Manager
 
 > [!NOTE]
-> ["in a nutshell" - DSI](https://github.com/mitmplay/dsh-insight) make `Harness` present multiple conversations (**Agent** or **Sub-agent**), **keys** and **management** panels **side-by-side** `INSIDE Container` that can be **re-size** or **scale**.
+> ["in a nutshell" - DSI](https://github.com/mitmplay/dsh-insight) makes `Harness` present multiple conversations (**Agent** or **Sub-agent**), **keys** and **management** panels **side-by-side** `INSIDE Container` that can be **re-size** or **scale**.
 
 # Quick Start
 
