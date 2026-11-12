@@ -148,4 +148,13 @@ describe('POST /api/settings-home/file-write (Settings Tree ADR D2)', () => {
 		expect(res.status).toBe(500);
 		expect((await res.json()).error.code).toBe('io-error');
 	});
+
+	it('a NON-Error rejection still stringifies into the io-error message (err ?? err arm)', async () => {
+		writeSpy.mockRejectedValueOnce('plain string failure');
+		const res = await post({ home: 'dsi', path: 'a', content: 'x' });
+		expect(res.status).toBe(500);
+		const body = await res.json();
+		expect(body.error.code).toBe('io-error');
+		expect(body.error.message).toBe('plain string failure');
+	});
 });

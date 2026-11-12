@@ -100,9 +100,15 @@ beforeEach(() => {
 	document.documentElement.removeAttribute('data-theme');
 });
 
-afterEach(() => {
+afterEach(async () => {
 	vi.unstubAllGlobals();
 	vi.resetModules();
+	// Drain the macrotask queue BEFORE the worker tears down: the module's
+	// import-time console.warn ([dsi-monaco] patch arms) can otherwise race the
+	// RPC close as a pending onUserConsoleLog → EnvironmentTeardownError,
+	// which vitest reports as a run failure even with every test green
+	// (observed 2026-11-12 on the full test:coverage run).
+	await new Promise((r) => setTimeout(r, 0));
 });
 
 describe('defineDsiThemes (module-load theme registration, L51-81)', () => {

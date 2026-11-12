@@ -20,7 +20,10 @@ describe('launcher wiring — the Glass Bootstrap', () => {
 		const nextBranch = launcher.indexOf("'--plugin' ||");
 		expect(call).toBeGreaterThan(branchStart);
 		expect(call).toBeLessThan(nextBranch);
-		expect(launcher.slice(call - 400, call)).toContain('addZaiProvider()');
+		// window widened 400→800 (2026-11-12): the ADR comment block between the
+		// zai stage (line 211) and the ensureGlassBrowser call grew past 400 chars;
+		// the pin's intent — call sits beside the zai stage — is unchanged.
+		expect(launcher.slice(call - 800, call)).toContain('addZaiProvider()');
 	});
 
 	it('imports the bootstrap module, not a copy', () => {

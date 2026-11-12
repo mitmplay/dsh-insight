@@ -244,6 +244,10 @@
 			};
 		} catch (err) {
 			levels[rel] = { kind: 'failed', reason: err instanceof Error ? err.message : 'network' };
+		} finally {
+			// The file-freshness floor (The Silent Root D4): the staleness
+			// stamp for the ROOT level — focus refresh compares against it.
+			if (rel === '') lastRootFetchTs = Date.now();
 		}
 	}
 
@@ -472,6 +476,104 @@
 	});
 
 	onDestroy(closePulse);
+
+	// ── File Pulse (The Silent Root D2/D3/D4/D5, 2026-11-12) ────────────
+	// ONE EventSource on /api/workspace/file-events for the panel's LIFETIME,
+	// opened at mount and INDEPENDENT of the git gate (D3) — the shallow
+	// workspace-root watcher is a different stream from the git pulse, and
+	// a gateless desk still gets root-level freshness. Hygiene mirrors the
+	// pulse above: baseline-first ring handling (the connect baseline is
+	// recorded, never acted on), onerror closes only on readyState CLOSED
+	// with a sticky refusal (a JSON refusal is a fatal error — no retry
+	// loop; the panel degrades to today's manual world), onDestroy closes.
+	// A ring is a ROOT-ONLY invalidation: `delete levels['']` — expanded
+	// levels survive (D2/G3) — and the mount $effect stays the single fetch
+	// trigger that refetches the root.
+	let filePulseSource: EventSource | null = null; // PLAIN — no effect deps
+	let filePulseLastGen: string | null = null;
+	let filePulseAlive = $state(false);
+	/** Sticky refusal: the file-events route answers a bad root with plain
+	 *  JSON (never a stream), so the EventSource errors fatally. Remember
+	 *  it — one doomed attempt per mount, never a loop (D3's manual world). */
+	let filePulseRefused = $state(false);
+	/** Focus-refresh floor (D4): a focus/pointerdown/visible event refetches
+	 *  the root level only when the last root fetch is older than this. No
+	 *  standing interval — the events ARE the trigger. */
+	const FILE_FRESH_FLOOR_MS = 2000;
+	// Seeded to NOW so a focus event racing the mount fetch (its stamp lands
+	// in fetchLevel's finally) cannot read epoch-zero as infinitely stale.
+	let lastRootFetchTs = Date.now();
+
+	function closeFilePulse(): void {
+		filePulseSource?.close();
+		filePulseSource = null;
+		filePulseLastGen = null;
+		filePulseAlive = false;
+	}
+
+	function openFilePulse(): void {
+		// Non-browser safety (mirrors openPulse): unit environments without
+		// EventSource mount the panel fine — the stream is not a render dep.
+		if (typeof EventSource === 'undefined') return;
+		if (filePulseRefused) return;
+		closeFilePulse();
+		const source = new EventSource(
+			'/api/workspace/file-events?sessionId=' +
+				encodeURIComponent(sessionId ?? '') +
+				'&root=' +
+				encodeURIComponent(root)
+		);
+		filePulseSource = source;
+		filePulseAlive = true;
+		source.addEventListener('generation', (event) => {
+			const generation = (event as MessageEvent).data as string;
+			if (filePulseLastGen === null) {
+				filePulseLastGen = generation; // connect baseline — root is already fresh
+				return;
+			}
+			if (generation === filePulseLastGen) return;
+			filePulseLastGen = generation;
+			delete levels['']; // ROOT ONLY — expanded levels survive the ring (D2/G3)
+		});
+		source.onerror = () => {
+			if (source.readyState === 2) {
+				// Plain-JSON refusal arrives as a fatal EventSource error — this
+				// close IS the refusal; sticky, no retry loop.
+				filePulseRefused = true;
+				closeFilePulse(); // EventSource.CLOSED
+			}
+		};
+	}
+
+	/** Focus/visibility freshness (D4): clear the ROOT level when stale —
+	 *  the mount $effect refetches it; expanded levels are untouched. */
+	function refreshRootIfStale(): void {
+		if (Date.now() - lastRootFetchTs <= FILE_FRESH_FLOOR_MS) return;
+		lastRootFetchTs = Date.now();
+		delete levels[''];
+	}
+
+	// ONE stream for the panel's lifetime, independent of the git gate (D3).
+	openFilePulse();
+
+	// Focus/pointerdown/visibility triggers (D4): event-driven, no interval.
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') refreshRootIfStale();
+		};
+		window.addEventListener('focus', refreshRootIfStale);
+		document.addEventListener('visibilitychange', onVisible);
+		const el = splitRoot;
+		el?.addEventListener('pointerdown', refreshRootIfStale);
+		return () => {
+			window.removeEventListener('focus', refreshRootIfStale);
+			document.removeEventListener('visibilitychange', onVisible);
+			el?.removeEventListener('pointerdown', refreshRootIfStale);
+		};
+	});
+
+	onDestroy(closeFilePulse);
 
 	// The Explorer Layout (ADR 2026-09-17 D3/D4/D5; amendment 2026-09-16):
 	// the tab list and the active tab are OWNER-PERSISTED panel facts

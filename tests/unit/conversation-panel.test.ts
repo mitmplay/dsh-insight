@@ -929,6 +929,18 @@ function noteOf(target: HTMLElement): string {
 	return (target.querySelector('[data-testid="command-note"]') as HTMLElement | null)?.textContent ?? '';
 }
 
+/** Condition-based wait: poll every 10ms (macrotask hops so pending chains
+ *  can drain) until fn() passes or the timeout expires. Used where a fixed
+ *  settle count is load-sensitive — see the 200-page drain test. */
+async function waitFor(fn: () => boolean, opts: { timeout?: number } = {}): Promise<void> {
+	const deadline = Date.now() + (opts.timeout ?? 5_000);
+	while (!fn()) {
+		if (Date.now() > deadline) throw new Error('waitFor: condition not met before timeout');
+		await new Promise((r) => setTimeout(r, 10));
+	}
+	await settleAll();
+}
+
 /** settle() plus a macrotask hop — the drain loop is one long microtask
  *  chain (fetch stub → json → prepend → next page), which fully completes
  *  only when the microtask queue is allowed to empty before the next task. */
@@ -1199,8 +1211,15 @@ describe('ConversationPanel — Shift+click drain (loadAllOlder)', () => {
 		fakeOverflow(target);
 		await settle();
 		shiftClickTop(target);
-		await settleAll();
-		await settleAll();
+		// Wait on the CONDITION, not a fixed number of settle hops: the 200-page
+		// drain is a long microtask chain that can interleave with macrotasks
+		// (scroll handlers, timers) under full-suite load, so a fixed
+		// settleAll()+settleAll() sometimes asserted before the last page —
+		// the load-flake seen on the desk gate. Poll until the cap error lands.
+		await waitFor(
+			() => target.querySelector('[data-testid="load-older-error"]') !== null,
+			{ timeout: 20_000 }
+		);
 		expect(calls.filter((c) => c.url.includes('/history'))).toHaveLength(200);
 		expect(target.querySelector('[data-testid="load-older-error"]')?.textContent).toContain(
 			'stopped after 200 pages'

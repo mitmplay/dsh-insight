@@ -43,6 +43,13 @@ describe('POST /api/workspace/file-write', () => {
 		expect((await post({ sessionId: 's1', root: '/ws', path: 'a.txt' })).status).toBe(400);
 	});
 
+	it('a JSON null body degrades to an empty record -> 400 bad-session (?? {} arm)', async () => {
+		const res = await post('null');
+		expect(res.status).toBe(400);
+		expect((await res.json()).error.code).toBe('bad-session');
+		expect(gateSpy).not.toHaveBeenCalled();
+	});
+
 	it('rejects a missing or blank sessionId with 400 bad-session', async () => {
 		const missing = await post({ root: '/ws', path: 'a.txt', content: 'x' });
 		expect(missing.status).toBe(400);
@@ -112,6 +119,19 @@ describe('POST /api/workspace/file-write', () => {
 		} finally {
 			await fs.rm(dir, { recursive: true, force: true });
 			await fs.rm(nodePath.resolve(dir, '..', 'outside.txt'), { force: true });
+		}
+	});
+
+	it('a non-Error write rejection gets the generic message (instanceof false arm)', async () => {
+		const writeSpy = vi.spyOn(fs, 'writeFile').mockRejectedValueOnce('exploded not-an-error');
+		try {
+			const res = await post({ sessionId: 's1', root: '/ws', path: 'a.txt', content: 'x' });
+			expect(res.status).toBe(500);
+			const body = await res.json();
+			expect(body.error.code).toBe('write-failed');
+			expect(body.error.message).toBe('write failed');
+		} finally {
+			writeSpy.mockRestore();
 		}
 	});
 

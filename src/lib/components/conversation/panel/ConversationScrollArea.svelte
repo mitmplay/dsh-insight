@@ -69,7 +69,8 @@
 		title = null,
 		agentPreset = null,
 		subagent = false,
-		depth = 0
+		depth = 0,
+		workspaceRoot = undefined
 	}: {
 		/** The scrolling <main> element — page-bound for the floating anchors. */
 		viewport?: HTMLElement;
@@ -114,6 +115,11 @@
 		 *  panel is a read-only view (no composer), and the tint says so
 		 *  at a glance before the missing input is noticed. */
 		subagent?: boolean;
+		/** The session's workspace root (ConversationPanel's workspace prop,
+		 *  ADR "The Silent Root" D1, 2026-11-12): forwarded to MarkdownContent
+		 *  and PromptBubble so chat transcript images resolve via the
+		 *  workspace-file-bytes endpoint. Absent → imgs stay alt-only. */
+		workspaceRoot?: string;
 		/** Lineage depth (1 = direct child, 2 = nested under a sub-agent,
 		 *  …). Deepens the tint one step per level, capped at 3 so the
 		 *  slate transcript text keeps AA contrast; 0/absent behaves
@@ -253,6 +259,7 @@
 					time={group.entry.time}
 					tone="context"
 					{sessionId}
+					{workspaceRoot}
 				>
 					<div class="flex flex-wrap items-center gap-x-0.5">
 						<SystemPromptChip
@@ -283,6 +290,7 @@
 				meta={group.kind === 'prompt' ? group.entry.meta : undefined}
 					{sessionId}
 					{onFileLink}
+					{workspaceRoot}
 				>
 					{#if group.kind === 'prompt'}
 						{#if group.context.length > 0}
@@ -417,7 +425,7 @@
 											e.kind !== 'unknown-event')
 									: []}
 								{#if run.kind === 'text'}
-									<MarkdownContent content={run.entry.text} hideToggle {onFileLink} />
+									<MarkdownContent content={run.entry.text} hideToggle {onFileLink} {workspaceRoot} />
 								{:else if workEntries.length > 0}
 									<InlineToolRunRow run={turnRun} entries={workEntries} runKey={run.key} />
 								{/if}
@@ -425,7 +433,7 @@
 						{/if}
 						{#each fold.trailingTextRuns as run (run.key)}
 							{#if run.kind === 'text'}
-								<MarkdownContent content={run.entry.text} hideToggle {onFileLink} />
+								<MarkdownContent content={run.entry.text} hideToggle {onFileLink} {workspaceRoot} />
 							{:else}
 								<InlineToolRunRow run={turnRun} entries={run.entries} runKey={run.key} />
 							{/if}
@@ -438,7 +446,7 @@
 								     assistant bullets flat under Tailwind preflight.
 								     Streaming dots moved to Composer (OCI placement,
 								     2026-08-24) — one indicator, in the input. -->
-								<MarkdownContent content={run.entry.text} hideToggle {onFileLink} />
+								<MarkdownContent content={run.entry.text} hideToggle {onFileLink} {workspaceRoot} />
 							{:else}
 								<InlineToolRunRow run={turnRun} entries={run.entries} runKey={run.key} />
 							{/if}

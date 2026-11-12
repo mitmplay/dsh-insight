@@ -102,11 +102,22 @@ async function stageOpenPanel() {
 	return view;
 }
 
+/** The Silent Root amendment (2026-11-12, D3): the panel now opens TWO
+ *  panel-lifetime streams — the git pulse AND the independent file pulse.
+ *  This suite pins the GIT pulse; select it by URL, never by index. */
+function gitSource(): StubEventSource {
+	const s = StubEventSource.instances.find((i) => i.url.includes('/api/workspace/git-events'));
+	if (!s) throw new Error('no git-events source opened');
+	return s;
+}
+
 describe('explorer live invalidation — Index Pulse W3', () => {
 	it('opens ONE EventSource on an open-gate desk with repos, listing the repo abs paths', async () => {
 		const view = await stageOpenPanel();
-		expect(StubEventSource.instances.length).toBe(1);
-		const url = StubEventSource.instances[0].url;
+		// TWO panel-lifetime streams now (file pulse + git pulse, The Silent
+		// Root D3) — the git one is asserted by URL below.
+		expect(StubEventSource.instances.length).toBe(2);
+		const url = gitSource().url;
 		expect(url).toContain('/api/workspace/git-events?');
 		expect(url).toContain('sessionId=s1');
 		expect(url).toContain('root=%2Fws');
@@ -116,7 +127,7 @@ describe('explorer live invalidation — Index Pulse W3', () => {
 
 	it('a generation ring re-fetches status through the UNCHANGED route and keeps the levels cache', async () => {
 		const view = await stageOpenPanel();
-		const source = StubEventSource.instances[0];
+		const source = gitSource();
 		const statusFetchesBefore = String(vi.mocked(fetch)).length; // noop; counting below via api call spy instead
 		// stage a DIFFERENT status answer, ring, and assert the fetch happened again
 		apiMocks.set('/api/workspace/git-status', {
@@ -140,17 +151,17 @@ describe('explorer live invalidation — Index Pulse W3', () => {
 
 	it('a PERMANENT stream error (readyState CLOSED) closes the source with no retry storm', async () => {
 		const view = await stageOpenPanel();
-		const source = StubEventSource.instances[0];
+		const source = gitSource();
 		source.fireError(2); // CLOSED — the browser gave up
 		await flushSync();
 		expect(source.closed).toBe(true);
-		expect(StubEventSource.instances.length).toBe(1); // no reconnect loop
+		expect(StubEventSource.instances.length).toBe(2); // no reconnect loop (git + file streams)
 		view.cleanup();
 	});
 
 	it('a TRANSIENT error (CONNECTING) keeps the stream; a generation bumped during the outage invalidates once on reconnect (stale-rows regression, headed-verified 2026-09-13)', async () => {
 		const view = await stageOpenPanel();
-		const source = StubEventSource.instances[0];
+		const source = gitSource();
 		source.emit('generation', '3'); // baseline
 		await flushSync();
 		const fetchSpy = vi.mocked(globalThis.fetch);
@@ -164,7 +175,7 @@ describe('explorer live invalidation — Index Pulse W3', () => {
 		source.fireError(0);
 		await flushSync();
 		expect(source.closed).toBe(false);
-		expect(StubEventSource.instances.length).toBe(1);
+		expect(StubEventSource.instances.filter((i) => i.url.includes('git-events')).length).toBe(1);
 
 		// Reconnect delivers the current generation. It bumped during the
 		// outage (commits happened while nobody listened): differs from the
@@ -185,18 +196,18 @@ describe('explorer live invalidation — Index Pulse W3', () => {
 
 	it('enabled:false closes the source', async () => {
 		const view = await stageOpenPanel();
-		const source = StubEventSource.instances[0];
+		const source = gitSource();
 		source.emit('enabled');
 		await flushSync();
 		expect(source.closed).toBe(true);
-		expect(StubEventSource.instances.length).toBe(1);
+		expect(StubEventSource.instances.filter((i) => i.url.includes('git-events')).length).toBe(1); // git pulse: no reopen
 		view.cleanup();
 	});
 
 	it('the connect-baseline generation event does NOT invalidate, and a real ring never reopens the stream (reconnect-storm regression, headed-verified 2026-09-13)', async () => {
 		const view = await stageOpenPanel();
-		expect(StubEventSource.instances.length).toBe(1);
-		const source = StubEventSource.instances[0];
+		expect(StubEventSource.instances.length).toBe(2); // file pulse + git pulse (The Silent Root D3)
+		const source = gitSource();
 		const fetchSpy = vi.mocked(globalThis.fetch);
 		const statusCalls = (): number =>
 			fetchSpy.mock.calls.filter((c) => String(c[0]).includes('/api/workspace/git-status')).length;
@@ -226,7 +237,7 @@ describe('explorer live invalidation — Index Pulse W3', () => {
 		await new Promise((r) => setTimeout(r, 0));
 		expect(statusCalls()).toBeGreaterThan(statusBefore);
 		expect(mapCalls()).toBeGreaterThanOrEqual(mapBefore);
-		expect(StubEventSource.instances.length).toBe(1);
+		expect(StubEventSource.instances.filter((i) => i.url.includes('git-events')).length).toBe(1);
 		expect(source.closed).toBe(false);
 		view.cleanup();
 	});
@@ -258,14 +269,14 @@ describe('explorer live invalidation — Index Pulse W3', () => {
 
 	it('unmount closes the EventSource — no watcher leak', async () => {
 		const view = await stageOpenPanel();
-		const source = StubEventSource.instances[0];
+		const source = gitSource();
 		view.cleanup();
 		expect(source.closed).toBe(true);
 	});
 
 	it('a gated git-events answer is refused ONCE — sticky, no reopen loop (Always Tabs D2, task 2.2-T)', async () => {
 		const view = await stageOpenPanel();
-		const source = StubEventSource.instances[0];
+		const source = gitSource();
 		source.fireError(2); // the gated JSON enabled:false answer surfaces as a FATAL error
 		await flushSync(); // the pulseRefused flip re-runs the pulse effect
 		await new Promise((r) => setTimeout(r, 0));
@@ -273,7 +284,7 @@ describe('explorer live invalidation — Index Pulse W3', () => {
 		await new Promise((r) => setTimeout(r, 0));
 		await flushSync();
 		expect(source.closed).toBe(true);
-		expect(StubEventSource.instances.length).toBe(1); // ONE doomed attempt, never a loop
+		expect(StubEventSource.instances.filter((i) => i.url.includes('git-events')).length).toBe(1); // ONE doomed git attempt, never a loop
 		view.cleanup();
 	});
 
@@ -286,7 +297,7 @@ describe('explorer live invalidation — Index Pulse W3', () => {
 			const fetchSpy = vi.mocked(globalThis.fetch);
 			const statusCalls = (): number =>
 				fetchSpy.mock.calls.filter((c) => String(c[0]).includes('/api/workspace/git-status')).length;
-			StubEventSource.instances[0].fireError(2); // gated answer → sticky refusal
+			gitSource().fireError(2); // gated answer → sticky refusal
 			await flushSync();
 			await vi.advanceTimersByTimeAsync(0);
 			const frozen = statusCalls();

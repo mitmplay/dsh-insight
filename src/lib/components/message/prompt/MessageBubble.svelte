@@ -26,7 +26,8 @@
 		showSave = true,
 		children,
 		onFileLink,
-		hideMarkdown = false
+		hideMarkdown = false,
+		workspaceRoot = undefined
 	}: {
 		/** Which side of the conversation the bubble speaks for — picks
 		 *  the square tail corner, data-role, and the stamp's edge. */
@@ -49,6 +50,10 @@
 		 *  — the action row's Copy/Raw keep the real wire text, and the
 		 *  action row + stamp mount exactly as for a text bubble. */
 		hideMarkdown?: boolean;
+		/** Inline images (ADR "The Silent Root" D1, 2026-11-12): the session
+		 *  workspace root forwarded to MarkdownContent's img data-ws-src → src
+		 *  rewrite. Absent → imgs stay alt-only (the D1 fallback). */
+		workspaceRoot?: string;
 	} = $props();
 
 	/** Raw ⇄ rendered flip state — owned here, wired to ToolsMessage. */
@@ -77,7 +82,7 @@
 				data-testid="message-raw"
 			>{text}</pre>
 		{:else}
-			<MarkdownContent content={text} hideToggle {onFileLink} />
+			<MarkdownContent content={text} hideToggle {onFileLink} {workspaceRoot} />
 		{/if}
 	{/if}
 	{#if children}

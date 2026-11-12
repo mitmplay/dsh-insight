@@ -435,6 +435,7 @@ function renderInline(text: string): string {
 	});
 
 	rest = emphasis(rest);
+	rest = images(rest);
 	rest = links(rest);
 	rest = autolinkBareUrls(rest);
 
@@ -594,6 +595,37 @@ export function renderPreviewMarkdown(text: string): string {
 	return renderMarkdown(body).replace(/\u0001(\d+)\u0001/g, (_m, i: string) =>
 		revivePreviewToken(vault[Number(i)] ?? '')
 	);
+}
+
+/**
+ * ![alt](<rel>) / ![alt](rel) — inline workspace image (2026-11-12, ADR
+ * "The Silent Root" D1). The destination is NEVER emitted as an href/src:
+ * the emitter only ever writes an inert `data-ws-src` attribute, and the
+ * MarkdownContent consumer turns that into a same-origin
+ * /api/dsh/workspace-file-bytes URL (the endpoint enforces containment, so
+ * the client never trusts the path). Destination admission mirrors links():
+ * any scheme (javascript:, data:, …) or a leading // (protocol-relative)
+ * returns the whole token UNCHANGED so links() sees byte-identical input
+ * and the `!`-prefixed token stays a literal link today's way.
+ */
+function images(text: string): string {
+	// Mirror of LINK above with a leading `!` and an empty-alt allowance
+	// ([^\]]* not [^\]]+): the escape-first pipeline hands the angle wrapper
+	// over as &lt;/&gt; — see links() for the two-form destination rules.
+	const IMAGE = /!\[([^\]]*)\]\((?:&lt;([^>]*?)&gt;|([^)\s]+))\)/g;
+	return text.replace(IMAGE, (whole, altA: string, angleSrc: string, bareSrc: string) => {
+		const alt = altA;
+		const href = angleSrc !== undefined ? angleSrc : bareSrc;
+		const unescaped = href
+			.replaceAll('&amp;', '&')
+			.replaceAll('&lt;', '<')
+			.replaceAll('&gt;', '>')
+			.replaceAll('&quot;', '"')
+			.replaceAll('&#39;', "'");
+		const rel = unescaped.replace(/^<(.+)>$/, '$1');
+		if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(rel) || rel.startsWith('//')) return whole;
+		return `<img alt="${escapeHtml(alt)}" data-ws-src="${escapeHtml(rel)}" />`;
+	});
 }
 
 /**

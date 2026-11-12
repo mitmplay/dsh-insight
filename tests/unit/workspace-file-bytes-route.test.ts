@@ -8,7 +8,7 @@
  *   - a directory rejects 415.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -55,6 +55,12 @@ describe('GET /api/dsh/workspace-file-bytes', () => {
 		expect(res.status).toBe(400);
 	});
 
+	it('rejects a blank root with 400', async () => {
+		const res = await get('?root=%20%20&path=a.png');
+		expect(res.status).toBe(400);
+		expect(((await res.json()) as { error: { code: string } }).error.code).toBe('bad-root');
+	});
+
 	it('rejects a missing path with 400', async () => {
 		const res = await get('?root=' + encodeURIComponent(tmpdir()));
 		expect(res.status).toBe(400);
@@ -78,6 +84,30 @@ describe('GET /api/dsh/workspace-file-bytes', () => {
 		const res = await get('?root=' + encodeURIComponent(root) + '&path=nope.png');
 		expect(res.status).toBe(404);
 		expect((await res.json()).error.code).toBe('workspace-file/not-found');
+	});
+
+	it('rejects a file over the preview ceiling with 413', async () => {
+		const root = workspace();
+		// Sparse file: size set past the ceiling without writing the bytes.
+		const huge = path.join(root, 'huge.png');
+		writeFileSync(huge, 'x');
+		truncateSync(huge, 32 * 1024 * 1024 + 1);
+		const res = await get('?root=' + encodeURIComponent(root) + '&path=huge.png');
+		expect(res.status).toBe(413);
+		expect(((await res.json()) as { error: { code: string } }).error.code).toBe('too-large');
+	});
+
+	it('maps a read-after-stat failure to 404', async () => {
+		const root = workspace();
+		const cursed = path.join(root, 'cursed.png');
+		writeFileSync(cursed, Buffer.from([1]));
+		// stat answers on a 000 file (metadata only), readFile's open refuses —
+		// the route's read-failure arm, no mock needed.
+		chmodSync(cursed, 0o000);
+		const res = await get('?root=' + encodeURIComponent(root) + '&path=cursed.png');
+		chmodSync(cursed, 0o644); // restore so afterEach's rmSync can clean up
+		expect(res.status).toBe(404);
+		expect(((await res.json()) as { error: { code: string } }).error.code).toBe('workspace-file/not-found');
 	});
 
 	it('rejects a directory with 415', async () => {

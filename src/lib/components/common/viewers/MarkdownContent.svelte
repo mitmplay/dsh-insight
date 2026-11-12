@@ -46,7 +46,8 @@
 		 *  the FILE PREVIEW surface. Chat hosts MUST keep the default false —
 		 *  strict BC-12 output stays byte-identical there. */
 		allowHtml = false,
-		onFileLink = undefined
+		onFileLink = undefined,
+		workspaceRoot = undefined
 	}: {
 		content: string;
 		small?: boolean;
@@ -60,6 +61,11 @@
 		 *  relative anchors are intercepted (preventDefault) and forwarded as
 		 *  workspace-relative paths. Absent = anchors navigate as today. */
 		onFileLink?: (path: string) => void;
+		/** Inline images (ADR "The Silent Root" D1, 2026-11-12): the workspace
+		 *  root the img data-ws-src rewrite needs to build the same-origin
+		 *  /api/dsh/workspace-file-bytes URL. Absent → imgs keep data-ws-src
+		 *  inert and the alt text shows (acceptable per D1). */
+		workspaceRoot?: string;
 	} = $props();
 
 	let showRaw = $state(false);
@@ -501,6 +507,31 @@
 			icon.referrerPolicy = 'no-referrer';
 			icon.style.cssText = 'display:inline-block;vertical-align:-2px;margin-right:4px';
 			anchor.prepend(icon);
+		}
+	});
+
+	/** Inline workspace images (ADR "The Silent Root" D1, 2026-11-12): rewrite
+	 *  each img[data-ws-src] to the same-origin workspace-file-bytes URL once
+	 *  the workspace root is known. Same DOM post-pass discipline as the icon
+	 *  loops above: WeakSet-idempotent, re-runs on content/root change,
+	 *  markdown.ts stays pure. WITHOUT a root the attribute stays inert and
+	 *  the alt text shows — the client never trusts the path; the endpoint
+	 *  enforces containment (403 outside-workspace). */
+	const imgDecorated = new WeakSet<HTMLImageElement>();
+	$effect(() => {
+		void highlightedHtml;
+		const el = containerEl;
+		if (!el || !workspaceRoot) return;
+		for (const img of Array.from(el.querySelectorAll<HTMLImageElement>('img[data-ws-src]'))) {
+			if (imgDecorated.has(img)) continue;
+			imgDecorated.add(img);
+			const rel = img.getAttribute('data-ws-src') ?? '';
+			if (rel === '') continue;
+			img.src =
+				'/api/dsh/workspace-file-bytes?root=' +
+				encodeURIComponent(workspaceRoot) +
+				'&path=' +
+				encodeURIComponent(rel);
 		}
 	});
 

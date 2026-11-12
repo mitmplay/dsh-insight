@@ -59,6 +59,12 @@ it('skill counters default to 0 when the engine omits them (older engine)', asyn
 	writeFileSync(file, JSON.stringify({ v: 1, running: true, done: 2, total: 7 }));
 	await expect((await call()).json()).resolves.toMatchObject({ done: 2, total: 7, skillDone: 0, skillTotal: 0 });
 });
+it('non-finite done/total values fall back to 0 (isFinite false arm)', async () => {
+	process.env.SHELF_PROGRESS_PATH = file;
+	writeFileSync(file, JSON.stringify({ v: 1, running: true, done: 'four', total: null }));
+	await expect((await call()).json()).resolves.toMatchObject({ running: true, done: 0, total: 0 });
+});
+
 it('sources pass through sanitized — junk rows drop, states coerce to pending', async () => {
 	process.env.SHELF_PROGRESS_PATH = file;
 	writeFileSync(

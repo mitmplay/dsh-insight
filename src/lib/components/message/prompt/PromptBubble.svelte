@@ -48,7 +48,8 @@
 		sessionId,
 		children,
 		onFileLink,
-		meta
+		meta,
+		workspaceRoot = undefined
 	}: {
 		/** Markdown body — omitted in children-only mounts (context chips). */
 		text?: string;
@@ -67,6 +68,10 @@
 		/** The entry's injection producer ('injected', 'runtime-context', …) —
 		 *  gates the injected data-table render (2026-10-29). */
 		meta?: string;
+		/** Inline images (ADR "The Silent Root" D1, 2026-11-12): the session
+		 *  workspace root forwarded to MessageBubble → MarkdownContent so chat
+		 *  images resolve. Absent → alt-only (the D1 fallback). */
+		workspaceRoot?: string;
 	} = $props();
 
 	const skin = $derived(
@@ -92,7 +97,7 @@
 			<MessageImages refs={imageRefs} {sessionId} />
 		</div>
 	{/if}
-	<MessageBubble role="user" {skin} {text} {time} {onFileLink} hideMarkdown={injectedRows !== null} showSave={injectedRows === null}>
+	<MessageBubble role="user" {skin} {text} {time} {onFileLink} hideMarkdown={injectedRows !== null} showSave={injectedRows === null} {workspaceRoot}>
 		{#if injectedRows}
 			<table class="injected-data-table w-full border-collapse text-xs" data-testid="injected-data-table">
 				<tbody>

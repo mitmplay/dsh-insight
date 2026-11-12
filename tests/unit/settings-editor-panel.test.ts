@@ -45,6 +45,42 @@ vi.mock('$lib/components/common/settings-monaco', () => ({
 	}
 }));
 
+// Coverage-gate guard (2026-11-12): under `vitest --coverage` the panel's
+// dynamic `import('../common/settings-monaco')` can escape the factory mock
+// above, pulling the REAL glue — whose monaco ESM transitive statics then
+// resolve after the jsdom environment is torn down → EnvironmentTeardownError
+// unhandled rejection (exit 1 even with every test green). Stubbing the leaf
+// modules keeps the whole graph inside the live environment (same pattern as
+// settings-monaco-cov-themes.test.ts). Vitest hoists these with the mock above.
+vi.mock('monaco-editor', () => ({
+	Uri: { parse: (v: string) => ({ toString: () => v }) },
+	languages: {
+		registerFoldingRangeProvider: vi.fn(),
+		registerDocumentSymbolProvider: vi.fn(),
+		registerLinkProvider: vi.fn(),
+		registerCodeActionProvider: vi.fn()
+	},
+	editor: {
+		create: () => ({
+			onDidChangeModelContent: () => ({ dispose: () => {} }),
+			getValue: () => '',
+			setValue: () => {},
+			getModel: () => null,
+			dispose: () => {}
+		}),
+		createModel: (value: string) => ({ value, dispose: () => {} }),
+		defineTheme: vi.fn(),
+		setTheme: vi.fn()
+	}
+}));
+vi.mock('monaco-yaml', () => ({ configureMonacoYaml: vi.fn() }));
+vi.mock('$lib/components/monaco/settings-editor-worker?worker', () => ({ default: class {} }));
+vi.mock('$lib/components/monaco/settings-ts-worker?worker', () => ({ default: class {} }));
+vi.mock('$lib/components/monaco/settings-css-worker?worker', () => ({ default: class {} }));
+vi.mock('$lib/components/monaco/settings-html-worker?worker', () => ({ default: class {} }));
+vi.mock('$lib/components/monaco/settings-json-worker?worker', () => ({ default: class {} }));
+vi.mock('$lib/components/monaco/yaml-worker-entry?worker', () => ({ default: class {} }));
+
 type Route = { get: unknown; put?: { status: number; body: unknown } };
 
 function stubFetch(route: Route): { calls: Array<{ url: string; init?: RequestInit }> } {

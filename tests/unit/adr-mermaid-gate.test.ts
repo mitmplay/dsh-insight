@@ -27,7 +27,9 @@ function adrFiles(dir: string, acc: string[] = []): string[] {
 const ADR_DIR = join(process.cwd(), 'dev', 'architectural-decission');
 
 describe('ADR gate — mermaid blocks parse (dev/architectural-decission)', () => {
-	it('every mermaid block in every ADR parses clean', async () => {
+	// Parsing 270+ blocks after a lazy mermaid import lands at 2-4s standalone;
+	// the default 5s timeout makes this flake when the full suite runs in parallel.
+	it('every mermaid block in every ADR parses clean', { timeout: 30_000 }, async () => {
 		const mermaid = (await import('mermaid')).default;
 		mermaid.initialize({ startOnLoad: false });
 		const files = adrFiles(ADR_DIR);

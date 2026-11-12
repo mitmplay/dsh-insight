@@ -137,6 +137,27 @@ describe('GET /api/dsh/session/[sessionId]/changes (task 2.2-T)', () => {
 			armDiffInvalidSummary({ turn: 7, files: [], total: -1, added: 0, deleted: 0 })
 		).resolves.toMatchObject({ status: 502 });
 	});
+	it('refuses a non-record body with 502 upstream (validation face)', async () => {
+		await expect(armDiffInvalidSummary(null)).resolves.toMatchObject({ status: 502 });
+		await expect(armDiffInvalidSummary([SUMMARY])).resolves.toMatchObject({ status: 502 });
+		await expect(armDiffInvalidSummary('nope')).resolves.toMatchObject({ status: 502 });
+	});
+
+	it.each([
+		['file is not a record', [{ turn: 7, files: ['x'], total: 1, added: 0, deleted: 0 }]],
+		['file path missing', [{ turn: 7, files: [{ display: 'd', added: 0, deleted: 0 }], total: 1, added: 0, deleted: 0 }]],
+		['file path empty', [{ turn: 7, files: [{ path: '', display: 'd', added: 0, deleted: 0 }], total: 1, added: 0, deleted: 0 }]],
+		['file display not a string', [{ turn: 7, files: [{ path: 'p', display: 3, added: 0, deleted: 0 }], total: 1, added: 0, deleted: 0 }]],
+		['file added not a safe integer', [{ turn: 7, files: [{ path: 'p', display: 'd', added: 1.5, deleted: 0 }], total: 1, added: 0, deleted: 0 }]],
+		['file deleted negative', [{ turn: 7, files: [{ path: 'p', display: 'd', added: 0, deleted: -1 }], total: 1, added: 0, deleted: 0 }]],
+		['file binary not true', [{ turn: 7, files: [{ path: 'p', display: 'd', added: 0, deleted: 0, binary: false }], total: 1, added: 0, deleted: 0 }]],
+		['file oversized not true', [{ turn: 7, files: [{ path: 'p', display: 'd', added: 0, deleted: 0, oversized: 'yes' }], total: 1, added: 0, deleted: 0 }]],
+		['turn not a safe integer', [{ turn: 1.5, files: [], total: 0, added: 0, deleted: 0 }]],
+		['added missing', [{ turn: 1, files: [], total: 0, deleted: 0 }]]
+	])('refuses a summary with %s with 502 upstream', async (_name, body) => {
+		await expect(armDiffInvalidSummary(body)).resolves.toMatchObject({ status: 502 });
+	});
+
 	it('accepts binary/oversized markers and the zero-counts face', async () => {
 		fetchHostPathSpy.mockResolvedValueOnce(new Response(JSON.stringify(SUMMARY), { status: 200 }));
 		const res = await get('seq=9&turn=1');

@@ -116,6 +116,15 @@ describe('terminal stream hub — parse arms', () => {
 		expect((hubRoute({ url: url('"just-a-string"') }) as Response).status).toBe(400);
 	});
 
+	it('a MISSING ids param (raw null) -> 400 NO_IDS (parseIds !raw arm)', () => {
+		expect((hubRoute({ url: new URL('http://localhost/api/terminal/stream') }) as Response).status).toBe(400);
+	});
+
+	it('an EMPTY-string ids param is treated as absent -> 400 NO_IDS', () => {
+		const u = new URL('http://localhost/api/terminal/stream?ids=');
+		expect((hubRoute({ url: u }) as Response).status).toBe(400);
+	});
+
 	it('duplicate ids are DEDUPED — one tail read, one listener', () => {
 		liveId();
 		const session = eventsMock.mock.results.length; // placeholder, real check below

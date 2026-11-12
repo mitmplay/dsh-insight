@@ -645,6 +645,7 @@
 		agentPreset={agent}
 		{subagent}
 		{depth}
+		workspaceRoot={workspace ?? undefined}
 	/>
 
 	<ConversationFloatingAnchor
