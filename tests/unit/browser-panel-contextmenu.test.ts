@@ -19,6 +19,10 @@ class StubEventSource {
 
 const SESSION_ID = 'sess-ctxmenu123456';
 const inputBodies: Record<string, unknown>[] = [];
+/** ADR-0061 D4: the /element data pass's selection field, configurable per
+ *  test — null keeps the Copy text item honestly ABSENT. */
+let elementSelection: string | null = null;
+const writeText = vi.fn(async () => undefined);
 
 const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Response> => {
   const url = String(args[0]);
@@ -27,7 +31,7 @@ const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Respo
   if (url.includes('/page')) return new Response(JSON.stringify({ dpr: 1 }), { status: 200 });
   if (url.endsWith('/tabs')) return new Response(JSON.stringify({ tabs: [] }), { status: 200 });
   if (url.includes('/input')) { inputBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>); return new Response('{}', { status: 200 }); }
-  if (url.includes('/element')) return new Response(JSON.stringify({ href: 'https://x.example/a', src: 'https://x.example/i.png', text: 'x' }), { status: 200 });
+  if (url.includes('/element')) return new Response(JSON.stringify({ href: 'https://x.example/a', src: 'https://x.example/i.png', text: 'x', selection: elementSelection }), { status: 200 });
   if (url.includes('/opentab')) return new Response(JSON.stringify({ targetId: 't', url: 'x', title: 'x' }), { status: 200 });
   return new Response('unrouted', { status: 404 });
 });
@@ -35,13 +39,19 @@ const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Respo
 beforeEach(() => {
   StubEventSource.instances = [];
   inputBodies.length = 0;
+  elementSelection = null;
+  writeText.mockClear();
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
   vi.stubGlobal('Image', class { onload: (() => void) | null = null; width = 800; height = 400; set src(v: string) { setTimeout(() => this.onload?.(), 0); } });
   vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
   vi.stubGlobal('EventSource', StubEventSource as unknown as typeof EventSource);
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ fillRect: vi.fn(), drawImage: vi.fn() } as never);
 });
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); document.body.innerHTML = ''; });
+afterEach(() => {
+  delete (navigator as unknown as Record<string, unknown>).clipboard;
+  vi.unstubAllGlobals(); vi.restoreAllMocks(); document.body.innerHTML = '';
+});
 
 describe('right-click through the glass (bugfix 2026-10-25)', () => {
   it('contextmenu opens the DSI menu; actions dispatch (bugfix round 2)', async () => {
@@ -82,6 +92,60 @@ describe('right-click through the glass (bugfix 2026-10-25)', () => {
     expect(rights).toHaveLength(2);
     expect(rights[0]).toMatchObject({ kind: 'mouse', type: 'mousePressed', button: 'right', clickCount: 1 });
     expect(rights[1]).toMatchObject({ kind: 'mouse', type: 'mouseReleased', button: 'right' });
+    unmount(instance);
+  });
+});
+
+describe('context-menu Copy text — the glass selection (ADR-0061 D4)', () => {
+  /** Mount, reach live, right-click, and settle the /element data pass. */
+  async function openMenu(): Promise<void> {
+    const target = document.createElement('div');
+    document.body.appendChild(target);
+    const instance = mount(BrowserPanel, { target, props: { browserSessionId: SESSION_ID } });
+    flushSync();
+    await new Promise((r) => setTimeout(r, 5));
+    StubEventSource.instances[0].emit('frame', JSON.stringify({ jpeg: 'aGk=', metadata: {} }));
+    await new Promise((r) => setTimeout(r, 5));
+    flushSync();
+    (document.querySelector('[data-testid=browser-glass]') as HTMLElement).getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, width: 800, height: 400, right: 800, bottom: 400, toJSON: () => ({}) }) as DOMRect;
+    const ev = new MouseEvent('contextmenu', { button: 2, clientX: 150, clientY: 90, bubbles: true, cancelable: true });
+    (document.querySelector('[data-testid=browser-glass] canvas') as HTMLElement).dispatchEvent(ev);
+    await new Promise((r) => setTimeout(r, 5));
+    flushSync();
+    return instance as unknown as never;
+  }
+
+  it('a non-empty selection renders Copy text; clicking writes it to the clipboard', async () => {
+    elementSelection = 'operator selected this';
+    const instance = await openMenu();
+    expect(document.querySelector('[data-testid=browser-ctxmenu]')).toBeTruthy();
+    const copyText = [...document.querySelectorAll('[data-testid=browser-ctxmenu-item]')]
+      .find((b) => b.textContent?.includes('Copy text'));
+    expect(copyText).toBeTruthy();
+    copyText!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    flushSync();
+    await new Promise((r) => setTimeout(r, 5));
+    expect(writeText).toHaveBeenCalledWith('operator selected this'); // ctxCopy(selection)
+    unmount(instance);
+  });
+
+  it('a null selection renders NO Copy text item — honest absence', async () => {
+    elementSelection = null;
+    const instance = await openMenu();
+    const items = [...document.querySelectorAll('[data-testid=browser-ctxmenu-item]')].map((b) => b.textContent);
+    expect(items.some((t) => t?.includes('Copy text'))).toBe(false);
+    // the pre-existing actions are untouched (regression pins)
+    expect(items.some((t) => t?.includes('Open image in new tab'))).toBe(true);
+    expect(items.some((t) => t?.includes('Copy link address'))).toBe(true);
+    expect(writeText).not.toHaveBeenCalled();
+    unmount(instance);
+  });
+
+  it('an EMPTY-string selection is the same honest absence', async () => {
+    elementSelection = '';
+    const instance = await openMenu();
+    const items = [...document.querySelectorAll('[data-testid=browser-ctxmenu-item]')].map((b) => b.textContent);
+    expect(items.some((t) => t?.includes('Copy text'))).toBe(false);
     unmount(instance);
   });
 });

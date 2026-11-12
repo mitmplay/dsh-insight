@@ -12,7 +12,7 @@
  *   5. light + dark screenshot evidence into test-results.
  * Selectors are read from component source (dsi-task Step 3.8):
  *   data-testid scheduler-shelf / scheduler-shelf-toggle /
- *   scheduler-shelf-row / scheduler-pending-count (SchedulerShelf.svelte).
+ *   scheduler-shelf-row / scheduler-counts (SchedulerShelf.svelte).
  * Spec: dev/specs/2026-11/2026-11-10 - The Scheduler Shelf.
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -150,8 +150,8 @@ test('01 · collapsed by default on a clean profile — no fetch, honest header'
 	await expect(page.getByTestId('scheduler-shelf-toggle')).toHaveAttribute('aria-expanded', 'false');
 	// collapsed → no rows region rendered at all
 	await expect(page.getByTestId('scheduler-shelf-row')).toHaveCount(0);
-	// the pending pill reads 0 until the first expand (a collapsed shelf is silent)
-	await expect(page.getByTestId('scheduler-pending-count')).toHaveText('0');
+	// the count pill reads (0/0) until the first expand (a collapsed shelf is silent)
+	await expect(page.getByTestId('scheduler-counts')).toHaveText('(0/0)');
 });
 
 test('02 · expanded rows render honest ledger data', async ({ page }) => {
@@ -164,8 +164,7 @@ test('02 · expanded rows render honest ledger data', async ({ page }) => {
 
 	// Unfiltered view (Filter Cluster D4): the pending pill counts rows
 	// with NO receipt (3 of 4); the delivered pill counts receipt rows (1).
-	await expect(page.getByTestId('scheduler-pending-count')).toHaveText('3');
-	await expect(page.getByTestId('scheduler-delivered-count')).toHaveText('1');
+	await expect(page.getByTestId('scheduler-counts')).toHaveText('(3/1)');
 
 	const armed = rows.filter({ hasText: 'Nightly DSI report' });
 	await expect(armed.locator('.dot')).toHaveClass(/armed/);
@@ -238,16 +237,14 @@ test('05 · typing in the name filter shrinks rows AND both pills', async ({ pag
 	await page.goto(`/?sessionKey=${STUB_SESSION_ID}`);
 	await expandShelf(page);
 	await expect(page.getByTestId('scheduler-shelf-row')).toHaveCount(4);
-	await expect(page.getByTestId('scheduler-pending-count')).toHaveText('3');
-	await expect(page.getByTestId('scheduler-delivered-count')).toHaveText('1');
+	await expect(page.getByTestId('scheduler-counts')).toHaveText('(3/1)');
 
 	await shelfFilter(page).fill('One-shot');
 	await expect(page.getByTestId('scheduler-shelf-row')).toHaveCount(1);
 	await expect(page.getByTestId('scheduler-shelf-row')).toContainText('One-shot ping');
-	// both pills re-reflect the filtered slice (D4 honest counts):
-	// the surviving row is the delivered one — pending reads honest 0.
-	await expect(page.getByTestId('scheduler-pending-count')).toHaveText('0');
-	await expect(page.getByTestId('scheduler-delivered-count')).toHaveText('1');
+	// the count pill re-reflects the filtered slice (D4 honest counts):
+	// the surviving row is the delivered one — the pill reads (0/1).
+	await expect(page.getByTestId('scheduler-counts')).toHaveText('(0/1)');
 
 	// clearing restores the full view
 	await shelfFilter(page).fill('');
@@ -268,8 +265,8 @@ test('06 · picking a date keeps only that day\'s scheduled rows', async ({ page
 
 	await expect(page.getByTestId('scheduler-shelf-row')).toHaveCount(1);
 	await expect(page.getByTestId('scheduler-shelf-row')).toContainText('One-shot ping');
-	// the day's only row is the delivered one — pending reads honest 0
-	await expect(page.getByTestId('scheduler-pending-count')).toHaveText('0');
+	// the day's only row is the delivered one — the pill reads (0/1)
+	await expect(page.getByTestId('scheduler-counts')).toHaveText('(0/1)');
 });
 
 test('07 · pressing D keeps only the receipt rows', async ({ page }) => {
@@ -280,8 +277,7 @@ test('07 · pressing D keeps only the receipt rows', async ({ page }) => {
 	await expect(page.getByTestId('scheduler-view-toggle-d')).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.getByTestId('scheduler-shelf-row')).toHaveCount(1);
 	await expect(page.getByTestId('scheduler-shelf-row')).toContainText('One-shot ping');
-	await expect(page.getByTestId('scheduler-pending-count')).toHaveText('0');
-	await expect(page.getByTestId('scheduler-delivered-count')).toHaveText('1');
+	await expect(page.getByTestId('scheduler-counts')).toHaveText('(0/1)');
 
 	// re-press returns to all (tri-state, D2)
 	await pressView(page, 'd');
@@ -293,8 +289,7 @@ test('07 · pressing D keeps only the receipt rows', async ({ page }) => {
 	await expect(page.getByTestId('scheduler-view-toggle-s')).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.getByTestId('scheduler-shelf-row')).toHaveCount(1);
 	await expect(page.getByTestId('scheduler-shelf-row')).toContainText('Nightly DSI report');
-	await expect(page.getByTestId('scheduler-pending-count')).toHaveText('1');
-	await expect(page.getByTestId('scheduler-delivered-count')).toHaveText('0');
+	await expect(page.getByTestId('scheduler-counts')).toHaveText('(1/0)');
 
 	// back to all
 	await pressView(page, 's');

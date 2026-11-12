@@ -22,6 +22,10 @@
 	// glass-tab-ids Task 4: the omnibox speaks the SAME grammar as the wire
 	// door — one parser, two doors (src/lib/browser/tab-grammar.ts).
 	import { parseTabCommand } from '$lib/browser/tab-grammar.js';
+	// wire clipboard (ADR-0061 D2/D3/D5): chunk >4096 pastes client-side;
+	// the shared clipboard-read dispatcher serves the header Paste button.
+	import { pasteChunks } from '$lib/utils/paste-chunks.js';
+	import { dispatchClipboardPaste, type PasteOutcome } from '$lib/utils/browser-paste.js';
 	import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
 
 	let {
@@ -308,7 +312,10 @@
 			}).catch(() => undefined);
 		}, SETTLE_MS);
 	}
-	const moves = createMoveCoalescer((cb) => requestAnimationFrame(cb), (x, y) => void post({ kind: 'mouse', type: 'mouseMoved', x, y }));
+	const moves = createMoveCoalescer((cb) => requestAnimationFrame(cb), (x, y) =>
+		void post(leftHeld
+			? { kind: 'mouse', type: 'mouseMoved', x, y, button: 'left', buttons: 1, clickCount: 1 }
+			: { kind: 'mouse', type: 'mouseMoved', x, y }));
 
 	/** A prop-seeded session is persisted too, so the NEXT reload re-binds
 	 *  to it instead of opening a twin (ADR-0030 D1). */
@@ -367,15 +374,23 @@
 		return scalePoint(e.clientX, e.clientY, r.left, r.top, r.width, r.height, viewport.w, viewport.h);
 	}
 
+	/** ADR-0061 D6 (amendment, 2026-11-12): the dispatch carries its LIVE
+	 *  pointer state. A button-less mouseMoved is a HOVER in Chromium —
+	 *  press-drag-release never selected anything (the operator's dead
+	 *  drag-select). And clickCount comes from MouseEvent.detail: Chromium
+	 *  word-selects only on a clickCount:2 pair. */
+	let leftHeld = false;
 	function onPointerDown(e: MouseEvent): void {
 		if (e.button !== 0) return;
+		leftHeld = true;
 		const p = toViewportCx(e);
-		if (p) void post({ kind: 'mouse', type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1 });
+		if (p) void post({ kind: 'mouse', type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: e.detail || 1 });
 	}
 	function onPointerUp(e: MouseEvent): void {
 		if (e.button !== 0) return;
+		leftHeld = false;
 		const p = toViewportCx(e);
-		if (p) void post({ kind: 'mouse', type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1 });
+		if (p) void post({ kind: 'mouse', type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: e.detail || 1 });
 	}
 	function onPointerMove(e: MouseEvent): void {
 		const p = toViewportCx(e);
@@ -392,7 +407,7 @@
 	 *  DSI supplies its OWN menu: what the right-click landed on comes from
 	 *  the /element data pass; actions ride the wire (opentab/clipboard/the
 	 *  page's own menu via a dispatched right-click). */
-	let ctxMenu = $state<{ px: number; py: number; href: string | null; src: string | null } | null>(null);
+	let ctxMenu = $state<{ px: number; py: number; href: string | null; src: string | null; selection: string | null } | null>(null);
 	let ctxPoint: { x: number; y: number } | null = null;
 
 	function onContextMenu(e: MouseEvent): void {
@@ -403,10 +418,10 @@
 		// fixed is unreliable here — a floor ancestor transform becomes the
 		// containing block for fixed elements and misplaced the menu)
 		const rect = wrap?.getBoundingClientRect();
-		const menuW = 190, menuH = 210;
+		const menuW = 190, menuH = 240; // ADR-0061: +1 row (Copy text)
 		const px = rect ? Math.min(e.clientX - rect.left, rect.width - menuW - 6) : e.clientX;
 		const py = rect ? Math.min(e.clientY - rect.top, rect.height - menuH - 6) : e.clientY;
-		ctxMenu = { px: Math.max(6, px), py: Math.max(6, py), href: null, src: null };
+		ctxMenu = { px: Math.max(6, px), py: Math.max(6, py), href: null, src: null, selection: null };
 		if (!sessionId) return;
 		void (async () => {
 			try {
@@ -416,8 +431,8 @@
 					body: JSON.stringify({ x: p?.x ?? 0, y: p?.y ?? 0 })
 				});
 				if (res.ok && ctxMenu) {
-					const el = (await res.json()) as { href: string | null; src: string | null };
-					ctxMenu = { ...(ctxMenu as { px: number; py: number }), href: el.href, src: el.src };
+					const el = (await res.json()) as { href: string | null; src: string | null; selection: string | null };
+					ctxMenu = { ...(ctxMenu as { px: number; py: number }), href: el.href, src: el.src, selection: el.selection ?? null };
 				}
 			} catch {
 				/* menu still shows the wire-independent items */
@@ -482,6 +497,9 @@
 		if (action === 'copy-image' && m.src) return void ctxCopy(m.src);
 		if (action === 'open-link' && m.href) return void openTab(m.href);
 		if (action === 'copy-link' && m.href) return void ctxCopy(m.href);
+		// ADR-0061 D4: the page's SELECTION rides the /element data pass —
+		// Copy text delivers it to the operator's clipboard via ctxCopy.
+		if (action === 'copy-text' && m.selection) return void ctxCopy(m.selection);
 		if (action === 'reload') return void proxy({ action: 'reload' });
 		if (action === 'send-right-click') return ctxSendRightClick();
 	}
@@ -492,6 +510,29 @@
 		} catch {
 			/* clipboard permission denied — nothing honest to show */
 		}
+	}
+	/** ADR-0061 D2/D3 — the wire clipboard, host→glass. The native paste
+	 *  event carries the host clipboard in the operator's REAL browser (no
+	 *  permission needed); preventDefault keeps the DSI page itself from
+	 *  receiving the text. Chunks post IN ORDER — the relay chain is
+	 *  serialized only if the client awaits each response. Empty clipboard
+	 *  text is a no-op (no POST). */
+	function onPaste(e: ClipboardEvent): void {
+		e.preventDefault();
+		const text = e.clipboardData?.getData('text') ?? '';
+		if (!text) return;
+		void sendTextChunks(text);
+	}
+	/** ONE chunked kind:'text' dispatch path — the paste event and the
+	 *  header Paste button (D5) both land here. */
+	async function sendTextChunks(text: string): Promise<void> {
+		for (const chunk of pasteChunks(text)) await post({ kind: 'text', text: chunk });
+	}
+	/** The header Paste button's dispatch (D5): readText in the operator's
+	 *  browser, then the same chunked path. Honest outcomes only. */
+	function pasteFromHost(): Promise<PasteOutcome> {
+		if (!sessionId) return Promise.resolve('denied');
+		return dispatchClipboardPaste((chunk) => sendTextChunks(chunk));
 	}
 	function onWheel(e: WheelEvent): void {
 		const p = toViewportCx(e);
@@ -522,7 +563,46 @@
 		}
 		// always consumed — never forwarded to the page
 	}
+	/** ADR-0061 D7/D8 (amendments 2026-11-12): the selection chords cross
+	 *  the wire as VERBS, never as key events. ⌘A selects all inside the
+	 *  glass; ⌘C reads the glass selection over the point-less /element
+	 *  pass and writes it to the OPERATOR's clipboard. Every other chord
+	 *  stays swallowed (the v-prefix lesson — chords never dispatch). */
+	async function glassSelectionVerb(selectAllMode: boolean): Promise<void> {
+		if (!sessionId) return;
+		try {
+			const res = await fetch(apiBase + '/api/browser/' + sessionId + '/element', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(selectAllMode ? { selectAll: true } : { selectionOnly: true })
+			});
+			if (res.ok && !selectAllMode) {
+				const el = (await res.json()) as { selection: string | null };
+				if (el.selection) {
+					try {
+						await navigator.clipboard.writeText(el.selection);
+					} catch {
+						/* clipboard permission denied — nothing honest to show */
+					}
+				}
+			}
+		} catch {
+			/* transient — the next chord retries */
+		}
+	}
 	function onKey(e: KeyboardEvent): void {
+		if (e.metaKey || e.ctrlKey) {
+			// the selection verbs: preventDefault keeps the DSI page from
+			// select-all-ing / copying ITSELF (the operator's target is glass)
+			const k = e.key.toLowerCase();
+			if (!e.altKey && (k === 'a' || k === 'c')) {
+				e.preventDefault();
+				void glassSelectionVerb(k === 'a');
+				return;
+			}
+			return; // every other chord stays off the wire
+		}
+		if (e.altKey) return; // Alt+N owns the window level; others never dispatch
 		// printable keyDowns MUST carry text — CDP inserts characters only
 		// from the text field (raw key events without it move no caret)
 		void post({
@@ -904,6 +984,7 @@
 		onnavigate={handleOmniboxSubmit}
 		placeholder={omniboxPlaceholder}
 		onreload={() => void proxy({ action: 'reload' })}
+		onpaste={() => pasteFromHost()}
 		onhistory={goHistory}
 		focusTargetId={focusedTab?.targetId ?? null}
 		onhistoryto={(i) => void goHistoryTo(i)}
@@ -951,6 +1032,7 @@
 		onmove={onPointerMove}
 		onwheel={onWheel}
 		onkey={onKey}
+		onpaste={onPaste}
 		{ctxMenu}
 		onctxaction={ctxAct}
 		onctxclose={ctxClose}

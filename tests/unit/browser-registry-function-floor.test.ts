@@ -531,7 +531,7 @@ describe('openTab, dispatch, elementAt arms', () => {
     e.tabs.get(e.activeTargetId!)!.cdp.send.mockImplementation(async (m: string) =>
       m === 'Runtime.evaluate' ? { result: { value: 'not-json{{' } } : {});
     const out = await browserRegistry.elementAt(e.id, 5, 5);
-    expect(out).toEqual({ href: null, src: null, text: null });
+    expect(out).toEqual({ href: null, src: null, text: null, selection: null });
   });
 
   it('historyTravel refuses an out-of-list position and travels a valid one', async () => {

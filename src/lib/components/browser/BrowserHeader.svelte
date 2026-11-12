@@ -56,6 +56,10 @@
 		 *  the panel's isNoUrl guard fired (empty / about:blank) — null
 		 *  DISABLES the prefix copy-URL icon. */
 		copyUrl = null,
+		/** ADR-0061 D5: the Paste button's dispatch — the panel reads the
+		 *  host clipboard and posts the chunked kind:'text' path; the
+		 *  outcome comes back for the honest button state. */
+		onpaste = undefined,
 	}: {
 		status: 'opening' | 'connecting' | 'live' | 'failed' | 'closed';
 		reBound?: boolean;
@@ -72,6 +76,7 @@
 		onhistoryto?: (index: number) => void;
 		placeholder?: string | undefined;
 		copyUrl?: string | null;
+		onpaste?: () => Promise<'pasted' | 'empty' | 'denied'>;
 	} = $props();
 
 	/** Copy feedback: the icon swaps to a check for ~1.5s — no toast. */
@@ -104,6 +109,22 @@
 		copied = true;
 		if (copiedTimer) clearTimeout(copiedTimer);
 		copiedTimer = setTimeout(() => (copied = false), 1500);
+	}
+
+	/** ADR-0061 D5: honest paste state on the button — 'denied'/'empty'
+	 *  are no-op truths, never a fake success. Resets like the copied chip. */
+	let pasteState = $state<'' | 'pasted' | 'empty' | 'denied'>('');
+	let pasteTimer: ReturnType<typeof setTimeout> | null = null;
+	async function pasteFromHost(): Promise<void> {
+		if (!onpaste) return;
+		pasteState = await onpaste();
+		if (pasteTimer) clearTimeout(pasteTimer);
+		pasteTimer = setTimeout(() => (pasteState = ''), 1500);
+	}
+	function pasteLabel(): string {
+		if (pasteState === 'denied') return m.browserPasteDenied();
+		if (pasteState === 'empty') return m.browserPasteEmpty();
+		return m.browserPaste();
 	}
 
 	/** Ephemeral intent, never state (D2): the panel clears it on the
@@ -272,6 +293,20 @@
 			size={12}
 			class="browser-glyph flex h-6 w-6 items-center justify-center rounded border border-surface-border bg-surface text-[18px] leading-none hover:bg-surface-active disabled:opacity-40"
 		/>
+		<!-- ADR-0061 D5: the wire-clipboard Paste button — the always-
+			 available fallback for the state the native paste event misses
+			 (nothing focused). The panel performs the dispatch; the header
+			 only reports state. -->
+		<button
+			type="button"
+			class="browser-glyph flex h-6 w-6 items-center justify-center rounded border border-surface-border bg-surface text-[13px] leading-none hover:bg-surface-active disabled:opacity-40"
+			title={pasteLabel()}
+			aria-label={pasteLabel()}
+			data-testid="browser-paste"
+			data-paste-state={pasteState || undefined}
+			disabled={status !== 'live' || busy || !onpaste}
+			onclick={() => void pasteFromHost()}
+		>📋</button>
 		<!-- Prefix copy-URL (focus polish 2026-10-28): the operator correction —
 		 icon on the LEADING edge of the input, following the existing
 		 prefix-icon design decision. Copies the FOCUSED tab's URL. -->

@@ -140,23 +140,28 @@ afterAll(async () => {
   }
 });
 describe('elementAt', () => {
-  it('parses the JSON answer with href/src/text', async () => {
+  it('parses the JSON answer with href/src/text + selection (ADR-0061 D4)', async () => {
     const e = seed();
-    handleOf(e).cdp.send.mockImplementation(async (method: string) => {
+    const cdp = handleOf(e).cdp;
+    cdp.send.mockImplementation(async (method: string) => {
       if (method === 'Runtime.evaluate')
-        return { result: { value: JSON.stringify({ href: 'http://a/', src: 'http://i.png', text: 'link text' }) } };
+        return { result: { value: JSON.stringify({ href: 'http://a/', src: 'http://i.png', text: 'link text', selection: 'selected text' }) } };
       return {};
     });
-    await expect(browserRegistry.elementAt(e.id, 5, 6)).resolves.toEqual({ href: 'http://a/', src: 'http://i.png', text: 'link text' });
+    await expect(browserRegistry.elementAt(e.id, 5, 6)).resolves.toEqual({ href: 'http://a/', src: 'http://i.png', text: 'link text', selection: 'selected text' });
+    // the evaluated expression READS THE PAGE'S SELECTION — the ADR's
+    // whole point (the operator selects, then right-clicks anywhere)
+    expect(cdp.send).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({ expression: expect.stringContaining('getSelection') }));
+    expect(cdp.send).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({ expression: expect.stringContaining('slice(0, 4096)') }));
   });
 
-  it('a null element answer returns the all-null shape', async () => {
+  it('a null element answer still carries the selection field', async () => {
     const e = seed();
     handleOf(e).cdp.send.mockImplementation(async (method: string) => {
-      if (method === 'Runtime.evaluate') return { result: { value: JSON.stringify({ href: null, src: null, text: null }) } };
+      if (method === 'Runtime.evaluate') return { result: { value: JSON.stringify({ href: null, src: null, text: null, selection: null }) } };
       return {};
     });
-    await expect(browserRegistry.elementAt(e.id, 0, 0)).resolves.toEqual({ href: null, src: null, text: null });
+    await expect(browserRegistry.elementAt(e.id, 0, 0)).resolves.toEqual({ href: null, src: null, text: null, selection: null });
   });
 
   it('a non-JSON answer falls back to the all-null shape (parse catch arm)', async () => {
@@ -165,7 +170,7 @@ describe('elementAt', () => {
       if (method === 'Runtime.evaluate') return { result: { value: 'NOT JSON' } };
       return {};
     });
-    await expect(browserRegistry.elementAt(e.id, 1, 1)).resolves.toEqual({ href: null, src: null, text: null });
+    await expect(browserRegistry.elementAt(e.id, 1, 1)).resolves.toEqual({ href: null, src: null, text: null, selection: null });
   });
 
   it('a hung evaluate hits the 2s cap and answers all-null', async () => {
@@ -174,7 +179,59 @@ describe('elementAt', () => {
       if (method === 'Runtime.evaluate') await new Promise(() => undefined); // never resolves
       return {};
     });
-    await expect(browserRegistry.elementAt(e.id, 1, 1)).resolves.toEqual({ href: null, src: null, text: null });
+    await expect(browserRegistry.elementAt(e.id, 1, 1)).resolves.toEqual({ href: null, src: null, text: null, selection: null });
+  }, 10_000);
+});
+
+describe('selection verbs — ADR-0061 D7/D8 (amendments 2026-11-12)', () => {
+  it('selectionOf reads the page selection through the JSON null-honest arm', async () => {
+    const e = seed();
+    const cdp = handleOf(e).cdp;
+    cdp.send.mockImplementation(async (method: string) => {
+      if (method === 'Runtime.evaluate') return { result: { value: JSON.stringify('picked text') } };
+      return {};
+    });
+    await expect(browserRegistry.selectionOf(e.id)).resolves.toBe('picked text');
+    expect(cdp.send).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({ expression: expect.stringContaining('getSelection') }));
+  });
+
+  it('selectionOf answers null for an empty selection and survives garbage', async () => {
+    const e = seed();
+    handleOf(e).cdp.send.mockImplementation(async (method: string) => {
+      if (method === 'Runtime.evaluate') return { result: { value: JSON.stringify(null) } };
+      return {};
+    });
+    await expect(browserRegistry.selectionOf(e.id)).resolves.toBeNull();
+
+    handleOf(e).cdp.send.mockImplementation(async (method: string) => {
+      if (method === 'Runtime.evaluate') return { result: { value: 'NOT JSON' } };
+      return {};
+    });
+    await expect(browserRegistry.selectionOf(e.id)).resolves.toBeNull();
+  });
+
+  it('selectAll performs the Selection-API select-all and reports the text', async () => {
+    const e = seed();
+    const cdp = handleOf(e).cdp;
+    cdp.send.mockImplementation(async (method: string) => {
+      if (method === 'Runtime.evaluate') return { result: { value: JSON.stringify('HELLO selectable WORLD') } };
+      return {};
+    });
+    await expect(browserRegistry.selectAll(e.id)).resolves.toBe('HELLO selectable WORLD');
+    // the D7 decision: Selection-API arms, NOT a raw key chord
+    expect(cdp.send).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({ expression: expect.stringContaining('removeAllRanges') }));
+    expect(cdp.send).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({ expression: expect.stringContaining('selectNodeContents') }));
+    expect(cdp.send).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({ expression: expect.stringContaining('getSelection') }));
+  });
+
+  it('both verbs answer null on a hung evaluate (the 2s cap)', async () => {
+    const e = seed();
+    handleOf(e).cdp.send.mockImplementation(async (method: string) => {
+      if (method === 'Runtime.evaluate') await new Promise(() => undefined); // never resolves
+      return {};
+    });
+    await expect(browserRegistry.selectionOf(e.id)).resolves.toBeNull();
+    await expect(browserRegistry.selectAll(e.id)).resolves.toBeNull();
   }, 10_000);
 });
 

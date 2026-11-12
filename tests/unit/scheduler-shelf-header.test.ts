@@ -64,13 +64,11 @@ describe('scheduler-shelf-header', () => {
 		const toggle = h.host.querySelector('[data-testid="scheduler-shelf-toggle"]');
 		const input = h.host.querySelector('[data-testid="sidebar-scheduler-filter"]');
 		expect(input?.previousElementSibling).toBe(toggle);
-		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('0');
-		expect(h.host.querySelector('[data-testid="scheduler-delivered-count"]')?.textContent).toBe('0');
+		expect(h.host.querySelector('[data-testid="scheduler-counts"]')?.textContent).toBe('(0/0)');
 		unmount(h.instance as never);
 		h.host.remove();
 		h = mountHeader({ pendingCount: 7, deliveredCount: 2 });
-		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('7');
-		expect(h.host.querySelector('[data-testid="scheduler-delivered-count"]')?.textContent).toBe('2');
+		expect(h.host.querySelector('[data-testid="scheduler-counts"]')?.textContent).toBe('(7/2)');
 	});
 
 	it('renders the translated filter copy (Healed Gates 1-T): aria-label from the dictionaries', () => {

@@ -2,8 +2,8 @@
 	/**
 	 * SchedulerShelf header (extracted 2026-11-11 from
 	 * SidebarSessionScheduler; filter cluster added per Filter Cluster
-	 * ADR D1/D4/D7, amended 2026-11-11): the fold toggle, the name
-	 * filter input, the two count pills (pending / delivered), then
+	 * ADR D1/D4/D7, amended 2026-11-11): the fold toggle (chevron only), the name
+	 * filter input, the merged count pill (pending/delivered), then
 	 * FilterDateButton + SchedulerViewToggle — following the
 	 * SidebarSessionOpenHeader row grammar (a wrapping flex row).
 	 *
@@ -11,7 +11,7 @@
 	 * as a callback — this header owns no state (D1 contract: no
 	 * localStorage, no prefs, no fetch).
 	 */
-	import { ChevronDown, ChevronRight, Clock } from '@lucide/svelte';
+	import { ChevronDown, ChevronRight } from '@lucide/svelte';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import FilterDateButton from '$lib/components/common/buttons/FilterDateButton.svelte';
@@ -57,7 +57,6 @@
 		onclick={ontoggle}
 	>
 		{#if collapsed}<ChevronRight size={12} aria-hidden="true" />{:else}<ChevronDown size={12} aria-hidden="true" />{/if}
-		<Clock size={12} aria-hidden="true" />
 		<span class="label">{t(m.schedulerShelf)}</span>
 	</button>
 	<!-- The filter input rides directly after the fold toggle — the
@@ -75,8 +74,7 @@
 	<!-- The count pills re-reflect the engaged filter (D4 — honest
 	     counts, honest 0): pending = no delivery receipt yet, delivered
 	     = ended-with-receipt. -->
-	<span class="pill" data-testid="scheduler-pending-count">{pendingCount}</span>
-	<span class="pill" data-testid="scheduler-delivered-count">{deliveredCount}</span>
+	<span class="pill" data-testid="scheduler-counts">({pendingCount}/{deliveredCount})</span>
 	<FilterDateButton value={dateFilter} dates={sessionDates} onchange={ondatechange} />
 	<SchedulerViewToggle value={viewMode} onchange={onviewchange} />
 </div>
@@ -88,7 +86,7 @@
 	.head-row {
 		display: flex;
 		align-items: center;
-		gap: 0.3rem;
+		gap: 0.1rem;
 		min-width: 0;
 	}
 
@@ -135,7 +133,7 @@
 		flex: 1 1 10rem;
 		min-width: 0;
 		height: 1.375rem;
-		padding: 0 0.375rem;
+		padding: 0 0.35rem;
 		border: 1px solid color-mix(in srgb, var(--color-surface-border, #dee2e6) 75%, transparent);
 		border-radius: 0.375rem;
 		background: var(--color-surface-elevated, #ffffff);

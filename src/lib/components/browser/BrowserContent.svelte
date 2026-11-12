@@ -24,6 +24,7 @@
 		onmove,
 		onwheel,
 		onkey,
+		onpaste,
 		oncontextmenu,
 		ctxMenu = null,
 		onctxaction,
@@ -38,8 +39,10 @@
 		onmove?: (e: MouseEvent) => void;
 		onwheel?: (e: WheelEvent) => void;
 		onkey?: (e: KeyboardEvent) => void;
+		/** ADR-0061 D2: the wire-clipboard paste event on the glass wrap. */
+		onpaste?: (e: ClipboardEvent) => void;
 		oncontextmenu?: (e: MouseEvent) => void;
-		ctxMenu?: { px: number; py: number; href: string | null; src: string | null } | null;
+		ctxMenu?: { px: number; py: number; href: string | null; src: string | null; selection?: string | null } | null;
 		onctxaction?: (action: string) => void;
 		onctxclose?: () => void;
 	} = $props();
@@ -63,6 +66,7 @@
 			onwheel={onwheel}
 			onkeydown={onkey}
 			onkeyup={onkey}
+			onpaste={onpaste}
 			oncontextmenu={oncontextmenu}
 		></canvas>
 		{#if ctxMenu}
@@ -71,6 +75,12 @@
 				style="left:{ctxMenu.px}px; top:{ctxMenu.py}px"
 				data-testid="browser-ctxmenu"
 			>
+				{#if ctxMenu.selection}
+					<!-- ADR-0061 D4: the page's SELECTION, not the point's element —
+					     the operator selects, then right-clicks anywhere. Honest
+					     absence when the selection is empty, never a disabled lie. -->
+					<button type="button" class="block w-full px-3 py-1.5 text-left text-zinc-900 hover:bg-zinc-200" onclick={() => onctxaction?.('copy-text')} data-testid="browser-ctxmenu-item">{m.browserCtxCopyText()}</button>
+				{/if}
 				{#if ctxMenu.src}
 					<button type="button" class="block w-full px-3 py-1.5 text-left text-zinc-900 hover:bg-zinc-200" onclick={() => onctxaction?.('open-image')} data-testid="browser-ctxmenu-item">{m.browserCtxOpenImage()}</button>
 					<button type="button" class="block w-full px-3 py-1.5 text-left text-zinc-900 hover:bg-zinc-200" onclick={() => onctxaction?.('copy-image')} data-testid="browser-ctxmenu-item">{m.browserCtxCopyImage()}</button>

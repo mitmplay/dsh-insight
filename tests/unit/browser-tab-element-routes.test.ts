@@ -12,7 +12,9 @@ const spies = vi.hoisted(() => ({
 	isClosed: vi.fn(),
 	closeTab: vi.fn(),
 	openTab: vi.fn(),
-	elementAt: vi.fn()
+	elementAt: vi.fn(),
+	selectionOf: vi.fn(),
+	selectAll: vi.fn()
 }));
 
 vi.mock('$lib/server/browser/registry.js', () => {
@@ -29,7 +31,9 @@ vi.mock('$lib/server/browser/registry.js', () => {
 			isClosed: spies.isClosed,
 			closeTab: spies.closeTab,
 			openTab: spies.openTab,
-			elementAt: spies.elementAt
+			elementAt: spies.elementAt,
+			selectionOf: spies.selectionOf,
+			selectAll: spies.selectAll
 		},
 		BrowserRegistryRefusal
 	};
@@ -64,7 +68,9 @@ beforeEach(() => {
 	spies.isClosed.mockReturnValue(false);
 	spies.closeTab.mockResolvedValue({ ok: true });
 	spies.openTab.mockResolvedValue({ ok: true, targetId: 't2' });
-	spies.elementAt.mockResolvedValue({ href: 'https://x', text: 'hi' });
+	spies.elementAt.mockResolvedValue({ href: 'https://x', text: 'hi', src: null, selection: null });
+	spies.selectionOf.mockResolvedValue(null);
+	spies.selectAll.mockResolvedValue(null);
 });
 
 describe('all three routes — closed-session gate', () => {
@@ -217,6 +223,49 @@ describe('POST element', () => {
 	it('forwards a non-empty string targetId', async () => {
 		await postJson(postElement, { x: 1, y: 2, targetId: 't9' });
 		expect(spies.elementAt).toHaveBeenCalledWith(ID, 1, 2, 't9');
+	});
+
+	it('selectionOnly runs the POINT-LESS pass — no x/y required (ADR-0061 D8)', async () => {
+		spies.selectionOf.mockResolvedValue('glass picked text');
+		const res = await postJson(postElement, { selectionOnly: true, targetId: 't9' });
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ href: null, src: null, text: null, selection: 'glass picked text' });
+		expect(spies.selectionOf).toHaveBeenCalledWith(ID, 't9');
+		expect(spies.elementAt).not.toHaveBeenCalled();
+	});
+
+	it('selectAll runs the select-all VERB — no x/y required (ADR-0061 D7)', async () => {
+		spies.selectAll.mockResolvedValue('everything');
+		const res = await postJson(postElement, { selectAll: true });
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ href: null, src: null, text: null, selection: 'everything' });
+		expect(spies.selectAll).toHaveBeenCalledWith(ID, undefined);
+		expect(spies.elementAt).not.toHaveBeenCalled();
+	});
+
+	it('point-less refusals map 404/409 like every other pass', async () => {
+		spies.selectionOf.mockRejectedValueOnce(new BrowserRegistryRefusal('NO_SESSION', 'no session'));
+		expect((await postJson(postElement, { selectionOnly: true })).status).toBe(404);
+		spies.selectAll.mockRejectedValueOnce(new BrowserRegistryRefusal('CLOSED', 'closed'));
+		const res = await postJson(postElement, { selectAll: true });
+		expect(res.status).toBe(409);
+		expect(await res.json()).toEqual({ error: 'CLOSED' });
+		spies.selectAll.mockRejectedValueOnce(new Error('boom'));
+		await expect(postJson(postElement, { selectAll: true })).rejects.toThrow('boom');
+	});
+
+	it('selectionOnly:true must be literally true — a truthy non-true falls to the point pass', async () => {
+		await postJson(postElement, { selectionOnly: 'yes' } as never);
+		// no x/y → the point pass 400s (the verb arms only fire on === true)
+		expect(spies.selectionOf).not.toHaveBeenCalled();
+	});
+
+	it('a parsed elementAt payload passes selection through (ADR-0061 D4)', async () => {
+		spies.elementAt.mockResolvedValue({ href: null, src: null, text: 't', selection: 'glass selection' });
+		const res = await postJson(postElement, { x: 3, y: 4 });
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ href: null, src: null, text: 't', selection: 'glass selection' });
+		expect(spies.elementAt).toHaveBeenCalledWith(ID, 3, 4, undefined);
 	});
 
 	it('NO_SESSION / NO_TARGET refusals map to 404, others to 409, unknown rethrow', async () => {

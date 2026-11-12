@@ -2063,16 +2063,50 @@ const browser = context.browser();
 	 *  data pass (BUGFIX 2026-10-25: Chrome's NATIVE right-click menu is
 	 *  browser UI and never renders in the screencast, so DSI supplies its
 	 *  own menu; this tells it what the right-click landed on). */
-	async elementAt(id: string, x: number, y: number, targetId?: string): Promise<{ href: string | null; src: string | null; text: string | null }> {
+	async elementAt(id: string, x: number, y: number, targetId?: string): Promise<{ href: string | null; src: string | null; text: string | null; selection: string | null }> {
 		const e = this.peek(id);
 		const h = await this.handleOf(e, targetId);
-		const expr = 'JSON.stringify((() => { const el = document.elementFromPoint(' + Number(x) + ',' + Number(y) + '); if (!el) return { href: null, src: null, text: null }; const a = el.closest("a"); const img = el.closest("img"); return { href: a ? a.href : null, src: img ? (img.currentSrc || img.src) : null, text: (a && a.textContent || "").trim().slice(0, 80) || null }; })())';
+		// ADR-0061 D4: the data pass also carries the page's SELECTION (the
+		// operator selects, then right-clicks anywhere — top-level selection,
+		// NOT the point's element), capped at 4096 like every wire text.
+		const expr = 'JSON.stringify((() => { const sel = String(window.getSelection() ?? "").slice(0, 4096) || null; const el = document.elementFromPoint(' + Number(x) + ',' + Number(y) + '); if (!el) return { href: null, src: null, text: null, selection: sel }; const a = el.closest("a"); const img = el.closest("img"); return { href: a ? a.href : null, src: img ? (img.currentSrc || img.src) : null, text: (a && a.textContent || "").trim().slice(0, 80) || null, selection: sel }; })())';
 		const raw = await this.evaluateCapped(h.cdp, expr, 2000);
-		if (raw === null) return { href: null, src: null, text: null };
+		if (raw === null) return { href: null, src: null, text: null, selection: null };
 		try {
-			return JSON.parse(raw) as { href: string | null; src: string | null; text: string | null };
+			return JSON.parse(raw) as { href: string | null; src: string | null; text: string | null; selection: string | null };
 		} catch {
-			return { href: null, src: null, text: null };
+			return { href: null, src: null, text: null, selection: null };
+		}
+	}
+
+	/** ADR-0061 D8 (amendment 2026-11-12): the POINT-LESS selection read —
+	 *  ⌘C's wire half. No x/y point: the operator's chord targets the page's
+	 *  own selection, not a point. Capped, null-honest via the JSON arm. */
+	async selectionOf(id: string, targetId?: string): Promise<string | null> {
+		const e = this.peek(id);
+		const h = await this.handleOf(e, targetId);
+		const raw = await this.evaluateCapped(h.cdp, 'JSON.stringify(String(window.getSelection() ?? "").slice(0, 4096) || null)', 2000);
+		if (raw === null || raw === '' || raw === 'null') return null;
+		try {
+			return JSON.parse(raw) as string | null;
+		} catch {
+			return null;
+		}
+	}
+
+	/** ADR-0061 D7 (amendment 2026-11-12): ⌘A's wire half — select-all INSIDE
+	 *  the glass through the Selection API (proven by CDP probe; a raw key
+	 *  chord is the unreliable headless class). Reports what got selected. */
+	async selectAll(id: string, targetId?: string): Promise<string | null> {
+		const e = this.peek(id);
+		const h = await this.handleOf(e, targetId);
+		const expr = 'JSON.stringify((() => { const s = window.getSelection(); if (!s) return null; s.removeAllRanges(); const r = document.createRange(); r.selectNodeContents(document.body); s.addRange(r); return String(s).slice(0, 4096) || null; })())';
+		const raw = await this.evaluateCapped(h.cdp, expr, 2000);
+		if (raw === null || raw === '' || raw === 'null') return null;
+		try {
+			return JSON.parse(raw) as string | null;
+		} catch {
+			return null;
 		}
 	}
 

@@ -39,10 +39,18 @@ describe('BrowserPanel Alt+N tab-focus pins (window-level owner)', () => {
 	});
 
 	it('window handler OWNS the arm exclusively — canvas onKey has no Alt-digit branch', () => {
-		const onKeyBody = panelSrc.slice(panelSrc.indexOf('function onKey('));
-		const windowIdx = onKeyBody.indexOf('function onWindowKey(');
-		const canvasBody = onKeyBody.slice(0, windowIdx > -1 ? windowIdx : undefined);
-		expect(canvasBody).not.toContain('altKey');
+		// bound the slice to the onKey FUNCTION BODY — everything between
+		// onKey and onWindowKey in the source is unrelated surface, and a
+		// wide slice false-positives on their legit activateTab calls
+		const start = panelSrc.indexOf('function onKey(');
+		const nextFn = panelSrc.indexOf('function ', start + 10);
+		const canvasBody = panelSrc.slice(start, nextFn > -1 ? nextFn : undefined);
+		// Amended 2026-11-12 (ADR-0061 D6-D8 wave): the pin's INTENT is "the
+		// canvas never carries the Alt+DIGIT arm" — the glass-selection wave
+		// legitimately mentions altKey in onKey to SWALLOW Alt chords (they
+		// must never dispatch as keys), which is not an arm. Pin the real
+		// contract: no Digit matching and no tab activation on the canvas.
 		expect(canvasBody).not.toMatch(/\^Digit\(/);
+		expect(canvasBody).not.toContain('activateTab');
 	});
 });

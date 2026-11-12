@@ -129,7 +129,7 @@ describe('scheduler-shelf rendered rows', () => {
 		flushSync();
 		expect((h.host.querySelector('[data-testid="scheduler-shelf-toggle"]') as HTMLButtonElement).getAttribute('aria-expanded')).toBe('false');
 		expect(h.host.querySelector('[data-testid="scheduler-shelf-row"]')).toBeNull();
-		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('0');
+		expect(h.host.querySelector('[data-testid="scheduler-counts"]')?.textContent).toBe('(0/0)');
 		// The lazy-fetch discipline: a quiet shelf is a silent one — mounting
 		// the sidebar never adds wire traffic by itself (sessions-list suites
 		// share this mount and count their own fetches strictly).
@@ -139,7 +139,7 @@ describe('scheduler-shelf rendered rows', () => {
 
 	it('empty ledger: header count 0 and an honest empty line when expanded', async () => {
 		const h = await expandedShelf([]);
-		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('0');
+		expect(h.host.querySelector('[data-testid="scheduler-counts"]')?.textContent).toBe('(0/0)');
 		// Wait on the EMPTY LINE itself — a 0-row predicate is vacuously true
 		// before the mount fetch resolves and `loaded` flips. The honest empty
 		// line is the em-dash (nothing to show, said without copy).
@@ -165,8 +165,7 @@ describe('scheduler-shelf rendered rows', () => {
 		const h = await expandedShelf(items);
 		// Unfiltered view (D4): the pending pill counts surviving rows with
 		// NO receipt (4 of 5); the delivered pill counts ended-with-receipt rows (1).
-		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('4');
-		expect(h.host.querySelector('[data-testid="scheduler-delivered-count"]')?.textContent).toBe('1');
+		expect(h.host.querySelector('[data-testid="scheduler-counts"]')?.textContent).toBe('(4/1)');
 		const rows = [...h.host.querySelectorAll('[data-testid="scheduler-shelf-row"]')];
 		expect(rows.length).toBe(items.length);
 		const byRow = (index: number): { dot: Element | null; title: string | null; kind: string | null; kindIcon: Element | null; icon: Element | null; meta: string | null } => {
@@ -350,8 +349,7 @@ describe('scheduler-shelf host wiring (Filter Cluster 2.3-T)', () => {
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		flushSync();
 		expect(h.host.querySelectorAll('[data-testid="scheduler-shelf-row"]').length).toBe(1);
-		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('1');
-		expect(h.host.querySelector('[data-testid="scheduler-delivered-count"]')?.textContent).toBe('0');
+		expect(h.host.querySelector('[data-testid="scheduler-counts"]')?.textContent).toBe('(1/0)');
 		input.value = '';
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		flushSync();
@@ -365,7 +363,7 @@ describe('scheduler-shelf host wiring (Filter Cluster 2.3-T)', () => {
 		input.value = 'zzz-no-match';
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		flushSync();
-		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('0');
+		expect(h.host.querySelector('[data-testid="scheduler-counts"]')?.textContent).toBe('(0/0)');
 		expect(h.host.querySelector('.empty')?.textContent).toBe('—');
 		teardown(h);
 	});
@@ -375,9 +373,8 @@ describe('scheduler-shelf host wiring (Filter Cluster 2.3-T)', () => {
 		(h.host.querySelector('[data-testid="scheduler-view-toggle-d"]') as HTMLButtonElement).click();
 		flushSync();
 		expect(h.host.querySelectorAll('[data-testid="scheduler-shelf-row"]').length).toBe(1);
-		expect(h.host.querySelector('[data-testid="scheduler-delivered-count"]')?.textContent).toBe('1');
-		// D-mode honesty: the only visible row is delivered — pending reads 0.
-		expect(h.host.querySelector('[data-testid="scheduler-pending-count"]')?.textContent).toBe('0');
+		// D-mode honesty: the only visible row is delivered — the pill reads (0/1).
+		expect(h.host.querySelector('[data-testid="scheduler-counts"]')?.textContent).toBe('(0/1)');
 		(h.host.querySelector('[data-testid="scheduler-view-toggle-d"]') as HTMLButtonElement).click();
 		flushSync();
 		expect(h.host.querySelectorAll('[data-testid="scheduler-shelf-row"]').length).toBe(3);
