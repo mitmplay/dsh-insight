@@ -13,6 +13,10 @@ Screenshot: Sidebar, Workspace-explorer, Agent, Glass-browser, Subagent
 <strong>A multi-agent workspace where you can see multiple agents and sub-agents working side by side, alongside non-conversational content, in resizable and zoomable multi-column panels:</strong>
 </p>
 
+<p align="center">
+	(repo: dsh-insight / @deepseek-insight/dsi on npm — <strong>DSI</strong> is the name)
+<p>
+
 - keys panel: **Agent**, **Sub-agent**, **Workspace-explorer**, **Glass-browser**, **Terminal**, 
 - management panel: **Prompt**, **Skill**, **Plugins** and **Configs** Manager
 
@@ -24,7 +28,7 @@ Screenshot: Sidebar, Workspace-explorer, Agent, Glass-browser, Subagent
 ```bash
 npx @deepseek-insight/dsi@latest dsh --sync --zai # open http://localhost:5174
 
-DSH_VERSION=0.2.2-rc.1 npx @deepseek-insight/dsi@latest dsh --sync --zai # npm downgrade
+DSH_VERSION=0.2.2-rc.1 npx @deepseek-insight/dsi@latest dsh --sync --zai # downgrade
 ```
 When it is up, your browser opens the page by itself (default `http://127.0.0.1:5174`).
 
