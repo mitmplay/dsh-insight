@@ -475,6 +475,7 @@
   "workspaceFileTabsClear": "清除标签",
   "workspaceFileTabsClearAll": "全部清除",
   "workspaceFileTabsClearNonDirty": "清除未修改",
+  "workspaceFileTabsClearOther": "清除其他",
   "terminalTabsClear": "清除标签",
   "terminalTabsClearAll": "全部清除",
   "terminalTabsClearJobs": "清除任务",

@@ -475,6 +475,7 @@
   "workspaceFileTabsClear": "Limpiar pestañas",
   "workspaceFileTabsClearAll": "Limpiar todo",
   "workspaceFileTabsClearNonDirty": "Limpiar sin cambios",
+  "workspaceFileTabsClearOther": "Limpiar otras",
   "terminalTabsClear": "Limpiar pestañas",
   "terminalTabsClearAll": "Limpiar todo",
   "terminalTabsClearJobs": "Limpiar jobs",

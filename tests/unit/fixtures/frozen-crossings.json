@@ -1,5 +1,5 @@
 {
-  "_comment": "Operator moves 2026-11-11: RowSessionItem+RowJobBadge to sidebar/session-list, then SidebarOpenPanelRows + row-private entourage (RowButtonFold/Close/MoveDown/MoveUp + sidebar-open-panel-rows-types) to sidebar/session-open. Net crossings stay 32: the sessions-domain rows moved home to the sidebar domain; the only sessions crossing each keeps is the shared WorkspaceRowItem. Regenerated with operator approval under the never-ask policy.",
+  "_comment": "operator sign-off 2026-11-13: WorkspaceFileTabs + WorkspaceFileTabsClear rehomed into workspace-file/filetab/ per operator-requested folder reorg; crossing unchanged in substance, path only",
   "crossings": [
     {
       "from": "components/common/layout/AppSidebar.svelte",
@@ -167,13 +167,13 @@
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
       "fromDomain": "workspace-explorer",
       "toDomain": "workspace-file",
-      "to": "components/workspace-file/WorkspaceFilePanel.svelte"
+      "to": "components/workspace-file/filetab/WorkspaceFileTabs.svelte"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
       "fromDomain": "workspace-explorer",
       "toDomain": "workspace-file",
-      "to": "components/workspace-file/WorkspaceFileTabs.svelte"
+      "to": "components/workspace-file/WorkspaceFilePanel.svelte"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerTree.svelte",

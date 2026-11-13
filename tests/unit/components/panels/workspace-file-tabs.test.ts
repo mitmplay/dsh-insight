@@ -7,7 +7,7 @@
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import WorkspaceFileTabs from '$lib/components/workspace-file/WorkspaceFileTabs.svelte';
+import WorkspaceFileTabs from '$lib/components/workspace-file/filetab/WorkspaceFileTabs.svelte';
 
 function mountTabs(
 	tabs: Array<{ path: string }>,

@@ -98,7 +98,7 @@ describe('right-click through the glass (bugfix 2026-10-25)', () => {
 
 describe('context-menu Copy text — the glass selection (ADR-0061 D4)', () => {
   /** Mount, reach live, right-click, and settle the /element data pass. */
-  async function openMenu(): Promise<void> {
+  async function openMenu(): Promise<Record<string, any>> {
     const target = document.createElement('div');
     document.body.appendChild(target);
     const instance = mount(BrowserPanel, { target, props: { browserSessionId: SESSION_ID } });
@@ -112,7 +112,7 @@ describe('context-menu Copy text — the glass selection (ADR-0061 D4)', () => {
     (document.querySelector('[data-testid=browser-glass] canvas') as HTMLElement).dispatchEvent(ev);
     await new Promise((r) => setTimeout(r, 5));
     flushSync();
-    return instance as unknown as never;
+    return instance;
   }
 
   it('a non-empty selection renders Copy text; clicking writes it to the clipboard', async () => {

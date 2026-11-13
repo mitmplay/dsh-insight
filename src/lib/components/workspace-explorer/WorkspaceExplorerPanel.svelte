@@ -30,7 +30,7 @@
 	import WorkspaceExplorer from './WorkspaceExplorer.svelte';
 	import WorkspaceFilePanel from '../workspace-file/WorkspaceFilePanel.svelte';
 	import SettingsHomeFile from '../panels/SettingsHomeFile.svelte';
-	import WorkspaceFileTabs from '../workspace-file/WorkspaceFileTabs.svelte';
+	import WorkspaceFileTabs from '../workspace-file/filetab/WorkspaceFileTabs.svelte';
 	import ResizeGutter from '../panels/ResizeGutter.svelte';
 	import type { DirEntry, Level } from './workspace-explorer-tree-types';
 	import type { ChangeStatus } from './WorkspaceExplorerRepo.svelte';
@@ -228,7 +228,8 @@
 	/** Comparable signature of a ready level: name+type sequence plus the
 	 *  truncated flag (flapping-protection). Equal ⇒ no write, no re-render. */
 	function levelSignature(level: Level): string {
-		return (level.truncated ? 'T|' : '|') + level.entries.map((e) => e.name + ':' + e.type).join(',');
+		if (level.kind !== 'ready') return 'not-ready';
+		return (level.truncated ? 'T|' : '|') + level.entries.map((e: DirEntry) => e.name + ':' + e.type).join(',');
 	}
 
 	/** The ONLY write path for a ready level (Reconciling Root D2/D4/D6):
@@ -867,7 +868,13 @@
 		onClearAll={(scope) => {
 			// ADR D5c (2026-11-03): the panel is the single writer of the tab
 			// list — it resolves the popover's scope against the dirty map.
-			const doomed = scope === 'all' ? [...openTabs] : openTabs.filter((p) => dirtyMap[p] !== true);
+			// 'other' (2026-11-13): keep the ACTIVE tab — close everything else.
+			const doomed =
+				scope === 'all'
+					? [...openTabs]
+					: scope === 'other'
+						? openTabs.filter((p) => p !== activeFile)
+						: openTabs.filter((p) => dirtyMap[p] !== true);
 			for (const path of doomed) {
 				onCloseTab?.(path);
 				delete dirtyMap[path];

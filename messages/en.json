@@ -475,6 +475,7 @@
   "workspaceFileTabsClear": "Clear tabs",
   "workspaceFileTabsClearAll": "Clear all",
   "workspaceFileTabsClearNonDirty": "Clear non-dirty",
+  "workspaceFileTabsClearOther": "Clear other",
   "terminalTabsClear": "Clear tabs",
   "terminalTabsClearAll": "Clear all",
   "terminalTabsClearJobs": "Clear jobs",

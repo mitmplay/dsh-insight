@@ -11,7 +11,7 @@
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import WorkspaceFileTabs from '$lib/components/workspace-file/WorkspaceFileTabs.svelte';
+import WorkspaceFileTabs from '$lib/components/workspace-file/filetab/WorkspaceFileTabs.svelte';
 
 interface Intents {
 	activate: string[];
@@ -33,7 +33,7 @@ document.body.appendChild(target);
 			activePath,
 			onActivate: (p: string) => intents.activate.push(p),
 			onClose: (p: string) => intents.close.push(p),
-			onClearAll: (scope: 'all' | 'non-dirty') => intents.clear.push(scope),
+			onClearAll: (scope: 'all' | 'non-dirty' | 'other') => intents.clear.push(scope),
 			children: (() => null) as never
 		}
 	});
@@ -120,6 +120,17 @@ describe('tabstrip clear — the sticky control and its blanket confirm', () => 
 		click(target.querySelector('[data-testid="workspace-file-tabstrip-clear"]')!);
 		click(target.querySelector('[data-testid="workspace-file-tabstrip-clear-nondirty"]')!);
 		expect(intents.clear).toEqual(['all', 'non-dirty']);
+		unmount(instance);
+	});
+
+	it('the close-others verb emits ONE onClearAll intent with scope \'other\'', () => {
+		const intents: Intents = { activate: [], close: [], clear: [] };
+		const { target, instance } = mountTabs([{ path: 'a.ts' }], 'a.ts', intents);
+		click(target.querySelector('[data-testid="workspace-file-tabstrip-clear"]')!);
+		expect(target.querySelector('[data-testid="workspace-file-tabstrip-clear-pop"]')).not.toBeNull();
+		click(target.querySelector('[data-testid="workspace-file-tabstrip-clear-other"]')!);
+		expect(intents.clear).toEqual(['other']);
+		expect(target.querySelector('[data-testid="workspace-file-tabstrip-clear-pop"]')).toBeNull();
 		unmount(instance);
 	});
 

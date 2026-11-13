@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { RpcRelay } from '$lib/server/connection/rpc-relay';
 import { DshRpcError, REMOTE_EVENT_RESULT_ENDPOINT } from '$lib/server/dsh-rpc';
+import type { DshConnection } from '$lib/server/dsh-connection';
+import type { DshPromptContent } from '$lib/server/dsh-rpc';
 
 // listPresets reads the operator's settings file live per call - mock it so
 // the unit test pins only the relay's overlay plumbing (mapper slice B).
@@ -18,15 +20,37 @@ vi.mock('$lib/server/insight-config', () => ({
  * job-roster-mirror.test.ts (fake conn, no network, no src edits).
  */
 
+/** Narrowed view of a session/prompt rpc payload (what RpcRelay.prompt sends). */
+type PromptRpcPayload = {
+	request: {
+		content: string | readonly DshPromptContent[];
+		mode: string;
+		sessionId: string;
+		requestId: string;
+		clientTimeZone: string;
+	};
+};
+
+/** Typed accessor for one recorded rpc call's payload (types only, no logic change). */
+function callPayload(conn: { rpc: { mock: { calls: unknown[][] } } }, i: number): PromptRpcPayload {
+	return conn.rpc.mock.calls[i][1] as PromptRpcPayload;
+}
+
 function makeConn() {
 	const logs: unknown[][] = [];
 	const followBufs = new Map<string, { entries: unknown[]; lastSeq: number; coverageFloor: number }>();
 	const conn = {
 		log: (...a: unknown[]) => logs.push(a),
-		rpc: vi.fn(async () => ({})),
+		rpc: vi.fn(
+			async (
+				_method: string,
+				_payload: Record<string, unknown>,
+				_signal?: AbortSignal
+			): Promise<unknown> => ({})
+		),
 		rpcIdFactory: () => 'req-1',
 		baseUrl: 'http://host.test',
-		fetchFn: vi.fn(async () => new Response(null, { status: 200 })),
+		fetchFn: vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 200 })),
 		auth: {
 			ensureCookie: vi.fn(async () => null as string | null),
 			invalidate: vi.fn()
@@ -212,23 +236,23 @@ describe('unary forwards - arg-building arms', () => {
 		const { relay, conn } = makeConn();
 		conn.rpc.mockResolvedValue({ accepted: true });
 		await relay.prompt('s1', 'hello');
-		let [method, args] = conn.rpc.mock.calls[0];
-		expect(method).toBe('session/prompt');
-		const req = args.request;
+		let payload = callPayload(conn, 0);
+		expect(conn.rpc.mock.calls[0][0]).toBe('session/prompt');
+		const req = payload.request;
 		expect(req.content).toEqual([{ type: 'text', text: 'hello' }]);
 		expect(req.mode).toBe('queue');
 		expect(req.sessionId).toBe('s1');
 		expect(typeof req.requestId).toBe('string');
 		expect(typeof req.clientTimeZone).toBe('string');
 
-		const content = [
-			{ type: 'image' as const, source: {} as never },
-			{ type: 'text' as const, text: 'with image' }
+		const content: DshPromptContent[] = [
+			{ type: 'image', mediaType: 'image/png', data: '' },
+			{ type: 'text', text: 'with image' }
 		];
 		await relay.prompt('s1', content, 'steer');
-		[method, args] = conn.rpc.mock.calls[1];
-		expect(args.request.content).toBe(content); // verbatim passthrough, same reference
-		expect(args.request.mode).toBe('steer');
+		payload = callPayload(conn, 1);
+		expect(payload.request.content).toBe(content); // verbatim passthrough, same reference
+		expect(payload.request.mode).toBe('steer');
 	});
 
 	it('executeCommand: an admission miss (undefined) normalizes to null', async () => {

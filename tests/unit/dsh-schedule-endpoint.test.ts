@@ -14,6 +14,12 @@ vi.mock('$lib/server/dsh-connection', () => ({
 }));
 
 import { DshRpcError } from '$lib/server/dsh-rpc';
+
+// GET is a SvelteKit RequestHandler: its RequestEvent argument is required
+// at the type level, but this handler never reads it (a unary ledger read).
+// Type-only seam — a cast shape, no runtime behavior change.
+type GetEvent = Parameters<typeof GET>[0];
+const event = {} as GetEvent;
 // Route via relative import — the established api-dsh.test.ts pattern
 // ($lib aliases only cover src/lib).
 import { GET } from '../../src/routes/api/dsh/schedule/+server';
@@ -35,7 +41,7 @@ const entry = {
 describe('GET /api/dsh/schedule', () => {
 	it('success — relay items pass through verbatim as {items}', async () => {
 		listScheduledTasks.mockResolvedValue([entry]);
-		const res = await GET();
+		const res = await GET(event);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as { items: unknown[] };
 		expect(body.items).toEqual([entry]);
@@ -45,7 +51,7 @@ describe('GET /api/dsh/schedule', () => {
 
 	it('success — an empty ledger answers 200 with an empty items array', async () => {
 		listScheduledTasks.mockResolvedValue([]);
-		const res = await GET();
+		const res = await GET(event);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as { items: unknown[] };
 		expect(body.items).toEqual([]);
@@ -53,7 +59,7 @@ describe('GET /api/dsh/schedule', () => {
 
 	it('error arm — DshRpcError → 502 with the host code mapped', async () => {
 		listScheduledTasks.mockRejectedValue(new DshRpcError('schedule/not-found', 'no such task', { id: 'sched-x' }));
-		const res = await GET();
+		const res = await GET(event);
 		expect(res.status).toBe(502);
 		const body = (await res.json()) as { ok: boolean; error: { code: string; message: string; details?: unknown } };
 		expect(body.ok).toBe(false);
@@ -64,7 +70,7 @@ describe('GET /api/dsh/schedule', () => {
 
 	it('error arm — generic transport failure → 503 host-unreachable', async () => {
 		listScheduledTasks.mockRejectedValue(new Error('socket hang up'));
-		const res = await GET();
+		const res = await GET(event);
 		expect(res.status).toBe(503);
 		const body = (await res.json()) as { ok: boolean; error: { code: string; message: string } };
 		expect(body.ok).toBe(false);
@@ -74,7 +80,7 @@ describe('GET /api/dsh/schedule', () => {
 
 	it('error arm — a non-Error rejection still maps to 503 host-unreachable', async () => {
 		listScheduledTasks.mockRejectedValue('string rejection');
-		const res = await GET();
+		const res = await GET(event);
 		expect(res.status).toBe(503);
 		const body = (await res.json()) as { error: { code: string; message: string } };
 		expect(body.error.code).toBe('host-unreachable');

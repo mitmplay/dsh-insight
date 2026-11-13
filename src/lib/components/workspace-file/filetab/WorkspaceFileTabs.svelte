@@ -10,13 +10,14 @@
 	 * active path, and every fetch arrive as PROPS from the owning
 	 * WorkspaceExplorerPanel; the only things leaving are INTENT callbacks
 	 * — onActivate (focus an open tab), onClose (the per-tab [x]), and
-	 * onClearAll (the sticky clear's blanket confirm, ADR D5c amendment
-	 * 2026-11-03). The content region is the parent's children snippet, so
+	 * onClearAll (handed to the WorkspaceFileTabsClear child — the sticky
+	 * clear's blanket confirm, ADR D5c amendment 2026-11-03). The content region is the parent's children snippet, so
 	 * the panel hosts WorkspaceFile itself and this component never fetches.
 	 *
 	 * A closed panel drops the tabs with it (D5) — nothing here persists.
 	 */
 	import type { Snippet } from 'svelte';
+	import WorkspaceFileTabsClear from './WorkspaceFileTabsClear.svelte';
 
 	/** One open file tab — the panel's component state, deduped by path. */
 	export interface WorkspaceFileTab {
@@ -46,7 +47,7 @@
 		/** Clear-all intent with scope (ADR D5c amendment 2026-11-03) —
 		 *  'all' closes every tab, 'non-dirty' keeps dirty drafts. Absent
 		 *  renders no clear control (standalone tab surfaces). */
-		onClearAll?: (scope: 'all' | 'non-dirty') => void;
+		onClearAll?: (scope: 'all' | 'non-dirty' | 'other') => void;
 		/** The file body region — the parent renders WorkspaceFile here. */
 		children: Snippet;
 	} = $props();
@@ -78,25 +79,7 @@
 		activeBtn?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
 	});
 
-	// D5c: the blanket-confirm popover. One local open flag; Esc and an
-	// outside click both land on Cancel (nothing is cleared). The verbs
-	// emit the onClearAll intent and close — the PANEL resolves scope.
-	let clearOpen = $state(false);
-	function clear(scope: 'all' | 'non-dirty'): void {
-		clearOpen = false;
-		onClearAll?.(scope);
-	}
-	function onClearKeydown(e: KeyboardEvent): void {
-		if (clearOpen && e.key === 'Escape') clearOpen = false;
-	}
-	// Plain window listener (not svelte:window): the jsdom test harness
-	// dispatches on window directly and the plain listener is the contract
-	// both the browser and the tests observe.
-	$effect(() => {
-		window.addEventListener('keydown', onClearKeydown);
-		return () => window.removeEventListener('keydown', onClearKeydown);
-	});
-</script>
+	</script>
 
 <div class="file-tabs" data-testid="workspace-file-tabs">
 	{#if tabs.length > 0}
@@ -136,29 +119,7 @@
 				{/each}
 			</div>
 			{#if onClearAll}
-				<div class="clear-slot" data-testid="workspace-file-tabstrip-clear-slot">
-					<button
-						type="button"
-						class="clear-btn"
-						data-testid="workspace-file-tabstrip-clear"
-						aria-label={t(m.workspaceFileTabsClear)}
-						title={t(m.workspaceFileTabsClear)}
-						aria-expanded={clearOpen}
-						onclick={() => (clearOpen = !clearOpen)}
-					>×</button>
-					{#if clearOpen}
-						<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-						<span class="backdrop" onclick={() => (clearOpen = false)}></span>
-						<div class="clear-pop" data-testid="workspace-file-tabstrip-clear-pop" role="menu">
-							<button type="button" role="menuitem" data-testid="workspace-file-tabstrip-clear-all" onclick={() => clear('all')}>
-								{t(m.workspaceFileTabsClearAll)}
-							</button>
-							<button type="button" role="menuitem" data-testid="workspace-file-tabstrip-clear-nondirty" onclick={() => clear('non-dirty')}>
-								{t(m.workspaceFileTabsClearNonDirty)}
-							</button>
-						</div>
-					{/if}
-				</div>
+				<WorkspaceFileTabsClear onClear={onClearAll} />
 			{/if}
 		</div>
 		<div class="body">{@render children()}</div>
@@ -232,67 +193,6 @@
 	.close:hover {
 		background: var(--color-border, #ddd);
 		color: var(--color-text-primary);
-	}
-	/* The sticky clear: fixed-width slot after the scroller; the popover
-	   anchors under it. Same chip grammar as the toolbar's controls. */
-	.clear-slot {
-		position: relative;
-		display: flex;
-		align-items: center;
-		flex: 0 0 auto;
-		padding: 2px 4px 0;
-	}
-	.clear-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 1.25rem;
-		height: 1.25rem;
-		border: 1px solid var(--color-border, #ddd);
-		border-bottom: none;
-		border-radius: 6px 6px 0 0;
-		background: transparent;
-		font-size: 0.8rem;
-		line-height: 1;
-		color: var(--color-text-muted, #888);
-		cursor: pointer;
-	}
-	.clear-btn:hover {
-		background: var(--color-surface-hover, rgba(0, 0, 0, 0.06));
-		color: var(--color-text-primary);
-	}
-	/* The invisible click-catcher: any click outside the popover = Cancel. */
-	.backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 40;
-	}
-	.clear-pop {
-		position: absolute;
-		top: 100%;
-		right: 4px;
-		z-index: 41;
-		display: flex;
-		flex-direction: column;
-		min-width: 11rem;
-		border: 1px solid var(--color-border, #ddd);
-		border-radius: 6px;
-		background: var(--color-surface-elevated, #fff);
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-		overflow: hidden;
-	}
-	.clear-pop button {
-		text-align: left;
-		padding: 5px 10px;
-		border: none;
-		background: transparent;
-		font-size: 0.75rem;
-		color: var(--color-text-primary);
-		cursor: pointer;
-		white-space: nowrap;
-	}
-	.clear-pop button:hover {
-		background: var(--color-surface-hover, rgba(0, 0, 0, 0.06));
 	}
 	.body {
 		flex: 1;

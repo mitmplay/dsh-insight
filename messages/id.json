@@ -475,6 +475,7 @@
   "workspaceFileTabsClear": "Bersihkan tab",
   "workspaceFileTabsClearAll": "Bersihkan semua",
   "workspaceFileTabsClearNonDirty": "Bersihkan yang tidak berubah",
+  "workspaceFileTabsClearOther": "Bersihkan lainnya",
   "terminalTabsClear": "Bersihkan tab",
   "terminalTabsClearAll": "Bersihkan semua",
   "terminalTabsClearJobs": "Bersihkan job",

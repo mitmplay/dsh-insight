@@ -25,7 +25,7 @@ function makeRelay(opts: FakeConnOptions = {}) {
 	const state = { generation: opts.generation ?? 1 };
 	const waitForProjections = vi.fn(async (_sessionId: string) => opts.projections ?? null);
 	const bufferFor = vi.fn((_sessionId: string) => ({ lastSeq: opts.lastSeq ?? -1 }));
-	const rpc = vi.fn(async (method: string, payload: unknown) => {
+	const rpc = vi.fn(async (method: string, payload: unknown): Promise<unknown> => {
 		rpcCalls.push([method, payload]);
 		if (method === DSH_METHODS.list) {
 			const items = typeof opts.listItems === 'function' ? opts.listItems() : (opts.listItems ?? []);
