@@ -1,3 +1,23 @@
+## 0.11.10
+
+Bumped from 0.11.9 — the workspace explorer keeps its rows under a refresh (the two-click tree is dead), and the Explorer Freshness and Image Links wave ships: a file pulse that keeps the tree fresh, and chat markdown that shows workspace images inline.
+
+### Features
+- **Inline workspace images in chat** — markdown image references that resolve inside the session workspace render inline (W1): the markdown pipeline decorates `img src` through a workspace route; pinned by the W1 markdown tests. Commit `c708db7f`.
+- **File-events SSE route** — `GET /api/workspace/file-events` streams shallow workspace-root change generations for the explorer's freshness ring (W2). Commit `c083e64f`.
+- **File Pulse + focus freshness** — the explorer opens ONE file-events stream at mount (baseline-first ring handling, sticky refusal, onDestroy close) and refetches the root on focus/pointerdown past a 2s floor (W3, The Silent Root ADR). Commit `2fba0d10`.
+- **Wave-5 chat images** — the session workspace root threads into chat markdown so relative image paths resolve. Commit `30527747`.
+
+### Changes
+- **Coverage-gate hardening** — ~100 branch-arm tests added, 2 load flakes fixed. Commit `ecdb081c`.
+
+### Bug fixes
+- **The two-click file tree (The Reconciling Root)** — the freshness floor deleted the root listing at pointerdown and the loading render erased the pressed row, so the first click died and a second was needed. Fixed by keep-while-fetching + diff-on-arrival (equal listings write nothing, failed refreshes keep old rows, freshness triggers preserve instead of erase) plus the D6 press gate (removal diffs under an active press park until pointerup). One source file: `WorkspaceExplorerPanel.svelte`; pinned by the new stale-click real-mouse e2e in `tests/e2e/workspace-explorer.spec.ts`, the park/flush and DOM-identity unit tests in `workspace-explorer-panel.test.ts`, and the file-pulse suite (which caught the swallowed mid-flight ring — racers now queue a refetch). ADR `4d869710` + `84b497b2`, RCA `d4f00def`, fix `352b6c94`.
+
+### Docs
+- **@opencode/browse onboard + setup skill** — the browse bridge (cordis wire patch, extension pairing, live two-brain verification) documented in `dev/onboard/`, with the `dsi-browse-setup` skill carrying the playwright-mcp conflict gate. Commits `5c64a77b`, `2dc9197e`, `bbf3fb10`.
+- **RCA + ADR set for the reconciling root** — failure-chain RCA (the click that died mid-press) and the D1–D6 decision record. Commits `d4f00def`, `4d869710`, `84b497b2`.
+
 ## 0.11.9
 
 Bumped from 0.11.8 — the glass browser learns the wire clipboard and wire selection (ADR-0061), and the scheduler shelf header slims down.

@@ -116,6 +116,40 @@ test.describe(() => {
 		await expect(page.getByTestId('tab-preview')).toBeVisible();
 		await expect(page.getByTestId('file-dirty')).toHaveCount(0);
 	});
-});function explorerVisible(page: import("@playwright/test").Page) {
+
+	// ── The Reconciling Root (Wave 1, 2026-11-13) AC1 — the stale-click
+	// defect: the freshness floor used to delete the root listing at
+	// pointerdown and the loading render erased the pressed row, so the
+	// FIRST click died and a second was needed. Contract now: the refresh
+	// keeps the rendered rows (keep-while-fetching) and diffs on arrival —
+	// ONE real mouse click after an idle >2s opens the file's tab.
+	// Fixture note: the stub's explorer workspace is /tmp/dsi-e2e-ws
+	// (README.md + notes/plain.txt), so the pressed row here is plain.txt
+	// — same gesture, same tab-strip contract as the operator's onboard
+	// scenario (the stub tree is not in this wave's editable file set).
+	test('stale-click: idle > 2s, ONE real mouse click on a file row opens its tab (Reconciling Root AC1)', async ({ page }) => {
+		await page.getByTestId('session-workspace').first().click();
+		const explorer = page.getByTestId('workspace-explorer');
+		await expect(explorer).toBeVisible();
+		// expand notes → the pressed row renders
+		await page.getByTestId('tree-dir').filter({ hasText: 'notes' }).click();
+		const row = page.getByTestId('tree-file').filter({ hasText: 'plain.txt' });
+		await expect(row).toBeVisible();
+		// idle past the 2s freshness floor
+		await page.waitForTimeout(2500);
+		// ONE real mouse click — mousedown, a held press (the freshness
+		// fetch fires mid-press and must NOT unmount this row), mouseup.
+		const box = await row.boundingBox();
+		expect(box).not.toBeNull();
+		await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+		await page.mouse.down();
+		await page.waitForTimeout(150);
+		await page.mouse.up();
+		// the single click opened the file's tab
+		await expect(page.getByTestId('workspace-file-tab-notes/plain.txt')).toBeVisible();
+	});
+});
+
+function explorerVisible(page: import("@playwright/test").Page) {
 	return page.getByTestId('workspace-explorer');
 }

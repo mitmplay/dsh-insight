@@ -212,8 +212,69 @@
 		return rel === '' ? name : rel + '/' + name;
 	}
 
+	/** In-flight guard (Reconciling Root 1.1): rels with a live fetch —
+	 *  PLAIN (never a $state dep); one flight per rel. A racer does not
+	 *  vanish: its rel is QUEUED and refetched once when the flight lands
+	 *  (a freshness ring arriving mid-flight must not be swallowed — the
+	 *  in-flight answer may predate the change that rang). */
+	const inFlight = new Set<string>();
+	const refetchQueued = new Set<string>();
+	/** D6 press gate: an active press on splitRoot parks removal writes. */
+	let pressActive = false;
+	/** D6 single parked write (a removal diff landing mid-press). */
+	let pendingLevelWrite: { rel: string; level: Level } | null = null;
+	let pendingFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+	/** Comparable signature of a ready level: name+type sequence plus the
+	 *  truncated flag (flapping-protection). Equal ⇒ no write, no re-render. */
+	function levelSignature(level: Level): string {
+		return (level.truncated ? 'T|' : '|') + level.entries.map((e) => e.name + ':' + e.type).join(',');
+	}
+
+	/** The ONLY write path for a ready level (Reconciling Root D2/D4/D6):
+	 *  equal listing writes nothing; a REMOVAL under an active press parks
+	 *  in the single pending slot (flushed at pointerup + one tick); all
+	 *  other writes land immediately. */
+	function writeLevel(rel: string, next: Level): void {
+		const cur = levels[rel];
+		if (cur?.kind === 'ready' && levelSignature(cur) === levelSignature(next)) return;
+		if (
+			cur?.kind === 'ready' &&
+			next.kind === 'ready' &&
+			pressActive &&
+			next.entries.length < cur.entries.length
+		) {
+			pendingLevelWrite = { rel, level: next };
+			return;
+		}
+		levels[rel] = next;
+	}
+
+	/** D6 flush: one tick AFTER the release — mid-press arrival parks, the
+	 *  release drains it. A press re-started before the tick re-parks. */
+	function flushPendingLevel(): void {
+		if (pressActive || pendingFlushTimer !== null) return;
+		pendingFlushTimer = setTimeout(() => {
+			pendingFlushTimer = null;
+			if (pressActive) return;
+			if (pendingLevelWrite) {
+				levels[pendingLevelWrite.rel] = pendingLevelWrite.level;
+				pendingLevelWrite = null;
+			}
+		}, 0);
+	}
+
+	/** A background refresh NEVER erases the rendered level (keep-while-
+	 *  fetching): the loading write and the failed note are FIRST-OPEN only
+	 *  — a refetch keeps the old rows until its diff says otherwise. */
 	async function fetchLevel(rel: string): Promise<void> {
-		levels[rel] = { kind: 'loading' };
+		if (inFlight.has(rel)) {
+			refetchQueued.add(rel);
+			return;
+		}
+		inFlight.add(rel);
+		const firstOpen = levels[rel] === undefined;
+		if (firstOpen) levels[rel] = { kind: 'loading' };
 		try {
 			// The host's descriptor REQUIRES a non-empty path: the root lists
 			// through its ABSOLUTE workspace path, nested levels through theirs.
@@ -234,17 +295,21 @@
 				// list" hides actionable facts (the 2026-09-10 sub-agent
 				// session/not-found case was invisible behind it).
 				const reason = body.error?.message ?? body.error?.code ?? String(res.status);
-				levels[rel] = { kind: 'failed', reason };
+				// Failed note FIRST-OPEN only: a refetch keeps the old rows
+				// (Reconciling Root — fetch fails mid-refresh keeps old rows).
+				if (firstOpen) levels[rel] = { kind: 'failed', reason };
 				return;
 			}
-			levels[rel] = {
+			writeLevel(rel, {
 				kind: 'ready',
 				entries: body.listing.entries,
 				truncated: body.listing.truncated === true
-			};
+			});
 		} catch (err) {
-			levels[rel] = { kind: 'failed', reason: err instanceof Error ? err.message : 'network' };
+			if (firstOpen) levels[rel] = { kind: 'failed', reason: err instanceof Error ? err.message : 'network' };
 		} finally {
+			inFlight.delete(rel);
+			if (refetchQueued.delete(rel)) void fetchLevel(rel);
 			// The file-freshness floor (The Silent Root D4): the staleness
 			// stamp for the ROOT level — focus refresh compares against it.
 			if (rel === '') lastRootFetchTs = Date.now();
@@ -486,9 +551,9 @@
 	// recorded, never acted on), onerror closes only on readyState CLOSED
 	// with a sticky refusal (a JSON refusal is a fatal error — no retry
 	// loop; the panel degrades to today's manual world), onDestroy closes.
-	// A ring is a ROOT-ONLY invalidation: `delete levels['']` — expanded
-	// levels survive (D2/G3) — and the mount $effect stays the single fetch
-	// trigger that refetches the root.
+	// A ring is a ROOT-ONLY invalidation: a preserving background fetchLevel
+	// (Reconciling Root 1.1 — it diffs on arrival, it never erases) — expanded
+	// levels survive (D2/G3).
 	let filePulseSource: EventSource | null = null; // PLAIN — no effect deps
 	let filePulseLastGen: string | null = null;
 	let filePulseAlive = $state(false);
@@ -533,7 +598,10 @@
 			}
 			if (generation === filePulseLastGen) return;
 			filePulseLastGen = generation;
-			delete levels['']; // ROOT ONLY — expanded levels survive the ring (D2/G3)
+			// ROOT ONLY — expanded levels survive the ring (D2/G3). A ring is
+			// an INVALIDATION trigger, never an erasure (Reconciling Root 1.1):
+			// the preserving fetch diffs on arrival instead of deleting.
+			void fetchLevel('');
 		});
 		source.onerror = () => {
 			if (source.readyState === 2) {
@@ -545,12 +613,13 @@
 		};
 	}
 
-	/** Focus/visibility freshness (D4): clear the ROOT level when stale —
-	 *  the mount $effect refetches it; expanded levels are untouched. */
+	/** Focus/visibility freshness (D4): background-refetch the ROOT level
+	 *  when stale — it keeps the rendered rows and diffs on arrival
+	 *  (Reconciling Root 1.1); expanded levels are untouched. */
 	function refreshRootIfStale(): void {
 		if (Date.now() - lastRootFetchTs <= FILE_FRESH_FLOOR_MS) return;
 		lastRootFetchTs = Date.now();
-		delete levels[''];
+		void fetchLevel('');
 	}
 
 	// ONE stream for the panel's lifetime, independent of the git gate (D3).
@@ -562,14 +631,30 @@
 		const onVisible = () => {
 			if (document.visibilityState === 'visible') refreshRootIfStale();
 		};
+		// D6 press gate (Reconciling Root 1.2): the same pointerdown that
+		// arms freshness also arms the press flag; pointerup/cancel release
+		// it and flush the parked write one tick AFTER the release. Pairing
+		// lives in THIS cleanup — a leak would starve refreshes forever.
+		const onPressDown = () => {
+			pressActive = true;
+			refreshRootIfStale();
+		};
+		const onPressRelease = () => {
+			pressActive = false;
+			flushPendingLevel();
+		};
 		window.addEventListener('focus', refreshRootIfStale);
 		document.addEventListener('visibilitychange', onVisible);
 		const el = splitRoot;
-		el?.addEventListener('pointerdown', refreshRootIfStale);
+		el?.addEventListener('pointerdown', onPressDown);
+		window.addEventListener('pointerup', onPressRelease);
+		window.addEventListener('pointercancel', onPressRelease);
 		return () => {
 			window.removeEventListener('focus', refreshRootIfStale);
 			document.removeEventListener('visibilitychange', onVisible);
-			el?.removeEventListener('pointerdown', refreshRootIfStale);
+			el?.removeEventListener('pointerdown', onPressDown);
+			window.removeEventListener('pointerup', onPressRelease);
+			window.removeEventListener('pointercancel', onPressRelease);
 		};
 	});
 

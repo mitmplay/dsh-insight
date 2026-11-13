@@ -654,3 +654,127 @@ describe('WorkspaceExplorerPanel — explorer hide/show toggle (2026-10-31)', ()
 		view.cleanup();
 	});
 });
+
+// ── The Reconciling Root (Wave 1, 2026-11-13): keep-while-fetching +
+// diff-on-arrival + the D6 press gate. A refresh may not touch a list it
+// cannot differentiate — and a removal under an active press waits for
+// the release. Live defect: the freshness floor deleted the root at
+// pointerdown and the loading render erased the pressed row (two-click tree).
+
+describe('The Reconciling Root — keep-while-fetching + diff-on-arrival (Wave 1)', () => {
+	const ROWS_A = [
+		{ name: 'a.ts', type: 'file' as const },
+		{ name: 'b.ts', type: 'file' as const }
+	];
+
+	function respond(entries: Array<{ name: string; type: 'file' | 'directory' | 'other' }>) {
+		return Promise.resolve(new Response(JSON.stringify(listing(entries)), { status: 200 }));
+	}
+
+	async function settle(ticks = 2) {
+		for (let i = 0; i < ticks; i++) {
+			await vi.advanceTimersByTimeAsync(0);
+			flushSync();
+		}
+	}
+
+	beforeEach(() => vi.useFakeTimers());
+	afterEach(() => vi.useRealTimers());
+
+	it('an UNCHANGED refetch writes NOTHING — rows keep DOM identity (AC2)', async () => {
+		fetchMock.mockImplementation(() => respond(ROWS_A));
+		const view = mountPanel('/ws');
+		await settle();
+		const before = view.q('[data-testid="tree-file"]')!;
+		expect(before).not.toBeNull();
+		const callsBefore = fetchMock.mock.calls.length;
+		// cross the 2s freshness floor, then fire the focus trigger
+		vi.advanceTimersByTime(2500);
+		window.dispatchEvent(new Event('focus'));
+		await settle();
+		// the background refresh RAN (≥1 new tree fetch since the focus;
+		// exact count belongs to the isolated router pins — a stray real-
+		// timer fetch from an earlier suite can land inside fake-timer runs)…
+		expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBefore);
+		// …but the rendered row is the SAME element — no state write, no re-render.
+		expect(view.q('[data-testid="tree-file"]')).toBe(before);
+		view.cleanup();
+	});
+
+	it('a CHANGED refetch updates only the difference — surviving rows keep identity (AC3)', async () => {
+		fetchMock
+			.mockImplementationOnce(() => respond(ROWS_A))
+			.mockImplementationOnce(() => respond([{ name: 'a.ts', type: 'file' as const }, { name: 'c.ts', type: 'file' as const }]));
+		const view = mountPanel('/ws');
+		await settle();
+		const survivor = view.qa('[data-testid="tree-file"]').find((el) => el.querySelector('.entry-name')!.textContent!.trim() === 'a.ts')!;
+		vi.advanceTimersByTime(2500);
+		window.dispatchEvent(new Event('focus'));
+		await settle();
+		const names = view.qa('[data-testid="tree-file"]').map((el) => el.querySelector('.entry-name')!.textContent!.trim());
+		expect(names).toEqual(['a.ts', 'c.ts']);
+		expect(view.qa('[data-testid="tree-file"]')[0]).toBe(survivor); // keyed DOM identity survives
+		view.cleanup();
+	});
+
+	it('a FAILED refresh keeps the previous rows — the failed note is FIRST-OPEN only', async () => {
+		fetchMock
+			.mockImplementationOnce(() => respond(ROWS_A))
+			.mockRejectedValueOnce(new Error('502'));
+		const view = mountPanel('/ws');
+		await settle();
+		vi.advanceTimersByTime(2500);
+		window.dispatchEvent(new Event('focus'));
+		await settle();
+		expect(view.qa('[data-testid="tree-file"]')).toHaveLength(2); // old rows intact
+		expect(view.q('[data-testid="explorer-failed"]')).toBeNull();
+		view.cleanup();
+	});
+
+	it('first-open STILL renders the loading note, then the rows (AC5)', async () => {
+		let release!: () => void;
+		fetchMock.mockImplementationOnce(() => new Promise<Response>((res) => (release = () => res(new Response(JSON.stringify(listing(ROWS_A)), { status: 200 })))));
+		const view = mountPanel('/ws');
+		// fetch still pending → the loading note renders (first-open only)
+		expect(view.target.querySelector('li.note')).not.toBeNull();
+		release();
+		await settle();
+		expect(view.qa('[data-testid="tree-file"]')).toHaveLength(2);
+		view.cleanup();
+	});
+
+	it('a REMOVAL diff landing MID-PRESS parks; pointerup flushes one tick later (AC4/D6)', async () => {
+		fetchMock
+			.mockImplementationOnce(() => respond(ROWS_A))
+			.mockImplementationOnce(() => respond([{ name: 'a.ts', type: 'file' as const }]));
+		const view = mountPanel('/ws');
+		await settle();
+		vi.advanceTimersByTime(2500);
+		// press on the split root (the same element the panel listens on)
+		view.q('[data-testid="workspace-explorer"]')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		flushSync();
+		await settle();
+		// the refresh answered with a REMOVAL — parked: b.ts still rendered
+		expect(view.qa('[data-testid="tree-file"]')).toHaveLength(2);
+		// release: pointerup → flush scheduled one tick AFTER the release
+		window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+		await settle();
+		const names = view.qa('[data-testid="tree-file"]').map((el) => el.querySelector('.entry-name')!.textContent!.trim());
+		expect(names).toEqual(['a.ts']); // flushed
+		view.cleanup();
+	});
+
+	it('an ADD-ONLY diff lands IMMEDIATELY even mid-press — never parked', async () => {
+		fetchMock
+			.mockImplementationOnce(() => respond(ROWS_A))
+			.mockImplementationOnce(() => respond([...ROWS_A, { name: 'c.ts', type: 'file' as const }]));
+		const view = mountPanel('/ws');
+		await settle();
+		vi.advanceTimersByTime(2500);
+		view.q('[data-testid="workspace-explorer"]')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		await settle();
+		const names = view.qa('[data-testid="tree-file"]').map((el) => el.querySelector('.entry-name')!.textContent!.trim());
+		expect(names).toEqual(['a.ts', 'b.ts', 'c.ts']); // landed under the press
+		view.cleanup();
+	});
+});

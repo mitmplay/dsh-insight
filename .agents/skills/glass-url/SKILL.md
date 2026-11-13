@@ -1,6 +1,6 @@
 ---
 name: glass-url
-description: Open and drive an ARBITRARY URL (YouTube, docs, any web page) in a NEW tab on the operator's glass browser via CDP — search, click, screenshot, read the page. NOT for verifying DSI work; that is glass-dsi. Reserved keyword /glass-url.
+description: Open and drive an ARBITRARY URL (YouTube, docs, any web page) in a NEW tab on the operator's glass browser via CDP — search, click, screenshot, read the page. NOT for verifying DSI work; that is glass-dsi. In a DSH HARNESS session do NOT use this skill — the browse brain (mcp__browse__* tools, real Chrome via the @opencode/browse extension) is the bound driver there; see deepseek-insight/dev/onboard/2026-11-13-opencode-browse-mcp.md §7. Reserved keyword /glass-url.
 ---
 
 # glass-url — drive an arbitrary URL on the operator's glass
