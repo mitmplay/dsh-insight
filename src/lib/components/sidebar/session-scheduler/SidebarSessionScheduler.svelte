@@ -259,16 +259,18 @@
 		/* Animated gradient surface (Filter Cluster ADR D6, task 3.1) — a
 		   component-local copy of the AppSidebarHeader rail-header grammar
 		   (KEEP IN SYNC with AppSidebarHeader.svelte — the rail gradient is
-		   the grammar's OWNER): oversized 300% x 300% linear-gradient panned
-		   by a 12s background-position loop. Stops are light pastel maroon
-		   (the #fbe4e4 / #f5d0d5 / #f8dede family), AA-checked against the
-		   shelf's text inks: --color-text-primary #212529 = ~12.7:1 on the
-		   palest stop — the shelf's titles always clear AA; the secondary
-		   tone (chips/meta) sits on its own pill/hover fields, per the rail
-		   header precedent. Dark lamp (ADR-0023): the same hues re-tuned
-		   with luminance-dropped stops under html[data-theme='dark']. */
-		--shelf-gradient: linear-gradient(120deg, #fbe4e4, #f5d0d5, #f8dede, #fbe4e4);
-		background: var(--shelf-gradient);
+		   the grammar's OWNER), recolored 2026-11-14 (operator pick):
+		   TRIPLET CORNER BLOOMS — three soft radial washes anchored at the
+		   corners over a near-white field (pastel maroon top-left keeping
+		   the family voice, pastel blue top-right, pastel green bottom-
+		   right). The 12s background-position pan drifts the bloom field
+		   gently; AA holds — --color-text-primary #212529 = ~12.7:1 on the
+		   palest field. Dark lamp (ADR-0023): same corner geometry,
+		   luminance-dropped stops. */
+		background-color: #f6f7f9;
+		background-image: radial-gradient(at 0% 0%, #f5d0d5 0, transparent 55%),
+			radial-gradient(at 100% 0%, #dbe4f7 0, transparent 55%),
+			radial-gradient(at 100% 100%, #ddf3e3 0, transparent 55%);
 		background-size: 300% 300%;
 		animation: shelf-gradient 12s ease-in-out infinite;
 		display: flex;
@@ -281,10 +283,13 @@
 		border-radius: 0.5rem;
 	}
 
-	/* Dark lamp: same maroon hues, dropped luminance — the shelf stays a
-	   readable sibling of the dark rail. */
+	/* Dark lamp: same corner geometry, dropped luminance — the shelf stays
+	   a readable sibling of the dark rail. */
 	:global(html[data-theme='dark']) .shelf {
-		--shelf-gradient: linear-gradient(120deg, #402a2a, #33201f, #3c2626, #402a2a);
+		background-color: #20222b;
+		background-image: radial-gradient(at 0% 0%, #402a2a 0, transparent 55%),
+			radial-gradient(at 100% 0%, #26304a 0, transparent 55%),
+			radial-gradient(at 100% 100%, #1f3a2c 0, transparent 55%);
 	}
 
 	@keyframes shelf-gradient {

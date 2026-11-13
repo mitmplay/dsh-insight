@@ -58,3 +58,6 @@ src/lib/paraglide/
 # --- Operating system junk -----------------------------------
 # Think: "crumbs macOS leaves on every folder it touches."
 .DS_Store
+
+# brainstorm visual companion sessions (throwaway mockups)
+.superpowers/

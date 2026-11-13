@@ -1,5 +1,5 @@
 import { defineConfig } from '@playwright/test';
-import { mkdtempSync } from 'node:fs';
+import { cpSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { STUB_LAUNCH_TOKEN } from './tests/e2e/dsh-stub';
@@ -38,6 +38,19 @@ process.env.DSI_A2A_DB = process.env.DSI_A2A_DB ?? join(runTmp, 'a2a.sqlite');
 // is seeded per-run by settings-panel.spec.ts.
 process.env.DSI_CONFIG_PATH = process.env.DSI_CONFIG_PATH ?? join(runTmp, 'settings.yaml');
 process.env.DSH_SETTINGS_PATH = process.env.DSH_SETTINGS_PATH ?? join(runTmp, 'dsh-settings.yaml');
+// Settings Home Tree RCA (2026-11-13): the /dsi-settings explorer's
+// tree/file routes resolve the home through settings-home.ts's
+// DSI_HOME_DIR seam — NOT DSI_CONFIG_PATH. This seam was never set, so
+// settings-home.spec.ts journey 04's whole-document save TRUNCATED the
+// operator's real ~/.dsi/settings.yaml (only the token watcher's later
+// dsh.authToken merge survived). Point the seam at this run's tmp dir and
+// seed it from the shipped template so the explorer lists a real
+// settings.yaml (journey 01's expectation) — never the operator's home.
+const homeTmp = join(runTmp, 'home');
+// settingsHomeDir() joins $DSI_HOME_DIR + '.dsi' — so the template clones
+// INTO that dot-directory, exactly as a real $HOME would hold it.
+cpSync(join(process.cwd(), 'template', '.dsi'), join(homeTmp, '.dsi'), { recursive: true });
+process.env.DSI_HOME_DIR = process.env.DSI_HOME_DIR ?? homeTmp;
 // The Session Full Path (2026-09-14): the /path route scans THIS root —
 // a disposable per-run dir (BC-10) the session-copy-path spec seeds;
 // never the operator's real ~/.dsh/sessions.
@@ -76,6 +89,10 @@ export default defineConfig({
 				// Settings Panel W5: disposable tmp settings homes (see top).
 				DSI_CONFIG_PATH: process.env.DSI_CONFIG_PATH,
 				DSH_SETTINGS_PATH: process.env.DSH_SETTINGS_PATH,
+				// Settings Home Tree RCA (2026-11-13): the settings-home explorer's
+				// routes read THIS seam, not DSI_CONFIG_PATH — without it journey 04
+				// saved into the operator's real ~/.dsi. See the worker block above.
+				DSI_HOME_DIR: process.env.DSI_HOME_DIR,
 				// The Session Full Path: the scan root the /path route reads.
 				DSI_SESSIONS_ROOT: process.env.DSI_SESSIONS_ROOT,
 				// 0.1.2 auth: the launch token DshAuth exchanges at the stub's
