@@ -13,6 +13,9 @@ import type {
 	DsiWorkspaceFilePanel
 } from '$lib/types';
 import { afterSourceSlot, blockBounds, docTailEnd, type MoveFacts } from '$lib/services/lineage/lineage-move';
+// W3 (ADR-0062 D8): the generic anchor-slot math lives in the package;
+// the kind union and DSI-specific branches stay in THIS file.
+import { slotAfter } from '@deepseek-insight/container-base';
 
 /**
  * The open injected-doc panel for a (sourceSessionId, displayPath) pair —
@@ -46,7 +49,7 @@ export function injectedDocSlot(
 	const sourceIdx = panels.findIndex(
 		(p) => p.kind === 'conversation' && p.sessionId === sourceSessionId
 	);
-	return sourceIdx >= 0 ? sourceIdx + 1 : fallback;
+	return slotAfter(sourceIdx, fallback);
 }
 
 /**
@@ -111,7 +114,7 @@ export function workspaceFileSlot(
 	fallback: number
 ): number {
 	const explorerIdx = panels.findIndex((p) => p.id === explorerPanelId);
-	return explorerIdx >= 0 ? explorerIdx + 1 : fallback;
+	return slotAfter(explorerIdx, fallback);
 }
 
 /** Children index shape the lineage facts publish (slim structural view). */

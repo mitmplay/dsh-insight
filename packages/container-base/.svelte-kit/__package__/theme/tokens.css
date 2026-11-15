@@ -1,0 +1,35 @@
+/*
+ * @deepseek-insight/container-base — default theme tokens (ADR-0062 W5,
+ * D7): a fresh consumer is styled out of the box; the host OVERRIDES every
+ * var (DSI's theme defines all of them, byte-identical visuals).
+ *
+ * --zoom is NOT a theme token: it is a per-frame runtime variable the
+ * PanelsZoom component writes itself.
+ *
+ * Ground rule (dev/article/2026-11/04.re-architect, 2026-11-14): styling
+ * crosses ONLY through tokens — components never carry a skin. W6 added
+ * the chord-palette tokens after the boundary audit found the overlay
+ * wearing Tailwind palette classes.
+ */
+:root {
+	/* Surfaces */
+	--color-surface-primary: #ffffff;
+	--color-surface-secondary: #f1f3f5;
+	--color-surface-elevated: #ffffff;
+	--color-surface-border: #dee2e6;
+	--color-header-wash: #fff8ec;
+
+	/* Text */
+	--color-text-primary: #212529;
+	--color-text-secondary: #6c757d;
+
+	/* Accents (the selection ring gradient stops) */
+	--color-accent-blue: #3b82f6;
+	--color-accent-purple: #a855f7;
+	--color-accent-rose: #f43f5e;
+
+	/* Chord palette (the armed overlay's decay ticker — W6 ground rule:
+	 * theming crosses only through tokens; the component ships no skin) */
+	--color-chord-armed: #86efac;
+	--color-chord-idle: #fef08a;
+}

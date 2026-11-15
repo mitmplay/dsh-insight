@@ -5,7 +5,7 @@
 	 * instances take prop values at mount only, so tests drive changes
 	 * through this bridge (no $set in runes mode).
 	 */
-	import PanelsZoom from '../../src/lib/components/panels/PanelsZoom.svelte';
+	import PanelsZoom from '../../packages/container-base/src/components/PanelsZoom.svelte';
 	import type { Snippet } from 'svelte';
 
 	let {

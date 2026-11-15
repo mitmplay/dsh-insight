@@ -1,0 +1,10 @@
+{
+	"name": "@deepseek-insight/container-base-playground",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"description": "Standalone second-app proof for @deepseek-insight/container-base. Consumes ONLY the package — never DSI src.",
+	"dependencies": {
+		"@deepseek-insight/container-base": "workspace:*"
+	}
+}

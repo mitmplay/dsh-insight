@@ -2,25 +2,21 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	/**
-	 * ResizeGutter — the 6px draggable seam after every panel (Panel Floor
-	 * W3 task 3.2, ADR-0006 R8; OCI port, every-panel-has-a-right-gutter
-	 * rule — with individual resize (2026-08-28) each gutter owns its
-	 * OWN panel's width, so the rule now just means no panel is the
-	 * only one without a seam).
+	 * ResizeGutter — the DSI RENDERER over the package's generic seam
+	 * (ADR-0062 W4, D6/D8): the generic face (index + injected
+	 * onGutterDown + label props) lives in @deepseek-insight/container-base;
+	 * THIS file keeps only DSI's vocabulary — the paraglide labels and the
+	 * panel-registry invoke (the leaf→root channel, commitment 2).
 	 *
-	 * The gutter does not resize anything itself — mousedown reports
-	 * (event, index) upward through the panel registry (the ONLY
-	 * leaf→root action channel, commitment 2), and the workspace route
-	 * (the single drag owner) snapshots widths and runs the individual /
-	 * proportional math on window mousemove.
-	 *
-	 * The Explorer Layout (ADR 2026-09-17 D4): an OPTIONAL onDragStart
-	 * owner prop — when given, the mousedown fires IT instead of the
-	 * registry import and the calling component is the drag owner (the
-	 * gutter instance lives inside one component, so no leaf→root hop is
-	 * needed). When absent, the floor path above runs verbatim — every
-	 * existing call site is untouched.
+	 * Contract unchanged for every existing call site: props { index,
+	 * onDragStart? }; absent onDragStart, the mousedown reports
+	 * (event, index) through the panel registry and the workspace route
+	 * (the single drag owner) runs the resize math. The Explorer Layout
+	 * (ADR 2026-09-17 D4): when onDragStart is given, the calling
+	 * component is the drag owner and the registry hop is skipped.
 	 */
+	import { ResizeGutter as ResizeGutterBase } from '@deepseek-insight/container-base';
+
 	let {
 		index,
 		onDragStart
@@ -29,49 +25,16 @@
 		/** Local drag owner hook — fires INSTEAD of the registry when given. */
 		onDragStart?: (event: MouseEvent) => void;
 	} = $props();
-</script>
 
-<!-- A real button (a11y): the gutter is an interactive separator; drag
-     reports (event, index) up through the panel registry — the route owns
-     the drag math. Button styling resets to the 6px seam. -->
-<button
-	type="button"
-	class="gutter"
-	data-testid="panel-gutter-{index}"
-	aria-label={t(m.resizePanel)}
-	title={t(m.dragResize)}
-	onmousedown={(e) => {
-		e.preventDefault();
+	function handleGutterDown(event: MouseEvent): void {
 		if (onDragStart) {
-			onDragStart(e);
+			onDragStart(event);
 			return;
 		}
 		void import('$lib/services/panels/panel-registry').then((reg) =>
-			reg.startPanelResize(e, index)
+			reg.startPanelResize(event, index)
 		);
-	}}
-></button>
-
-<style>
-	.gutter {
-		display: block;
-		padding: 0;
-		border: none;
-		flex: 0 0 6px;
-		width: 6px;
-		align-self: stretch;
-		cursor: col-resize;
-		background: transparent;
-		transition: background-color 0.15s ease;
 	}
+</script>
 
-	.gutter:hover,
-	.gutter:active {
-		background: var(--color-accent-blue, #3b82f6);
-	}
-
-	.gutter:focus-visible {
-		outline: 2px solid var(--color-accent-blue, #3b82f6);
-		outline-offset: -2px;
-	}
-</style>
+<ResizeGutterBase {index} ariaLabel={t(m.resizePanel)} title={t(m.dragResize)} onGutterDown={handleGutterDown} />

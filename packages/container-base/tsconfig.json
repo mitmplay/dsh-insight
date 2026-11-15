@@ -1,0 +1,22 @@
+{
+	// Standalone (not extending the root config): the root chain reaches
+	// .svelte-kit/tsconfig.json, whose include drags the whole DSI app in
+	// — double-checking the app defeats the point. The package code imports
+	// internally by relative path only ($lib is DSI's alias; boundary audit
+	// 5.3-T), so no app aliases are wanted here anyway.
+	"compilerOptions": {
+		"target": "esnext",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"skipLibCheck": true,
+		"noEmit": true,
+		"verbatimModuleSyntax": true,
+		"isolatedModules": true,
+		"types": ["node"],
+		"moduleDetection": "force"
+	},
+	"include": ["src/**/*.ts", "src/**/*.svelte", "tests/**/*.ts", "tests/**/*.svelte"],
+	// node typings resolve through the workspace root (hoisted @types/node)
+	"typeRoots": ["../../node_modules/@types"]
+}

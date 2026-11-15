@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!-- Base applier, generated from themeApplierScript('pg-theme') (ADR-0063 D2) —
+		     the playground's OWN key; pinned by W7's survival matrix. -->
+		<script>
+			try {
+				var m = location.search.match(/[?&]profile=([^&]*)/);
+				var prof = m ? m[1].replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) : '';
+				var k = 'pg-theme' + (prof ? '_' + prof : '');
+				var t = localStorage.getItem(k);
+				if (t !== 'light' && t !== 'dark' && t !== 'system') t = 'system';
+				document.documentElement.dataset.theme =
+					t === 'dark' || (t === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)
+						? 'dark'
+						: 'light';
+			} catch (e) {
+				document.documentElement.dataset.theme = 'light';
+			}
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="off">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

@@ -114,12 +114,13 @@ describe('sidebar placement — none (default): the rail beside the floor', () =
 
 		const rail = target.querySelector('[data-testid="app-sidebar"]') as HTMLElement | null;
 		expect(rail).not.toBeNull();
+		const wrap = target.querySelector('[data-testid="app-sidebar-wrap"]') as HTMLElement | null;
 		const row = target.querySelector('[data-testid="panels-row"]') as HTMLElement | null;
 		expect(row).not.toBeNull();
 		expect(row!.contains(rail!)).toBe(false);
 		expect(target.querySelector('[data-testid="sidebar-column"]')).toBeNull();
 		// Standalone rail: the width wrapper carries the px width itself.
-		expect(rail!.style.width).toBe('280px');
+		expect(wrap!.style.width).toBe('280px');
 		unmount(instance);
 	});
 });

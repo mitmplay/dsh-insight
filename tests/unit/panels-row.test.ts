@@ -26,7 +26,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import PanelsZoom from '../../src/lib/components/panels/PanelsZoom.svelte';
+import PanelsZoom from '../../packages/container-base/src/components/PanelsZoom.svelte';
 import PanelColumn from '../../src/lib/components/panels/PanelColumn.svelte';
 import PanelHeader from '../../src/lib/components/panels/PanelHeader.svelte';
 import ResizeGutter from '../../src/lib/components/panels/ResizeGutter.svelte';

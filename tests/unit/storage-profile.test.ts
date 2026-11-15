@@ -5,7 +5,7 @@
  * dsi-session-filter_widi); no profile = the base key unchanged.
  */
 import { describe, expect, it } from 'vitest';
-import { dsiKey, sanitizeWorkspaceProfile } from '$lib/utils/storage-profile';
+import { storageKey, sanitizeWorkspaceProfile } from '@deepseek-insight/container-base';
 
 describe('sanitizeWorkspaceProfile', () => {
 	it('keeps [A-Za-z0-9_-], caps 40, junk → null', () => {
@@ -20,14 +20,14 @@ describe('sanitizeWorkspaceProfile', () => {
 
 describe('dsiKey — the dsi-* profile suffix convention', () => {
 	it('null/undefined profile → the base key unchanged', () => {
-		expect(dsiKey('dsi-panels')).toBe('dsi-panels');
-		expect(dsiKey('dsi-panels', null)).toBe('dsi-panels');
-		expect(dsiKey('dsi-panels', undefined)).toBe('dsi-panels');
+		expect(storageKey('dsi-panels')).toBe('dsi-panels');
+		expect(storageKey('dsi-panels', null)).toBe('dsi-panels');
+		expect(storageKey('dsi-panels', undefined)).toBe('dsi-panels');
 	});
 
 	it('every dsi-* family member suffixes the same way', () => {
-		expect(dsiKey('dsi-panels', 'widi')).toBe('dsi-panels_widi');
-		expect(dsiKey('dsi-sidebar', 'widi')).toBe('dsi-sidebar_widi');
-		expect(dsiKey('dsi-session-filter', 'widi')).toBe('dsi-session-filter_widi');
+		expect(storageKey('dsi-panels', 'widi')).toBe('dsi-panels_widi');
+		expect(storageKey('dsi-sidebar', 'widi')).toBe('dsi-sidebar_widi');
+		expect(storageKey('dsi-session-filter', 'widi')).toBe('dsi-session-filter_widi');
 	});
 });

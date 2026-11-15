@@ -1,0 +1,35 @@
+{
+	"name": "@deepseek-insight/container-base",
+	"version": "0.1.0",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"svelte": "./dist/index.js",
+			"default": "./dist/index.js"
+		},
+		"./theme/tokens.css": "./src/theme/tokens.css"
+	},
+	"files": [
+		"dist",
+		"src",
+		"README.md"
+	],
+	"peerDependencies": {
+		"svelte": "^5.0.0"
+	},
+	"peerDependenciesMeta": {
+		"svelte": {
+			"required": true
+		}
+	},
+	"scripts": {
+		"build:package": "svelte-package -i src -o dist",
+		"lint:package": "publint",
+		"test": "vitest run --root ../.. --project dom packages/container-base/tests"
+	},
+	"devDependencies": {
+		"@sveltejs/package": "^3.0.2",
+		"publint": "^0.3.25"
+	}
+}

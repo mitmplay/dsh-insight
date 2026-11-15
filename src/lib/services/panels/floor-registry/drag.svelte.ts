@@ -11,11 +11,15 @@
  * home stays the ONE state writer home (ADR-0019 D2).
  */
 import { SvelteSet } from 'svelte/reactivity';
-import { clampPanelWidth } from '$lib/utils/panel-prefs';
-import { isUniformRow, resizeOne, scaleProportionally } from '$lib/services/panels/floor-math';
+import { clampPanelWidth, resizeAllByRegistry, applyPresetWidthsByRegistry } from '$lib/utils/panel-prefs';
+// W3 (ADR-0062 D8): the pure drag math lives in the package; the DSI
+// config-driven bound site is INJECTED as the clamp.
+import { isUniformRow, resizeOne, scaleProportionally } from '@deepseek-insight/container-base';
+import type { WidthClamp } from '@deepseek-insight/container-base';
+const clampWidth: WidthClamp = (width, kind) => clampPanelWidth(width, kind as DsiPanelEntry['kind']);
 import { parseFileLinkHref, resolveFileLinkTarget, workspaceRootDirs } from '$lib/utils/file-link';
 import type { ColdLoad } from '$lib/services/workspace/page-feeds.svelte';
-import type { DsiEntry } from '$lib/types';
+import type { DsiEntry, DsiPanelEntry } from '$lib/types';
 import {
 	st,
 	floorSeam,
@@ -92,12 +96,12 @@ export function onPanelWindowMouseMove(e: MouseEvent): void {
 	const delta = e.clientX - st.drag.startX;
 	if (st.drag.shift) {
 		// Shift+drag: proportional — every panel keeps its snapshot share.
-		st.panels = scaleProportionally(st.panels, st.drag.widths, delta);
+		st.panels = scaleProportionally(st.panels, st.drag.widths, delta, clampWidth);
 		return;
 	}
 	// Plain drag: individual — only the dragged panel's width moves
 	// (2026-08-28); the neighbors keep their values.
-	st.panels = resizeOne(st.panels, st.drag.widths, dragRefs.startIndex, delta);
+	st.panels = resizeOne(st.panels, st.drag.widths, dragRefs.startIndex, delta, clampWidth);
 }
 
 export function onPanelWindowMouseUp(): void {
@@ -148,35 +152,31 @@ export function disposeFloorGestures(): void {
 
 // ── ControlBar (W5 5.1): resize-all sets every panel + the preset ────
 /** Honest-slider's "slider sets all panels" leg (REALTIME, 2026-08-27):
- * one width for every CONVERSATION column + the uniform preset.
- * 2026-09-13: the workspace kinds are FIXED lanes — the explorer and
- * file panels keep their own widths. */
+ * one width for every flagged lane + the uniform preset. ADR-0065 W3:
+ * the sweep loops the PANEL CONTRACT REGISTRY — only kinds flagged
+ * resizableByPreset join (today: conversation), each through its OWN
+ * band; this module names no kinds. The preset follows the
+ * conversation-band clamp (the same convention as before the registry). */
 export function resizeAll(width: number): void {
 	const w = clampPanelWidth(width);
 	d().setPanelWidthPreset(w);
-	st.panels = st.panels.map((p) => (p.kind === 'conversation' ? { ...p, width: w } : p));
+	st.panels = resizeAllByRegistry(st.panels, w);
 }
 
 // ── Width Preset Chord (ADR-0006a): one preset snaps every lane ──────
-/** Alt+S + digit lands here: EVERY conversation column gets the agent
- *  preset, EVERY browser column the glass preset — each clamped through
- *  the per-kind clamp (panel-prefs) so a yaml value can't escape the
- *  kind's bounds. Workspace lanes (explorer/file) are FIXED and keep
- *  their widths, same rule as resizeAll. The honest-slider preset
- *  follows the conversation width (the same convention resizeAll uses).
- *  Persistence is the existing dsi-panels save effect — the reload
- *  restore path needs no new writer. */
+/** Alt+S + digit lands here: every flagged lane follows its chord leg —
+ *  each clamped through the kind's own band (panel-prefs declarations)
+ *  so a yaml value can't escape the kind's bounds. ADR-0065 W3: the
+ *  sweep is the registry loop (applyPresetWidthsByRegistry) — the
+ *  declarations own which lane follows agent px and which follows glass
+ *  px; workspace lanes are unflagged and keep their widths. The
+ *  honest-slider preset follows the conversation width (the same
+ *  convention resizeAll uses). Persistence is the existing dsi-panels
+ *  save effect — the reload restore path needs no new writer. */
 export function applyWidthPreset(agentPx?: number, glassPx?: number): void {
 	const a = agentPx === undefined ? undefined : clampPanelWidth(agentPx, 'conversation');
-	const g = glassPx === undefined ? undefined : clampPanelWidth(glassPx, 'browser');
 	if (a !== undefined) d().setPanelWidthPreset(a);
-	st.panels = st.panels.map((p) =>
-		p.kind === 'conversation' && a !== undefined
-			? { ...p, width: a }
-			: p.kind === 'browser' && g !== undefined
-				? { ...p, width: g }
-				: p
-	);
+	st.panels = applyPresetWidthsByRegistry(st.panels, agentPx, glassPx);
 }
 
 // ── Markdown file-link gate (File Link Intent ADR 2026-09-25 D3) ─────

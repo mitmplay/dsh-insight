@@ -1,39 +1,38 @@
 <script lang="ts">
-	import * as m from '$lib/paraglide/messages';
-	import { t } from '$lib/services/locale/locale-state.svelte';
+	import type { Snippet } from 'svelte';
 	/**
-	 * StickyColumnContainer — a fixed-width LEADING column inside the zoom
-	 * row (OCI StickyColumnContainer port, 2026-08-26; hosts the embedded
-	 * AppSidebar the way OCI's hosts ControlRail).
+	 * RailColumn — a fixed-width LEADING column inside the zoom row
+	 * (generalized from DSI's StickyColumnContainer, OCI ControlRail port;
+	 * ADR-0062 W4, D6: the i18n gutter label arrives as a PROP — the full
+	 * sidebar container is an R2 exception, the rail ships in R1).
 	 *
-	 * "Sticky" = the width is TRIPLE-LOCKED (width/min/max all the same
-	 * px), unlike panel columns whose widths live in [MIN, MAX]: the rail
+	 * "Rail" = the width is TRIPLE-LOCKED (width/min/max all the same
+	 * px), unlike pane columns whose widths live in [MIN, MAX]: the rail
 	 * never flexes when the row measures itself at max-content. The
 	 * column's background paints the full column height — the rail inside
 	 * fills it (align-items: stretch).
 	 *
-	 * The trailing ResizeGutter is included BY DEFAULT (OCI parity) but
-	 * only when panel columns actually follow (showGutter) — a rail alone
+	 * The trailing resize gutter is included BY DEFAULT (OCI parity) but
+	 * only when pane columns actually follow (showGutter) — a rail alone
 	 * on the floor has nothing to resize against. The gutter is the
 	 * column's flex SIBLING (the rail's overflow must never clip its hit
-	 * area) and reports mousedown through onResizeStart — the page owns
-	 * the drag math and the single clamp (AppSidebar ownership split;
-	 * ControlBar.onresizeall precedent: layout chrome is a DIRECT child
-	 * of the route, so prop wiring here breaks no commitment).
+	 * area) and reports mousedown through onResizeStart — the host owns
+	 * the drag math and the single clamp.
 	 */
-	import type { Snippet } from 'svelte';
-
 	let {
 		width,
+		label,
 		showGutter = true,
 		onResizeStart,
 		children
 	}: {
 		/** Sticky (fixed) column width in px — triple-locked, never flexes. */
 		width: number;
-		/** Trailing resize gutter — only when panel columns follow (OCI). */
+		/** Accessible label for the trailing gutter (consumer-localized). */
+		label: string;
+		/** Trailing resize gutter — only when pane columns follow (OCI). */
 		showGutter?: boolean;
-		/** Gutter mousedown — the page runs the drag and owns the clamp. */
+		/** Gutter mousedown — the host runs the drag and owns the clamp. */
 		onResizeStart?: (e: MouseEvent) => void;
 		children: Snippet;
 	} = $props();
@@ -48,15 +47,16 @@
 </div>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions — mouse-drag
-     resize handle (OCI ResizeGutter / AppSidebar gutter pattern);
-     keyboard-driven resize is a known gap, not a silent omission -->
+     resize handle; keyboard-driven resize is a known gap, not a silent
+     omission (filed per ADR-0062 §7) -->
 {#if showGutter}
 	<div
 		class="rail-gutter"
 		data-testid="sidebar-gutter"
 		role="separator"
 		aria-orientation="vertical"
-		aria-label={t(m.resizeSidebar)}
+		aria-label={label}
+		title={label}
 		onmousedown={(e) => onResizeStart?.(e)}
 	></div>
 {/if}
@@ -75,7 +75,7 @@
 	}
 
 	/* Resize gutter — 6px column right of the locked column (same seam
-	   as AppSidebar's own gutter in the out-of-zoom placement: one
+	   as the app sidebar's own gutter in the out-of-zoom placement: one
 	   visual contract, two host sites). */
 	.rail-gutter {
 		width: 6px;
@@ -85,7 +85,7 @@
 	}
 
 	.rail-gutter:hover {
-		background: var(--color-accent-blue, #3b82f6);
+		background: var(--color-accent-blue);
 		opacity: 0.25;
 	}
 </style>

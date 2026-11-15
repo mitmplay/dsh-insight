@@ -27,7 +27,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // Static on purpose: the page must bind to the SAME svelte runtime as
 // mount/flushSync below (second-instance binding → effect_orphan).
 import Page from '../../src/routes/+page.svelte';
-import { resizeOne, scaleProportionally, isUniformRow } from '$lib/services/panels/floor-math';
+import { resizeOne, scaleProportionally, isUniformRow } from '@deepseek-insight/container-base';
+import { clampPanelWidth } from '$lib/utils/panel-prefs';
+// W3 (ADR-0062 D8): package math; the DSI bound site rides as the clamp.
+const clampWidth = (width: number, kind?: string) =>
+	clampPanelWidth(width, kind as DsiPanelEntry['kind']);
+const resizeOneC = <P extends { id: string; width: number }>(panels: readonly P[], snaps: number[], i: number, d: number) =>
+	resizeOne<P>(panels, snaps, i, d, clampWidth);
+const scaleC = <P extends { id: string; width: number }>(panels: readonly P[], snaps: number[], d: number) =>
+	scaleProportionally<P>(panels, snaps, d, clampWidth);
 import { resetSpineFeedForTests } from '$lib/services/conversation/spine-feed.svelte';
 import { reactiveTestPage } from '../stubs/app-state-shared.svelte';
 import { startPanelResize } from '../../src/lib/services/panels/panel-registry';
@@ -58,16 +66,16 @@ async function flushEffects(): Promise<void> {
 describe('resizeOne — plain drag, individual (2026-08-28)', () => {
 	it('moves ONLY the dragged panel — every other panel keeps its width', () => {
 		const panels = [p('a', 600), p('b', 700), p('c', 800)];
-		const next = resizeOne(panels, widths(panels), 1, 50);
+		const next = resizeOneC(panels, widths(panels), 1, 50);
 		expect(widths(next)).toEqual([600, 750, 800]);
 		// Negative delta shrinks it; siblings still untouched.
-		const back = resizeOne(panels, widths(panels), 1, -50);
+		const back = resizeOneC(panels, widths(panels), 1, -50);
 		expect(widths(back)).toEqual([600, 650, 800]);
 	});
 
 	it('clamps the dragged panel at MAX; no neighbor ever compensates', () => {
 		const panels = [p('a', 800), p('b', 700)];
-		const next = resizeOne(panels, widths(panels), 0, 200);
+		const next = resizeOneC(panels, widths(panels), 0, 200);
 		expect(widths(next)).toEqual([PANEL_MAX_WIDTH, 700]);
 	});
 
@@ -82,31 +90,31 @@ describe('resizeOne — plain drag, individual (2026-08-28)', () => {
 		};
 		const chat = p('a', 700);
 		const panels = [file, chat];
-		const next = resizeOne(panels, widths(panels), 0, 700);
+		const next = resizeOneC(panels, widths(panels), 0, 700);
 		expect(widths(next)).toEqual([PANEL_WORKSPACE_FILE_MAX_WIDTH, 700]);
 		// The conversation sibling still clamps at the plain MAX.
-		const back = resizeOne(panels, widths(panels), 1, 500);
+		const back = resizeOneC(panels, widths(panels), 1, 500);
 		expect(widths(back)).toEqual([860, PANEL_MAX_WIDTH]);
 	});
 
 	it('clamps the dragged panel at MIN; no neighbor ever compensates', () => {
 		const panels = [p('a', 600), p('b', 520)];
-		const next = resizeOne(panels, widths(panels), 0, -200);
+		const next = resizeOneC(panels, widths(panels), 0, -200);
 		expect(widths(next)).toEqual([PANEL_MIN_WIDTH, 520]);
 	});
 
 	it('the LAST gutter behaves like any other (its own panel, bounds only)', () => {
 		const panels = [p('a', 600), p('b', 700)];
 		const snaps = widths(panels);
-		const up = resizeOne(panels, snaps, 1, 250);
+		const up = resizeOneC(panels, snaps, 1, 250);
 		expect(widths(up)).toEqual([600, PANEL_MAX_WIDTH]);
-		const down = resizeOne(panels, snaps, 1, -500);
+		const down = resizeOneC(panels, snaps, 1, -500);
 		expect(widths(down)).toEqual([600, PANEL_MIN_WIDTH]);
 	});
 
 	it('keeps untouched siblings by object identity (no accidental clones)', () => {
 		const panels = [p('a', 600), p('b', 700), p('c', 800)];
-		const next = resizeOne(panels, widths(panels), 0, 40);
+		const next = resizeOneC(panels, widths(panels), 0, 40);
 		expect(next[1]).toStrictEqual(panels[1]);
 		expect(next[2]).toStrictEqual(panels[2]);
 	});
@@ -118,7 +126,7 @@ describe('scaleProportionally — Shift+drag (task 5.2-T)', () => {
 		// (shares 16/29×84, 14/29×84 — none reaches a bound).
 		const panels = [p('a', 480), p('b', 560), p('c', 700)];
 		const snaps = widths(panels);
-		const next = scaleProportionally(panels, snaps, 84);
+		const next = scaleC(panels, snaps, 84);
 		const w = widths(next);
 		const total = 1740;
 		expect(w[0]).toBeCloseTo(snaps[0] + (snaps[0] / total) * 84, 10);
@@ -131,16 +139,16 @@ describe('scaleProportionally — Shift+drag (task 5.2-T)', () => {
 
 	it('negative delta shrinks the whole row proportionally', () => {
 		const panels = [p('a', 480), p('b', 720)];
-		const next = scaleProportionally(panels, widths(panels), -210);
+		const next = scaleC(panels, widths(panels), -210);
 		// 360 clamps up to MIN: the ratio holds only until saturation.
 		expect(widths(next)).toEqual([PANEL_MIN_WIDTH, 594]);
 	});
 
 	it('an extreme drag clamps the row (never leaves the bounds)', () => {
 		const panels = [p('a', 600), p('b', 700)];
-		const grow = scaleProportionally(panels, widths(panels), 10_000);
+		const grow = scaleC(panels, widths(panels), 10_000);
 		expect(grow.every((x) => x.width <= PANEL_MAX_WIDTH)).toBe(true);
-		const shrink = scaleProportionally(panels, widths(panels), -10_000);
+		const shrink = scaleC(panels, widths(panels), -10_000);
 		expect(shrink.every((x) => x.width >= PANEL_MIN_WIDTH)).toBe(true);
 	});
 });

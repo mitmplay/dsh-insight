@@ -24,10 +24,13 @@
 	import InjectedDocPanel from '$lib/components/panels/InjectedDocPanel.svelte';
 	import WorkspaceExplorerPanel from '$lib/components/workspace-explorer/WorkspaceExplorerPanel.svelte';
 	import WorkspaceFilePanel from '$lib/components/workspace-file/WorkspaceFilePanel.svelte';
-	import PanelsZoom from '$lib/components/panels/PanelsZoom.svelte';
+	// W4 (ADR-0062): the zoom frame lives in the container-base package.
+	import { PanelsZoom } from '@deepseek-insight/container-base';
 	import PanelColumn from '$lib/components/panels/PanelColumn.svelte';
 	import PanelLoupe from '$lib/components/panels/PanelLoupe.svelte';
-	import StickyColumnContainer from '$lib/components/panels/StickyColumnContainer.svelte';
+	// W4 (ADR-0062 D6): the rail ships as the package's RailColumn.
+	import { RailColumn as StickyColumnContainer } from '@deepseek-insight/container-base';
+	import { createGutterResize } from '@deepseek-insight/container-base';
 	import EmptyFloor from '$lib/components/panels/EmptyFloor.svelte';
 	import {
 		registerAddPanel,
@@ -48,16 +51,20 @@
 	import { pageFeeds } from '$lib/services/workspace/page-feeds.svelte';
 	import * as floorApi from '$lib/services/panels/floor-registry.svelte';
 	import { applyWidthPreset } from '$lib/services/panels/floor-registry.svelte';
+	// W5 (ADR-0062 D5): the MACHINE lives in the package; the tables are DSI config.
 	import {
-		chordOptions,
 		decideChordKeydown,
 		hasAnyPreset,
 		IDLE_CHORD,
+		type ChordState
+	} from '@deepseek-insight/container-base';
+	import {
+		chordOptions,
+		FLOOR_CHORD_TABLES,
 		resolveTerminalChordPlan,
 		terminalChordOptions,
-		type ChordState,
 		type ChordVerb
-	} from '$lib/utils/key-chords';
+	} from '$lib/utils/chord-config';
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import { releaseGlasses } from '$lib/services/panels/glass-release.js';
@@ -73,7 +80,7 @@
 		seedColdOf
 	} from '$lib/services/panels/floor-reads.svelte';
 	import { clampPanelZoom, clampTermFontSize, loadPanelPrefs, PANEL_WORKSPACE_EXPLORER_WIDTH, savePanelPrefs } from '$lib/utils/panel-prefs';
-	import { sanitizeWorkspaceProfile } from '$lib/utils/storage-profile';
+	import { sanitizeWorkspaceProfile } from '@deepseek-insight/container-base';
 	import { applySidebarLane } from '$lib/config';
 	import { clampSidebarWidth } from '$lib/utils/sidebar-prefs';
 	import type { DsiConversationPanel, DsiPanelEntry, TerminalDeskMirror } from '$lib/types';
@@ -364,28 +371,31 @@
 	// ── App sidebar (layout state page-owned in pagePrefs) ──────────────
 	let pageRoot = $state<HTMLElement | null>(null);
 	let floorEl = $state<HTMLElement | null>(null);
-	let sidebarDrag: { startX: number; startWidth: number } | null = null;
 	function toggleSidebar(): void {
 		pagePrefs.sidebarCollapsed = !pagePrefs.sidebarCollapsed;
 	}
-	function startSidebarResize(e: MouseEvent): void {
-		e.preventDefault();
-		sidebarDrag = { startX: e.clientX, startWidth: pagePrefs.sidebarWidth };
-		// Badge live (Movable Rail ADR amendment 2026-10-30): also cancels
-		// any armed afterglow — the chip returns to live instantly.
-		pagePrefs.cancelSidebarAfterglow();
-	}
-	function onSidebarMouseMove(e: MouseEvent): void {
-		if (!sidebarDrag) return;
-		// Raw screen-px delta — unscaled on purpose (ADR-0006 R8 quirk).
-		pagePrefs.sidebarWidth = clampSidebarWidth(sidebarDrag.startWidth + (e.clientX - sidebarDrag.startX));
-	}
-	function stopSidebarResize(): void {
-		sidebarDrag = null;
-		// Badge afterglow: freeze into 'fading', 10s linear, then null —
-		// the same lifecycle the floor gutters run (drag.svelte.ts).
-		pagePrefs.armSidebarAfterglow();
-	}
+	// Sidebar resize runs the BASE machine (SSC#2 extraction): the route
+	// supplies only its identity — config bounds, the pagePrefs write, the
+	// badge afterglow. Snapshot/delta/listener lifecycle live in the base.
+	const sidebarResize = createGutterResize({
+		onStart: (e) => {
+			e.preventDefault();
+			// Badge live (Movable Rail ADR amendment 2026-10-30): also cancels
+			// any armed afterglow — the chip returns to live instantly.
+			pagePrefs.cancelSidebarAfterglow();
+			return pagePrefs.sidebarWidth;
+		},
+		clamp: clampSidebarWidth,
+		onResize: (w) => {
+			// Raw screen-px delta — unscaled on purpose (ADR-0006 R8 quirk).
+			pagePrefs.sidebarWidth = w;
+		},
+		onSettle: () => {
+			// Badge afterglow: freeze into 'fading', 10s linear, then null —
+			// the same lifecycle the floor gutters run (drag.svelte.ts).
+			pagePrefs.armSidebarAfterglow();
+		}
+	});
 
 	// ── Width Preset Chord + Chord Palette (ADR-0006a, 2026-10-31 amendment)
 	// The wiring is a three-line adapter: decide (PURE decideChordKeydown,
@@ -562,7 +572,7 @@
 		// canArm is UNCONDITIONAL since the verb layer (D14): the chord always
 		// owns a/b/c/p/t/w; D4 silent absence now gates only which digit rows
 		// the palette lists (chordOptions), never the arming itself.
-		const res = decideChordKeydown(chord, e, true);
+		const res = decideChordKeydown(chord, e, true, Date.now(), FLOOR_CHORD_TABLES);
 		if (res.preventDefault) {
 			// D17: capture phase + stopPropagation — a leaf like xterm's helper
 			// textarea must never see (or swallow) a chord-owned key.
@@ -570,7 +580,8 @@
 			e.stopPropagation();
 		}
 		chord = res.state;
-		if (res.action.type === 'verb') dispatchChordVerb(res.action.verb);
+		if (res.action.type === 'verb')
+			dispatchChordVerb(res.action.verb as ChordVerb | 'term-new-tab' | 'term-split-down' | 'term-clear-tab');
 		if (res.action.type !== 'apply') return;
 		const presets = appConfig().panel.presets;
 		const { agent, glass, sidebar, zoom } = presets;
@@ -605,6 +616,12 @@
 		registerSummonGlass
 	] as const;
 	onMount(() => {
+		// ADR-0065 5.1/D10: the panel registry console, DEV builds ONLY —
+		// the dynamic import sits behind the static DEV guard so the prod
+		// bundle carries neither the module nor this wiring (5.1-T strip).
+		if (import.meta.env.DEV) {
+			void import('$lib/dev/panel-debug-global').then((m) => m.installPanelDebugGlobal());
+		}
 		// D17: the chord hears keys in the CAPTURE phase — bubble-phase
 		// svelte:window is blind behind leaf stopPropagation (xterm ate the
 		// armed chord's t, operator report + CDP probe 2026-10-31).
@@ -649,11 +666,9 @@
 		// The Drag Frame ADR 2026-10-27: coalesce the floor drag to ONE
 		// width write per animation frame (mousemove outruns the display).
 		floorApi.onPanelWindowMouseMoveCoalesced(e);
-		onSidebarMouseMove(e);
 	}}
 	onmouseup={() => {
 		floorApi.onPanelWindowMouseUp();
-		stopSidebarResize();
 	}}
 />
 
@@ -693,7 +708,7 @@
 		bind:zoom={pagePrefs.zoom}
 		onresizeall={floorApi.resizeAll}
 		onToggleCollapse={toggleSidebar}
-		onResizeStart={startSidebarResize}
+		onResizeStart={(e) => sidebarResize.start(e)}
 	/>
 {/snippet}
 
@@ -974,8 +989,9 @@
 			     gutter exists only while panel columns follow. -->
 			<StickyColumnContainer
 				width={pagePrefs.sidebarWidth}
+				label={t(m.resizeSidebar)}
 				showGutter={panels.length > 0}
-				onResizeStart={startSidebarResize}
+				onResizeStart={(e) => sidebarResize.start(e)}
 			>
 				{@render sidebarRail()}
 			</StickyColumnContainer>

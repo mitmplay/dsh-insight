@@ -18,11 +18,12 @@
 	"packageManager": "pnpm@11.7.0",
 	"scripts": {
 		"dev": "vite dev --port 5175",
+		"dev:playground": "cd packages/container-base/playground && vite dev --port 5176 --strictPort",
 		"dev:debug": "NODE_OPTIONS='--inspect' vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
-		"prepare": "svelte-kit sync || echo ''",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"prepare": "svelte-kit sync || echo '' && node --experimental-strip-types scripts/sync-theme-applier.mjs || echo ''",
+		"check": "svelte-kit sync && node --experimental-strip-types scripts/sync-theme-applier.mjs && svelte-check --tsconfig ./tsconfig.json && svelte-check --tsconfig ./packages/container-base/tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "vitest run",
 		"test:live": "DSH_LIVE=1 vitest run tests/live",
@@ -77,6 +78,7 @@
 		"ws": "^8.21.3"
 	},
 	"dependencies": {
+		"@deepseek-insight/container-base": "workspace:*",
 		"@git-diff-view/svelte": "^0.1.7",
 		"@modelcontextprotocol/sdk": "1.25.2",
 		"@playwright/mcp": "0.0.83",

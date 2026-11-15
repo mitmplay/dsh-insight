@@ -11,8 +11,11 @@
  * never the layout. The group ships EXPANDED and unfiltered (the spine is
  * the sidebar's primary content — the Panels group's collapsed default is
  * intentionally not copied).
+ *
+ * ADR-0063 D6: the internals are the base store (createPrefsStore) —
+ * same key, same blob shape.
  */
-import { dsiKey } from './storage-profile';
+import { createPrefsStore } from '@deepseek-insight/container-base';
 
 /** localStorage base key — one JSON blob `{collapsed, nameFilter, subagentsHidden}`. */
 const STORAGE_KEY = 'dsi-spine-group';
@@ -35,30 +38,33 @@ export function defaultSpineGroupPrefs(): SpineGroupPrefs {
 	return { collapsed: false, nameFilter: '', subagentsHidden: false, dateFilter: '' };
 }
 
+/** Per-field revive: `collapsed`/`subagentsHidden` are true only on an
+ *  explicit `true`, `nameFilter`/`dateFilter` only on a string — anything
+ *  else falls back to that field's default. */
+function revive(parsed: unknown): SpineGroupPrefs | null {
+	if (parsed === null || typeof parsed !== 'object') return null;
+	const p = parsed as Partial<SpineGroupPrefs>;
+	return {
+		collapsed: p.collapsed === true,
+		nameFilter: typeof p.nameFilter === 'string' ? p.nameFilter : '',
+		subagentsHidden: p.subagentsHidden === true,
+		dateFilter: typeof p.dateFilter === 'string' ? p.dateFilter : ''
+	};
+}
+
+const store = createPrefsStore<SpineGroupPrefs>({
+	key: STORAGE_KEY,
+	defaults: defaultSpineGroupPrefs,
+	revive
+});
+
 /**
  * Read prefs from localStorage.
  * @param profile sanitized workspace profile (null/omitted = default desk).
  * @returns stored prefs when parseable, defaults when absent, junk, or SSR.
- *          Per-field validation: `collapsed`/`subagentsHidden` are true only
- *          on an explicit `true`, `nameFilter` only on a string — anything
- *          else falls back to that field's default.
  */
 export function loadSpineGroupPrefs(profile?: string | null): SpineGroupPrefs {
-	if (typeof localStorage === 'undefined') return defaultSpineGroupPrefs();
-	try {
-		const raw = localStorage.getItem(dsiKey(STORAGE_KEY, profile));
-		if (!raw) return defaultSpineGroupPrefs();
-		const parsed = JSON.parse(raw) as Partial<SpineGroupPrefs> | null;
-		if (parsed === null || typeof parsed !== 'object') return defaultSpineGroupPrefs();
-		return {
-			collapsed: parsed.collapsed === true,
-			nameFilter: typeof parsed.nameFilter === 'string' ? parsed.nameFilter : '',
-			subagentsHidden: parsed.subagentsHidden === true,
-			dateFilter: typeof parsed.dateFilter === 'string' ? parsed.dateFilter : ''
-		};
-	} catch {
-		return defaultSpineGroupPrefs();
-	}
+	return store.load(profile);
 }
 
 /**
@@ -67,10 +73,5 @@ export function loadSpineGroupPrefs(profile?: string | null): SpineGroupPrefs {
  * @param profile sanitized workspace profile (null/omitted = default desk).
  */
 export function saveSpineGroupPrefs(prefs: SpineGroupPrefs, profile?: string | null): void {
-	if (typeof localStorage === 'undefined') return;
-	try {
-		localStorage.setItem(dsiKey(STORAGE_KEY, profile), JSON.stringify(prefs));
-	} catch {
-		// Store full or blocked — persistence is lost, the layout is not.
-	}
+	store.save(prefs, profile);
 }

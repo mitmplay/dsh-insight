@@ -12,6 +12,9 @@ importers:
 
   .:
     dependencies:
+      '@deepseek-insight/container-base':
+        specifier: workspace:*
+        version: link:packages/container-base
       '@git-diff-view/svelte':
         specifier: ^0.1.7
         version: 0.1.7(svelte@5.56.10)
@@ -106,6 +109,19 @@ importers:
       ws:
         specifier: ^8.21.3
         version: 8.21.3
+
+  packages/container-base:
+    dependencies:
+      svelte:
+        specifier: ^5.0.0
+        version: 5.56.10
+    devDependencies:
+      '@sveltejs/package':
+        specifier: ^3.0.2
+        version: 3.0.2(svelte@5.56.10)(typescript@6.0.3)
+      publint:
+        specifier: ^0.3.25
+        version: 0.3.25
 
 packages:
 
@@ -416,6 +432,10 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
+
+  '@publint/pack@0.1.7':
+    resolution: {integrity: sha512-4EDEmvxWtgsCnnVeBvtFIFZtUhPPt1+bA9JrSwU4Sa//6oKtzCSlGGXYJr44OD9aGISymbieJ4mCKHUygUDU+g==}
+    engines: {node: '>=18'}
 
   '@rolldown/binding-android-arm-eabi@1.2.5':
     resolution: {integrity: sha512-DLe/i+l8ynIBY7XEQ191TeZvCoowIGa18R+dIV30GW7DiOtp74i/xX8hs8GUjW5ARV7VZuie3d6AumSmCwbeRA==}
@@ -734,6 +754,17 @@ packages:
   '@sveltejs/load-config@0.2.3':
     resolution: {integrity: sha512-VT3qmUb8pRV2QrZjd8iAmtg8lf4W0TIjZbvXtz5MKei/q96teWZgGJyyidJzOjzZzvdq616eSRVeMYIQChUTAQ==}
     engines: {node: '>= 18.0.0'}
+
+  '@sveltejs/package@3.0.2':
+    resolution: {integrity: sha512-1HhN/Lgw1Bqyu7T6fWILt6euTyt+h+yBH2yUVYxTkGVUdIV1Xsp/gGaHnfBkD584i1fXte1cR4+zYtUsQC/F6A==}
+    engines: {node: '>=22'}
+    hasBin: true
+    peerDependencies:
+      svelte: ^3.44.0 || ^4.0.0 || ^5.0.0-next.1
+      typescript: ^6.0.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   '@sveltejs/vite-plugin-svelte@7.3.0':
     resolution: {integrity: sha512-QbRoJyD92e9R0ufeQIWRHrCC0ObcqSv/aBDdrQMoU+sypav3cDx5wytdQ6GLdXjEMO6xjrXGzfkUygng8JMv0A==}
@@ -1081,6 +1112,10 @@ packages:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
     engines: {node: '>= 14.16.0'}
 
+  chokidar@6.0.0:
+    resolution: {integrity: sha512-Ec2Z7wpcKBiMpR7DxteoqS/sq5G5d2A4fpxzPv6+fD7xNNdrTghn7L11YwV5EN1B3i72Erc3XVT5FkWIDx90+A==}
+    engines: {node: '>= 22.22'}
+
   clsx@2.1.1:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
     engines: {node: '>=6'}
@@ -1312,6 +1347,9 @@ packages:
     peerDependenciesMeta:
       supports-color:
         optional: true
+
+  dedent-js@1.0.1:
+    resolution: {integrity: sha512-OUepMozQULMLUmhxS95Vudo0jb0UchLimi3+pQ2plj61Fcy8axbP9hbiD4Sz6DPqn6XG3kfmziVfQ1rSys5AJQ==}
 
   deepmerge@4.3.1:
     resolution: {integrity: sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==}
@@ -1992,6 +2030,11 @@ packages:
   proxy-disposable@1.0.0:
     resolution: {integrity: sha512-Y673BKpFqk8XkYuoK9DGZ1RIzldz5SkzxTKc/+DkpaMdrDEbEalWlO/uMRMdJsXvdbTybJI26XDwN0KJpZDN4w==}
 
+  publint@0.3.25:
+    resolution: {integrity: sha512-WMMbn/d7JqRlfXQL/JUI4n5skC8cJ5WVr8/wT5mmiYWkUdENkZr1I5rgs2+dQPVRgoJd+JRYtB46MTsuDylw9g==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   qs@6.16.1:
     resolution: {integrity: sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg==}
     engines: {node: '>=0.6'}
@@ -2007,6 +2050,10 @@ packages:
   readdirp@4.1.2:
     resolution: {integrity: sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg==}
     engines: {node: '>= 14.18.0'}
+
+  readdirp@5.1.1:
+    resolution: {integrity: sha512-Kko+Y5XQ6fM+Ce3dq3m9YGxnacYZYl9cA1wZjaF3Vbry2L3i1qVg8+CAgNPsXRArPMUMCaOR7oa9Nqntc43JKA==}
+    engines: {node: '>= 20.19.0'}
 
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
@@ -2046,6 +2093,9 @@ packages:
 
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
+
+  scule@1.3.0:
+    resolution: {integrity: sha512-6FtHJEvt+pVMIB9IBY+IcCJ6Z5f1iQnytgyfKMhDKgmzYG+TeH/wx1y3l27rshSbLiSanrR9ffZDrEsmjlQF2g==}
 
   semver@7.8.5:
     resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
@@ -2132,6 +2182,12 @@ packages:
     peerDependencies:
       svelte: ^4.0.0 || ^5.0.0-next.0
       typescript: ^5.0.0 || ^6.0.0
+
+  svelte2tsx@0.7.63:
+    resolution: {integrity: sha512-gRgz/V6wOx0NDZhm6OMD2VIh+/HrgZc3k6ibX93rkNPEkWNn/P3Uhb1fYCqOrimEUpQd8r65dhiHZIJXSQBeow==}
+    peerDependencies:
+      svelte: ^3.55 || ^4.0.0-next.0 || ^4.0 || ^5.0.0-next.0
+      typescript: ^4.9.4 || ^5.0.0 || ^6.0.0
 
   svelte@5.56.10:
     resolution: {integrity: sha512-Lcxbj8I/KAbpY+VjtY4ENQBV0dDCipfGAhqb51XQZ67CIQqXgsv/8dPkbILaj4Fb6/b6JAEM/PIVbILXgDQy2g==}
@@ -2621,6 +2677,10 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
+  '@publint/pack@0.1.7':
+    dependencies:
+      tinyexec: 1.3.0
+
   '@rolldown/binding-android-arm-eabi@1.2.5':
     optional: true
 
@@ -2824,6 +2884,15 @@ snapshots:
       typescript: 6.0.3
 
   '@sveltejs/load-config@0.2.3': {}
+
+  '@sveltejs/package@3.0.2(svelte@5.56.10)(typescript@6.0.3)':
+    dependencies:
+      '@sveltejs/load-config': 0.2.3
+      chokidar: 6.0.0
+      svelte: 5.56.10
+      svelte2tsx: 0.7.63(svelte@5.56.10)(typescript@6.0.3)
+    optionalDependencies:
+      typescript: 6.0.3
 
   '@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.10)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))':
     dependencies:
@@ -3186,6 +3255,10 @@ snapshots:
     dependencies:
       readdirp: 4.1.2
 
+  chokidar@6.0.0:
+    dependencies:
+      readdirp: 5.1.1
+
   clsx@2.1.1: {}
 
   commander@11.1.0: {}
@@ -3423,6 +3496,8 @@ snapshots:
   debug@4.4.3:
     dependencies:
       ms: 2.1.3
+
+  dedent-js@1.0.1: {}
 
   deepmerge@4.3.1: {}
 
@@ -4046,6 +4121,13 @@ snapshots:
 
   proxy-disposable@1.0.0: {}
 
+  publint@0.3.25:
+    dependencies:
+      '@publint/pack': 0.1.7
+      package-manager-detector: 1.8.0
+      picocolors: 1.1.1
+      sade: 1.8.1
+
   qs@6.16.1:
     dependencies:
       es-define-property: 1.0.1
@@ -4061,6 +4143,8 @@ snapshots:
       unpipe: 1.0.0
 
   readdirp@4.1.2: {}
+
+  readdirp@5.1.1: {}
 
   require-from-string@2.0.2: {}
 
@@ -4150,6 +4234,8 @@ snapshots:
       mri: 1.2.0
 
   safer-buffer@2.1.2: {}
+
+  scule@1.3.0: {}
 
   semver@7.8.5: {}
 
@@ -4254,6 +4340,13 @@ snapshots:
       typescript: 6.0.3
     transitivePeerDependencies:
       - picomatch
+
+  svelte2tsx@0.7.63(svelte@5.56.10)(typescript@6.0.3):
+    dependencies:
+      dedent-js: 1.0.1
+      scule: 1.3.0
+      svelte: 5.56.10
+      typescript: 6.0.3
 
   svelte@5.56.10:
     dependencies:

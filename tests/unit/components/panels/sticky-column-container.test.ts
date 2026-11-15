@@ -15,7 +15,7 @@
 import { flushSync, createRawSnippet } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import StickyColumnContainer from '$lib/components/panels/StickyColumnContainer.svelte';
+import StickyColumnContainer from '../../../../packages/container-base/src/components/RailColumn.svelte';
 
 function railSnippet() {
 	return createRawSnippet(() => ({ render: () => '<div data-testid="rail">rail body</div>' }));
@@ -28,6 +28,7 @@ function mountRail(props: { width: number; showGutter?: boolean; onResizeStart?:
 		target,
 		props: {
 			width: props.width,
+			label: 'Resize sidebar',
 			...(props.showGutter !== undefined ? { showGutter: props.showGutter } : {}),
 			...(props.onResizeStart !== undefined ? { onResizeStart: props.onResizeStart } : {}),
 			children: railSnippet()
@@ -119,6 +120,7 @@ describe('StickyColumnContainer — nullish width degrades to no inline lock', (
 			target,
 			props: {
 				width: null as unknown as number,
+				label: 'Resize sidebar',
 				showGutter: false,
 				children: railSnippet()
 			}

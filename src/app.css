@@ -30,6 +30,11 @@
 
 	--color-accent-blue: #3b82f6;
 
+	/* Chord palette decay ticker (container-base W6 tokens — values are the
+	 * overlay's pre-token Tailwind classes, kept for render parity) */
+	--color-chord-armed: #86efac;
+	--color-chord-idle: #fef08a;
+
 	/* OCI ChipButton expanded accent (chip-pattern parity, 2026-08-22) */
 	--color-accent-purple: #8b5cf6;
 
@@ -148,6 +153,11 @@
 
 	--color-accent-blue: #60a5fa;
 	--color-accent-purple: #a78bfa;
+	/* Chord palette decay ticker — dark re-declares the light values (the
+	 * pre-token overlay used the same classes in both modes; token-contrast
+	 * key-set parity per 1.2-T) */
+	--color-chord-armed: #86efac;
+	--color-chord-idle: #fef08a;
 	--color-accent-purple-soft: #4c1d95;
 	--color-accent-purple-ink: #ede9fe;
 

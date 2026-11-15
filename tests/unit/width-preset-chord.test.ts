@@ -7,16 +7,21 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { DEFAULT_PANEL_PRESETS, applySidebarLane, resolvePanelPresets } from '$lib/config';
 import {
 	CHORD_WINDOW_MS,
-	chordKey,
-	chordOptions,
-	decideChordKeydown,
+	chordKey as chordKeyBase,
+	decideChordKeydown as decideChordKeydownBase,
 	hasAnyPreset,
 	IDLE_CHORD,
 	isEditableTarget,
-	resolveTerminalChordPlan,
-	terminalChordOptions,
 	type ChordKey as CKey
-} from '$lib/utils/key-chords';
+} from '@deepseek-insight/container-base';
+import { CHORD_VERB_LABELS, chordOptions, FLOOR_CHORD_TABLES, resolveTerminalChordPlan, terminalChordOptions, type ChordVerb } from '$lib/utils/chord-config';
+// W5 (D5): the machine takes the consumer's tables — these pins run with
+// DSI's real table, exactly what the route passes.
+const chordKey = (s: ChordState, e: CKey, c: boolean, n?: number) =>
+	chordKeyBase(s, e, c, n ?? Date.now(), FLOOR_CHORD_TABLES);
+const decideChordKeydown = (s: ChordState, e: CKey, c: boolean, n?: number) =>
+	decideChordKeydownBase(s, e, c, n ?? Date.now(), FLOOR_CHORD_TABLES);
+type ChordState = import('@deepseek-insight/container-base').ChordState;
 import {
 	applyWidthPreset,
 	configureFloorRegistry,

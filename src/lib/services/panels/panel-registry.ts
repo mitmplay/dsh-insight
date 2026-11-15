@@ -163,15 +163,26 @@ export type StartPanelResizeHandler = (event: MouseEvent, index: number) => void
 export type PanelMoveDir = 'left' | 'right' | 'up' | 'down';
 export type MovePanelHandler = (panelId: string, dir: PanelMoveDir) => void;
 
-// Module-level handler slots — set by the workspace route on mount,
-// cleared on destroy. Unregistered = null = invoke returns false.
-let addPanelHandler: AddPanelHandler | null = null;
-let replaceSelectedHandler: ReplaceSelectedHandler | null = null;
-let replacePanelHandler: ReplacePanelHandler | null = null;
-let replacePanelBySessionHandler: ReplacePanelBySessionHandler | null = null;
-let selectPanelHandler: SelectPanelHandler | null = null;
-let startPanelResizeHandler: StartPanelResizeHandler | null = null;
-let movePanelHandler: MovePanelHandler | null = null;
+// ── W3 (ADR-0062 D8): the generic register/invoke TABLE lives in the
+// package; THIS file keeps the DSI vocabulary (PanelAddRequest, the kind
+// unions, GlassSummon) and the named actions the floor's leaves invoke.
+// One table instance backs every action; invoke semantics are unchanged
+// (false = no handler, graceful no-op in a leaf).
+import { createActionTable } from '@deepseek-insight/container-base';
+
+const table = createActionTable();
+
+// Module-level action names — the floor owner registers, leaves invoke.
+const ACTIONS = {
+	addPanel: 'addPanel',
+	replaceSelected: 'replaceSelected',
+	replacePanel: 'replacePanel',
+	replacePanelBySession: 'replacePanelBySession',
+	selectPanel: 'selectPanel',
+	startPanelResize: 'startPanelResize',
+	movePanel: 'movePanel',
+	summonGlass: 'summonGlass'
+} as const;
 
 /**
  * ADR-0037 D4 — the glass summon: bring a FOLDED glass back to the
@@ -186,11 +197,10 @@ export interface GlassSummon {
 	sessionId?: string;
 }
 export type SummonGlassHandler = (glass: GlassSummon, opts: { replace: boolean; keepSelection?: boolean }) => void;
-let summonGlassHandler: SummonGlassHandler | null = null;
 
 /** Register the glass-summon action (the folded-glass ghost adopt click). */
 export function registerSummonGlass(handler: SummonGlassHandler | null): void {
-	summonGlassHandler = handler;
+	table.register(ACTIONS.summonGlass, handler);
 }
 
 /**
@@ -201,9 +211,7 @@ export function summonGlassFromRegistry(
 	glass: GlassSummon,
 	opts: { replace: boolean; keepSelection?: boolean }
 ): boolean {
-	if (summonGlassHandler === null) return false;
-	summonGlassHandler(glass, opts);
-	return true;
+	return table.invoke(ACTIONS.summonGlass, glass, opts);
 }
 
 /**
@@ -211,17 +219,17 @@ export function summonGlassFromRegistry(
  * Pass null to unregister — the route does this in its destroy lifecycle.
  */
 export function registerAddPanel(handler: AddPanelHandler | null): void {
-	addPanelHandler = handler;
+	table.register(ACTIONS.addPanel, handler);
 }
 
 /** Register the replace-selected action (spine Shift+click). */
 export function registerReplaceSelected(handler: ReplaceSelectedHandler | null): void {
-	replaceSelectedHandler = handler;
+	table.register(ACTIONS.replaceSelected, handler);
 }
 
 /** Register the replace-one-panel action (the /new command's successor swap). */
 export function registerReplacePanel(handler: ReplacePanelHandler | null): void {
-	replacePanelHandler = handler;
+	table.register(ACTIONS.replacePanel, handler);
 }
 
 /**
@@ -236,27 +244,29 @@ export function registerReplacePanel(handler: ReplacePanelHandler | null): void 
 export type ReplacePanelBySessionHandler = (sessionId: string, request: PanelAddRequest) => boolean;
 
 export function registerReplacePanelBySession(handler: ReplacePanelBySessionHandler | null): void {
-	replacePanelBySessionHandler = handler;
+	table.register(ACTIONS.replacePanelBySession, handler);
 }
 
 export function replacePanelBySession(sessionId: string, request: PanelAddRequest): boolean {
-	if (replacePanelBySessionHandler === null) return false;
-	return replacePanelBySessionHandler(sessionId, request);
+	// Result-carrying action: the handler's own boolean (found/swapped or
+	// miss) travels back; unregistered degrades to false — never a crash.
+	const result = table.invokeForResult(ACTIONS.replacePanelBySession, sessionId, request);
+	return result === undefined ? false : (result as boolean);
 }
 
 /** Register the select action (panel-list row click in the sidebar). */
 export function registerSelectPanel(handler: SelectPanelHandler | null): void {
-	selectPanelHandler = handler;
+	table.register(ACTIONS.selectPanel, handler);
 }
 
 /** Register the resize-start action (gutter mousedown). */
 export function registerStartPanelResize(handler: StartPanelResizeHandler | null): void {
-	startPanelResizeHandler = handler;
+	table.register(ACTIONS.startPanelResize, handler);
 }
 
 /** Register the move action (PanelHeader chevrons + sidebar panel rows). */
 export function registerMovePanel(handler: MovePanelHandler | null): void {
-	movePanelHandler = handler;
+	table.register(ACTIONS.movePanel, handler);
 }
 
 /**
@@ -266,65 +276,47 @@ export function registerMovePanel(handler: MovePanelHandler | null): void {
  *          (graceful no-op — the leaf shows no error).
  */
 export function addPanelFromSidebar(request: PanelAddRequest): boolean {
-	if (addPanelHandler === null) return false;
-	addPanelHandler(request);
-	return true;
+	return table.invoke(ACTIONS.addPanel, request);
 }
 
 /** Replace the selected panel's session (spine plain click). No-op false
  *  when no floor is mounted. */
 export function replaceSelectedFromRegistry(request: PanelAddRequest): boolean {
-	if (replaceSelectedHandler === null) return false;
-	replaceSelectedHandler(request);
-	return true;
+	return table.invoke(ACTIONS.replaceSelected, request);
 }
 
 /** Replace ONE panel's session by panel id (the /new successor swap).
  *  No-op false when no floor is mounted or the panel id is unknown. */
 export function replacePanelFromRegistry(panelId: string, request: PanelAddRequest): boolean {
-	if (replacePanelHandler === null) return false;
-	replacePanelHandler(panelId, request);
-	return true;
+	return table.invoke(ACTIONS.replacePanel, panelId, request);
 }
 
 /** Select an open panel by id (panel-list row click). No-op false when no
  *  floor is mounted. */
 export function selectPanelFromRegistry(panelId: string): boolean {
-	if (selectPanelHandler === null) return false;
-	selectPanelHandler(panelId);
-	return true;
+	return table.invoke(ACTIONS.selectPanel, panelId);
 }
 
 /** Begin a gutter drag on panel `index` (mousedown on ResizeGutter).
  *  No-op false when no floor is mounted. */
 export function startPanelResize(event: MouseEvent, index: number): boolean {
-	if (startPanelResizeHandler === null) return false;
-	startPanelResizeHandler(event, index);
-	return true;
+	return table.invoke(ACTIONS.startPanelResize, event, index);
 }
 
 /** Move a panel one slot (`left`/`right` from a panel header, `up`/
  *  `down` from a sidebar row). No-op false when no floor is mounted. */
 export function movePanelFromRegistry(panelId: string, dir: PanelMoveDir): boolean {
-	if (movePanelHandler === null) return false;
-	movePanelHandler(panelId, dir);
-	return true;
+	return table.invoke(ACTIONS.movePanel, panelId, dir);
 }
 
 /** Is a floor mounted? (any action handler registered). Leaves use this
  *  to gate floor-only presentation (W4 4.2: the spine's affordance
  *  tooltip) without holding a handler reference. */
 export function panelRegistryActive(): boolean {
-	return addPanelHandler !== null || replaceSelectedHandler !== null;
+	return table.has(ACTIONS.addPanel) || table.has(ACTIONS.replaceSelected);
 }
 
 /** Test-only: clear every slot (isolation between unit-test files). */
 export function resetPanelRegistryForTests(): void {
-	addPanelHandler = null;
-	replaceSelectedHandler = null;
-	replacePanelHandler = null;
-	replacePanelBySessionHandler = null;
-	selectPanelHandler = null;
-	startPanelResizeHandler = null;
-	movePanelHandler = null;
+	table.reset();
 }

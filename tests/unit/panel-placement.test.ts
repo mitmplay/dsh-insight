@@ -398,8 +398,8 @@ describe('retired-phrase sweep (3.1-T, Shared Tree ADR D1/D3)', () => {
 		const { readdirSync, readFileSync, statSync } = await import('node:fs');
 		const { join } = await import('node:path');
 		const allowed: Array<[string, number]> = [
-			['src/lib/services/panels/panel-placement.ts', 57], // D1 comment quoting the retired rule
-			['src/lib/services/panels/panel-placement.ts', 89] // D3 comment quoting the retired rule
+			['src/lib/services/panels/panel-placement.ts', 60], // D1 comment quoting the retired rule (W3: +3 after the package import)
+			['src/lib/services/panels/panel-placement.ts', 92] // D3 comment quoting the retired rule (W3: +3 after the package import)
 		];
 		const offenders: string[] = [];
 		const walk = (dir: string): void => {

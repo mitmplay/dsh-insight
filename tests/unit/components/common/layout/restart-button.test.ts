@@ -259,11 +259,10 @@ describe('AppSidebarHeader placement (source pins)', () => {
     expect(restartIdx).toBeGreaterThan(-1);
     expect(aboutIdx).toBeGreaterThan(restartIdx);
   });
-  it('AppSidebar collapsed stub also carries the button before About', async () => {
+  it('AppSidebar does NOT carry the buttons in the collapsed stub (SSC#1) — the expanded header owns them', async () => {
     const app = readFileSync(join(process.cwd(), 'src/lib/components/common/layout/AppSidebar.svelte'), 'utf-8');
-    const restartIdx = app.indexOf('<RestartButton');
-    const aboutIdx = app.indexOf('<AboutButton');
-    expect(restartIdx).toBeGreaterThan(-1);
-    expect(aboutIdx).toBeGreaterThan(restartIdx);
+    // SSC#1 (0f700062): the collapsed rail has no dead slots; Restart/About render only via AppSidebarHeader.
+    expect(app.indexOf('<RestartButton')).toBe(-1);
+    expect(app.indexOf('<AboutButton')).toBe(-1);
   });
 });

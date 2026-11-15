@@ -28,7 +28,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Static on purpose: the page must bind to the SAME svelte runtime as
 // mount/flushSync below (second-instance binding → effect_orphan).
 import Page from '../../src/routes/+page.svelte';
-import { movePanelWithin } from '$lib/services/panels/floor-math';
+import { movePanelWithin } from '@deepseek-insight/container-base';
 import { resetSpineFeedForTests } from '$lib/services/conversation/spine-feed.svelte';
 import { reactiveTestPage } from '../stubs/app-state-shared.svelte';
 import {

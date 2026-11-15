@@ -7,11 +7,11 @@
  * page, and writes are best-effort (a full or blocked store must not break
  * the layout — it only loses persistence for that session).
  *
- * Workspace profiles (storage-profile.ts): `?profile=widi` moves the key
+ * Workspace profiles (container-base storage/namespace): `?profile=widi` moves the key
  * to `dsi-sidebar_widi` — each desk remembers its own rail layout.
  */
 import { appConfig } from '$lib/services/config/app-config.svelte';
-import { dsiKey } from './storage-profile';
+import { createPrefsStore } from '@deepseek-insight/container-base';
 
 /** localStorage base key — one JSON blob `{ collapsed, width }`. */
 const STORAGE_KEY = 'dsi-sidebar';
@@ -53,28 +53,39 @@ export function defaultSidebarPrefs(): SidebarPrefs {
 }
 
 /**
+ * Revive a parsed blob into SidebarPrefs — non-object ⇒ null (⇒ defaults);
+ * only an explicit `true` collapses; the width passes through
+ * clampSidebarWidth (config bounds) via the primitive's clamp pass.
+ */
+function reviveSidebarPrefs(parsed: unknown): SidebarPrefs | null {
+	if (parsed === null || typeof parsed !== 'object') return null;
+	const raw = parsed as Partial<SidebarPrefs>;
+	return {
+		collapsed: raw.collapsed === true,
+		width:
+			typeof raw.width === 'number' && Number.isFinite(raw.width)
+				? raw.width
+				: defaultSidebarWidth()
+	};
+}
+
+/** The W2 storage primitive (ADR-0062 D4): SSR guard, junk fallback and
+ *  best-effort write live in the package; the blob shape NEVER changes. */
+const prefsStore = createPrefsStore<SidebarPrefs>({
+	key: STORAGE_KEY,
+	defaults: defaultSidebarPrefs,
+	revive: reviveSidebarPrefs,
+	// clamp runs AFTER revive — the single width bound site on every load.
+	clamp: (prefs) => ({ ...prefs, width: clampSidebarWidth(prefs.width) })
+});
+
+/**
  * Read prefs from localStorage.
  * @param profile sanitized workspace profile (null/omitted = default desk).
  * @returns stored prefs when parseable, defaults when absent, junk, or SSR.
  */
 export function loadSidebarPrefs(profile?: string | null): SidebarPrefs {
-	if (typeof localStorage === 'undefined') return defaultSidebarPrefs();
-	try {
-		const raw = localStorage.getItem(dsiKey(STORAGE_KEY, profile));
-		if (!raw) return defaultSidebarPrefs();
-		const parsed = JSON.parse(raw) as Partial<SidebarPrefs> | null;
-		if (parsed === null || typeof parsed !== 'object') return defaultSidebarPrefs();
-		return {
-			collapsed: parsed.collapsed === true,
-			width: clampSidebarWidth(
-				typeof parsed.width === 'number' && Number.isFinite(parsed.width)
-					? parsed.width
-					: defaultSidebarWidth()
-			)
-		};
-	} catch {
-		return defaultSidebarPrefs();
-	}
+	return prefsStore.load(profile);
 }
 
 /**
@@ -83,10 +94,5 @@ export function loadSidebarPrefs(profile?: string | null): SidebarPrefs {
  * @param profile sanitized workspace profile (null/omitted = default desk).
  */
 export function saveSidebarPrefs(prefs: SidebarPrefs, profile?: string | null): void {
-	if (typeof localStorage === 'undefined') return;
-	try {
-		localStorage.setItem(dsiKey(STORAGE_KEY, profile), JSON.stringify(prefs));
-	} catch {
-		// Store full or blocked — persistence is lost, the layout is not.
-	}
+	prefsStore.save(prefs, profile);
 }

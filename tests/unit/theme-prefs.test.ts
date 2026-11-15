@@ -86,23 +86,32 @@ describe('theme-prefs — the three-state switch (2.1-T)', () => {
 	});
 });
 
-describe('pre-paint twin pin (2.2-T)', () => {
+describe('pre-paint twin pin (2.2-T, ADR-0063 D2)', () => {
 	const appHtml = readFileSync('src/app.html', 'utf8');
 
-	it('app.html carries the inline pre-paint script with the storage key', () => {
-		expect(appHtml).toContain("<script>");
-		expect(appHtml).toContain('localStorage.getItem(k)');
-		expect(appHtml).toContain('document.documentElement.dataset.theme');
+	it('app.html carries the GENERATED base applier verbatim (markers + exact source)', async () => {
+		const { themeApplierScript } = await import('@deepseek-insight/container-base');
+		expect(appHtml).toContain('container-base:theme-applier BEGIN');
+		expect(appHtml).toContain('container-base:theme-applier END');
+		// the block between the markers IS the base applier for dsi-theme — byte-identical
+		const block = appHtml.split('container-base:theme-applier BEGIN')[1]!.split('container-base:theme-applier END')[0]!;
+		const generated = themeApplierScript('dsi-theme')
+			.split('\n')
+			.map((l) => '\t\t\t' + l)
+			.join('\n');
+		expect(block).toContain(generated);
 	});
 
-	it('the script is guarded against blocked storage (try/catch + light fallback)', () => {
+	it('the applier is guarded against blocked storage (try/catch + light fallback)', () => {
 		expect(appHtml).toContain('try {');
 		expect(appHtml).toContain("dataset.theme = 'light'");
 	});
 
-	it('ONE key, two places: module and script agree on dsi-theme', () => {
+	it('ONE key, one derivation: the wrapper base key, the applier arg, and the html agree on dsi-theme', async () => {
 		expect(THEME_BASE_KEY).toBe('dsi-theme');
-		expect(appHtml).toContain(THEME_BASE_KEY);
+		const { themeApplierScript } = await import('@deepseek-insight/container-base');
+		expect(appHtml).toContain("themeApplierScript('dsi-theme')".length > 0 ? "'dsi-theme'" : '');
+		expect(appHtml).toContain("var k = 'dsi-theme' + (prof ? '_' + prof : '');");
 		// and no third spelling creeps in anywhere in src
 		const fs = require('node:fs');
 		const path = require('node:path');

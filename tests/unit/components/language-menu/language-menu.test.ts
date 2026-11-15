@@ -103,7 +103,9 @@ describe('LanguageMenu (2.2, bug-fix pass 2026-09-12)', () => {
 		const list = target.querySelector(
 			'[data-testid="language-menu-list"]'
 		) as HTMLElement;
-		expect(list.className).toContain('bottom-full');
+		// ADR-0063 D3: the menu is the base component now — dropUp carries via
+		// the base's cb-drop-up class (bottom positioning in its scoped style)
+		expect(list.className).toContain('cb-drop-up');
 		cleanup(instance, target);
 	});
 });

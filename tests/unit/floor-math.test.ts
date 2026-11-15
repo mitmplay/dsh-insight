@@ -10,7 +10,12 @@ import {
 	movePanelWithin,
 	resizeOne,
 	scaleProportionally
-} from '$lib/services/panels/floor-math';
+} from '@deepseek-insight/container-base';
+import { clampPanelWidth } from '$lib/utils/panel-prefs';
+// The DSI bound site rides as the injected clamp (W3: package math,
+// consumer clamp) — these pins keep the pre-move clamped behavior.
+const clampWidth = (width: number, kind?: string) =>
+	clampPanelWidth(width, kind as DsiPanelEntry['kind']);
 import type { DsiPanelEntry } from '$lib/types';
 
 function p(id: string, width = 730): DsiPanelEntry {
@@ -75,13 +80,13 @@ describe('movePanelWithin — swap order math', () => {
 describe('scaleProportionally — degenerate guards', () => {
 	it('a zero snapshot total returns a copy of the input, untouched', () => {
 		const panels = [p('a', 0), p('b', 0)];
-		const next = scaleProportionally(panels, [0, 0], 100);
+		const next = scaleProportionally(panels, [0, 0], 100, clampWidth);
 		expect(next).not.toBe(panels);
 		expect(widthsOf(next)).toEqual([0, 0]);
 	});
 
 	it('an empty row (total 0) returns an empty copy', () => {
-		expect(scaleProportionally([], [], 50)).toEqual([]);
+		expect(scaleProportionally([], [], 50, clampWidth)).toEqual([]);
 	});
 });
 
@@ -94,7 +99,7 @@ function widthsOf(panels: readonly DsiPanelEntry[]): number[] {
 describe('floor-math sanity re-pins', () => {
 	it('resizeOne and isUniformRow keep their pinned contracts', () => {
 		const panels = [p('a', 600), p('b', 700)];
-		expect(widthsOf(resizeOne(panels, [600, 700], 1, 10))).toEqual([600, 710]);
+		expect(widthsOf(resizeOne(panels, [600, 700], 1, 10, clampWidth))).toEqual([600, 710]);
 		expect(isUniformRow(panels)).toBe(false);
 		expect(isUniformRow([p('a', 500), p('b', 500)])).toBe(true);
 		expect(isUniformRow([])).toBe(false);

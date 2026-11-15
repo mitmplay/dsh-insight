@@ -162,22 +162,22 @@ describe('+page.svelte — app sidebar collapse + gutter drag', () => {
 
 	it('gutter drag clamps the rail width; mouseup ends the drag', async () => {
 		const { target } = await mountPage();
-		const wrap = target.querySelector<HTMLElement>('[data-testid="app-sidebar"]');
+		const wrap = target.querySelector<HTMLElement>('[data-testid="app-sidebar-wrap"]');
 		const widthBefore = wrap?.style.width ?? '';
-		const gutter = target.querySelector<HTMLElement>('[data-testid="sidebar-gutter"]');
+		const gutter = target.querySelector<HTMLElement>('[data-testid="app-sidebar-gutter"]');
 		expect(gutter).not.toBeNull();
 		gutter!.dispatchEvent(mouse('mousedown', 200));
 		flushSync();
 		window.dispatchEvent(mouse('mousemove', 300));
 		flushSync();
-		const widthMid = target.querySelector<HTMLElement>('[data-testid="app-sidebar"]')?.style.width ?? '';
+		const widthMid = target.querySelector<HTMLElement>('[data-testid="app-sidebar-wrap"]')?.style.width ?? '';
 		expect(widthMid).not.toBe(widthBefore);
 		window.dispatchEvent(mouse('mouseup'));
 		flushSync();
 		// after mouseup a further move cannot change the width
 		window.dispatchEvent(mouse('mousemove', 480));
 		flushSync();
-		expect(target.querySelector<HTMLElement>('[data-testid="app-sidebar"]')?.style.width).toBe(widthMid);
+		expect(target.querySelector<HTMLElement>('[data-testid="app-sidebar-wrap"]')?.style.width).toBe(widthMid);
 		unmount(target.firstElementChild as never);
 	});
 });

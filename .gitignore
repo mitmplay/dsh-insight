@@ -61,3 +61,6 @@ src/lib/paraglide/
 
 # brainstorm visual companion sessions (throwaway mockups)
 .superpowers/
+
+# nested SvelteKit app sync output (dev artifact)
+packages/container-base/playground/.svelte-kit/

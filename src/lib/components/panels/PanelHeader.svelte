@@ -30,6 +30,8 @@
 	import { movePanelFromRegistry } from '$lib/services/panels/panel-registry';
 	import { copyWithFeedback } from '$lib/utils/clipboard';
 	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	// W4 (ADR-0062 D8): the strip GEOMETRY lives in the package skeleton.
+	import { PanelHeaderSkeleton } from '@deepseek-insight/container-base';
 	
 	// The canvas-copy capture target: the header's PARENT — PanelColumn
 	// renders the header as its first child, so the parent IS the column.
@@ -92,8 +94,7 @@
 	}
 </script>
 
-<div class="panel-header" class:selected data-testid="panel-header" title={label ?? sessionId} bind:this={headerEl}>
-	<span class="label" data-testid={labelTestId ?? 'panel-header-label'}>
+{#snippet leadingSnippet()}
 		{#if copyValue !== undefined || label === undefined}
 			<button
 				type="button"
@@ -113,8 +114,9 @@
 			</button>
 		{/if}
 		<span class="id">{label ?? sessionId}</span>
-	</span>
-	<span class="actions">
+	{/snippet}
+
+	{#snippet actionsSnippet()}
 		{#if canMoveLeft || lens}
 			<button
 				type="button"
@@ -157,54 +159,28 @@
 		{#if onremove || lens}
 			<PanelClose {sessionId} {lens} {onremove} />
 		{/if}
-	</span>
-</div>
+	{/snippet}
+
+<PanelHeaderSkeleton
+	title={label ?? sessionId}
+	bind:headerEl
+	{selected}
+	labelTestId={labelTestId ?? 'panel-header-label'}
+	leading={leadingSnippet}
+	actions={actionsSnippet}
+/>
 
 <style>
-	.panel-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.5rem;
-		padding: 0.25rem 0.5rem;
-		min-height: 1.75rem;
-		font-size: 0.6875rem;
-		color: var(--color-text-secondary, #6c757d);
-		border-bottom: 1px solid var(--color-surface-border, #dee2e6);
-		background: var(--color-surface-primary, var(--color-surface-elevated));
-		flex-shrink: 0;
-	}
-
-	/* Focus tint (ConversationFooter's oldlace, 2026-08-28): the
-	   selected column's floor strip carries the same tint as the
-	   conversation header/footer below it — the column you would type
-	   into reads as one tinted frame. */
-	.panel-header.selected {
-		background: var(--color-header-wash);
-	}
-
-	.label {
-		min-width: 0;
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		overflow: hidden;
-		white-space: nowrap;
-	}
-
+	/* The strip GEOMETRY (flex row, border, wash, .label/.actions slots)
+	   lives in the package skeleton (W4, D8). This file keeps only the
+	   DSI control styles — the copy/chevron buttons and the identity
+	   span. */
 	/* The id renders in full — never truncated; only a sub-min column
-	   width can clip it (overflow: hidden above), and 44-char ids fit
-	   the 480px floor minimum. */
+	   width can clip it (the skeleton's overflow: hidden above), and
+	   44-char ids fit the 480px floor minimum. */
 	.id {
 		flex-shrink: 0;
 		letter-spacing: 0.01em;
-	}
-
-	.actions {
-		flex-shrink: 0;
-		display: inline-flex;
-		align-items: center;
-		gap: 0.125rem;
 	}
 
 	.hdr-btn {

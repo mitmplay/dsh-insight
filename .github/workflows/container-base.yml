@@ -1,0 +1,47 @@
+name: container-base
+
+# ADR-0064 D5 — the repo's first CI workflow: the package's public gate.
+# Runs only when the package (or this workflow) changes.
+on:
+  push:
+    paths:
+      - 'packages/container-base/**'
+      - '.github/workflows/container-base.yml'
+  pull_request:
+    paths:
+      - 'packages/container-base/**'
+      - '.github/workflows/container-base.yml'
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Package vitest suites (boundary included)
+        run: pnpm --filter @deepseek-insight/container-base test
+
+      - name: svelte-check on the package
+        run: pnpm --filter @deepseek-insight/container-base exec svelte-check --tsconfig ./tsconfig.json
+
+      - name: Build dist (svelte-package)
+        run: pnpm --filter @deepseek-insight/container-base run build:package
+
+      - name: publint (exports-contract witness)
+        run: pnpm --filter @deepseek-insight/container-base run lint:package
+
+      - name: Pack dry-run (file-manifest witness)
+        run: npm pack --dry-run --json
+        working-directory: packages/container-base

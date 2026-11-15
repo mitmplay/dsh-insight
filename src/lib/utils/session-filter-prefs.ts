@@ -15,13 +15,17 @@
  * default), junk and wrong-shaped fields fall back PER FIELD, writes are
  * best-effort (a full or blocked store loses persistence, never the page).
  *
- * Workspace profiles (storage-profile.ts): `?profile=widi` moves the key
+ * Workspace profiles (container-base storage/namespace): `?profile=widi` moves the key
  * to `dsi-session-filter_widi` — each desk remembers its own pills. The
  * legacy `dsi-blank-mode` fallback stays GLOBAL (it predates profiles).
+ *
+ * ADR-0063 D6: the internals are the base store (createPrefsStore) —
+ * same key, same blob shape; the legacy-key fallback rides in the
+ * defaults factory so it applies on absence AND on junk alike.
  */
 
 import { DEFAULT_SESSION_FILTER, isBlankMode, type SessionFilterState } from './session-filters';
-import { dsiKey } from './storage-profile';
+import { createPrefsStore } from '@deepseek-insight/container-base';
 
 /** localStorage key — one JSON blob `{workspace, preset, blankMode}`. */
 const STORAGE_KEY = 'dsi-session-filter';
@@ -44,6 +48,22 @@ function legacyBlankMode(): SessionFilterState['blankMode'] {
 	}
 }
 
+const store = createPrefsStore<SessionFilterState>({
+	key: STORAGE_KEY,
+	defaults: () => ({ ...DEFAULT_SESSION_FILTER, blankMode: legacyBlankMode() }),
+	revive: (parsed) => {
+		if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+		const p = parsed as Partial<Record<keyof SessionFilterState, unknown>>;
+		return {
+			workspace: readKey(p.workspace),
+			preset: readKey(p.preset),
+			blankMode: isBlankMode(p.blankMode)
+				? p.blankMode
+				: legacyBlankMode()
+		};
+	}
+});
+
 /**
  * Read the persisted session filter.
  * @param profile sanitized workspace profile (null/omitted = default desk).
@@ -52,24 +72,7 @@ function legacyBlankMode(): SessionFilterState['blankMode'] {
  *   before its own default). SSR and missing storage return the default.
  */
 export function loadSessionFilter(profile?: string | null): SessionFilterState {
-	if (typeof localStorage === 'undefined') return { ...DEFAULT_SESSION_FILTER };
-	try {
-		const raw = localStorage.getItem(dsiKey(STORAGE_KEY, profile));
-		if (!raw) return { ...DEFAULT_SESSION_FILTER, blankMode: legacyBlankMode() };
-		const parsed = JSON.parse(raw) as Partial<Record<keyof SessionFilterState, unknown>>;
-		if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-			return { ...DEFAULT_SESSION_FILTER, blankMode: legacyBlankMode() };
-		}
-		return {
-			workspace: readKey(parsed.workspace),
-			preset: readKey(parsed.preset),
-			blankMode: isBlankMode(parsed.blankMode)
-				? parsed.blankMode
-				: legacyBlankMode()
-		};
-	} catch {
-		return { ...DEFAULT_SESSION_FILTER, blankMode: legacyBlankMode() };
-	}
+	return store.load(profile);
 }
 
 /**
@@ -78,10 +81,5 @@ export function loadSessionFilter(profile?: string | null): SessionFilterState {
  * @param profile sanitized workspace profile (null/omitted = default desk).
  */
 export function saveSessionFilter(filter: SessionFilterState, profile?: string | null): void {
-	if (typeof localStorage === 'undefined') return;
-	try {
-		localStorage.setItem(dsiKey(STORAGE_KEY, profile), JSON.stringify(filter));
-	} catch {
-		// Store full or blocked — persistence is lost, the page is not.
-	}
+	store.save(filter, profile);
 }

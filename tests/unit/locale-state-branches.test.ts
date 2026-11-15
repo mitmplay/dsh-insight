@@ -39,12 +39,23 @@ describe('currentLocale — runtime arms', () => {
 		expect(currentLocale()).toBe('id');
 	});
 
-	it('runtime locale outside fleet AND tracked state outside fleet → DEFAULT (en)', async () => {
+	it('runtime locale outside fleet AND tracked state outside fleet → persisted choice surfaces (base-store arm, ADR-0063 D3)', async () => {
 		await setLocale('id');
 		// force tracked state out of the fleet — simulates a stale mirror
 		const st = localeState() as { locale: unknown };
 		st.locale = 'xx'; // deliberate corruption
 		getLocaleMock.mockReturnValue('xx' as never);
+		// the base store's read is the new fallback arm: the persisted choice is fleet-valid
+		expect(currentLocale()).toBe('id');
+	});
+
+	it('runtime + tracked + persisted all unusable → DEFAULT (en)', async () => {
+		await setLocale('id');
+		const st = localeState() as { locale: unknown };
+		st.locale = 'xx';
+		getLocaleMock.mockReturnValue('xx' as never);
+		localStorage.removeItem('dsi.locale'); // nothing valid anywhere
+		document.cookie = 'dsi.locale=; path=/; max-age=0';
 		expect(currentLocale()).toBe('en');
 	});
 

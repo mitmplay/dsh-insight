@@ -1,20 +1,20 @@
 <script lang="ts">
+	/**
+	 * SliderWidth — the tray's uniform-width control (Panel Floor W5 task
+	 * 5.1), now a THIN WRAPPER over the base slider (ADR-0063 D4): the
+	 * honest-slider mechanism (range, per-input live commit, token
+	 * styling) lives in container-base/src/components/SliderWidth.svelte;
+	 * DSI contributes its identity — paraglide words, config bounds
+	 * (panel.minWidth/maxWidth — the same source the single clamp site
+	 * reads), the clampPanelWidth-routed onresizeall, and the tray testids.
+	 *
+	 * Realtime: every thumb move fires onresizeall(width) on input — the
+	 * panels resize LIVE under the dragging thumb (2026-08-27 cadence,
+	 * unchanged).
+	 */
+	import { SliderWidth } from '@deepseek-insight/container-base';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
-	/**
-	 * SliderWidth — the tray's uniform-width control (Panel Floor W5
-	 * task 5.1). One range input 480..860 (the panel-prefs bounds — the
-	 * slider's min/max mirror the ONLY clamp site's constants, and every
-	 * commit routes through `clampPanelWidth` in the route's
-	 * `onresizeall` handler, keeping commitment 3 intact).
-	 *
-	 * Realtime (2026-08-27): every thumb move fires `onresizeall(width)`
-	 * on `input` — the panels resize LIVE under the dragging thumb, the
-	 * same per-move cadence as SliderZoom's bound zoom (the old
-	 * commit-on-`change` release lag is gone). The route sets every
-	 * panel to that width AND the preset — the honest-slider contract's
-	 * "slider sets all panels" direction.
-	 */
 	import { PANEL_DEFAULT_WIDTH } from '$lib/utils/panel-prefs';
 	import { appConfig } from '$lib/services/config/app-config.svelte';
 
@@ -33,46 +33,16 @@
 	const bounds = $derived(appConfig().panel);
 </script>
 
-<label class="slider-width" data-testid="controlbar-slider-width">
-	<span class="caption">{t(m.width)} <span class="px" data-testid="controlbar-slider-width-value">{value}px</span></span>
-	<input
-		type="range"
-		min={bounds.minWidth}
-		max={bounds.maxWidth}
-		step={1}
-		bind:value
-		oninput={() => onresizeall(value)}
-		data-testid="controlbar-slider-width-input"
-		aria-label={t(m.panelWidthAll)}
-	/>
-</label>
+{#snippet caption(v: number)}
+	<span>{t(m.width)}</span>
+	<span class="px" data-testid="controlbar-slider-width-value">{v}px</span>
+{/snippet}
+
+<SliderWidth bind:value {caption} min={bounds.minWidth} max={bounds.maxWidth} step={1} oncommit={onresizeall} ariaLabel={t(m.panelWidthAll)} testId="controlbar-slider-width" />
 
 <style>
-	.slider-width {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-		font-size: 0.6875rem;
-		color: var(--color-text-secondary, #6c757d);
-	}
-
-	.caption {
-		display: flex;
-		justify-content: space-between;
-	}
-
 	.px {
 		font-variant-numeric: tabular-nums;
-		color: var(--color-text-primary, #212529);
-	}
-
-	.slider-width input {
-		width: 100%;
-		accent-color: var(--color-accent-blue, #3b82f6);
-	}
-
-	.slider-width input:focus-visible {
-		outline: 2px solid var(--color-accent-blue, #3b82f6);
-		outline-offset: 2px;
+		color: var(--color-text-primary);
 	}
 </style>

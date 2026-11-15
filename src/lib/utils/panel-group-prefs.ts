@@ -17,7 +17,7 @@
  * across reloads). Absent entry = folded (the 2026-08-28 default); the
  * field's absence in a stored blob IS the old format (loads `[]`).
  */
-import { dsiKey } from './storage-profile';
+import { createPrefsStore } from '@deepseek-insight/container-base';
 
 /** localStorage base key — one JSON blob `{collapsed, unfoldedSessionIds}`. */
 const STORAGE_KEY = 'dsi-panel-group';
@@ -55,6 +55,31 @@ function sanitizeUnfoldedIds(value: unknown): string[] {
 }
 
 /**
+ * Revive a parsed blob into PanelGroupPrefs — per-field junk rules kept
+ * exactly as hand-rolled: only an explicit `true` collapses; the fold
+ * field passes through sanitizeUnfoldedIds (a stored blob without it —
+ * the pre-2026-09-03 format — loads `[]`). Non-object blobs return null
+ * (⇒ the primitive falls back to defaults).
+ */
+function revivePanelGroupPrefs(parsed: unknown): PanelGroupPrefs | null {
+	if (parsed === null || typeof parsed !== 'object') return null;
+	const raw = parsed as Partial<PanelGroupPrefs>;
+	return {
+		collapsed: raw.collapsed === true,
+		unfoldedSessionIds: sanitizeUnfoldedIds(raw.unfoldedSessionIds),
+		subagentsHidden: raw.subagentsHidden === true
+	};
+}
+
+/** The W2 storage primitive (ADR-0062 D4): SSR guard, junk fallback and
+ *  best-effort write live in the package; the blob shape NEVER changes. */
+const prefsStore = createPrefsStore<PanelGroupPrefs>({
+	key: STORAGE_KEY,
+	defaults: defaultPanelGroupPrefs,
+	revive: revivePanelGroupPrefs
+});
+
+/**
  * Read prefs from localStorage.
  * @param profile sanitized workspace profile (null/omitted = default desk).
  * @returns stored prefs when parseable, defaults when absent, junk, or SSR.
@@ -64,20 +89,7 @@ function sanitizeUnfoldedIds(value: unknown): string[] {
  *          (the pre-2026-09-03 format) loads `[]`.
  */
 export function loadPanelGroupPrefs(profile?: string | null): PanelGroupPrefs {
-	if (typeof localStorage === 'undefined') return defaultPanelGroupPrefs();
-	try {
-		const raw = localStorage.getItem(dsiKey(STORAGE_KEY, profile));
-		if (!raw) return defaultPanelGroupPrefs();
-		const parsed = JSON.parse(raw) as Partial<PanelGroupPrefs> | null;
-		if (parsed === null || typeof parsed !== 'object') return defaultPanelGroupPrefs();
-		return {
-			collapsed: parsed.collapsed === true,
-			unfoldedSessionIds: sanitizeUnfoldedIds(parsed.unfoldedSessionIds),
-			subagentsHidden: parsed.subagentsHidden === true
-		};
-	} catch {
-		return defaultPanelGroupPrefs();
-	}
+	return prefsStore.load(profile);
 }
 
 /**
@@ -86,10 +98,5 @@ export function loadPanelGroupPrefs(profile?: string | null): PanelGroupPrefs {
  * @param profile sanitized workspace profile (null/omitted = default desk).
  */
 export function savePanelGroupPrefs(prefs: PanelGroupPrefs, profile?: string | null): void {
-	if (typeof localStorage === 'undefined') return;
-	try {
-		localStorage.setItem(dsiKey(STORAGE_KEY, profile), JSON.stringify(prefs));
-	} catch {
-		// Store full or blocked — persistence is lost, the layout is not.
-	}
+	prefsStore.save(prefs, profile);
 }

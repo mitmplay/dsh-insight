@@ -4,17 +4,16 @@
  * Cluster ADR D5: nameFilter / dateFilter / viewMode ride beside the
  * fold; strict reads, junk falls back per field). One JSON blob under
  * localStorage['dsi-scheduler']; a workspace profile (`?profile=…`)
- * suffixes the key like every dsi-* key (storage-profile.ts), so each
+ * suffixes the key like every dsi-* key (container-base storage/namespace), so each
  * desk remembers its own fold.
  *
  * COLLAPSED BY DEFAULT (ADR-0058 D2/D3): the shelf stays a quiet ledger
  * line until the operator opens it. Defense follows the panel-prefs
- * pattern: SSR-safe (no localStorage → defaults), strict boolean read
- * (only true/false pass — junk falls back to the default without
- * throwing), best-effort write (quota-full or blocked storage loses the
- * fold, never the shelf).
+ * pattern — now LITERALLY the pattern: the internals are the base store
+ * (createPrefsStore, ADR-0063 D6), same key, same blob shape; SSR-safe,
+ * strict per-field reads, best-effort write.
  */
-import { dsiKey } from './storage-profile';
+import { createPrefsStore } from '@deepseek-insight/container-base';
 
 /** localStorage base key — one JSON blob `{ collapsed: boolean }`.
  *  The default desk lives under `dsi-scheduler`, profile `widi` under
@@ -27,7 +26,7 @@ export const SCHEDULER_PREFS_KEY = 'dsi-scheduler';
  *                default desk (`dsi-scheduler`).
  */
 export function schedulerPrefsKey(profile?: string | null): string {
-	return dsiKey(SCHEDULER_PREFS_KEY, profile);
+	return store.key(profile);
 }
 
 /** The shelf's view slice (Filter Cluster ADR D2): all rows, only rows
@@ -50,6 +49,29 @@ export function defaultSchedulerPrefs(): SchedulerShelfPrefs {
 	return { collapsed: true, nameFilter: '', dateFilter: '', viewMode: 'all' };
 }
 
+/** Strict per-field revive (Filter Cluster ADR D5): only the exact shapes
+ *  pass; junk — including old fold-only blobs — falls back per field
+ *  without throwing and without inventing states. */
+function revive(parsed: unknown): SchedulerShelfPrefs | null {
+	if (parsed === null || typeof parsed !== 'object') return null;
+	const p = parsed as Partial<SchedulerShelfPrefs>;
+	return {
+		collapsed: typeof p.collapsed === 'boolean' ? p.collapsed : true,
+		nameFilter: typeof p.nameFilter === 'string' ? p.nameFilter : '',
+		dateFilter: typeof p.dateFilter === 'string' ? p.dateFilter : '',
+		viewMode:
+			p.viewMode === 'scheduled' || p.viewMode === 'delivered'
+				? p.viewMode
+				: 'all'
+	};
+}
+
+const store = createPrefsStore<SchedulerShelfPrefs>({
+	key: SCHEDULER_PREFS_KEY,
+	defaults: defaultSchedulerPrefs,
+	revive
+});
+
 /**
  * Read the shelf's persisted fold.
  * @param profile sanitized workspace profile (null/omitted = default desk).
@@ -57,27 +79,7 @@ export function defaultSchedulerPrefs(): SchedulerShelfPrefs {
  *          or SSR. Junk never throws and never invents a third state.
  */
 export function loadSchedulerPrefs(profile?: string | null): SchedulerShelfPrefs {
-	if (typeof localStorage === 'undefined') return defaultSchedulerPrefs();
-	try {
-		const raw = localStorage.getItem(schedulerPrefsKey(profile));
-		if (!raw) return defaultSchedulerPrefs();
-		const parsed = JSON.parse(raw) as Partial<SchedulerShelfPrefs> | null;
-		if (parsed === null || typeof parsed !== 'object') return defaultSchedulerPrefs();
-		// Strict reads (Filter Cluster ADR D5): only the exact shapes pass;
-		// junk — including old fold-only blobs — falls back per field without
-		// throwing and without inventing states.
-		return {
-			collapsed: typeof parsed.collapsed === 'boolean' ? parsed.collapsed : true,
-			nameFilter: typeof parsed.nameFilter === 'string' ? parsed.nameFilter : '',
-			dateFilter: typeof parsed.dateFilter === 'string' ? parsed.dateFilter : '',
-			viewMode:
-				parsed.viewMode === 'scheduled' || parsed.viewMode === 'delivered'
-					? parsed.viewMode
-					: 'all'
-		};
-	} catch {
-		return defaultSchedulerPrefs();
-	}
+	return store.load(profile);
 }
 
 /**
@@ -86,10 +88,5 @@ export function loadSchedulerPrefs(profile?: string | null): SchedulerShelfPrefs
  * @param profile sanitized workspace profile (null/omitted = default desk).
  */
 export function saveSchedulerPrefs(prefs: SchedulerShelfPrefs, profile?: string | null): void {
-	if (typeof localStorage === 'undefined') return;
-	try {
-		localStorage.setItem(schedulerPrefsKey(profile), JSON.stringify(prefs));
-	} catch {
-		// Quota-full or blocked storage — persistence is lost, the shelf is not.
-	}
+	store.save(prefs, profile);
 }

@@ -181,7 +181,7 @@ describe('AppSidebar — standalone branch (default mount)', () => {
 		// No paneledSessionIds prop → the default [] path.
 		const { target, instance, onToggleCollapse } = mountSidebar({ width: 320 });
 		await settle();
-		const wrap = target.querySelector('[data-testid="app-sidebar"]') as HTMLElement;
+		const wrap = target.querySelector('[data-testid="app-sidebar-wrap"]') as HTMLElement;
 		expect(wrap).not.toBeNull();
 		expect(wrap.style.width).toBe('320px');
 		// Robust to in-flight title experiments (a concurrent agent's probe
@@ -190,7 +190,7 @@ describe('AppSidebar — standalone branch (default mount)', () => {
 			/^Deepseek Insight/
 		);
 		// The gutter is the wrapper's flex SIBLING (never clipped).
-		expect(target.querySelector('[data-testid="sidebar-gutter"]')).not.toBeNull();
+		expect(target.querySelector('[data-testid="app-sidebar-gutter"]')).not.toBeNull();
 		// The body loaded: the spine renders the non-current sessions.
 		expect(target.querySelectorAll('[data-testid="sidebar-session-card"]')).toHaveLength(2);
 		// Collapse button fires the page-owned toggle.
@@ -206,7 +206,7 @@ describe('AppSidebar — standalone branch (default mount)', () => {
 		stubFetch(log);
 		const { target, instance, onResizeStart } = mountSidebar();
 		await settle();
-		const gutter = target.querySelector('[data-testid="sidebar-gutter"]') as HTMLElement;
+		const gutter = target.querySelector('[data-testid="app-sidebar-gutter"]') as HTMLElement;
 		const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
 		gutter.dispatchEvent(down);
 		expect(onResizeStart).toHaveBeenCalledTimes(1);
@@ -268,10 +268,10 @@ describe('AppSidebar — embedded rail (placement panels-zoom)', () => {
 		await settle();
 		const rail = target.querySelector('[data-testid="app-sidebar"]') as HTMLElement;
 		expect(rail).not.toBeNull();
-		expect(rail.classList.contains('rail-embedded')).toBe(true);
+		expect(rail.classList.contains('cb-sidebar-embedded')).toBe(true);
 		// The hosting StickyColumnContainer owns width + gutter — neither here.
 		expect(rail.style.width).toBe('');
-		expect(target.querySelector('[data-testid="sidebar-gutter"]')).toBeNull();
+		expect(target.querySelector('[data-testid="app-sidebar-gutter"]')).toBeNull();
 		// The embedded body loads through the same spine.
 		expect(target.querySelectorAll('[data-testid="sidebar-session-card"]')).toHaveLength(2);
 		const collapse = target.querySelector('button[aria-label="Collapse sidebar"]') as HTMLButtonElement;
@@ -353,7 +353,7 @@ describe('AppSidebar — header CanvasCopyButton (page capture)', () => {
 });
 
 describe('AppSidebar — residual branches (optional props + filter seed)', () => {
-	it('collapsed stub: ControlBar mounts inside it and Restart/About ride the prefix (onresizeall ?? no-op fallback — default mount passes none)', async () => {
+	it('collapsed stub: ControlBar mounts inside it and Restart/About stay OUT (SSC#1 — they live in the expanded header; onresizeall ?? no-op fallback — default mount passes none)', async () => {
 		const log: FetchLog[] = [];
 		stubFetch(log);
 		// No onresizeall prop → ControlBar gets the ?? (() => {}) fallback.
@@ -362,8 +362,9 @@ describe('AppSidebar — residual branches (optional props + filter seed)', () =
 		const stub = target.querySelector('[data-testid="app-sidebar-collapsed"]') as HTMLElement;
 		// The floor ControlBar self-positions fixed — its mount site is the stub.
 		expect(stub.querySelector('[data-testid="controlbar"]')).not.toBeNull();
-		expect(stub.querySelector('[data-testid="sidebar-restart-trigger"]')).not.toBeNull();
-		expect(stub.querySelector('[data-testid="sidebar-about-trigger"]')).not.toBeNull();
+		// SSC#1 (0f700062): no dead slots — Restart/About live in AppSidebarHeader (expanded), never the stub.
+		expect(stub.querySelector('[data-testid="sidebar-restart-trigger"]')).toBeNull();
+		expect(stub.querySelector('[data-testid="sidebar-about-trigger"]')).toBeNull();
 		unmount(instance);
 	});
 
@@ -382,7 +383,7 @@ describe('AppSidebar — residual branches (optional props + filter seed)', () =
 
 		const standalone = mountSidebar({ onResizeStart: undefined });
 		await settle();
-		const gutter = standalone.target.querySelector('[data-testid="sidebar-gutter"]') as HTMLElement;
+		const gutter = standalone.target.querySelector('[data-testid="app-sidebar-gutter"]') as HTMLElement;
 		expect(() => gutter.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))).not.toThrow();
 		unmount(standalone.instance);
 	});

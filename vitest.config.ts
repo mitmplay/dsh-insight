@@ -137,7 +137,10 @@ export default defineConfig({
 					environment: 'happy-dom',
 					include: [
 						'tests/unit/**/*.{test,spec}.{ts,js}',
-						'tests/live/**/*.{test,spec}.{ts,js}'
+						'tests/live/**/*.{test,spec}.{ts,js}',
+						// container-base package tests (ADR-0062 W2): source-consumed
+						// package, its suites ride the same dom project.
+						'packages/container-base/tests/**/*.{test,spec}.{ts,js}'
 					],
 					// Everything the node project claims is removed here so no
 					// file runs twice.

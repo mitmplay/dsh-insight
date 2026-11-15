@@ -4,12 +4,11 @@
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!-- The Three-State Lamp pre-paint (ADR-0023 D3, now ADR-0063 D2): the
+		 inline script below is GENERATED from the base applier —
+		 scripts/sync-theme-applier.mjs — never edit it by hand. -->
+		<!-- container-base:theme-applier BEGIN (generated — do not edit by hand; scripts/sync-theme-applier.mjs) -->
 		<script>
-			/* The Three-State Lamp pre-paint (ADR-0023 D3, 2026-10-11): resolve
-			 * the choice and set html[data-theme] BEFORE the bundle paints —
-			 * no flash of light on a dark reload. The key 'dsi-theme' is
-			 * pinned identical to src/lib/utils/theme-prefs.svelte.ts by
-			 * tests/unit/theme-prefs.test.ts; change both together. */
 			try {
 				var m = location.search.match(/[?&]profile=([^&]*)/);
 				var prof = m ? m[1].replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) : '';
@@ -24,6 +23,7 @@
 				document.documentElement.dataset.theme = 'light';
 			}
 		</script>
+		<!-- container-base:theme-applier END -->
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="tap">
