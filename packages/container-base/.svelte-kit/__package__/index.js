@@ -11,6 +11,10 @@ export { default as RailColumn } from './components/RailColumn.svelte';
 export { default as PaneBase } from './components/PaneBase.svelte';
 export { default as PanelHeaderSkeleton } from './components/PanelHeaderSkeleton.svelte';
 export { default as ChordPaletteOverlay } from './components/ChordPaletteOverlay.svelte';
+export { default as WidthBadge } from './components/WidthBadge.svelte';
+// ── capture + close (R6, ADR-0066) ──
+export { default as CanvasCopyButton } from './components/CanvasCopyButton.svelte';
+export { default as PanelClose } from './components/PanelClose.svelte';
 export { resizeOne, scaleProportionally, isUniformRow, movePanelWithin } from './layout/floor-math';
 export { slotAfter, insertAtAnchor, focusedSlot } from './layout/placement';
 // ── interaction (W5, D5) ──

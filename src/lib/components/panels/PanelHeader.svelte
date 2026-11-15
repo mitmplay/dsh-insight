@@ -26,10 +26,9 @@
 	 * Default false: a floor mount renders exactly as before.
 	 */
 	import { Check, ChevronLeft, ChevronRight, Copy } from '@lucide/svelte';
-	import PanelClose from './PanelClose.svelte';
 	import { movePanelFromRegistry } from '$lib/services/panels/panel-registry';
 	import { copyWithFeedback } from '$lib/utils/clipboard';
-	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	import { CanvasCopyButton, PanelClose } from '@deepseek-insight/container-base';
 	// W4 (ADR-0062 D8): the strip GEOMETRY lives in the package skeleton.
 	import { PanelHeaderSkeleton } from '@deepseek-insight/container-base';
 	
@@ -157,7 +156,7 @@
 			/>
 		{/if}
 		{#if onremove || lens}
-			<PanelClose {sessionId} {lens} {onremove} />
+			<PanelClose {sessionId} {lens} {onremove} closeLabel={t(() => m.closePanelNamed({ id: sessionId }))} closeHint={t(m.closePanelHint)} />
 		{/if}
 	{/snippet}
 

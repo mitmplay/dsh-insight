@@ -33,6 +33,7 @@ describe('theme tokens inventory (W5 5.2-T, D7)', () => {
 	it('components carry no raw color literals outside var() fallbacks (D7)', () => {
 		const offenders: string[] = [];
 		for (const f of walk(join(SRC, 'components'))) {
+			if (f.endsWith('.test.ts')) continue;
 			const text = readFileSync(f, 'utf8');
 			// strip var(..., fallback) fallback hexes (graceful degradation is
 			// allowed) and the selection-ring mask FILL (the xor-mask trick is
@@ -58,7 +59,9 @@ describe('theme tokens inventory (W5 5.2-T, D7)', () => {
 			'--color-text-secondary',
 			'--color-accent-blue',
 			'--color-accent-purple',
-			'--color-accent-rose'
+			'--color-accent-rose',
+			'--color-status-pass',
+			'--color-status-fail'
 		]) {
 			expect(tokens).toContain(v);
 		}

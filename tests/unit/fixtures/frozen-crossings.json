@@ -4,194 +4,188 @@
     {
       "from": "components/common/layout/AppSidebar.svelte",
       "fromDomain": "common",
-      "toDomain": "panels",
-      "to": "components/panels/control-bar/ControlBar.svelte"
+      "to": "components/panels/control-bar/ControlBar.svelte",
+      "toDomain": "panels"
     },
     {
       "from": "components/common/layout/AppSidebar.svelte",
       "fromDomain": "common",
-      "toDomain": "sessions",
-      "to": "components/sessions/SidebarSessions.svelte"
+      "to": "components/sessions/SidebarSessions.svelte",
+      "toDomain": "sessions"
     },
     {
       "from": "components/composer/Composer.svelte",
       "fromDomain": "composer",
-      "toDomain": "card",
-      "to": "components/card/CommandHelpCard.svelte"
+      "to": "components/card/CommandHelpCard.svelte",
+      "toDomain": "card"
     },
     {
       "from": "components/composer/Composer.svelte",
       "fromDomain": "composer",
-      "toDomain": "prompt-manager",
-      "to": "components/prompt-manager/PromptsManagerDialog.svelte"
+      "to": "components/prompt-manager/PromptsManagerDialog.svelte",
+      "toDomain": "prompt-manager"
     },
     {
       "from": "components/conversation/header/DisplayWorkspace.svelte",
       "fromDomain": "conversation",
-      "toDomain": "common",
-      "to": "components/common/WorkspaceChip.svelte"
+      "to": "components/common/WorkspaceChip.svelte",
+      "toDomain": "common"
     },
     {
       "from": "components/panels/InjectedDocPanel.svelte",
       "fromDomain": "panels",
-      "toDomain": "common",
-      "to": "components/common/settings-monaco.ts"
-    },
-    {
-      "from": "components/panels/PanelColumn.svelte",
-      "fromDomain": "panels",
-      "toDomain": "common",
-      "to": "components/common/WidthBadge.svelte"
+      "to": "components/common/settings-monaco.ts",
+      "toDomain": "common"
     },
     {
       "from": "components/panels/SettingsEditorPanel.svelte",
       "fromDomain": "panels",
-      "toDomain": "common",
-      "to": "components/common/settings-monaco.ts"
+      "to": "components/common/settings-monaco.ts",
+      "toDomain": "common"
     },
     {
       "from": "components/panels/SettingsHomeFile.svelte",
       "fromDomain": "panels",
-      "toDomain": "common",
-      "to": "components/common/settings-monaco.ts"
+      "to": "components/common/settings-monaco.ts",
+      "toDomain": "common"
     },
     {
       "from": "components/sessions/SessionFilterMeta.svelte",
       "fromDomain": "sessions",
-      "toDomain": "common",
-      "to": "components/common/layout/AddWorkspaceButton.svelte"
+      "to": "components/common/layout/AddWorkspaceButton.svelte",
+      "toDomain": "common"
     },
     {
       "from": "components/sessions/SessionsList.svelte",
       "fromDomain": "sessions",
-      "toDomain": "sidebar",
-      "to": "components/sidebar/session-filter/SidebarSessionFilter.svelte"
+      "to": "components/sidebar/session-filter/SidebarSessionFilter.svelte",
+      "toDomain": "sidebar"
     },
     {
       "from": "components/sessions/SessionsList.svelte",
       "fromDomain": "sessions",
-      "toDomain": "sidebar",
-      "to": "components/sidebar/session-open/SidebarSessionOpen.svelte"
+      "to": "components/sidebar/session-open/SidebarSessionOpen.svelte",
+      "toDomain": "sidebar"
     },
     {
       "from": "components/sessions/SessionsList.svelte",
       "fromDomain": "sessions",
-      "toDomain": "sidebar",
-      "to": "components/sidebar/session-scheduler/SidebarSessionScheduler.svelte"
+      "to": "components/sidebar/session-scheduler/SidebarSessionScheduler.svelte",
+      "toDomain": "sidebar"
     },
     {
       "from": "components/sessions/SidebarSessionContainer.svelte",
       "fromDomain": "sessions",
-      "toDomain": "sidebar",
-      "to": "components/sidebar/session-list/SidebarSessionList.svelte"
+      "to": "components/sidebar/session-list/SidebarSessionList.svelte",
+      "toDomain": "sidebar"
     },
     {
       "from": "components/sessions/WorkspaceRowItem.svelte",
       "fromDomain": "sessions",
-      "toDomain": "common",
-      "to": "components/common/WorkspaceChip.svelte"
+      "to": "components/common/WorkspaceChip.svelte",
+      "toDomain": "common"
     },
     {
       "from": "components/sidebar/session-filter/SidebarSessionFilter.svelte",
       "fromDomain": "sidebar",
-      "toDomain": "common",
-      "to": "components/common/layout/Agents.svelte"
+      "to": "components/common/layout/Agents.svelte",
+      "toDomain": "common"
     },
     {
       "from": "components/sidebar/session-filter/SidebarSessionFilter.svelte",
       "fromDomain": "sidebar",
-      "toDomain": "common",
-      "to": "components/common/layout/Workspaces.svelte"
+      "to": "components/common/layout/Workspaces.svelte",
+      "toDomain": "common"
     },
     {
       "from": "components/sidebar/session-filter/SidebarSessionFilterHeader.svelte",
       "fromDomain": "sidebar",
-      "toDomain": "common",
-      "to": "components/common/buttons/AgentChip.svelte"
+      "to": "components/common/buttons/AgentChip.svelte",
+      "toDomain": "common"
     },
     {
       "from": "components/sidebar/session-filter/SidebarSessionFilterHeader.svelte",
       "fromDomain": "sidebar",
-      "toDomain": "common",
-      "to": "components/common/WorkspaceChip.svelte"
+      "to": "components/common/WorkspaceChip.svelte",
+      "toDomain": "common"
     },
     {
       "from": "components/sidebar/session-filter/SidebarSessionFilterHeader.svelte",
       "fromDomain": "sidebar",
-      "toDomain": "sessions",
-      "to": "components/sessions/SessionFilterMeta.svelte"
+      "to": "components/sessions/SessionFilterMeta.svelte",
+      "toDomain": "sessions"
     },
     {
       "from": "components/sidebar/session-filter/SidebarSessionFilterHeader.svelte",
       "fromDomain": "sidebar",
-      "toDomain": "sessions",
-      "to": "components/sessions/WorkspaceActionsMenu.svelte"
+      "to": "components/sessions/WorkspaceActionsMenu.svelte",
+      "toDomain": "sessions"
     },
     {
       "from": "components/sidebar/session-list/RowSessionItem.svelte",
       "fromDomain": "sidebar",
-      "toDomain": "sessions",
-      "to": "components/sessions/WorkspaceRowItem.svelte"
+      "to": "components/sessions/WorkspaceRowItem.svelte",
+      "toDomain": "sessions"
     },
     {
       "from": "components/sidebar/session-open/SidebarOpenPanelRows.svelte",
       "fromDomain": "sidebar",
-      "toDomain": "sessions",
-      "to": "components/sessions/WorkspaceRowItem.svelte"
+      "to": "components/sessions/WorkspaceRowItem.svelte",
+      "toDomain": "sessions"
     },
     {
       "from": "components/sidebar/session-open/SidebarSessionOpenHeader.svelte",
       "fromDomain": "sidebar",
-      "toDomain": "sessions",
-      "to": "components/sessions/SidebarOpenPanelHeader.svelte"
+      "to": "components/sessions/SidebarOpenPanelHeader.svelte",
+      "toDomain": "sessions"
     },
     {
       "from": "components/sidebar/session-open/SidebarSessionOpenHeader.svelte",
       "fromDomain": "sidebar",
-      "toDomain": "sessions",
-      "to": "components/sessions/SidebarOpenPanelTree.svelte"
+      "to": "components/sessions/SidebarOpenPanelTree.svelte",
+      "toDomain": "sessions"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
       "fromDomain": "workspace-explorer",
-      "toDomain": "panels",
-      "to": "components/panels/ResizeGutter.svelte"
+      "to": "components/panels/ResizeGutter.svelte",
+      "toDomain": "panels"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
       "fromDomain": "workspace-explorer",
-      "toDomain": "panels",
-      "to": "components/panels/SettingsHomeFile.svelte"
+      "to": "components/panels/SettingsHomeFile.svelte",
+      "toDomain": "panels"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
       "fromDomain": "workspace-explorer",
-      "toDomain": "workspace-file",
-      "to": "components/workspace-file/filetab/WorkspaceFileTabs.svelte"
+      "to": "components/workspace-file/filetab/WorkspaceFileTabs.svelte",
+      "toDomain": "workspace-file"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerPanel.svelte",
       "fromDomain": "workspace-explorer",
-      "toDomain": "workspace-file",
-      "to": "components/workspace-file/WorkspaceFilePanel.svelte"
+      "to": "components/workspace-file/WorkspaceFilePanel.svelte",
+      "toDomain": "workspace-file"
     },
     {
       "from": "components/workspace-explorer/WorkspaceExplorerTree.svelte",
       "fromDomain": "workspace-explorer",
-      "toDomain": "common",
-      "to": "components/common/file-icons/FileTypeIcon.svelte"
+      "to": "components/common/file-icons/FileTypeIcon.svelte",
+      "toDomain": "common"
     },
     {
       "from": "components/workspace-file/WorkspaceFile.svelte",
       "fromDomain": "workspace-file",
-      "toDomain": "panels",
-      "to": "components/panels/MarkdownPanel.svelte"
+      "to": "components/panels/MarkdownPanel.svelte",
+      "toDomain": "panels"
     },
     {
       "from": "components/workspace-file/WorkspaceFilePanel.svelte",
       "fromDomain": "workspace-file",
-      "toDomain": "common",
-      "to": "components/common/settings-monaco.ts"
+      "to": "components/common/settings-monaco.ts",
+      "toDomain": "common"
     }
   ]
 }

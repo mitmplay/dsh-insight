@@ -13,7 +13,7 @@
 	 * flags, emits the save intent, and binds the tab choice back up
 	 * ($bindable — the panel's render ladder reads it).
 	 */
-	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	import { CanvasCopyButton } from '@deepseek-insight/container-base';
 	import ReloadButton from '$lib/components/common/buttons/ReloadButton.svelte';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';

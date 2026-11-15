@@ -11,7 +11,7 @@
 	 */
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
-	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	import { CanvasCopyButton } from '@deepseek-insight/container-base';
 	
 	// The canvas-copy capture target: the owning PanelColumn — the same
 	// ancestor-walk grammar as WorkspaceFileToolbar (no new prop threading

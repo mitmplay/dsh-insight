@@ -119,9 +119,21 @@ importers:
       '@sveltejs/package':
         specifier: ^3.0.2
         version: 3.0.2(svelte@5.56.10)(typescript@6.0.3)
+      html-to-image:
+        specifier: ^1.11.13
+        version: 1.11.13
       publint:
         specifier: ^0.3.25
         version: 0.3.25
+
+  packages/container-base/playground:
+    dependencies:
+      '@deepseek-insight/container-base':
+        specifier: workspace:*
+        version: link:..
+      html-to-image:
+        specifier: ^1.11.13
+        version: 1.11.13
 
 packages:
 

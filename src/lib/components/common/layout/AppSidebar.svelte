@@ -29,7 +29,7 @@
 	import AppSidebarHeader from './AppSidebarHeader.svelte';
 	import { PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_ZOOM } from '$lib/utils/panel-prefs';
 	import ControlBar from '../../panels/control-bar/ControlBar.svelte';
-	import WidthBadge from '../WidthBadge.svelte';
+	import { WidthBadge } from '@deepseek-insight/container-base';
 	import { pagePrefs } from '$lib/services/workspace/page-prefs.svelte';
 	import { SidebarContainer } from '@deepseek-insight/container-base';
 

@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { t } from '$lib/services/locale/locale-state.svelte';
-	import * as m from '$lib/paraglide/messages';
 	/**
 	 * WidthBadge — the resize chip (Movable Rail ADR, amendment 2026-10-30
 	 * D1): one home for the live px readout that used to live inline in
@@ -48,10 +46,10 @@
 		z-index: 5;
 		pointer-events: none;
 		padding: 0.125rem 0.375rem;
-		border: 1px solid color-mix(in srgb, var(--color-accent-blue, #3b82f6) 50%, var(--color-navy-focus));
+		border: 1px solid color-mix(in srgb, var(--color-accent-blue) 50%, var(--color-navy-focus));
 		border-radius: 0.375rem;
-		background: color-mix(in srgb, var(--color-accent-blue, #3b82f6) 10%, var(--color-surface-elevated));
-		color: color-mix(in srgb, var(--color-accent-blue, #3b82f6) 30%, var(--color-navy-focus));
+		background: color-mix(in srgb, var(--color-accent-blue) 10%, var(--color-surface-elevated));
+		color: color-mix(in srgb, var(--color-accent-blue) 30%, var(--color-navy-focus));
 		font-size: 0.6875rem;
 		line-height: 1.25;
 		font-variant-numeric: tabular-nums;

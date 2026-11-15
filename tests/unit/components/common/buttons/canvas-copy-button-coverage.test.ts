@@ -9,7 +9,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+import { CanvasCopyButton } from '@deepseek-insight/container-base';
 
 const toBlobMock = vi.fn();
 const toCanvasMock = vi.fn();

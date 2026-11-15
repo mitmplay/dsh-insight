@@ -23,7 +23,7 @@
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import CopyButton from '$lib/components/common/buttons/CopyButton.svelte';
-	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	import { CanvasCopyButton } from '@deepseek-insight/container-base';
 	import SavePromptButton from '$lib/components/common/buttons/SavePromptButton.svelte';
 	import ForkHereButton from '$lib/components/common/buttons/ForkHereButton.svelte';
 	import RawPreviewToggle from '$lib/components/common/viewers/RawPreviewToggle.svelte';

@@ -32,7 +32,7 @@
 	import { mount, unmount } from 'svelte';
 	import { renderMarkdown, renderPreviewMarkdown } from '$lib/utils/markdown';
 	import { isFileLinkHref, normalizeFileLinkPath, parseFileLinkHref } from '$lib/utils/file-link';
-	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	import { CanvasCopyButton } from '@deepseek-insight/container-base';
 	import CopyButton from '$lib/components/common/buttons/CopyButton.svelte';
 	import FileTypeIcon from '$lib/components/common/file-icons/FileTypeIcon.svelte';
 	import RawPreviewToggle from './RawPreviewToggle.svelte';

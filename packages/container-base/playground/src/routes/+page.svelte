@@ -13,6 +13,10 @@
 		PanelsZoom,
 		PaneBase,
 		ResizeGutter,
+		WidthBadge,
+		PanelHeaderSkeleton,
+		PanelClose,
+		CanvasCopyButton,
 		resizeOne,
 		createGutterResize,
 		definePanelKind,
@@ -22,6 +26,7 @@
 	} from '@deepseek-insight/container-base';
 	import type { ThemeChoice } from '@deepseek-insight/container-base';
 	import MonitorIcon from '../lib/MonitorIcon.svelte';
+import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhaseMap } from '../lib/badge-phases';
 	import LanguagesIcon from '../lib/LanguagesIcon.svelte';
 	import SunIcon from '../lib/SunIcon.svelte';
 	import MoonIcon from '../lib/MoonIcon.svelte';
@@ -52,6 +57,12 @@
 	// PaneBase sized by the Width slider; zoom scales the whole row.
 	// (Declared ABOVE the stores: the store defaults/revive closures read it.)
 	type DemoPane = { id: string; title: string; body: string };
+	// D6 (ADR-0066): closed panes + capture targets ride the demo state —
+	// the header hosts the title; PanelClose + CanvasCopyButton are its actions.
+	const closed = $state<Record<string, boolean>>({});
+	// REACTIVE: the header actions snippet captures container at render —
+	// a plain object would freeze it as undefined before bind:this lands.
+	const paneBodies = $state<Record<string, HTMLElement | null>>({});
 	const demoPanes: DemoPane[] = [
 		{ id: 'notes', title: 'Notes', body: 'A demo pane riding the base floor.' },
 		{ id: 'scheduler', title: 'Scheduler', body: 'Three panes prove the zoom frame.' },
@@ -170,6 +181,11 @@
 	let dragSnapshot: number[] = [];
 	let dragStartX = 0;
 	let dragIndex = -1;
+	// The resize chip's phase map (page-owned; the chip renders it, the drag
+	// machine writes it — same split DSI's floor-reads runs). fading entries
+	// persist through BADGE_AFTERGLOW_MS then drop.
+	let badgePhases = $state<BadgePhaseMap>({});
+	const badgeTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 	function onGutterDown(e: MouseEvent, index: number): void {
 		dragSnapshot = paneWidths.map((p) => p.width);
 		dragStartX = e.clientX;
@@ -182,10 +198,23 @@
 		paneWidths = resizeOne(paneWidths, dragSnapshot, dragIndex, delta, (w) =>
 			clampKindWidth(w, demoKind)
 		);
+		// badge phases: live for every pane whose width differs from the
+		// snapshot (floor-reads badgeByPanelId semantics, mirrored)
+		badgePhases = liveBadgePhases(demoPanes.map((p) => p.id), paneWidths.map((p) => p.width), dragSnapshot);
 	}
 	function onWindowMouseUp(): void {
 		if (dragIndex < 0) return;
 		dragIndex = -1;
+		// afterglow: every live pane goes fading for the chip's 10s window,
+		// then drops (the fade itself is the chip's own CSS transition)
+		for (const id of settleBadgePhases(badgePhases)) {
+			badgePhases[id] = 'fading';
+			clearTimeout(badgeTimers[id]);
+			badgeTimers[id] = setTimeout(() => {
+				delete badgePhases[id];
+				delete badgeTimers[id];
+			}, BADGE_AFTERGLOW_MS);
+		}
 		// real id + kind on every entry (design §2); zoom commits widths untouched
 		sliderPrefs.save({
 			zoom,
@@ -222,11 +251,34 @@
 	// The sidebar drag runs the BASE machine (createGutterResize) — the
 	// same skeleton DSI's sidebar runs. Snapshot/delta/clamp/listener
 	// lifecycle live in the base; the page only applies + persists.
+	// Sidebar badge phase (task 2.3, ADR-0062 D10): one key, own snapshot —
+	// the pane badgePhases map keys pane ids, never mixed with this.
+	// Same grammar as the pane map / floor-reads badgeByPanelId: live on
+	// snapshot delta, fading through BADGE_AFTERGLOW_MS (the chip's own
+	// CSS transition does the fade), then drop.
+	let sidebarDragSnapshot = 0;
+	let sidebarBadgePhase = $state<'live' | 'fading' | null>(null);
+	let sidebarBadgeTimer: ReturnType<typeof setTimeout> | undefined;
 	const sidebarResize = createGutterResize({
-		onStart: () => sidebarWidth,
+		onStart: () => {
+			sidebarDragSnapshot = sidebarWidth;
+			return sidebarWidth;
+		},
 		clamp: (w) => Math.min(600, Math.max(200, w)),
-		onResize: (w) => (sidebarWidth = w),
-		onSettle: () => saveSidebar()
+		onResize: (w) => {
+			sidebarWidth = w;
+			if (sidebarWidth !== sidebarDragSnapshot) sidebarBadgePhase = 'live';
+		},
+		onSettle: () => {
+			if (sidebarBadgePhase === 'live') {
+				sidebarBadgePhase = 'fading';
+				clearTimeout(sidebarBadgeTimer);
+				sidebarBadgeTimer = setTimeout(() => {
+					sidebarBadgePhase = null;
+				}, BADGE_AFTERGLOW_MS);
+			}
+			saveSidebar();
+		}
 	});
 	function saveSidebar(): void {
 		sidebarPrefs.save({ width: sidebarWidth, collapsed: sidebarCollapsed });
@@ -254,6 +306,11 @@
 			gutterLabel="Resize sidebar"
 			onResizeStart={(e) => sidebarResize.start(e)}
 		>
+			{#snippet badge()}
+				{#if sidebarBadgePhase}
+					<WidthBadge phase={sidebarBadgePhase} width={sidebarWidth} testid="pg-sidebar-width-badge" />
+				{/if}
+			{/snippet}
 			{#snippet header()}
 				<div class="demo-header">
 					<span>Demo</span>
@@ -330,9 +387,20 @@
 					onactivate={() => (selectedPanelId = pane.id)}
 				>
 					{#snippet header()}
-						<div class="pane-header">{pane.title}</div>
+						<PanelHeaderSkeleton title={pane.title}>
+							{#snippet leading()}
+								<span class="pane-title">{pane.title}</span>
+							{/snippet}
+							{#snippet actions()}
+								<CanvasCopyButton container={paneBodies[pane.id]} mode="visible" size={12} />
+								<PanelClose sessionId={pane.id} onremove={() => (closed[pane.id] = true)} />
+							{/snippet}
+						</PanelHeaderSkeleton>
+						{#if badgePhases[pane.id]}
+							<WidthBadge phase={badgePhases[pane.id]} width={paneWidths[i]?.width ?? width} testid="pg-width-badge-{pane.id}" />
+						{/if}
 					{/snippet}
-					<div class="pane-body">{pane.body}</div>
+					<div class="pane-body" bind:this={paneBodies[pane.id]}>{pane.body}</div>
 				</PaneBase>
 				<!-- G6 (SSC#2): the drag seam AFTER each column, the DSI
 				     PanelColumn composition — the demo page owns the drag:
@@ -442,7 +510,7 @@
 		min-height: 0;
 		flex-direction: column;
 	}
-	.pane-header {
+	.pane-title {
 		font-weight: 600;
 		font-size: 0.85rem;
 	}

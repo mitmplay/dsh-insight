@@ -11,7 +11,7 @@
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import { PanelLeftClose } from '@lucide/svelte';
-	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	import { CanvasCopyButton } from '@deepseek-insight/container-base';
 	import { PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_ZOOM } from '$lib/utils/panel-prefs';
 	import ControlBar from '$lib/components/panels/control-bar/ControlBar.svelte';
 

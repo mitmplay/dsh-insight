@@ -2,7 +2,7 @@
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
 	import { MANAGER_ROW_TITLE } from '$lib/services/panels/panel-rows';
-	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	import { CanvasCopyButton } from '@deepseek-insight/container-base';
 
 	// The canvas-copy capture target: the header's PARENT — the .mgr-modal
 	// frame (this header mounts inside the portaled PromptsManagerDialog,

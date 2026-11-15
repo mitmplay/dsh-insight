@@ -21,7 +21,7 @@
 	import { PaneBase } from '@deepseek-insight/container-base';
 	import PanelHeader from './PanelHeader.svelte';
 	import ResizeGutter from './ResizeGutter.svelte';
-	import WidthBadge from '../common/WidthBadge.svelte';
+	import { WidthBadge } from '@deepseek-insight/container-base';
 
 	let {
 		panel,

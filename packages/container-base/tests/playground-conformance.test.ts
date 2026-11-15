@@ -28,4 +28,21 @@ describe('playground conformance (4.1-T, ADR-0065 W4)', () => {
 		// the band is LAZY (D5): a resolver, not eager numbers
 		expect(pageSrc).toMatch(/band: \(\) => \(\{ min: 280, max: 1400 \}\)/);
 	});
+
+	// 4.1-T (ADR-0066 D6): the header hosts the TITLE TEXT, and the two
+	// promoted organs ride as its ACTIONS — the demo consumes the header
+	// pattern like a real floor, not floating buttons on the body.
+	it('hosts panel title text in a PanelHeaderSkeleton header (D6)', () => {
+		expect(pageSrc).toMatch(/<PanelHeaderSkeleton title=\{pane\.title\}>/);
+		expect(pageSrc).toMatch(/<span class="pane-title">\{pane\.title\}<\/span>/);
+	});
+
+	it('renders PanelClose + CanvasCopyButton inside the header actions (D6)', () => {
+		const from = pageSrc.indexOf('{#snippet actions()}');
+		const actions = pageSrc.slice(from, pageSrc.indexOf('{/snippet}', from));
+		expect(actions).toContain('<CanvasCopyButton');
+		expect(actions).toContain('<PanelClose');
+		// capture aims at the pane body element, bound per pane id
+		expect(pageSrc).toMatch(/bind:this=\{paneBodies\[pane\.id\]\}/);
+	});
 });

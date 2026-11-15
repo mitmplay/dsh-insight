@@ -11,7 +11,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it } from 'vitest';
-import WidthBadge from '$lib/components/common/WidthBadge.svelte';
+import { WidthBadge } from '@deepseek-insight/container-base';
 
 function mountBadge(props: { phase: 'live' | 'fading'; width: number; testid?: string }) {
 	const target = document.createElement('div');

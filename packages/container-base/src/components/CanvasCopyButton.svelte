@@ -1,6 +1,9 @@
 <!--
 	CanvasCopyButton — capture a DOM element as PNG: click copies to clipboard,
-	Shift+Click saves as file (OCI port, 2026-08-22).
+	Shift+Click saves as file (OCI port, 2026-08-22). Promoted into
+	container-base (ADR-0066, R6): html-to-image is an OPTIONAL PEER,
+	resolved lazily — when the peer is absent the button degrades to a
+	no-op with a one-time console warn (no crash, no broken PNG).
 
 	OCI's tiling logic verbatim: tall elements render in vertical tiles at
 	full 2× (staying under html-to-image's 16,384 clamp) then composite onto
@@ -14,8 +17,53 @@
 	(computed oklab tints) stays in the SVG overlay.
 -->
 <script lang="ts">
-	import { CameraIcon as CaptureIcon, Check, Loader2 } from '@lucide/svelte';
-	import { toBlob, toCanvas } from 'html-to-image';
+	import { CAPTURE_BACKING, CAPTURE_THUMB_FALLBACK, CAPTURE_TRACK_FALLBACK } from '../theme/capture-colors';
+
+	/**
+	 * html-to-image — OPTIONAL peer (ADR-0066 D2). Resolved lazily on
+	 * first capture attempt; a rejected resolution latches `degraded`
+	 * and every later click no-ops with a single console warn.
+	 */
+	/** Engine shape — inline types (a top-level type alias in a svelte
+	 *  script trips svelte2tsx rune injection under the package tsconfig). */
+	let state = $state<'idle' | 'busy' | 'done'>('idle');
+
+	let engine: {
+		toBlob: (el: HTMLElement, options?: Record<string, unknown>) => Promise<Blob | null>;
+		toCanvas: (el: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement>;
+	} | null = null;
+	let engineFailed = false;
+	/** Plain flag — degraded only GATES clicks, it renders nothing reactive. */
+	let degraded = false;
+
+	/**
+	 * The peer specifier is carried in a VARIABLE so no bundler can
+	 * statically resolve it — a cold room without the optional peer must
+	 * still BUILD; absence degrades at runtime (D2), never at build time.
+	 */
+	const PEER_SPEC: string = 'html-to-image';
+
+	async function loadEngine(): Promise<{
+		toBlob: (el: HTMLElement, options?: Record<string, unknown>) => Promise<Blob | null>;
+		toCanvas: (el: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement>;
+	}> {
+		if (engine) return engine;
+		if (engineFailed) throw new Error('html-to-image peer unavailable');
+		try {
+			engine = (await import(/* @vite-ignore */ PEER_SPEC)) as {
+				toBlob: (el: HTMLElement, options?: Record<string, unknown>) => Promise<Blob | null>;
+				toCanvas: (el: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement>;
+			};
+			return engine;
+		} catch {
+			engineFailed = true;
+			degraded = true;
+			console.warn(
+				'[container-base] html-to-image peer is not installed — CanvasCopyButton is a no-op. Install it to enable capture.'
+			);
+			throw new Error('html-to-image peer unavailable');
+		}
+	}
 
 	let {
 		container,
@@ -36,8 +84,6 @@
 		mode?: 'full' | 'visible';
 	} = $props();
 
-	let state = $state<'idle' | 'busy' | 'done'>('idle');
-
 	const DESIRED_RATIO = 2;
 	// Each vertical tile covers this many element-px.
 	// At DESIRED_RATIO = 2 → 16,000 canvas px per tile, staying under
@@ -51,7 +97,6 @@
 	 * background here shipped a mostly-transparent PNG whose colors were
 	 * decided by the paste target (The Opaque Backing ADR, 2026-09-07).
 	 */
-	const CAPTURE_BACKING = '#f8f9fa';
 
 	let _maxCanvasSide: number | null = null;
 
@@ -193,6 +238,7 @@
 		// border box shrank to 80% of the artifact (The Opaque Backing ADR
 		// addendum, 2026-09-08).
 		if (tileCount <= 1) {
+			const { toBlob } = await loadEngine();
 			const blob = await toBlob(el, {
 				pixelRatio: ratio,
 				backgroundColor: CAPTURE_BACKING,
@@ -222,6 +268,7 @@
 
 			// Render this slice at full 2× — SVG stays small, quality stays high
 			// skipAutoScale prevents library's 16384 clamp on the tile canvas
+			const { toCanvas } = await loadEngine();
 			const tile = await toCanvas(el, {
 				pixelRatio: DESIRED_RATIO,
 				width: w,
@@ -288,8 +335,9 @@
 		 *  track+thumb below); removed in finally. */
 		const overlays: HTMLElement[] = [];
 		const rootCS = getComputedStyle(document.documentElement);
-		const TRACK_BG = rootCS.getPropertyValue('--color-surface').trim() || '#f8f9fa';
-		const THUMB_BG = rootCS.getPropertyValue('--color-surface-border').trim() || 'rgba(0,0,0,0.25)';
+		const TRACK_BG = rootCS.getPropertyValue('--color-surface').trim() || CAPTURE_TRACK_FALLBACK;
+		const THUMB_BG =
+			rootCS.getPropertyValue('--color-surface-border').trim() || CAPTURE_THUMB_FALLBACK;
 		for (const el of scrollers) {
 			if (el.scrollTop === 0) continue;
 			// ALL element children shift, not just the first: scrollers like
@@ -341,6 +389,7 @@
 			// unscaled — 2026-10-07 Plugin Rack capture bug).
 			const w = container.offsetWidth;
 			const h = container.offsetHeight;
+			const { toBlob } = await loadEngine();
 			const blob = await toBlob(container, {
 				pixelRatio: DESIRED_RATIO,
 				backgroundColor: CAPTURE_BACKING,
@@ -376,7 +425,7 @@
 
 	async function handleAction(e: MouseEvent): Promise<void> {
 		e.stopPropagation();
-		if (!container) return;
+		if (!container || degraded) return;
 		state = 'busy';
 		try {
 			if (e.shiftKey) {
@@ -394,10 +443,23 @@
 
 <button type="button" class="{className}" {title} data-testid="canvas-copy-button" onclick={handleAction}>
 	{#if state === 'done'}
-		<Check {size} class="text-status-pass" />
+		<svg class="ccb-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--color-status-pass)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+			<path d="M20 6 9 17l-5-5" />
+		</svg>
+		<!-- idle camera keeps the historic red (text-status-fail, app.css) -->
 	{:else if state === 'busy'}
-		<Loader2 {size} class="animate-spin" />
+		<svg class="ccb-icon ccb-spin" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+			<path d="M21 12a9 9 0 1 1-6.219-8.56" />
+		</svg>
 	{:else}
-		<CaptureIcon {size} class="text-status-fail" />
+		<svg class="ccb-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--color-status-fail)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+			<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+			<circle cx="12" cy="13" r="3" />
+		</svg>
 	{/if}
 </button>
+
+<style>
+	.ccb-icon { display: block; }
+	.ccb-spin { animation: ccb-rotate 1s linear infinite; }
+</style>

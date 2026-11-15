@@ -17,7 +17,7 @@
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+import { CanvasCopyButton } from '@deepseek-insight/container-base';
 import { toBlob, toCanvas } from 'html-to-image';
 
 vi.mock('html-to-image', () => ({

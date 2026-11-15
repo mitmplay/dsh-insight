@@ -21,7 +21,7 @@
 	 */
 	import { Bot, Check, Copy } from '@lucide/svelte';
 	import AgentChip from '$lib/components/common/buttons/AgentChip.svelte';
-	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	import { CanvasCopyButton } from '@deepseek-insight/container-base';
 	import { copyWithFeedback } from '$lib/utils/clipboard';
 	import type { DsiPlanProjection } from '$lib/services/conversation/plan-projection';
 	import ForkButton from './ForkButton.svelte';

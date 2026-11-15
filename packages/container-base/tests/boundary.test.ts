@@ -97,6 +97,10 @@ describe('ground rule — the package ships no skin (W6)', () => {
 		const offenders: string[] = [];
 		for (const f of files) {
 			if (f.endsWith('tokens.css')) continue; // tokens.css IS the ground
+			// capture-colors.ts (ADR-0066, 2026-11-16) is the ground for the
+			// capture CANVAS fill — the exported PNG's opaque floor — not the
+			// package's skin; its hexes paint pixels, never UI chrome.
+			if (f.endsWith('capture-colors.ts')) continue;
 			for (const [i, line] of readFileSync(f, 'utf8').split('\n').entries()) {
 				if (/mask:\s|mask-image/.test(line)) continue; // alpha-mask geometry, color-irrelevant
 				const hits = line.match(new RegExp(rawColor, 'g'));

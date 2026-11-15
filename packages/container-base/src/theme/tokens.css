@@ -25,6 +25,9 @@
 
 	/* Accents (the selection ring gradient stops) */
 	--color-accent-blue: #3b82f6;
+	/* Focus navy (the resize chip deepener, 2026-11-15 Base Promotion:
+	 * the token lives on the ground, not in the component) */
+	--color-navy-focus: #1e3a8a;
 	--color-accent-purple: #a855f7;
 	--color-accent-rose: #f43f5e;
 
@@ -32,4 +35,17 @@
 	 * theming crosses only through tokens; the component ships no skin) */
 	--color-chord-armed: #86efac;
 	--color-chord-idle: #fef08a;
+
+	/* Capture feedback (ADR-0066 R6: the capture button's state colors —
+	 * feedback, not skin; mirrors DSI's status palette app.css:70-71) */
+	--color-status-pass: #10b981;
+	--color-status-fail: #ef4444;
+}
+
+/* Capture spinner (ADR-0066 R6): keyframes live on the ground so the
+ * component style sheet carries classes only. */
+@keyframes ccb-rotate {
+	to {
+		transform: rotate(360deg);
+	}
 }

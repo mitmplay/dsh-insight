@@ -14,7 +14,7 @@
 	 * before mount is the CanvasCopyButton null-container no-op — the
 	 * button renders regardless.
 	 */
-	import CanvasCopyButton from '$lib/components/common/buttons/CanvasCopyButton.svelte';
+	import { CanvasCopyButton } from '@deepseek-insight/container-base';
 
 	let {
 		captureContainer = null
