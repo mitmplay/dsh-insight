@@ -132,6 +132,19 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		}
 	)
 	;
+	// Pre-paint hand-off (ADR-0067 via the base's panelsBootScript): the
+	// generated inline block already read pg-panels[_profile] BEFORE paint
+	// and left the raw string in the __BOOT_PREFS register. Re-materialize
+	// it so the ONE load path below (the base store — still the only
+	// parser) restores the saved desk on the first client render.
+	if (typeof window !== 'undefined') {
+		const boot = (window as { __BOOT_PREFS?: Record<string, { raw?: unknown } | undefined> }).__BOOT_PREFS?.[
+			'pg-panels'
+		];
+		if (boot && typeof boot.raw === 'string' && boot.raw.length > 0 && localStorage.getItem('pg-panels') === null) {
+			localStorage.setItem('pg-panels', boot.raw);
+		}
+	}
 	const loaded = sliderPrefs.load();
 	let width = $state(loaded.panelWidth);
 	let zoom = $state(loaded.zoom);

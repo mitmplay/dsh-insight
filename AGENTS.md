@@ -34,7 +34,12 @@ or forget where it is:
   evidence". Auto-spawn it MECHANICALLY with `schedule_create` target
   `new_once` — a one-shot rule (`DTSTART` in the past,
   `RRULE:FREQ=DAILY;COUNT=1`) delivers the dispatch prompt to the new
-  session at creation. It MUST be a normal
+  session at creation. When the operator asks for near-immediate execution
+  (e.g. "schedule it 1 minute before exec"), COMPUTE the fire time from the
+  clock — `TZ=Asia/Singapore date '+%Y%m%dT%H%M%S'` plus 1 minute — and
+  never hand-pick a round clock time: hand-picked DTSTARTs waited 5½ and
+  then 21 minutes instead of the asked 1 (2026-11-16, twice in one
+  morning). It MUST be a normal
   top-level agent, never a `subagent`: dsi-task's own body (Step 3.10 Wave
   Executor + Step 4 Sub-Agent Safety) spawns and polls its own wave-children
   and holds the deviation-protocol and commit-authority roles — all of that
@@ -73,6 +78,29 @@ Never report "working" from claims or unit tests alone — verify on the
 surface the operator will touch before marking any step or the goal done
 (lesson 2026-10-11: three "PASS" rounds against the wrong target while the
 real click stayed broken until the operator tested it).
+
+## Live-Verify Gate (the No-FAFO rule, 2026-11-16)
+
+Before the FIRST browser/live-surface tool call of any verification, declare
+this pre-flight checklist in the chat — it has the same force as the HARD
+GATE, and the declared plan is the completion evidence:
+
+- **H1 hypothesis**: the ONE observable that proves the fix works (1 line).
+- **F1 fingerprint** (⛔ runs FIRST): does a PRE-EXISTING feature of the same
+  class work in this tab (theme applier → its top-level var; locale → its
+  cookie)? If the fingerprint is dead, the TAB is broken — stop, file it,
+  verify in a clean context instead. Never debug a feature on a dead tab.
+- **P1 probe plan**: the ≤5 calls that decide pass/fail, named in advance;
+  a probe outside the declared plan is a deviation the operator sees.
+- **S1 stop rule**: 2 consecutive probes with zero new information → STOP,
+  write the finding, return. Probe #3 requires the operator's words.
+- **R1 return**: verdict + verbatim evidence; no "huge find" framing of a
+  null result.
+
+Earned by the 2026-11-16 Panel Width Flash session: ~5–7M tok burned in
+~8 zero-information live probes whose answer (no inline script runs in that
+tab — even the theme applier) was one call away at probe 2. Full autopsy:
+`dev/token-spent/2026-11-16 - Token Spend Report — 13M tok …md`.
 
 ## File links in chat (workspace-root-relative)
 

@@ -142,6 +142,10 @@ function stubFetch(log: FetchLog[]): void {
 async function settle(rounds = 12): Promise<void> {
 	for (let i = 0; i < rounds; i++) {
 		flushSync();
+		// A macrotask per round: the packaged CanvasCopyButton resolves the
+		// html-to-image OPTIONAL PEER lazily (dynamic import) on first capture
+		// — a microtask-only settle never sees it resolve.
+		await new Promise((r) => setTimeout(r, 0));
 		await Promise.resolve();
 	}
 	flushSync();

@@ -44,9 +44,12 @@ async function settle(rounds = 15): Promise<void> {
 	flushSync();
 }
 
+/** The packaged CanvasCopyButton (ADR-0066) signals state through the
+ *  svg's stroke color var and the .ccb-spin spinner class — the old
+ *  .text-status-pass / .animate-spin classes no longer exist. */
 const stateIcon = (target: HTMLElement): string => {
-	if (target.querySelector('svg.text-status-pass')) return 'done';
-	if (target.querySelector('svg.animate-spin')) return 'busy';
+	if (target.querySelector('svg[stroke="var(--color-status-pass)"]')) return 'done';
+	if (target.querySelector('svg.ccb-spin')) return 'busy';
 	return 'idle';
 };
 

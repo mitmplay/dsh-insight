@@ -50,9 +50,11 @@ const fakeCtx = {
 /** The blob canvas.toBlob hands back (identifiable sentinel content). */
 let compositeBlob: Blob;
 
+// The promoted package component (ADR-0066) encodes state on the single
+// rendered svg.ccb-icon's stroke, not on text-status/animate-spin classes.
 const stateIcon = (target: HTMLElement): string => {
-	if (target.querySelector('svg.text-status-pass')) return 'done';
-	if (target.querySelector('svg.animate-spin')) return 'busy';
+	if (target.querySelector('svg.ccb-icon.ccb-spin')) return 'busy';
+	if (target.querySelector('svg.ccb-icon[stroke="var(--color-status-pass)"]')) return 'done';
 	return 'idle';
 };
 
@@ -228,8 +230,10 @@ describe('CanvasCopyButton — capture + copy/save payoffs', () => {
 			button.click();
 			for (let i = 0; i < 15; i++) {
 				flushSync();
+				await vi.advanceTimersByTimeAsync(0);
 				await Promise.resolve();
-			} // microtask-only settle (toBlob mock needs no timer here)
+			} // settle: the composite canvas.toBlob mock fires on a 0ms timer,
+			// so fake timers must be advanced, not just microtasks flushed
 			expect(stateIcon(target)).toBe('done');
 			await vi.advanceTimersByTimeAsync(2000);
 			flushSync();
@@ -369,6 +373,6 @@ describe('CanvasCopyButton — tall-element tiling (OCI port)', () => {
 		button.click();
 		await settle(30);
 		expect(clipboardWrites).toHaveLength(0);
-		expect(target.querySelector('svg.text-status-pass')).toBeNull();
+		expect(target.querySelector('svg.ccb-icon[stroke="var(--color-status-pass)"]')).toBeNull();
 	});
 });

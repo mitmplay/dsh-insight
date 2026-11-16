@@ -687,6 +687,36 @@ const prefsStore = createPrefsStore<PanelPrefs>({
  *          sanitizes to the first panel's id (null when no panels remain).
  */
 export function loadPanelPrefs(profile?: string | null): PanelPrefs {
+	// ADR-0067 D3 — boot-global first read: the GENERATED inline block in
+	// src/app.html publishes the raw blob string on window BEFORE first
+	// paint, so this read (pagePrefs.init, +page.svelte:108) revives the
+	// SAVED desk on the first render instead of defaults-then-jump. The
+	// raw string goes through the SAME revive path as a localStorage blob
+	// — this module stays the ONLY parser/sanitizer/clamp site (D3).
+	if (typeof window !== 'undefined') {
+		// The generated boot block (storage/boot-script.ts, emitted by
+		// scripts/sync-theme-applier.mjs) publishes window.__BOOT_PREFS — a
+		// keyed REGISTER (baseKey → { profile, raw }) so sibling pref keys
+		// can join without a new mechanism (ADR-0067 D4).
+		const boot = (window as { __BOOT_PREFS?: Record<string, { raw?: unknown } | undefined> }).__BOOT_PREFS?.[
+			PANEL_PREFS_KEY
+		];
+		if (boot && typeof boot.raw === 'string' && boot.raw.length > 0) {
+			// Consume-once (ADR-0067 §6): clear the entry after reading so a
+			// stale blob cannot leak across SPA navigations — pagePrefs.init
+			// re-seeds per mount and later loads read localStorage as today.
+			const reg = (window as { __BOOT_PREFS?: Record<string, unknown> }).__BOOT_PREFS;
+			if (reg) delete reg[PANEL_PREFS_KEY];
+			try {
+				const revived = revivePanelPrefs(JSON.parse(boot.raw) as unknown);
+				if (revived !== null) return revived;
+				// junk-shaped raw → fall through to the localStorage read
+				// (same junk defense as today, Tasks 1.2).
+			} catch {
+				// unparseable raw → fall through to the localStorage read.
+			}
+		}
+	}
 	return prefsStore.load(profile);
 }
 

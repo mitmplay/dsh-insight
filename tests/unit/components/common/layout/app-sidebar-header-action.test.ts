@@ -24,10 +24,14 @@ vi.mock('html-to-image', () => ({ toBlob: vi.fn(), toCanvas: vi.fn() }));
 
 const mockedToBlob = vi.mocked(toBlob);
 
-/** Multi-await settle for click → async copy chains. */
-async function settle(rounds = 8): Promise<void> {
+/** Multi-await settle for click → async copy chains. The packaged
+ *  CanvasCopyButton (ADR-0066) resolves html-to-image as an OPTIONAL PEER
+ *  via a lazy dynamic import on first capture — each round therefore also
+ *  yields a macrotask so the engine resolution actually lands. */
+async function settle(rounds = 12): Promise<void> {
 	for (let i = 0; i < rounds; i++) {
 		flushSync();
+		await new Promise((r) => setTimeout(r, 0));
 		await Promise.resolve();
 	}
 	flushSync();

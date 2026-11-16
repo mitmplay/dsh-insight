@@ -24,6 +24,19 @@
 			}
 		</script>
 		<!-- container-base:theme-applier END -->
+		<!-- container-base:panels-boot BEGIN (generated — do not edit by hand; scripts/sync-theme-applier.mjs) -->
+		<script>
+			try {
+				var m = location.search.match(/[?&]profile=([^&]*)/);
+				var prof = m ? m[1].replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) : '';
+				var k = 'dsi-panels' + (prof ? '_' + prof : '');
+				var raw = localStorage.getItem(k);
+				if (typeof raw === 'string' && raw.length > 0) {
+					(window.__BOOT_PREFS = window.__BOOT_PREFS || {})['dsi-panels'] = { profile: prof, raw: raw };
+				}
+			} catch (e) {}
+		</script>
+		<!-- container-base:panels-boot END -->
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="tap">

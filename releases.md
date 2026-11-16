@@ -1,3 +1,21 @@
+## 0.12.0
+
+Bumped from 0.11.10 — the capture buttons move into container-base (ADR-0066), and the desk remembers before paint: saved panel widths render on the FIRST post-reload frame, no default→saved flash (ADR-0067).
+
+### Features
+- **Panels boot restore (ADR-0067, KISS form)** — a generated inline boot block publishes the raw panel-prefs blob on `window.__BOOT_PREFS` before first paint; the app's prefs module stays the single parser and consumes it as its first read — reload shows the SAVED widths on the first frame, no loading gate. One source for every consumer: `panelsBootScript(baseKey)` in `packages/container-base/src/storage/boot-script.ts`; DSI's `scripts/sync-theme-applier.mjs` and the playground's `scripts/sync-boot-blocks.mjs` emit it (generated markers, byte-stable). Read path: `src/lib/utils/panel-prefs.ts` `loadPanelPrefs` (consume-once, junk/SSR falls back to localStorage unchanged). Proof: `tests/e2e/panels-boot-restore.spec.ts` (first post-reload frame = saved width, zero default-width frames; profile desk from the suffixed key), `tests/unit/panels-boot-emitter.test.ts` (idempotence, suffix key, no-parse-in-block), `tests/unit/panel-prefs-boot-global.test.ts` (read-order branches). Commit `a97833dd`.
+- **Capture Button promotion (ADR-0066)** — CanvasCopyButton + PanelClose promoted into `@deepseek-insight/container-base` and the playground demo floor re-homed onto the package components with a PanelHeaderSkeleton header (nine-site cutover); DSI consumes only the package entry. Commits `0b4018cf`…`2e6d8606`, spec `dev/specs/` R6 folder, ADR-0066.
+- **Playground panels + sidebar chrome** — WidthBadge rides the demo gutter drag, sidebar badge via SidebarContainer's badge snippet, reactive paneBodies + html-to-image dependency (ADR-0062 D10 / R6 W4). Commits `541fe914`, `c796f726`, `5e223e17`.
+- **Profile resolution in the base (ADR-0065 R4 amendment)** — an omitted profile auto-resolves from `?profile=` inside container-base; playground blobs are panel entries with suffixed keys initialized on mount. Commit `dc7855bb`.
+
+### Bug fixes
+- **Playground ignored the profile URL** — the suffix contract now holds in both apps (`pg-panels_wh` aligned); RCA recorded with the full failure chain. Commits `21057f14`…`3c67a51c`.
+- **Coverage gate back above 80%** — ~100 branch-arm tests across 9 under-threshold files (CanvasCopyButton, PanelClose, gutter-resize, panel-kinds, floor-math, panel-debug-global, …), 2 load flakes fixed. Commit `dddf74fc`.
+- **Src-level suites realigned to the package component** — selector/lazy-import/fake-timer hygiene after the R6 cutover. Commit `65844bdf`.
+
+### Docs & process
+- ADR-0066, ADR-0067, ADR-0062 D10 amendment, ADR-0064 D4 amendment, ADR-0065 amendment; companion RCA for the width flash; AGENTS.md gains the **Live-Verify Gate** (the No-FAFO rule) earned by the 13M token-spend autopsy (`dev/token-spent/`).
+
 ## 0.11.10
 
 Bumped from 0.11.9 — the workspace explorer keeps its rows under a refresh (the two-click tree is dead), and the Explorer Freshness and Image Links wave ships: a file pulse that keeps the tree fresh, and chat markdown that shows workspace images inline.

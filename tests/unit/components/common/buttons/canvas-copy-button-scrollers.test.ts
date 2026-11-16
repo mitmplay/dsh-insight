@@ -207,7 +207,7 @@ describe('CanvasCopyButton — max-canvas probe fallback', () => {
 		toBlobMock.mockResolvedValue(PNG());
 		click(target);
 		await vi.waitFor(() => {
-			expect(target.querySelector('.text-status-pass')).not.toBeNull();
+			expect(target.querySelector('svg.ccb-icon[stroke="var(--color-status-pass)"]')).not.toBeNull();
 		});
 		// the single-pass ratio fell back through the catch lane (16384 side
 		// of the min()) and the capture went out anyway
