@@ -1,5 +1,23 @@
 # RELEASE — @deepseek-insight/container-base
 
+## 0.1.1
+
+Bumped from 0.1.0 — the capture buttons move into the package and the desk remembers before paint.
+
+### Features
+- **Panels boot script** — `panelsBootScript(baseKey)` in `src/storage/boot-script.ts` generates the pre-paint prefs hand-off inline script (ADR-0067 D2/D3): profile-suffixed key derivation mirrors `namespace.ts`, publishes `window.__BOOT_PREFS[baseKey] = { profile, raw }` — raw string only, no parsing. Consumers (DSI, playground) emit it via their sync scripts. Commit `a97833dd`.
+- **Capture buttons promoted** — `CanvasCopyButton` + `PanelClose` join the package components (ADR-0066 D1–D3), consumed by DSI and the playground through the single entry. Commits `0b4018cf`…`2e6d8606`.
+- **WidthBadge promoted** — the width chip moves into the package (ADR-0062 D10), badge snippet on `SidebarContainer`. Commits `27bb6860`, `541fe914`, `c796f726`.
+- **Profile resolution in the base** (ADR-0065 R4 amendment) — an omitted profile auto-resolves from `?profile=` via the namespace resolver; consumer stores stay address-blind. Commit `dc7855bb`.
+- **Panel-kind registry** — `definePanelKind` / `revivePanels` / `clampKindWidth` (ADR-0065 W2) with the key-grammar naming law (W1). Commits `b622f6d7`, `398b0b14`.
+
+### Tests
+- Package-level suites carried their waves' pins; branch-arm coverage raised across promoted components (`dddf74fc`); emitter idempotence + read-order pins for the boot script in the DSI repo (`tests/unit/panels-boot-emitter.test.ts`, `tests/unit/panel-prefs-boot-global.test.ts`, `tests/e2e/panels-boot-restore.spec.ts`).
+
+---
+
+## Publish runbook (OPERATOR-gated publish; agent sessions stop at the boundary)
+
 Runbook for publishing a new version. **Steps marked OPERATOR are
 credential-gated (2FA / OTP) and are NEVER executed by an agent session** —
 the executor stops at the boundary and reports.

@@ -28,6 +28,7 @@ export { revivePanels, clampKindWidth, resizeAllByRegistry, definePanelKind } fr
 export { currentProfile, sanitizeWorkspaceProfile, storageKey } from './storage/namespace';
 export { declareRegistryPrefixes, isGrammarCompliant } from './storage/key-grammar';
 export { createPrefsStore } from './storage/create-prefs-store';
+export { panelsBootScript } from './storage/boot-script';
 // ── theming (R2 W2, ADR-0063 D2) ──
 export { createThemePrefs } from './theming/theme-prefs.svelte';
 export { themeApplierScript } from './theming/applier';

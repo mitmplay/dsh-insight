@@ -11,9 +11,9 @@ const PKG_DIR = join(import.meta.dirname, '../..');
 describe('publish manifest (W1 1.1-T)', () => {
 	const pkg = JSON.parse(readFileSync(join(PKG_DIR, 'package.json'), 'utf8'));
 
-	it('is public, versioned 0.1.0, zero runtime deps', () => {
+	it('is public, versioned 0.1.1, zero runtime deps', () => {
 		expect(pkg).not.toHaveProperty('private');
-		expect(pkg.version).toBe('0.1.0');
+		expect(pkg.version).toBe('0.1.1');
 		expect(pkg.dependencies).toBeUndefined();
 	});
 

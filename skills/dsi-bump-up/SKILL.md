@@ -52,6 +52,23 @@ Bumped from {prev-vrelease} — <one-line theme>.
   user-visible (the version bump is not a bullet).
 - Name regression tests added with the work; the tests are the proof.
 
+## 2.5 container-base sub-package bump (when the range touched packages/container-base)
+
+If the work range (step 0) contains commits under `packages/container-base/`:
+
+1. Bump `packages/container-base/package.json` `version` (pre-1.0 per
+   ADR-0064 D3: MINOR for features, PATCH for fixes — an explicit operator
+   target wins).
+2. Append the release to `packages/container-base/RELEASE.md` under a
+   `## <version>` Changelog heading (newest first, above the runbook's
+   older entries; keep the OPERATOR publish runbook intact below it).
+   Bullets trace to commits touching `packages/container-base/` only.
+3. Machine gates from the RELEASE.md runbook step 1 (package test +
+   build:package + lint:package at minimum) before committing.
+4. Tag the release commit: `git tag container-base-v<version>`.
+5. The npm publish itself stays OPERATOR-gated (2FA/OTP) — the executor
+   never runs `npm publish` (task 4.2 boundary).
+
 ## 3. Commit all & push
 
 ```bash

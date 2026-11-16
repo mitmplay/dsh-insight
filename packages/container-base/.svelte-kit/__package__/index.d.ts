@@ -28,6 +28,7 @@ export { currentProfile, sanitizeWorkspaceProfile, storageKey } from './storage/
 export { declareRegistryPrefixes, isGrammarCompliant } from './storage/key-grammar';
 export { createPrefsStore } from './storage/create-prefs-store';
 export type { PrefsStore, PrefsStoreOptions } from './storage/create-prefs-store';
+export { panelsBootScript } from './storage/boot-script';
 export { createThemePrefs } from './theming/theme-prefs.svelte';
 export type { ThemeChoice, ResolvedTheme, ThemePrefs, ThemePrefsOptions } from './theming/theme-prefs.svelte';
 export { themeApplierScript } from './theming/applier';
