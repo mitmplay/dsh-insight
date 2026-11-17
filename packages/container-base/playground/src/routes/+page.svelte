@@ -17,6 +17,7 @@
 		PanelHeaderSkeleton,
 		PanelClose,
 		CanvasCopyButton,
+		SidebarCollapseButton,
 		resizeOne,
 		createGutterResize,
 		definePanelKind,
@@ -327,20 +328,11 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 			{#snippet header()}
 				<div class="demo-header">
 					<span>Demo</span>
-					<button
-						type="button"
-						onclick={toggleSidebar}
-						aria-label="Collapse sidebar"
-						data-testid="pg-sidebar-toggle"
-					>
-						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6"/></svg>
-					</button>
+					<SidebarCollapseButton class="hdr-btn" testid="pg-sidebar-toggle" onToggle={toggleSidebar} />
 				</div>
 			{/snippet}
 			{#snippet collapsedContent()}
-				<button type="button" class="restore-btn" onclick={toggleSidebar} aria-label="Restore sidebar" data-testid="pg-sidebar-restore">
-					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 12H9"/><path d="M12 9l-3 3 3 3"/></svg>
-				</button>
+				<SidebarCollapseButton collapsed={true} class="restore-btn" testid="pg-sidebar-restore" onToggle={toggleSidebar} />
 			{/snippet}
 			<div class="demo-sections">
 				{#each demoSections as s (s)}

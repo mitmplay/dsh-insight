@@ -10,8 +10,7 @@
 	 */
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
-	import { PanelLeftClose } from '@lucide/svelte';
-	import { CanvasCopyButton } from '@deepseek-insight/container-base';
+	import { CanvasCopyButton, SidebarCollapseButton } from '@deepseek-insight/container-base';
 	import { PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_ZOOM } from '$lib/utils/panel-prefs';
 	import ControlBar from '$lib/components/panels/control-bar/ControlBar.svelte';
 
@@ -50,16 +49,7 @@
 		size={14}
 		class="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded transition-colors hover:bg-surface-hover"
 	/>
-	<button
-		type="button"
-		class="icon-btn"
-		onclick={() => onToggleCollapse?.()}
-		aria-expanded={true}
-		aria-label={t(m.collapseSidebar)}
-		title={t(m.collapseSidebar)}
-	>
-		<PanelLeftClose size={14} />
-	</button>
+	<SidebarCollapseButton class="icon-btn" label={t(m.collapseSidebar)} onToggle={() => onToggleCollapse?.()} />
 	<ControlBar bind:panelWidth bind:zoom onresizeall={onresizeall ?? (() => {})} captureContainer={trayContainer} />
 </div>
 
@@ -71,7 +61,9 @@
 		flex-shrink: 0;
 	}
 
-	.icon-btn {
+	/* :global — the button root belongs to the package organ now; scoped
+	   CSS cannot reach a child component's element (R6 lesson). */
+	:global(.icon-btn) {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -86,8 +78,8 @@
 			background-color 0.15s ease;
 	}
 
-	.icon-btn:hover,
-	.icon-btn:focus-visible {
+	:global(.icon-btn:hover),
+	:global(.icon-btn:focus-visible) {
 		color: var(--color-accent-purple, var(--color-accent-purple));
 		background: var(--color-surface-hover, rgb(0 0 0 / 0.05));
 		outline: none;

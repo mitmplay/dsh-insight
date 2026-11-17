@@ -18,6 +18,7 @@ export { default as WidthBadge } from './components/WidthBadge.svelte';
 // ── capture + close (R6, ADR-0066) ──
 export { default as CanvasCopyButton } from './components/CanvasCopyButton.svelte';
 export { default as PanelClose } from './components/PanelClose.svelte';
+export { default as SidebarCollapseButton } from './components/SidebarCollapseButton.svelte';
 
 // ── layout (W3, D8) ──
 export type { PaneCore, WidthClamp, PaneMoveDir } from './layout/floor-math';
