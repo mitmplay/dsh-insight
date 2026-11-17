@@ -174,6 +174,28 @@ test.describe(() => {
 		await expect(page.getByTestId('file-save')).toHaveCount(0);
 		await expect(verb).toHaveText('Edit');
 	});
+
+	test('Reload Dirty Gate (D7, 2026-11-17): the reload chip greys while a draft exists, re-enables after Cancel', async ({ page }) => {
+		await routeFileEye(page, { enabled: true, changed: false, head: null });
+		await openFilePanel(page);
+		const reload = page.getByTestId('file-reload');
+		// clean file: the valve is pressable
+		await expect(reload).toBeEnabled();
+		// enter a draft: the chip disables and the tooltip names the draft
+		await page.getByTestId('file-edit').click();
+		const editor = page.locator('.monaco-editor .view-lines').first();
+		await expect(editor).toBeVisible();
+		await editor.click();
+		await page.keyboard.type('x');
+		await expect(page.getByTestId('file-dirty')).toBeVisible();
+		await expect(reload).toBeDisabled();
+		await expect(reload).toHaveAttribute('aria-label', /Unsaved changes/);
+		// Cancel the draft: dirty clears, the valve re-opens
+		await page.getByTestId('file-edit').click();
+		await expect(page.getByTestId('file-dirty')).toHaveCount(0);
+		await expect(reload).toBeEnabled();
+		await expect(reload).toHaveAttribute('aria-label', 'Refresh');
+	});
 });
 
 // ── The Explorer Layout (ADR 2026-09-17 D1/D3, Task 3.2): one click

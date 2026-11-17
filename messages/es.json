@@ -465,6 +465,7 @@
   "workspaceFileEdit": "Editar",
   "workspaceFileSource": "Código",
   "workspaceFileDirty": "Cambios sin guardar",
+  "workspaceFileReloadDirty": "Cambios sin guardar — guarda o cancela antes de recargar",
   "workspaceFileSave": "Guardar",
   "workspaceFileCancel": "Cancelar",
   "workspaceFileSaving": "Guardando…",

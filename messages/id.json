@@ -465,6 +465,7 @@
   "workspaceFileEdit": "Edit",
   "workspaceFileSource": "Kode",
   "workspaceFileDirty": "Perubahan belum disimpan",
+  "workspaceFileReloadDirty": "Perubahan belum disimpan — simpan atau batalkan sebelum memuat ulang",
   "workspaceFileSave": "Simpan",
   "workspaceFileCancel": "Batal",
   "workspaceFileSaving": "Menyimpan…",

@@ -36,7 +36,13 @@
 	 *  UX-parity operator request: a click that shows nothing happening "sucks". */
 	let reloadState = $state<'idle' | 'busy' | 'done'>('idle');
 	async function handleReload(): Promise<void> {
-		if (reloadState === 'busy' || !onreload) return;
+		/* Dirty Gate (ADR The Single Edit, amendment 2026-11-17 D7): a draft
+		   makes reload a no-op (the panel's refreshFile raises the stale note
+		   instead) — refuse the turn, the disabled chip is the suspenders.
+		   Edit mode gates it too (2026-11-17 operator fix): a refetch while
+		   the raw editor is mounted would clobber the editor under the
+		   operator's cursor, draft or not. */
+		if (reloadState === 'busy' || dirty || editing || !onreload) return;
 		reloadState = 'busy';
 		try {
 			await onreload();
@@ -161,8 +167,9 @@
 		<ReloadButton
 			state={reloadState}
 			onclick={handleReload}
-			label={t(m.refresh)}
+			label={dirty ? t(m.workspaceFileReloadDirty) : t(m.refresh)}
 			testid="file-reload"
+			disabled={dirty || editing}
 			class="reload-btn"
 		/>
 	{/if}
@@ -226,6 +233,12 @@
 		background: transparent;
 		color: var(--color-text-secondary, #6c757d);
 		cursor: pointer;
+	}
+	/* Dirty Gate (2026-11-17 D7): a draft greys the valve — visibly
+	   unpressable, the tooltip names why. */
+	.file-toolbar :global(.reload-btn:disabled) {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 	.file-toolbar :global(.reload-btn:hover) {
 		background: var(--color-surface-hover, rgba(0, 0, 0, 0.06));

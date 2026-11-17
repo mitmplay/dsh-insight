@@ -465,6 +465,7 @@
   "workspaceFileEdit": "编辑",
   "workspaceFileSource": "源码",
   "workspaceFileDirty": "未保存的更改",
+  "workspaceFileReloadDirty": "有未保存的更改 — 请先保存或取消再重新加载",
   "workspaceFileSave": "保存",
   "workspaceFileCancel": "取消",
   "workspaceFileSaving": "保存中…",

@@ -14,6 +14,11 @@ Bumped from 0.1.0 — the capture buttons move into the package and the desk rem
 ### Tests
 - Package-level suites carried their waves' pins; branch-arm coverage raised across promoted components (`dddf74fc`); emitter idempotence + read-order pins for the boot script in the DSI repo (`tests/unit/panels-boot-emitter.test.ts`, `tests/unit/panel-prefs-boot-global.test.ts`, `tests/e2e/panels-boot-restore.spec.ts`).
 
+### 0.1.1 — post-bump additions (recorded 2026-11-17, no version change per operator)
+
+- **SidebarCollapseButton organ** joins the components (R7 W1/W2, ADR-0069): one collapse/restore button for every sidebar; DSI's four sites consume it through the single entry. Commits `05ab491c`, `58ebc025`.
+- **Playground chrome fixes**: body margin 0 (phantom scrollbar, `bd36d36c`); restore-btn dressing via :global to reach the organ root (`29d51398`).
+
 ---
 
 ## Publish runbook (OPERATOR-gated publish; agent sessions stop at the boundary)

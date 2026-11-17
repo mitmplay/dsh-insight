@@ -1,3 +1,19 @@
+## 0.12.1
+
+Bumped from 0.12.0 — the sidebar collapse button becomes a package organ (ADR-0069), the playground chrome reaches DSI parity, and the workspace-file reload valve learns to respect edit mode.
+
+### Features
+- **Sidebar Collapse Button promotion (ADR-0069, R7)** — one collapse/restore button organ for every sidebar: `SidebarCollapseButton` lands in container-base (R7 W1, commit `05ab491c`), four call sites re-point onto the package component with the ADR renumbered 0067 → 0069 (0067/0068 were taken by parallel sessions; `58ebc025`); R7 completion notes + tracker recorded with gates green (f97197de); spec + ADR docs (53630109, c1f3e033).
+- **Playground header chrome parity (R6 polish)** — the playground dresses the header organs consumer-side so its chips match DSI exactly (22px box, 14px camera icon; commits 91291bec, 96db1aa2), and R6 closes out with the static compare page cleanup noted (8558cbca, b809d903).
+
+### Bug fixes
+- **Reload valve clobbers edit mode** — clicking FileEdit (verb flips to Cancel) left the reload chip clickable with a clean buffer; a refetch would replace the mounted raw editor under the cursor. Fix: the valve now gates on `dirty || editing` (chip greys + handler refuses the turn). Proof: two new tests in `tests/unit/components/workspace-file/reload-dirty-gate.test.ts` (chip-disabled observable + guard belt); full workspace-file suites 96/96 green. Commit `0564b285`.
+- **Playground phantom scrollbar** — body margin 0 kills the phantom 16px vertical page scrollbar (bd36d36c).
+- **Restore button CSS trap** — the restore-btn dressing moves to :global so it reaches the organ root, same lesson as the R6 icon-btn (29d51398).
+
+### Docs
+- ReloadButton Dirty Gate follow-through: locale `workspaceFileReloadDirty` keys (en/es/id/zh), Single Edit ADR D7 note, e2e dirty-gate spec, the 2026-11-17 Dirty Gate spec folder + completion notes, migrate-panel-listbox troubleshot note (ef44bca3).
+
 ## 0.12.0
 
 Bumped from 0.11.10 — the capture buttons move into container-base (ADR-0066), and the desk remembers before paint: saved panel widths render on the FIRST post-reload frame, no default→saved flash (ADR-0067).

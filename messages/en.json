@@ -465,6 +465,7 @@
   "workspaceFileEdit": "Edit",
   "workspaceFileSource": "Source",
   "workspaceFileDirty": "Unsaved changes",
+  "workspaceFileReloadDirty": "Unsaved changes — save or cancel before reloading",
   "workspaceFileSave": "Save",
   "workspaceFileCancel": "Cancel",
   "workspaceFileSaving": "Saving…",
