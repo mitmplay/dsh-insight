@@ -428,6 +428,11 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		--color-text-secondary: #9aa3b2;
 		--color-accent-purple: #c084fc;
 	}
+	/* the floor is a full-viewport app — the UA's default 8px body margin
+	 * pushed the 100vh shell 8px down and spawned a 16px page scrollbar */
+	:global(body) {
+		margin: 0;
+	}
 	/* DSI-like shell: sidebar is the FIRST column, the floor fills the rest. */
 	.shell {
 		display: flex;
@@ -445,7 +450,8 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 	.sidebar-col :global(.cb-sidebar) {
 		height: 100%;
 	}
-	.restore-btn {
+	/* :global — the button root belongs to the package organ now */
+	:global(.restore-btn) {
 		display: flex;
 		align-items: center;
 		justify-content: center;
