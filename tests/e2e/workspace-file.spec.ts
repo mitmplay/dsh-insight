@@ -37,9 +37,14 @@ async function routeFileEye(
 	page: import('@playwright/test').Page,
 	opts: { enabled: boolean; changed: boolean; head: string | null }
 ) {
+	// ADR-0068 (The Write-Gate Reunion): the gate answers from write-gate;
+	// git-map's `enabled` is desk-independent and no longer closes anything.
+	await page.route('**/api/workspace/write-gate**', (route) =>
+		route.fulfill({ json: { ok: true, enabled: opts.enabled } })
+	);
 	await page.route('**/api/workspace/git-map**', (route) =>
 		route.fulfill({
-			json: { ok: true, enabled: opts.enabled, rootIsRepo: true, repos: {} }
+			json: { ok: true, enabled: true, rootIsRepo: true, repos: {} }
 		})
 	);
 	await page.route('**/api/workspace/git-status**', (route) =>
@@ -75,12 +80,42 @@ test.describe(() => {
 		await expect(page.getByTestId('session-workspace').first()).toBeVisible();
 	});
 
-	test('gate-off desk: the file panel is READ-ONLY — no toggle, no verb, no Save', async ({ page }) => {
+	test('gate-closed desk: READ-ONLY face — disarmed Save, honest note, no verb, ZERO file-write POSTs (ADR-0068 D2/D3)', async ({ page }) => {
+		const writePosts: string[] = [];
+		await page.route('**/api/workspace/file-write**', (route) => {
+			writePosts.push(route.request().url());
+			return route.fulfill({ json: { ok: true, written: true } });
+		});
 		await routeFileEye(page, { enabled: false, changed: false, head: null });
 		await openFilePanel(page);
 		await expect(page.getByTestId('file-view-toggle')).toHaveCount(0);
-		await expect(page.getByTestId('file-save')).toHaveCount(0);
 		await expect(page.getByTestId('file-edit')).toHaveCount(0);
+		// the honest note rides with the panel; the Save verb, when a draft
+		// existed, would be disarmed — on a clean file there is none at all
+		await expect(page.getByTestId('file-readonly')).toBeVisible();
+		await expect(page.getByTestId('file-save')).toHaveCount(0);
+		expect(writePosts).toHaveLength(0);
+	});
+
+	test('gate-open desk: the save path still writes (ADR-0068 — no regression on full access)', async ({ page }) => {
+		await routeFileEye(page, { enabled: true, changed: false, head: null });
+		let writes = 0;
+		// registered AFTER routeFileEye — Playwright's last route wins
+		await page.route('**/api/workspace/file-write**', (route) => {
+			writes++;
+			return route.fulfill({ json: { ok: true, written: true } });
+		});
+		await openFilePanel(page);
+		await expect(page.getByTestId('file-readonly')).toHaveCount(0); // no note on an open desk
+		await page.getByTestId('file-edit').click();
+		const editor = page.locator('.monaco-editor .view-lines').first();
+		await expect(editor).toBeVisible();
+		await editor.click();
+		await page.keyboard.type('x');
+		await expect(page.getByTestId('file-dirty')).toBeVisible();
+		await page.getByTestId('file-save').click();
+		await expect(page.getByTestId('file-dirty')).toHaveCount(0); // the receipt cleared dirty
+		expect(writes).toBe(1);
 	});
 
 	test('gate-on changed file: Preview default, Diff clickable, view survives reload (D4/D6)', async ({ page }) => {

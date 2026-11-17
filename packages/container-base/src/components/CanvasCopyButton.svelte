@@ -460,6 +460,6 @@
 </button>
 
 <style>
-	.ccb-icon { display: block; }
+	.ccb-icon { display: block; flex-shrink: 0; }
 	.ccb-spin { animation: ccb-rotate 1s linear infinite; }
 </style>

@@ -116,6 +116,9 @@ describe('WorkspaceFileToolbar grammar — via the panel (File Eye 2.2-T)', () =
 	function routeOpenGate(changed: boolean) {
 		fetchMock.mockImplementation((input: RequestInfo | URL) => {
 			const url = String(input);
+			if (url.includes('/api/workspace/write-gate')) {
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
+			}
 			if (url.includes('/api/workspace/git-map')) {
 				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: true, repos: {} }), { status: 200 }));
 			}

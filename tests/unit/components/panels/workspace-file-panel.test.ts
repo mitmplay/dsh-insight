@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WorkspaceFilePanel from '$lib/components/workspace-file/WorkspaceFilePanel.svelte';
 import { reactiveProps } from '../../helpers/reactive-props.svelte.js';
 
-const glueCalls: Array<{ initial: string; language?: string }> = [];
+const glueCalls: Array<{ initial: string; language?: string; readOnly?: boolean }> = [];
 const glueDisposed: boolean[] = [];
 const diffCalls: Array<{ original: string; modified: string }> = [];
 let diffDisposed = false;
@@ -27,9 +27,9 @@ vi.mock('$lib/components/common/settings-monaco', () => ({
 		_container: HTMLElement,
 		initial: string,
 		onChange: () => void,
-		options?: { language?: string }
+		options?: { language?: string; readOnly?: boolean }
 	) => {
-		glueCalls.push({ initial, language: options?.language });
+		glueCalls.push({ initial, language: options?.language, readOnly: options?.readOnly });
 		let value = initial;
 		const handle = {
 			getValue: () => value,
@@ -135,6 +135,11 @@ beforeEach(() => {
 	// button is present, the toggle is not.
 	vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
 		const url = String(input);
+		if (url.includes('/api/workspace/write-gate')) {
+			// ADR-0068: the gate rides its own canned answer (default OPEN) so
+			// the Once-queues keep measuring the file read and the save POST.
+			return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
+		}
 		if (url.includes('/api/workspace/git-map')) {
 			return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: true, repos: {} }), { status: 200 }));
 		}
@@ -519,6 +524,9 @@ describe('WorkspaceFilePanel — html documents (2026-09-10)', () => {
 		// README.md; the file read still rides the Once-queue.
 		vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
 			const url = String(input);
+			if (url.includes('/api/workspace/write-gate')) {
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
+			}
 			if (url.includes('/api/workspace/git-map')) {
 				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: true, repos: {} }), { status: 200 }));
 			}
@@ -588,6 +596,9 @@ describe('WorkspaceFilePanel - Index Pulse live changed flag', () => {
 			const url = String(input);
 			if (url.includes('/api/dsh/workspace-file')) {
 				return Promise.resolve(readBody({ text: 'hello\n', eof: true }));
+			}
+			if (url.includes('/api/workspace/write-gate')) {
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
 			}
 			if (url.includes('/api/workspace/git-map')) {
 				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: true, repos: {} }), { status: 200 }));
@@ -661,6 +672,9 @@ describe('WorkspaceFilePanel - live diff against the real content', () => {
 			if (url.includes('/api/dsh/workspace-file')) {
 				return Promise.resolve(new Response(JSON.stringify({ ok: true, file: { text: 'date: 2026-09-13', eof: true } }), { status: 200 }));
 			}
+			if (url.includes('/api/workspace/write-gate')) {
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
+			}
 			if (url.includes('/api/workspace/git-map')) {
 				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: true, repos: {} }), { status: 200 }));
 			}
@@ -691,6 +705,9 @@ describe('WorkspaceFilePanel - live diff against the real content', () => {
 			const url = String(input);
 			if (url.includes('/api/dsh/workspace-file')) {
 				return Promise.resolve(new Response(JSON.stringify({ ok: true, file: { text: diskContent, eof: true } }), { status: 200 }));
+			}
+			if (url.includes('/api/workspace/write-gate')) {
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
 			}
 			if (url.includes('/api/workspace/git-map')) {
 				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: true, repos: {} }), { status: 200 }));
@@ -736,6 +753,9 @@ describe('WorkspaceFilePanel - live diff against the real content', () => {
 	it('every Diff entry mounts the diff editor — no stale detached host', async () => {
 		vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
 			const url = String(input);
+			if (url.includes('/api/workspace/write-gate')) {
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
+			}
 			if (url.includes('/api/workspace/git-map')) {
 				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: true, repos: {} }), { status: 200 }));
 			}
@@ -870,11 +890,14 @@ describe('WorkspaceFilePanel — render/gate/save arms (coverage pass 2026-09-14
 		view.cleanup();
 	});
 
-	it('a disabled gate renders a read-only desk without a Save verb', async () => {
+	it('a closed write-gate renders the read-only face: locked editor, honest note (ADR-0068 D2)', async () => {
 		vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
 			const url = String(input);
-			if (url.includes('/api/workspace/git-map')) {
+			if (url.includes('/api/workspace/write-gate')) {
 				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: false }), { status: 200 }));
+			}
+			if (url.includes('/api/workspace/git-map')) {
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: true, repos: {} }), { status: 200 }));
 			}
 			if (url.includes('/api/workspace/git-status')) {
 				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: false, truncated: false, files: [] }), { status: 200 }));
@@ -882,9 +905,11 @@ describe('WorkspaceFilePanel — render/gate/save arms (coverage pass 2026-09-14
 			return fetchMock(input as never, init as never);
 		});
 		fetchMock.mockResolvedValueOnce(readBody(FILE));
-		const view = mountPanel();
+		const view = mountPanel({ path: 'notes.txt' }); // non-md: the editor mounts at first paint
 		await view.settle();
-		expect(view.q('[data-testid="file-save"]')).toBeNull();
+		expect(glueCalls[0]!.readOnly).toBe(true); // the editor itself is locked
+		expect(view.q('[data-testid="file-edit"]')).toBeNull(); // no Edit verb on a closed desk
+		expect(view.q('[data-testid="file-readonly"]')).not.toBeNull(); // the honest note
 		view.cleanup();
 	});
 });
@@ -899,6 +924,9 @@ describe('WorkspaceFilePanel — ring-failure + subrepo arms (coverage pass 2026
 		let diskText = 'v1';
 		fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
 			const url = String(input);
+			if (url.includes('/api/workspace/write-gate')) {
+				return new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 });
+			}
 			if (url.includes('/api/workspace/git-map')) {
 				return new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: true, repos: {} }), { status: 200 });
 			}
@@ -931,6 +959,9 @@ describe('WorkspaceFilePanel — ring-failure + subrepo arms (coverage pass 2026
 		vi.stubGlobal('EventSource', Es2 as unknown as typeof EventSource);
 		const fullStub = (map: Record<string, unknown>) => (input: RequestInfo | URL) => {
 			const url = String(input);
+			if (url.includes('/api/workspace/write-gate')) {
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
+			}
 			if (url.includes('/api/workspace/git-map')) {
 				return Promise.resolve(new Response(JSON.stringify(map), { status: 200 }));
 			}
@@ -988,4 +1019,79 @@ describe('WorkspaceFilePanel — ring-failure + subrepo arms (coverage pass 2026
 		expect(view2.q('[data-testid="file-save-failed"]')!.textContent).toContain('network');
 		view2.cleanup();
 	});
+
+// ═══ The Write-Gate Reunion (ADR-0068, task 1.1-T): gateOpen answers
+// ONLY from GET /api/workspace/write-gate; git-map keeps repo detection. ═══
+describe('WorkspaceFilePanel — write-gate wiring (ADR-0068, 1.1-T)', () => {
+	const gateCalls: string[] = [];
+	const mapCalls: string[] = [];
+	async function mountWithGate(gate: 'open' | 'closed' | 'down') {
+		gateCalls.length = 0;
+		mapCalls.length = 0;
+		vi.stubGlobal('fetch', ((input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (url.includes('/api/workspace/write-gate')) {
+				gateCalls.push(url);
+				if (gate === 'down') return Promise.reject(new Error('gate probe down'));
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: gate === 'open' }), { status: 200 }));
+			}
+			if (url.includes('/api/workspace/git-map')) {
+				mapCalls.push(url);
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: false, repos: {} }), { status: 200 }));
+			}
+			if (url.includes('/api/workspace/git-status')) {
+				return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, truncated: false, files: [] }), { status: 200 }));
+			}
+			return fetchMock(input as never, init as never);
+		}) as typeof fetch);
+		fetchMock.mockResolvedValue(readBody(FILE));
+		const view = mountPanel({ path: 'notes.txt' });
+		await view.settle();
+		return view;
+	}
+
+	it('a closed gate mounts the editor readOnly, hides Edit, shows the note, and ZERO file-write POSTs fire', async () => {
+		const view = await mountWithGate('closed');
+		expect(gateCalls).toHaveLength(1);
+		expect(gateCalls[0]).toContain('sessionId=s1');
+		expect(glueCalls[0]!.readOnly).toBe(true);
+		expect(view.q('[data-testid="file-edit"]')).toBeNull();
+		expect(view.q('[data-testid="file-readonly"]')).not.toBeNull();
+		// no UI interaction on this surface can reach the write route
+		const posts = fetchMock.mock.calls.filter((c) => String(c[0]).includes('/api/workspace/file-write'));
+		expect(posts).toHaveLength(0);
+		view.cleanup();
+	});
+
+	it('an open gate keeps the writable path: Edit mounts a writable editor, Save POSTs to file-write', async () => {
+		const view = await mountWithGate('open');
+		expect(glueCalls[0]!.readOnly).toBe(true); // pre-edit face is still read-only
+		(view.q('[data-testid="file-edit"]') as HTMLButtonElement)!.click();
+		await view.settle();
+		expect(glueCalls[glueCalls.length - 1]!.readOnly).toBe(false); // THE writable remount
+		glueHandles[glueHandles.length - 1]!.setValue('a draft');
+		await view.settle();
+		(view.q('[data-testid="file-save"]') as HTMLButtonElement)!.click();
+		await view.settle();
+		const post = fetchMock.mock.calls.find((c) => String(c[0]).includes('/api/workspace/file-write'));
+		expect(post).toBeTruthy();
+		expect((post![1] as RequestInit).method).toBe('POST');
+		view.cleanup();
+	});
+
+	it('a write-gate network failure degrades to the read-only face — never writable', async () => {
+		const view = await mountWithGate('down');
+		expect(glueCalls[0]!.readOnly).toBe(true);
+		expect(view.q('[data-testid="file-edit"]')).toBeNull();
+		expect(view.q('[data-testid="file-readonly"]')).not.toBeNull();
+		view.cleanup();
+	});
+
+	it('git-map is STILL fetched for repo detection — repo wiring does not ride the gate', async () => {
+		const view = await mountWithGate('open');
+		expect(mapCalls.length).toBeGreaterThanOrEqual(1);
+		expect(mapCalls[0]).toContain('sessionId=s1');
+		view.cleanup();
+	});
+});
 });

@@ -443,18 +443,34 @@
 		}
 	}
 
+	// ADR-0068 D1/D3: gateOpen answers ONLY from write-gate — the fresh
+	// gate fold, not git-map's vestigial `enabled` (Always Tabs D2 made
+	// that constant on every desk). The probe is politeness: file-write
+	// re-resolves gitGateEnabled fresh per call and stays the only law.
+	// Any non-open answer (non-ok, network error, enabled false) degrades
+	// honestly to CLOSED — a probe failure never looks like gate open.
+	async function probeGate(): Promise<void> {
+		try {
+			const res = await fetch('/api/workspace/write-gate?sessionId=' + encodeURIComponent(sessionId));
+			const gate = (await res.json()) as { ok?: boolean; enabled?: boolean };
+			gateOpen = gate.ok === true && gate.enabled === true;
+		} catch {
+			gateOpen = false; // unreachable gate: honest degradation
+		}
+	}
+
 	$effect(() => {
 		void (async () => {
+			await probeGate();
+			// git-map is repo detection ONLY now (ADR-0068 D1): repo badges,
+			// enclosing-repo resolution, and the diff toggle's `changed`
+			// answer. Its failure costs repo detection — never the gate.
 			try {
 				const mapRes = await fetch(
 					'/api/workspace/git-map?sessionId=' + encodeURIComponent(sessionId) + '&dir=' + encodeURIComponent(root)
 				);
-				const map = (await mapRes.json()) as { ok?: boolean; enabled?: boolean; rootIsRepo?: boolean; repos?: Record<string, boolean> };
-				if (!map.ok || map.enabled !== true) {
-					gateOpen = false; // final: read-only desk
-					return;
-				}
-				gateOpen = true;
+				const map = (await mapRes.json()) as { ok?: boolean; rootIsRepo?: boolean; repos?: Record<string, boolean> };
+				if (!map.ok) return; // repo detection is best-effort
 				const parts = path.split('/').filter((pp) => pp.length > 0);
 				const rootIsRepo = map.rootIsRepo === true;
 				const firstIsRepo = rootIsRepo || (parts.length > 1 && map.repos?.[parts[0]] === true);
@@ -465,7 +481,7 @@
 				};
 				await refreshChanged();
 			} catch {
-				gateOpen = false; // unreachable gate: honest degradation
+				// git-map failure: repo detection degraded, gate already answered
 			}
 		})();
 	});
@@ -512,6 +528,7 @@
 		if (gateOpen !== true) return;
 		const timer = setInterval(() => {
 			if (document.visibilityState === 'visible') {
+				void probeGate(); // ADR-0068: the desk may flip mid-session — re-ask, no new timer
 				void refreshChanged();
 				void refreshHead();
 				void refreshFile();
@@ -534,7 +551,10 @@
 		// Read BOTH writability inputs SYNCHRONOUSLY — reads inside the
 		// async closure below are not tracked, and the mode flip would
 		// never re-mount (the bug this ADR's own unit test caught).
-		const gated = gateOpen === false;
+		// ADR-0068 D2: an UNKNOWN gate (null, probe in flight) mounts the
+		// read-only face — the editor only becomes writable once write-gate
+		// has actually answered open (the old bug resurfacing as a race).
+		const gated = gateOpen !== true;
 		const writable = !gated && editing;
 		if (host === null || initial === null || editor !== null) return;
 		const token = ++initSeq;
@@ -618,7 +638,8 @@
 		showToggle={gateOpen === true && changed}
 		{editing}
 		onToggleEdit={setEditing}
-		readonly={gateOpen === false}
+		readonly={gateOpen !== true}
+		readonlyNote={t(m.workspaceFileReadonly)}
 		onViewChange={setView}
 		onSave={save}
 		onReload={refreshFile}

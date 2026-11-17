@@ -38,6 +38,7 @@
 		explorerHidden = false,
 		saveError,
 		saveFailedNote,
+		readonlyNote,
 		loadingNote,
 		loadFailedNote,
 		truncatedNote,
@@ -94,6 +95,9 @@
 		saveError: string | null;
 		/** The save-failed note's copy (owner-translated). */
 		saveFailedNote: string;
+		/** ADR-0068 D2: the closed-gate note's copy (owner-translated) —
+		 *  the honest "this desk is read-only" line under the toolbar. */
+		readonlyNote: string;
 		/** The loading note's copy (owner-translated). */
 		loadingNote: string;
 		/** The load-failed note's copy (owner-translated). */
@@ -151,6 +155,11 @@
 	/>
 	{#if saveState === 'failed'}
 		<p class="note fail" data-testid="file-save-failed">{saveFailedNote}{saveError ? ' — ' + saveError : ''}</p>
+	{/if}
+	{#if readonly}
+		<!-- ADR-0068 D2: the closed gate is a STATE, not an error — the
+		     visible read-only note rides with the disarmed Save verb. -->
+		<p class="note" data-testid="file-readonly">{readonlyNote}</p>
 	{/if}
 	{#if phase === 'loading'}
 		<p class="note">{loadingNote}</p>

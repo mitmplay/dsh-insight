@@ -469,6 +469,7 @@
   "workspaceFileCancel": "Batal",
   "workspaceFileSaving": "Menyimpan…",
   "workspaceFileSaveFailed": "Gagal menyimpan",
+  "workspaceFileReadonly": "Desk ini hanya-baca — menyimpan dinonaktifkan",
   "workspaceFileStale": "Tersimpan — segarkan untuk mengonfirmasi file yang ditulis",
   "workspaceFileLoadFailed": "Tidak dapat membaca file ini",
   "workspaceFileTruncated": " — hanya halaman pertama",

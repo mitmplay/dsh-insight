@@ -469,6 +469,7 @@
   "workspaceFileCancel": "Cancel",
   "workspaceFileSaving": "Saving…",
   "workspaceFileSaveFailed": "Save failed",
+  "workspaceFileReadonly": "This desk is read-only — saving is disabled",
   "workspaceFileStale": "Saved — refresh to confirm the written file",
   "workspaceFileLoadFailed": "Could not read this file",
   "workspaceFileTruncated": " — first page only",

@@ -4,7 +4,7 @@
  */
 
 /** Probe export for workspace resolution (Wave 1); real surface lands W2+. */
-export const CONTAINER_BASE_VERSION = '0.1.0';
+export const CONTAINER_BASE_VERSION = '0.1.1';
 
 // ── components (W4, D6/D8) ──
 export { default as PanelsZoom } from './components/PanelsZoom.svelte';

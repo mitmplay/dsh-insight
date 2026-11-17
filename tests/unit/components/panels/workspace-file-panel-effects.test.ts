@@ -42,6 +42,9 @@ const FILE = (path: string) => ({
 beforeEach(() => {
 	vi.stubGlobal('fetch', ((input: RequestInfo | URL) => {
 		const url = String(input);
+		if (url.includes('/api/workspace/write-gate')) {
+			return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
+		}
 		if (url.includes('/api/workspace/git-map')) {
 			return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: false, repos: {} }), { status: 200 }));
 		}

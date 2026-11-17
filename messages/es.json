@@ -469,6 +469,7 @@
   "workspaceFileCancel": "Cancelar",
   "workspaceFileSaving": "Guardando…",
   "workspaceFileSaveFailed": "Error al guardar",
+  "workspaceFileReadonly": "Este escritorio es de solo lectura: guardar está deshabilitado",
   "workspaceFileStale": "Guardado — actualice para confirmar el archivo escrito",
   "workspaceFileLoadFailed": "No se pudo leer este archivo",
   "workspaceFileTruncated": " — solo la primera página",

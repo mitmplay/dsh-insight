@@ -86,6 +86,9 @@ function readBody(file: Record<string, unknown>) {
 function gateStub() {
 	return (input: RequestInfo | URL, init?: RequestInit) => {
 		const url = String(input);
+		if (url.includes('/api/workspace/write-gate')) {
+			return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
+		}
 		if (url.includes('/api/workspace/git-map')) {
 			return Promise.resolve(new Response(JSON.stringify({ ok: true, enabled: true, rootIsRepo: true, repos: {} }), { status: 200 }));
 		}
@@ -268,7 +271,7 @@ describe('WorkspaceFilePanel — stream close arms', () => {
 });
 
 describe('WorkspaceFilePanel — gate + ring margins', () => {
-	it('an unreachable git-map degrades to the read-only desk', async () => {
+	it('an unreachable git-map costs repo detection only — the gate still answers from write-gate (ADR-0068 D1)', async () => {
 		vi.stubGlobal(
 			'fetch',
 			vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -279,7 +282,23 @@ describe('WorkspaceFilePanel — gate + ring margins', () => {
 		fetchMock.mockResolvedValueOnce(readBody(FILE));
 		const view = mountPanel();
 		await view.settle();
-		expect(view.q('[data-testid="file-save"]')).toBeNull();
+		expect(view.q('[data-testid="file-edit"]')).not.toBeNull(); // the desk is writable
+		view.cleanup();
+	});
+
+	it('an unreachable write-gate degrades to the read-only desk (ADR-0068 D3)', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+				if (String(input).includes('/api/workspace/write-gate')) return Promise.reject(new Error('down'));
+				return gateStub()(input, init);
+			})
+		);
+		fetchMock.mockResolvedValueOnce(readBody(FILE));
+		const view = mountPanel();
+		await view.settle();
+		expect(view.q('[data-testid="file-edit"]')).toBeNull();
+		expect(view.q('[data-testid="file-readonly"]')).not.toBeNull();
 		view.cleanup();
 	});
 

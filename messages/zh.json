@@ -469,6 +469,7 @@
   "workspaceFileCancel": "取消",
   "workspaceFileSaving": "保存中…",
   "workspaceFileSaveFailed": "保存失败",
+  "workspaceFileReadonly": "此桌面为只读 — 已禁用保存",
   "workspaceFileStale": "已保存 — 刷新以确认写入的文件",
   "workspaceFileLoadFailed": "无法读取此文件",
   "workspaceFileTruncated": " — 仅第一页",

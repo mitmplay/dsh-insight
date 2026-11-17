@@ -137,10 +137,12 @@
 		     word "Edit" on this row. -->
 		<FileEdit {editing} {ontoggledit} />
 	{/if}
-	{#if !readonly && editing && dirty}
+	{#if editing && dirty}
 		<!-- The Single Edit (ADR D3): Save renders ONLY while a draft
-		     exists — no permanent disabled ghost. -->
-		<FileSave saving={saveState === 'saving'} {onsave} />
+		     exists — no permanent disabled ghost. ADR-0068 D2: a closed
+		     gate DISARMS the verb in place (disabled, honest note below)
+		     instead of hiding it — the operator sees the door, not silence. -->
+		<FileSave saving={saveState === 'saving'} disabled={readonly} {onsave} />
 	{/if}
 	{#if dirty}
 		<span class="dirty" data-testid="file-dirty">{t(m.workspaceFileDirty)}</span>

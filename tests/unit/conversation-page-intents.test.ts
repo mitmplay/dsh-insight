@@ -97,6 +97,7 @@ function installFetch(): void {
 				: url.includes('/models') ? { ok: true, current: null }
 				: url.includes('/api/prompts') ? { ok: true, prompts: [] }
 				: url.includes('/api/dsh/workspace-file') ? { ok: true, file: { text: 'hello\n', eof: true } }
+				: url.includes('/api/workspace/write-gate') ? { ok: true, enabled: false }
 				: url.includes('/api/workspace/git-map') ? { ok: true, enabled: false, rootIsRepo: false, repos: {} }
 				: { ok: true, listing: { path: '', entries: [{ name: 'docs', type: 'directory' }, { name: 'README.md', type: 'file' }, { name: 'notes.md', type: 'file' }], truncated: false } };
 			return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });

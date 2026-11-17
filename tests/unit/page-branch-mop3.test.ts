@@ -75,6 +75,7 @@ function installFetch() {
 				: url.includes('/api/prompts') ? { ok: true, prompts: [] }
 				: url.includes('/api/skills') ? { ok: true, skills: [], categories: [] }
 				: url.includes('/api/plugins') ? { ok: true, plugins: [], marketplace: [] }
+				: url.includes('/api/workspace/write-gate') ? { ok: true, enabled: true }
 				: url.includes('/api/workspace/git-map') ? { ok: true, enabled: true, rootIsRepo: true, repos: { app: true } }
 				: url.includes('/api/dsh/workspace-file') ? { ok: true, file: { text: 'hello', eof: true } }
 				: { ok: true, listing: { path: '', entries: [{ name: 'docs', type: 'directory' }, { name: 'README.md', type: 'file' }], truncated: false } };

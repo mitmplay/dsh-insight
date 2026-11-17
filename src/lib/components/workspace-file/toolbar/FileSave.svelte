@@ -11,10 +11,14 @@
 	let {
 		/** The delegated save's progress — disables the verb while saving. */
 		saving = false,
+		/** ADR-0068 D2: the write gate is closed — the verb stays visible
+		 *  but disarmed (the read-only note names the state). */
+		disabled = false,
 		/** Save intent — the panel POSTs the save. */
 		onsave
 	}: {
 		saving?: boolean;
+		disabled?: boolean;
 		onsave: () => void;
 	} = $props();
 </script>
@@ -25,7 +29,7 @@
 	data-testid="file-save"
 	aria-label={saving ? t(m.workspaceFileSaving) : t(m.workspaceFileSave)}
 	title={saving ? t(m.workspaceFileSaving) : t(m.workspaceFileSave)}
-	disabled={saving}
+	disabled={saving || disabled}
 	onclick={onsave}
 ><Save size={12} aria-hidden="true" /></button>
 

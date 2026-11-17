@@ -74,6 +74,7 @@ function installFetch(): void {
 				: url.includes('/models') ? { ok: true, current: null }
 				: url.includes('/api/settings') ? { ok: true, text: '', missing: true }
 				: url.includes('/api/prompts') ? { ok: true, prompts: [] }
+				: url.includes('/api/workspace/write-gate') ? { ok: true, enabled: true }
 				: url.includes('/api/workspace/git-map') ? { ok: true, enabled: true, rootIsRepo: true, repos: { app: true } }
 				: url.includes('/api/workspace/git-status') ? { ok: true, enabled: true, truncated: false, files: [{ code: 'M ', path: 'README.md' }] }
 				: url.includes('/api/dsh/workspace-file') ? { ok: true, file: { text: 'hello\n', eof: true } }

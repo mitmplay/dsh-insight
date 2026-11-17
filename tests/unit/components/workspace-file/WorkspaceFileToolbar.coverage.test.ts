@@ -175,9 +175,15 @@ describe('WorkspaceFileToolbar — the Save verb matrix', () => {
 		expect(saveBtn()!.disabled).toBe(false);
 	});
 
-	it('readonly=true → the Save verb is absent even with a draft', () => {
-		mountToolbar({ editing: true, dirty: true, readonly: true, onsave: vi.fn(), path: 'a.ts' });
-		expect(saveBtn()).toBeNull();
+	it('readonly=true → the Save verb DISARMS in place with a draft (ADR-0068 D2 — a visible door, not silence)', () => {
+		const onsave = vi.fn();
+		mountToolbar({ editing: true, dirty: true, readonly: true, onsave, path: 'a.ts' });
+		const btn = saveBtn();
+		expect(btn).toBeTruthy();
+		expect(btn!.disabled).toBe(true);
+		btn!.click();
+		flushSync();
+		expect(onsave).not.toHaveBeenCalled(); // the disarmed verb cannot fire
 	});
 
 	it('clicking the enabled Save fires onsave exactly once', () => {

@@ -405,7 +405,7 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 								<span class="pane-title">{pane.title}</span>
 							{/snippet}
 							{#snippet actions()}
-								<CanvasCopyButton container={paneBodies[pane.id]} mode="visible" size={12} />
+								<CanvasCopyButton container={paneBodies[pane.id]} mode="visible" size={14} class="hdr-btn" />
 								<PanelClose sessionId={pane.id} onremove={() => (closed[pane.id] = true)} />
 							{/snippet}
 						</PanelHeaderSkeleton>
@@ -526,6 +526,37 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 	.pane-title {
 		font-weight: 600;
 		font-size: 0.85rem;
+	}
+
+	/* The playground's own dressing for the promoted header organs — the
+	 * base ships no skin (ground rule), so the consumer styles them. This
+	 * mirrors DSI PanelHeader's .hdr-btn (SC#2 look) consumer-side. */
+	:global(.hdr-btn) {
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.375rem; /* 22px — the DSI PanelHeader box */
+		height: 1.375rem;
+		border: none;
+		border-radius: 0.25rem;
+		background: transparent;
+		color: var(--color-text-secondary);
+		cursor: pointer;
+	}
+	:global(.hdr-btn:hover),
+	:global(.hdr-btn:focus-visible) {
+		background: var(--color-surface-secondary);
+		color: var(--color-text-primary);
+	}
+	:global(.hdr-btn:disabled) {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	/* the close button carries a bordered white square at idle (SC#2) */
+	:global(.hdr-btn[data-testid='panel-close']) {
+		background: var(--color-surface-elevated, #fff);
+		border: 1px solid var(--color-surface-border);
 	}
 	.pane-body {
 		padding: 0.75rem;

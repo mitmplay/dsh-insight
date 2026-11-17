@@ -158,7 +158,10 @@ describe('scheduler-shelf rendered rows', () => {
 			mkTask({
 				id: 'done',
 				status: 'ended',
-				lastDelivery: { deliveredAt: '2026-11-09T08:30:00Z', targetSessionId: 's-born' }
+				// clock-relative like armed: a hardcoded date goes stale once the
+				// real clock passes relativeTime's <7d window (it then renders
+				// the absolute date) - pin delivery 2 days in the past.
+				lastDelivery: { deliveredAt: new Date(Date.now() - 2 * 86400000).toISOString(), targetSessionId: 's-born' }
 			}),
 			mkTask({ id: 'bare', title: '', kind: null })
 		];

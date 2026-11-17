@@ -35,6 +35,7 @@ function baseProps(over: Record<string, unknown> = {}): Record<string, unknown> 
 		explorerHidden: false,
 		saveError: null,
 		saveFailedNote: 'save failed',
+		readonlyNote: 'this desk is read-only',
 		loadingNote: 'loading…',
 		loadFailedNote: 'load failed',
 		truncatedNote: 'truncated',
@@ -176,5 +177,27 @@ describe('WorkspaceFile — content views', () => {
 		instance = mount(WorkspaceFile, { target: target!, props: props as never });
 		flushSync();
 		expect(bound.diff).toBe(q('file-diff-view'));
+	});
+});
+
+// ═══ The Write-Gate Reunion (ADR-0068, task 1.2-T): the closed-gate note. ═══
+describe('WorkspaceFile — the closed-gate read-only note (ADR-0068 D2)', () => {
+	it('readonly=true renders the visible read-only note', () => {
+		mountFile(baseProps({ readonly: true }));
+		const note = q('file-readonly');
+		expect(note).not.toBeNull();
+		expect(note!.textContent).toContain('read-only');
+	});
+
+	it('readonly=false renders NO read-only note', () => {
+		mountFile(baseProps({ readonly: false }));
+		expect(q('file-readonly')).toBeNull();
+	});
+
+	it('the save-failure strip keeps its exact behavior beside the note (regression pin)', () => {
+		mountFile(baseProps({ readonly: true, saveState: 'failed', saveError: 'denied' }));
+		expect(q('file-save-failed')!.textContent).toContain('save failed');
+		expect(q('file-save-failed')!.textContent).toContain('denied');
+		expect(q('file-readonly')).not.toBeNull();
 	});
 });
