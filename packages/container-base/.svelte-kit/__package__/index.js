@@ -3,7 +3,7 @@
  * Internals are reached exclusively through here (no deep imports).
  */
 /** Probe export for workspace resolution (Wave 1); real surface lands W2+. */
-export const CONTAINER_BASE_VERSION = '0.1.1';
+export const CONTAINER_BASE_VERSION = '0.2.0';
 // ── components (W4, D6/D8) ──
 export { default as PanelsZoom } from './components/PanelsZoom.svelte';
 export { default as ResizeGutter } from './components/ResizeGutter.svelte';
@@ -24,7 +24,7 @@ export { createGutterResize } from './interaction/gutter-resize';
 // ── registry (W3, D8) ──
 export { createActionTable } from './registry/action-registry';
 // ── panel-kind registry (R4 W2, ADR-0065) ──
-export { revivePanels, clampKindWidth, resizeAllByRegistry, definePanelKind } from './registry/panel-kinds';
+export { revivePanels, clampKindWidth, deskEntries, resizeAllByRegistry, definePanelKind } from './registry/panel-kinds';
 // ── storage (W2, D4) ──
 export { currentProfile, sanitizeWorkspaceProfile, storageKey } from './storage/namespace';
 export { declareRegistryPrefixes, isGrammarCompliant } from './storage/key-grammar';
@@ -37,6 +37,9 @@ export { default as ThemeToggle } from './theming/ThemeToggle.svelte';
 // ── i18n (R2 W3, ADR-0063 D3) ──
 export { createLocalePrefs } from './i18n/locale-prefs.svelte';
 export { default as LanguageMenu } from './i18n/LanguageMenu.svelte';
+// ── control bar (R10 W1, ADR-0073) ──
+export { default as ControlBar } from './components/ControlBar.svelte';
+export { default as ControlBarTray } from './components/ControlBarTray.svelte';
 // ── sliders (R2 W4, ADR-0063 D4) ──
 export { default as SliderWidth, WIDTH_BOUNDS } from './components/SliderWidth.svelte';
 export { default as SliderZoom, ZOOM_BOUNDS } from './components/SliderZoom.svelte';

@@ -33,16 +33,21 @@
 		toCanvas: (el: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement>;
 	} | null = null;
 	let engineFailed = false;
-	/** Plain flag — degraded only GATES clicks, it renders nothing reactive. */
-	let degraded = false;
+	/** Degraded latch — gates clicks AND renders the visible disabled
+	 *  state (2026-11-19 RCA: a no-op the UI cannot see is how the peer
+	 *  bug hid for four days). */
+	let degraded = $state(false);
 
 	/**
-	 * The peer specifier is carried in a VARIABLE so no bundler can
-	 * statically resolve it — a cold room without the optional peer must
-	 * still BUILD; absence degrades at runtime (D2), never at build time.
+	 * LITERAL dynamic import (2026-11-19 RCA fix — The Capture Button That
+	 * Loaded Nothing): the old variable-specifier + @vite-ignore form deferred
+	 * resolution to the BROWSER, which can never resolve a bare specifier —
+	 * the engine failed to load everywhere and every click silently no-op'd.
+	 * A literal specifier is resolved and pre-bundled by Vite/rollup in dev
+	 * and prod. The try/catch keeps the optional-peer contract: a consumer
+	 * without html-to-image fails at ITS bundler transform (loud, not
+	 * silent) and the component still degrades with the one-time warn.
 	 */
-	const PEER_SPEC: string = 'html-to-image';
-
 	async function loadEngine(): Promise<{
 		toBlob: (el: HTMLElement, options?: Record<string, unknown>) => Promise<Blob | null>;
 		toCanvas: (el: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement>;
@@ -50,7 +55,7 @@
 		if (engine) return engine;
 		if (engineFailed) throw new Error('html-to-image peer unavailable');
 		try {
-			engine = (await import(/* @vite-ignore */ PEER_SPEC)) as {
+			engine = (await import('html-to-image')) as {
 				toBlob: (el: HTMLElement, options?: Record<string, unknown>) => Promise<Blob | null>;
 				toCanvas: (el: HTMLElement, options?: Record<string, unknown>) => Promise<HTMLCanvasElement>;
 			};
@@ -59,7 +64,7 @@
 			engineFailed = true;
 			degraded = true;
 			console.warn(
-				'[container-base] html-to-image peer is not installed — CanvasCopyButton is a no-op. Install it to enable capture.'
+				'[container-base] html-to-image peer is not installed — CanvasCopyButton is a no-op. Install html-to-image to enable capture.'
 			);
 			throw new Error('html-to-image peer unavailable');
 		}
@@ -435,13 +440,24 @@
 			}
 			state = 'done';
 			setTimeout(() => (state = 'idle'), 2000);
-		} catch {
+		} catch (err) {
+			// Loud failure (2026-11-19 RCA): a swallowed error made a dead
+			// capture indistinguishable from a slow one for four days.
+			console.error('[container-base] capture failed:', err);
 			state = 'idle';
 		}
 	}
 </script>
 
-<button type="button" class="{className}" {title} data-testid="canvas-copy-button" onclick={handleAction}>
+<button
+	type="button"
+	class="{className} ccb-root"
+	class:ccb-degraded={degraded}
+	{title}
+	aria-disabled={degraded}
+	data-testid="canvas-copy-button"
+	onclick={handleAction}
+>
 	{#if state === 'done'}
 		<svg class="ccb-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--color-status-pass)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 			<path d="M20 6 9 17l-5-5" />
@@ -462,4 +478,13 @@
 <style>
 	.ccb-icon { display: block; flex-shrink: 0; }
 	.ccb-spin { animation: ccb-rotate 1s linear infinite; }
+	/* Degraded (peer absent): the no-op is visible on the element, not
+	   just a console line nobody opens (2026-11-19 RCA). */
+	.ccb-degraded {
+		opacity: 0.35;
+		cursor: not-allowed;
+	}
+	.ccb-degraded .ccb-icon {
+		stroke: var(--color-text-secondary);
+	}
 </style>

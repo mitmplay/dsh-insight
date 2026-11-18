@@ -44,6 +44,7 @@ Purpose lookup (from the Port Ledger KB — first match wins):
 | 1933 | OpenViking memory server |
 | 34xx | test-floor DSH host (isolated) |
 | 51xx (5180+) | test-floor UI (isolated) |
+| 52xx (5200+) | worktree executor UI (Vite, HMR, isolated) — lane open only (ADR-0072) |
 | anything else | **unknown — name the binary and ask** (never guess a purpose) |
 
 ## Reading the table (tell the operator, one line each)

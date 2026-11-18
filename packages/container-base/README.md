@@ -84,6 +84,7 @@ Everything a second consumer would otherwise re-roll badly now ships here:
 - **`createLocalePrefs({ baseKey, cookieName, locales, defaultLocale })`** — locale survival: dual-write (storage + mirror cookie the consumer's SSR chain reads), cookie→storage→default resolution, junk fallback.
 - **`LanguageMenu`** — generic language mount: `prefs`, `locales`, `labels` (native names), `triggerLabel`, `icon`, `dropUp`. The base never translates.
 - **`SliderWidth` / `SliderZoom`** — honest-slider controls: `WIDTH_BOUNDS`/`ZOOM_BOUNDS` defaults (prop-overridable), per-input live commit via `oncommit`, captions via snippet, `testId` stems.
+- **`ControlBar` / `ControlBarTray`** (R10, ADR-0073) — the hover-tray machine: gear trigger, 250ms hide grace (re-enter cancels), focus guards, Escape, portal to `document.body`, viewport clamp. Words arrive via props (`ariaLabel`, `captureTitle`, caption snippets) and bounds via props — **the base never translates and never reads appConfig** (R2 law). `ControlBarTray` is a fixed anatomy: capture row (only when `captureContainer` supplied) → width slider → zoom slider → extras snippet (only when passed). AddPanel-style actions are consumer extras, never base organs.
 - **`SidebarContainer`** — the sidebar shell: collapsed stub / embedded bare rail / standalone width-wrapper + gutter. Words and skin via snippets; state page-owned.
 - **`createPrefsStore`** — the persistence primitive (SSR guard, junk fallback, clamp, best-effort write). Blob shapes are consumer-owned.
 

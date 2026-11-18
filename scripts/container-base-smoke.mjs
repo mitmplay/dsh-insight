@@ -50,7 +50,11 @@ async function main() {
 			type: 'module',
 			scripts: { build: 'vite build', preview: 'vite preview' },
 			dependencies: {
-				'@deepseek-insight/container-base': dep
+				'@deepseek-insight/container-base': dep,
+				// the optional capture peer (2026-11-19 literal-import fix): the
+				// cold room installs it because a peer-absent consumer now fails
+				// LOUDLY at its bundler transform (the accepted approach-2 trade)
+				'html-to-image': '^1.11.13'
 			},
 			devDependencies: {
 				svelte: '^5.56.1',

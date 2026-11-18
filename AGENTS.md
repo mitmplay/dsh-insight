@@ -53,6 +53,17 @@ or forget where it is:
   goal complete. Escape hatch: the operator may say "execute here" for a
   tiny wave — then the in-session rules above apply unchanged. The ceremony
   half does not get cheaper by this — never split mid-discovery.
+- 🌿 **WORKTREE LANE (ADR-0072)**: a task touching a live surface (long-running
+  server, `src/lib/server/**` edits, or parallel tasks) runs in its own lane —
+  the planner creates `git worktree add .worktrees/{spec-name} -b {branch}` +
+  pnpm install BEFORE the dispatch, and the executor session runs its own
+  `vite dev --port 5200+N` inside it (HMR-live, SSR blast radius contained).
+  The dispatch prompt names the spec folder AND the worktree path + port;
+  the Live-Verify Gate probes `http://127.0.0.1:520{N}`. On DoD pass + merge
+  the lane closes: server killed, `git worktree remove` — port freed. Full
+  rules: ADR-0072 (dev/architectural-decission/2026-11/); the port is from
+  the 52xx band of the Port Ledger KB. Worktree setup happens before `schedule_create` — the no-polling
+  rule below is unchanged.
 - ⛔ **NO POLLING ROUNDS ONCE THE SCHEDULE EXISTS (2026-11-11, the
   12-round burn)**: after the `schedule_create` handoff is created, the
   planner's job is DONE for this stage — do NOT sit in goal-round

@@ -4,7 +4,7 @@
  */
 
 /** Probe export for workspace resolution (Wave 1); real surface lands W2+. */
-export const CONTAINER_BASE_VERSION = '0.1.1';
+export const CONTAINER_BASE_VERSION = '0.2.0';
 
 // ── components (W4, D6/D8) ──
 export { default as PanelsZoom } from './components/PanelsZoom.svelte';
@@ -53,6 +53,7 @@ export type { ActionTable } from './registry/action-registry';
 export {
 	revivePanels,
 	clampKindWidth,
+	deskEntries,
 	resizeAllByRegistry,
 	definePanelKind
 } from './registry/panel-kinds';
@@ -81,6 +82,10 @@ export { default as ThemeToggle } from './theming/ThemeToggle.svelte';
 export { createLocalePrefs } from './i18n/locale-prefs.svelte';
 export type { LocalePrefs, LocalePrefsOptions } from './i18n/locale-prefs.svelte';
 export { default as LanguageMenu } from './i18n/LanguageMenu.svelte';
+
+// ── control bar (R10 W1, ADR-0073) ──
+export { default as ControlBar } from './components/ControlBar.svelte';
+export { default as ControlBarTray } from './components/ControlBarTray.svelte';
 
 // ── sliders (R2 W4, ADR-0063 D4) ──
 export { default as SliderWidth, WIDTH_BOUNDS } from './components/SliderWidth.svelte';

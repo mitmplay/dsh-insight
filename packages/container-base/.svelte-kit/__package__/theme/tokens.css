@@ -23,6 +23,12 @@
 	--color-text-primary: #212529;
 	--color-text-secondary: #6c757d;
 
+	/* Control-bar shadows (R10, ADR-0073: the hover-tray machine's
+	 * elevation — shadow color crosses only through tokens, W6 ground
+	 * rule) */
+	--color-shadow-soft: #00000014;
+	--color-shadow-tray: #0000001f;
+
 	/* Accents (the selection ring gradient stops) */
 	--color-accent-blue: #3b82f6;
 	/* Focus navy (the resize chip deepener, 2026-11-15 Base Promotion:

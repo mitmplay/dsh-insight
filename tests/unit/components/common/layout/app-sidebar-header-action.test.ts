@@ -183,7 +183,7 @@ describe('AppSidebarHeaderAction — trayContainer threading', () => {
 		const floor = document.createElement('div');
 		const { target, instance } = mountHeader({ trayContainer: floor });
 		const tray = openTray(target);
-		// The tray's own capture button (TrayButtons row), portaled to body.
+		// The tray's own capture button (the base capture row), portaled to body.
 		const trayCopy = document.body.querySelector(
 			'.tray-float [data-testid="canvas-copy-button"]'
 		) as HTMLButtonElement;

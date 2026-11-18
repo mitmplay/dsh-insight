@@ -3,7 +3,7 @@
  * Internals are reached exclusively through here (no deep imports).
  */
 /** Probe export for workspace resolution (Wave 1); real surface lands W2+. */
-export declare const CONTAINER_BASE_VERSION = "0.1.1";
+export declare const CONTAINER_BASE_VERSION = "0.2.0";
 export { default as PanelsZoom } from './components/PanelsZoom.svelte';
 export { default as ResizeGutter } from './components/ResizeGutter.svelte';
 export { default as RailColumn } from './components/RailColumn.svelte';
@@ -23,7 +23,7 @@ export { createGutterResize } from './interaction/gutter-resize';
 export type { GutterResizeMachine } from './interaction/gutter-resize';
 export { createActionTable } from './registry/action-registry';
 export type { ActionTable } from './registry/action-registry';
-export { revivePanels, clampKindWidth, resizeAllByRegistry, definePanelKind } from './registry/panel-kinds';
+export { revivePanels, clampKindWidth, deskEntries, resizeAllByRegistry, definePanelKind } from './registry/panel-kinds';
 export type { PanelKindDeclaration, KnobDeclaration, ReviveHooks, ReviveResult, WidthBand } from './registry/panel-kinds';
 export { currentProfile, sanitizeWorkspaceProfile, storageKey } from './storage/namespace';
 export { declareRegistryPrefixes, isGrammarCompliant } from './storage/key-grammar';
@@ -37,6 +37,8 @@ export { default as ThemeToggle } from './theming/ThemeToggle.svelte';
 export { createLocalePrefs } from './i18n/locale-prefs.svelte';
 export type { LocalePrefs, LocalePrefsOptions } from './i18n/locale-prefs.svelte';
 export { default as LanguageMenu } from './i18n/LanguageMenu.svelte';
+export { default as ControlBar } from './components/ControlBar.svelte';
+export { default as ControlBarTray } from './components/ControlBarTray.svelte';
 export { default as SliderWidth, WIDTH_BOUNDS } from './components/SliderWidth.svelte';
 export { default as SliderZoom, ZOOM_BOUNDS } from './components/SliderZoom.svelte';
 export { default as SidebarContainer, SIDEBAR_COLLAPSED_WIDTH } from './components/SidebarContainer.svelte';

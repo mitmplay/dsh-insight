@@ -84,6 +84,27 @@ export function revivePanels(raw, declarations, knobs = [], hooks) {
     return result;
 }
 /**
+ * deskEntries — the WRITE-side counterpart of revivePanels (R10, operator
+ * 2026-11-19): builds the persisted entry array from the LIVE state, so
+ * consumers never hand-copy the blob shape the revive grammar demands
+ * (universal required keys id + kind; width optional). Every persist site
+ * — width commits, zoom commits, AND pure selection changes — goes through
+ * this one builder, which is what makes "selection survives reload" hold:
+ * a consumer that only persisted on width commits shipped the exact
+ * selection-reverts-on-refresh bug this closes.
+ */
+export function deskEntries(args) {
+    return args.panels.map((panel, i) => {
+        const width = args.widths?.[i];
+        return {
+            id: panel.id,
+            kind: args.kind,
+            ...(width === undefined ? {} : { width }),
+            journey: args.journey(panel)
+        };
+    });
+}
+/**
  * Clamp a width through a kind's band — the LAZY resolver is evaluated
  * HERE, at clamp time, never earlier (D5).
  */

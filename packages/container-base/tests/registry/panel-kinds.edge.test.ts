@@ -4,6 +4,7 @@ import {
 	type PanelKindDeclaration,
 	clampKindWidth,
 	definePanelKind,
+	deskEntries,
 	revivePanels,
 	resizeAllByRegistry
 } from '../../src/index';
@@ -24,6 +25,29 @@ function demoDecl(kind: string, over: Partial<PanelKindDeclaration<DemoPanel>> =
 		...over
 	};
 }
+
+
+// R10 (operator 2026-11-19) — deskEntries: the WRITE-side counterpart of
+// revivePanels; the blob shape stays base-owned, write-side too.
+describe('deskEntries — the write-side desk builder', () => {
+	it('builds id+kind+width+journey entries in save order', () => {
+		const entries = deskEntries({
+			kind: 'demo-pane',
+			panels: [{ id: 'a' }, { id: 'b' }] as { id: string }[],
+			widths: [730, undefined],
+			journey: (p) => (p.id === 'a' ? 'upstairs' : 'resting')
+		});
+		expect(entries).toEqual([
+			{ id: 'a', kind: 'demo-pane', width: 730, journey: 'upstairs' },
+			{ id: 'b', kind: 'demo-pane', journey: 'resting' }
+		]);
+		// roundtrip: the built entries pass the revive grammar untouched
+		const decl = demoDecl('demo-pane');
+		const revived = revivePanels(entries, [decl], [{ key: 'width', default: 480, clamp: (w: number) => w }]);
+		expect(revived.panels.length).toBe(2);
+		expect(revived.dropped).toBe(0);
+	});
+});
 
 describe('definePanelKind — registration door validation', () => {
 	it('accepts a well-formed declaration and freezes the copy', () => {

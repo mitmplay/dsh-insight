@@ -6,6 +6,8 @@ import PanelListboxHeader from '../src/components/PanelListboxHeader.svelte';
 import PanelListboxList from '../src/components/PanelListboxList.svelte';
 import PanelListboxListItem from '../src/components/PanelListboxListItem.svelte';
 import PanelListboxFilter from '../src/components/PanelListboxFilter.svelte';
+import ControlBar from '../src/components/ControlBar.svelte';
+import ControlBarTray from '../src/components/ControlBarTray.svelte';
 
 /**
  * 4.1-T (ADR-0065 W4) — playground conformance: the second consumer
@@ -63,6 +65,20 @@ describe('playground conformance (4.1-T, ADR-0065 W4)', () => {
 		const indexSrc = readFileSync(new URL('../src/index.ts', 'file://' + here), 'utf8');
 		expect(indexSrc).toContain(
 			"export { default as PanelListboxFilter } from './components/PanelListboxFilter.svelte'"
+		);
+	});
+
+	// 1.3-T (R10 W1, ADR-0073): the hover-tray organs ride the same
+	// public surface, typed.
+	it('exports ControlBar + ControlBarTray from index.ts (1.3-T, ADR-0073)', () => {
+		expect(ControlBar).toBeTruthy();
+		expect(ControlBarTray).toBeTruthy();
+		const indexSrc = readFileSync(new URL('../src/index.ts', 'file://' + here), 'utf8');
+		expect(indexSrc).toContain(
+			"export { default as ControlBar } from './components/ControlBar.svelte'"
+		);
+		expect(indexSrc).toContain(
+			"export { default as ControlBarTray } from './components/ControlBarTray.svelte'"
 		);
 	});
 

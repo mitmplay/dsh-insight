@@ -78,6 +78,33 @@ export declare function definePanelKind<P>(declaration: PanelKindDeclaration<P>)
  */
 export declare function revivePanels<P>(raw: unknown, declarations: readonly PanelKindDeclaration<P>[], knobs?: readonly KnobDeclaration[], hooks?: ReviveHooks): ReviveResult<P>;
 /**
+ * deskEntries — the WRITE-side counterpart of revivePanels (R10, operator
+ * 2026-11-19): builds the persisted entry array from the LIVE state, so
+ * consumers never hand-copy the blob shape the revive grammar demands
+ * (universal required keys id + kind; width optional). Every persist site
+ * — width commits, zoom commits, AND pure selection changes — goes through
+ * this one builder, which is what makes "selection survives reload" hold:
+ * a consumer that only persisted on width commits shipped the exact
+ * selection-reverts-on-refresh bug this closes.
+ */
+export declare function deskEntries<P extends {
+    id: string;
+}>(args: {
+    /** The kind label every entry carries (the declaration's kind). */
+    kind: string;
+    /** The live pane set in SAVE ORDER (the array order is persisted). */
+    panels: readonly P[];
+    /** Live width per pane, index-aligned with panels; undefined omits the key (the knob's default wins at revive). */
+    widths?: readonly (number | undefined)[];
+    /** The live journey per pane — the persisted tray-membership fact. */
+    journey: (panel: P) => string;
+}): {
+    id: string;
+    kind: string;
+    width?: number;
+    journey: string;
+}[];
+/**
  * Clamp a width through a kind's band — the LAZY resolver is evaluated
  * HERE, at clamp time, never earlier (D5).
  */

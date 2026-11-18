@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, createRawSnippet } from 'svelte';
 	import '@deepseek-insight/container-base/theme/tokens.css';
 	import {
 		createThemePrefs,
@@ -7,8 +7,6 @@
 		createPrefsStore,
 		ThemeToggle,
 		LanguageMenu,
-		SliderWidth,
-		SliderZoom,
 		SidebarContainer,
 		PanelsZoom,
 		PaneBase,
@@ -23,11 +21,13 @@
 		PanelListboxHeader,
 		PanelListboxList,
 		PanelListboxListItem,
+		ControlBar,
 		resizeOne,
 		createGutterResize,
 		definePanelKind,
 		revivePanels,
 		clampKindWidth,
+		deskEntries,
 		CONTAINER_BASE_VERSION
 	} from '@deepseek-insight/container-base';
 	import type { ThemeChoice } from '@deepseek-insight/container-base';
@@ -218,12 +218,14 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 			zoom,
 			panelWidth: width,
 			selectedPanelId,
-			panels: paneWidths.map((w, i) => ({
-				id: demoPanes[i].id,
+			// the WRITE-side builder (deskEntries) — one blob shape, every
+			// persist site, selection changes included
+			panels: deskEntries({
 				kind: 'demo-pane',
-				width: w.width,
-				journey: journeys[demoPanes[i].id] ?? 'resting'
-			}))
+				panels: demoPanes,
+				widths: paneWidths.map((w) => w.width),
+				journey: (p) => journeys[p.id] ?? 'resting'
+			})
 		});
 	}
 	// promote (ADR-0070 §5): open the pane AND select it - the upper tray lights
@@ -238,6 +240,14 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		if (selectedPanelId === id) {
 			selectedPanelId = demoPanes.find((p) => p.id !== id && journeys[p.id] === 'upstairs')?.id ?? null;
 		}
+		persistPrefs();
+	}
+	// R10 SC#1 fix 4 (operator 2026-11-19): a pure FOCUS change must persist
+	// too — the tray row's onselect and the pane's onactivate used to write
+	// only the in-memory selection, so a refresh reverted to the last
+	// width-commit's selection ("localStorage is not update").
+	function select(id: string): void {
+		selectedPanelId = id;
 		persistPrefs();
 	}
 	// Drag state is deliberately NOT $state: mousemove never renders it - the
@@ -353,6 +363,18 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 	let trayUpExpanded = $state(true);
 	let trayDownExpanded = $state(true);
 
+	// R10 (ADR-0073 W3): the named-second-consumer proof — the playground
+	// mounts the BASE hover-tray machine with its own words, its own
+	// bounds (the demo band, 280..1400), the capture row pointed at its
+	// own floor element, and NO extras (no AddPanel — DSI-only; the base
+	// renders no empty row when the snippet is absent). pg- testids keep
+	// the playground identity namespace separate from the DSI floor.
+	let floorEl: HTMLElement | null = $state(null);
+	function resizeAll(w: number): void {
+		width = w;
+		commitWidth();
+	}
+
 	// R9 tray filters (ADR-0071 D7/D8): EACH tray header carries its own
 	// PanelListboxFilter and filters only its own list by title — two
 	// independent queries, never one shared value. They persist under a
@@ -390,6 +412,17 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		resting.filter((p) => p.title.toLowerCase().includes(trayDownFilter.toLowerCase()))
 	);
 
+	// R10 W3: playground caption snippets — the playground's own words
+	// (the base never ships a caption; these mirror the sidebar sliders).
+	const pgWidthCaption = createRawSnippet((getValue) => {
+		const v = getValue();
+		return { render: () => '<span>' + String(v) + 'px</span>' };
+	});
+	const pgZoomCaption = createRawSnippet((getValue) => {
+		const v = getValue() as number;
+		return { render: () => '<span>' + Math.round(v * 100) + '%</span>' };
+	});
+
 	const LANGUAGES: Record<string, string> = { en: 'English', zh: '中文', id: 'Bahasa Indonesia' };
 	const GREETINGS: Record<string, string> = { en: 'Hello floor', zh: '你好地板', id: 'Halo lantai' };
 	const labels: Record<ThemeChoice, string> = { system: 'System', light: 'Light', dark: 'Dark' };
@@ -416,7 +449,31 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 			{#snippet header()}
 				<div class="demo-header">
 					<span>Demo</span>
-					<SidebarCollapseButton class="hdr-btn" testid="pg-sidebar-toggle" onToggle={toggleSidebar} />
+					<div class="hdr-actions">
+						<SidebarCollapseButton class="hdr-btn" testid="pg-sidebar-toggle" onToggle={toggleSidebar} />
+						<ControlBar
+						ariaLabel="Demo floor controls"
+						testId="pg-controlbar"
+						triggerTestId="pg-controlbar-trigger"
+						trayTestId="pg-controlbar-tray"
+						captureRowTestId="pg-controlbar-tray-buttons"
+						widthTestId="pg-controlbar-slider-width"
+						zoomTestId="pg-controlbar-slider-zoom"
+						bind:panelWidth={width}
+						bind:zoom={zoom}
+						onresizeall={resizeAll}
+						captureContainer={floorEl}
+						captureTitle="Copy floor image (Shift+Click to save)"
+						captureRowLabel="Capture"
+						widthMin={280}
+						widthMax={1400}
+						widthStep={1}
+						widthAriaLabel="Panel width"
+						widthCaption={pgWidthCaption}
+						zoomAriaLabel="Floor zoom"
+						zoomCaption={pgZoomCaption}
+					/>
+					</div>
 				</div>
 			{/snippet}
 			{#snippet collapsedContent()}
@@ -455,7 +512,7 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 									linked
 									selected={selectedPanelId === pane.id}
 									testid="pg-tray-upstairs-{pane.id}"
-									onselect={() => (selectedPanelId = pane.id)}
+									onselect={() => select(pane.id)}
 								>
 									{pane.title}
 								</PanelListboxListItem>
@@ -515,28 +572,8 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 				<p data-testid="greeting">{GREETINGS[localePrefs.locale] ?? GREETINGS.en}</p>
 			</div>
 			<div class="sidebar-controls">
-				<SliderWidth
-					bind:value={width}
-					oncommit={commitWidth}
-					ariaLabel="Panel width"
-					testId="pg-slider-width"
-				>
-					{#snippet caption(v)}
-						<span>Width</span>
-						<span class="num">{v}px</span>
-					{/snippet}
-				</SliderWidth>
-				<SliderZoom
-					bind:value={zoom}
-					oncommit={commitZoom}
-					ariaLabel="Floor zoom"
-					testId="pg-slider-zoom"
-				>
-					{#snippet caption(v)}
-						<span>Zoom</span>
-						<span class="num">{Math.round(v * 100)}%</span>
-					{/snippet}
-				</SliderZoom>
+				<!-- R10: the width/zoom sliders LIVE IN THE TRAY now — the bottom
+				     row keeps only the language/theme menus (no duplicates). -->
 				<div class="menus">
 					<LanguageMenu
 						prefs={localePrefs}
@@ -551,14 +588,19 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 			</div>
 		</SidebarContainer>
 	</div>
-	<main class="floor">
+	<main class="floor" bind:this={floorEl}>
 		<PanelsZoom {zoom} {panels} {selectedPanelId}>
-			{#each demoPanes as pane, i (pane.id)}
+			<!-- R10 fix (operator 2026-11-19): iterate the UPSTAIRS set, not
+			     demoPanes - the R8 journey redesign updated the panels derived
+			     but the floor slot kept rendering every demo pane, so resting
+			     panes never left the floor. -->
+			{#each upstairs as pane (pane.id)}
+				{@const i = demoPanes.indexOf(pane)}
 				<PaneBase
 					width={paneWidths[i]?.width ?? width}
 					paneId={pane.id}
 					selected={selectedPanelId === pane.id}
-					onactivate={() => (selectedPanelId = pane.id)}
+					onactivate={() => select(pane.id)}
 				>
 					{#snippet header()}
 						<PanelHeaderSkeleton title={pane.title}>
@@ -682,6 +724,12 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		gap: 0.5rem;
 		color: var(--color-text-secondary);
 	}
+	.hdr-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		margin-left: auto;
+	}
 	.menus {
 		display: flex;
 		gap: 0.75rem;
@@ -691,10 +739,6 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		 * left-aligned triggers made the popups extend past the sidebar's
 		 * left edge and get clipped by its overflow:hidden. */
 		justify-content: flex-end;
-	}
-	.num {
-		font-variant-numeric: tabular-nums;
-		color: var(--color-text-primary);
 	}
 	/* The floor: PanelsZoom is the content area. */
 	.floor {

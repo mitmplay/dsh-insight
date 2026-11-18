@@ -1,22 +1,26 @@
 <script lang="ts">
+	/**
+	 * ControlBarTray — THIN CONSUMER (ADR-0073 W2): the fixed tray
+	 * anatomy (capture row → width → zoom → extras) lives in
+	 * container-base; this file contributes DSI's identity only:
+	 *   - paraglide words (tray label, capture title/row label, slider
+	 *     captions + aria labels)
+	 *   - config bounds (appConfig panel width and zoom bounds — the same source
+	 *     the single clamp site reads)
+	 *   - the capture row props (trayContainer + visible mode)
+	 *   - extras = AddPanel (the tray's paste-add field, unchanged — its
+	 *     registry verbs stay exactly as they were, ADR-0006 R7)
+	 *
+	 * The SliderWidth/SliderZoom wrapper files stay (their caption
+	 * snippets now flow into the base tray directly, task 2.2 executor
+	 * call: pass captions, keep the files).
+	 */
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
-	/**
-	 * ControlBarTray — the ControlBar's tray body: the TrayButtons row
-	 * first (the tray's action buttons — the floor canvas-capture today;
-	 * moved to the top 2026-09-07), then AddPanel, SliderWidth, and
-	 * SliderZoom stacked (the three floor controls, ADR-0006 R7). Mount-gated by the parent's `{#if open}` —
-	 * the tray carries no visibility state of its own. Bindings pass
-	 * straight through to the sliders (the route owns both values via
-	 * ControlBar); `onresizeall` is SliderWidth's route-owned per-move
-	 * commit; `captureContainer` flows down to TrayButtons (page-owned
-	 * floor element — the route passes it through ControlBar).
-	 */
 	import { PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_ZOOM } from '$lib/utils/panel-prefs';
+	import { appConfig } from '$lib/services/config/app-config.svelte';
+	import { ControlBarTray } from '@deepseek-insight/container-base';
 	import AddPanel from './AddPanel.svelte';
-	import SliderWidth from './SliderWidth.svelte';
-	import SliderZoom from './SliderZoom.svelte';
-	import TrayButtons from './TrayButtons.svelte';
 
 	let {
 		panelWidth = $bindable(PANEL_DEFAULT_WIDTH),
@@ -24,36 +28,63 @@
 		onresizeall,
 		captureContainer = null
 	}: {
-		/** Uniform-panel width preset (bind: through ControlBar to the route). */
+		/** Bound width preset (bind: through ControlBar to the route). */
 		panelWidth?: number;
 		/** Floor zoom multiplier (bind: through ControlBar to the route). */
 		zoom?: number;
-		/** Commit a new uniform width on every thumb move: route sets all panels + the preset. */
+		/** Commit a new uniform width on every thumb move. */
 		onresizeall: (width: number) => void;
-		/** The floor capture target (PanelsZoom's layout slot) — pass-through to TrayButtons. */
+		/** The floor capture target (PanelsZoom's layout slot) — null
+		 *  before mount: the base capture row is prop-gated (ADR-0073 D2). */
 		captureContainer?: HTMLElement | null;
 	} = $props();
+
+	/** Config-tunable bounds — reactive if config lands late. */
+	const bounds = $derived(appConfig().panel);
 </script>
 
-<div class="tray" data-testid="controlbar-tray" role="group" aria-label={t(m.floorControls)}>
-	<TrayButtons {captureContainer} />
+{#snippet widthCaption(v: number)}
+	<span>{t(m.width)}</span>
+	<span class="px" data-testid="controlbar-slider-width-value">{v}px</span>
+{/snippet}
+
+{#snippet zoomCaption(v: number)}
+	<span>{t(m.zoom)}</span>
+	<span class="pct" data-testid="controlbar-slider-zoom-value">{Math.round(v * 100)}%</span>
+{/snippet}
+
+{#snippet extras()}
 	<AddPanel />
-	<SliderWidth bind:value={panelWidth} {onresizeall} />
-	<SliderZoom bind:zoom={zoom} />
-</div>
+{/snippet}
+
+<ControlBarTray
+	bind:panelWidth
+	bind:zoom
+	{onresizeall}
+	{captureContainer}
+	captureTitle={t(m.copyFloorImage)}
+	captureMode="visible"
+	captureRowLabel={t(m.floorCapture)}
+	widthMin={bounds.minWidth}
+	widthMax={bounds.maxWidth}
+	widthStep={1}
+	widthAriaLabel={t(m.panelWidthAll)}
+	{widthCaption}
+	zoomMin={bounds.minZoom}
+	zoomMax={bounds.maxZoom}
+	zoomStep={0.001}
+	zoomAriaLabel={t(m.floorZoom)}
+	{zoomCaption}
+	{extras}
+/>
 
 <style>
-	.tray {
-		/* Positioning lives on the portaled .tray-float host in
-		   ControlBar — this element carries only the tray's visuals. */
-		display: flex;
-		flex-direction: column;
-		gap: 0.625rem;
-		min-width: 15rem;
-		padding: 0.75rem;
-		border: 1px solid var(--color-surface-border, #dee2e6);
-		border-radius: 0.5rem;
-		background: var(--color-surface-primary, var(--color-surface-elevated));
-		box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+	.px {
+		font-variant-numeric: tabular-nums;
+		color: var(--color-text-primary);
+	}
+	.pct {
+		font-variant-numeric: tabular-nums;
+		color: var(--color-text-primary);
 	}
 </style>

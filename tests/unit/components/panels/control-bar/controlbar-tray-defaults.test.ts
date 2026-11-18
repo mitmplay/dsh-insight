@@ -1,17 +1,19 @@
 /**
- * ControlBarTray unit tests — the tray BODY mounted directly (the parent
- * ControlBar always passes panelWidth/zoom, so the tray's $bindable
- * DEFAULTS have never run under test; controlbar-tray.test.ts and
- * panels-row.test.ts cover the tray through its parent).
+ * ControlBarTray unit tests — the DSI THIN TRAY (ADR-0073 W2) mounted
+ * directly (the parent ControlBar always passes panelWidth/zoom, so the
+ * tray's $bindable DEFAULTS have never run under test).
  *
- * Pins, with neither bindable prop supplied:
- *  - the tray mounts all three floor controls (AddPanel, SliderWidth,
- *    SliderZoom — ADR-0006 R7) plus the TrayButtons row with its
- *    canvas-capture button
- *  - the omitted width lands on PANEL_DEFAULT_WIDTH (730px caption)
- *  - the omitted zoom lands on PANEL_DEFAULT_ZOOM (100% caption)
- *  - the sliders still mirror the config bounds and commit through the
- *    tray's onresizeall pass-through on every thumb move
+ * The anatomy is the BASE contract now (R10 W1, prop-gated capture row):
+ *   - capture row ABSENT while captureContainer is null (pre-mount —
+ *     the W2 re-pin: the base row is prop-gated, ADR-0073 D2; the old
+ *     always-rendered button row is retired)
+ *   - capture row PRESENT with the paraglide copy title once the floor
+ *     element flows in
+ *   - extras = AddPanel renders after the sliders (fixed anatomy:
+ *     capture → width → zoom → extras) — behavior identical, order is
+ *     ADR-0073 D2's
+ *   - the omitted width/zoom land on the panel-prefs defaults and the
+ *     sliders mirror the config bounds through the thin tray
  */
 
 import { flushSync } from 'svelte';
@@ -28,11 +30,11 @@ import {
 } from '$lib/utils/panel-prefs';
 
 /** Mount with ONLY the required prop — both $bindable defaults must apply. */
-function mountTray() {
+function mountTray(captureContainer: HTMLElement | null = null) {
 	const target = document.createElement('div');
 	document.body.appendChild(target);
 	const onresizeall = vi.fn<(width: number) => void>();
-	const instance = mount(ControlBarTray, { target, props: { onresizeall } });
+	const instance = mount(ControlBarTray, { target, props: { onresizeall, captureContainer } });
 	flushSync();
 	return { target, instance, onresizeall };
 }
@@ -53,8 +55,8 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-describe('ControlBarTray — floor controls mount with panel-prefs defaults', () => {
-	it('mounts the tray group with AddPanel, SliderWidth, SliderZoom, and the TrayButtons row inside', () => {
+describe('ControlBarTray — thin-tray contract (ADR-0073 W2)', () => {
+	it('mounts the tray group with the floor controls and AddPanel in extras', () => {
 		const { target, instance } = mountTray();
 		const tray = target.querySelector('[data-testid="controlbar-tray"]') as HTMLElement;
 		expect(tray).not.toBeNull();
@@ -63,19 +65,34 @@ describe('ControlBarTray — floor controls mount with panel-prefs defaults', ()
 		expect(target.querySelector('[data-testid="controlbar-add-input"]')).not.toBeNull();
 		expect(widthInput(target)).not.toBeNull();
 		expect(zoomInput(target)).not.toBeNull();
-		// The buttons row mounts with the capture button (captureContainer
-		// defaults to null — the SSR-safe no-op; render-on-click is
-		// TrayButtons' own test's contract), and leads the tray — the row
-		// sits above the controls (2026-09-07).
-		const buttonsRow = target.querySelector('[data-testid="controlbar-tray-buttons"]') as HTMLElement;
-		expect(buttonsRow).not.toBeNull();
-		expect(target.querySelector('[data-testid="canvas-copy-button"]')).not.toBeNull();
+		// Fixed anatomy: width → zoom → extras(AddPanel) — the extras
+		// snippet is the tray's LAST row (ADR-0073 D2).
 		const addInput = target.querySelector('[data-testid="controlbar-add-input"]') as HTMLElement;
-		expect(buttonsRow.compareDocumentPosition(addInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		expect(widthInput(target).compareDocumentPosition(zoomInput(target)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		expect(zoomInput(target).compareDocumentPosition(addInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 		unmount(instance);
 	});
 
-	it('the omitted width prop lands on PANEL_DEFAULT_WIDTH', () => {
+	it('capture row ABSENT while captureContainer is null (prop-gated, ADR-0073 D2)', () => {
+		const { target, instance } = mountTray(null);
+		expect(target.querySelector('[data-testid="controlbar-tray-buttons"]')).toBeNull();
+		expect(target.querySelector('[data-testid="canvas-copy-button"]')).toBeNull();
+		unmount(instance);
+	});
+
+	it('capture row PRESENT with the floor copy title once the container flows in', () => {
+		const floor = document.createElement('div');
+		document.body.appendChild(floor);
+		const { target, instance } = mountTray(floor);
+		const row = target.querySelector('[data-testid="controlbar-tray-buttons"]') as HTMLElement;
+		expect(row).not.toBeNull();
+		expect(row.getAttribute('aria-label')).toBe('Floor capture');
+		const button = target.querySelector('[data-testid="canvas-copy-button"]') as HTMLElement;
+		expect(button.getAttribute('title')).toBe('Copy panel floor as image (Shift+Click to save)');
+		unmount(instance);
+	});
+
+	it('the omitted width prop lands on PANEL_DEFAULT_WIDTH with the paraglide caption', () => {
 		const { target, instance } = mountTray();
 		expect(widthCaption(target)).toBe(`${PANEL_DEFAULT_WIDTH}px`);
 		expect(widthInput(target).value).toBe(String(PANEL_DEFAULT_WIDTH));
@@ -85,40 +102,26 @@ describe('ControlBarTray — floor controls mount with panel-prefs defaults', ()
 	it('the omitted zoom prop lands on PANEL_DEFAULT_ZOOM', () => {
 		const { target, instance } = mountTray();
 		expect(zoomCaption(target)).toBe(`${Math.round(PANEL_DEFAULT_ZOOM * 100)}%`);
-		expect(zoomInput(target).value).toBe(String(PANEL_DEFAULT_ZOOM));
+		expect(Number(zoomInput(target).value)).toBeCloseTo(PANEL_DEFAULT_ZOOM);
 		unmount(instance);
 	});
 
-	it('both sliders mirror the config bounds even on defaulted props', () => {
+	it('the sliders mirror the config bounds (panel-prefs fallbacks, no config loaded)', () => {
 		const { target, instance } = mountTray();
-		expect(Number(widthInput(target).min)).toBe(PANEL_MIN_WIDTH);
-		expect(Number(widthInput(target).max)).toBe(PANEL_MAX_WIDTH);
-		expect(Number(zoomInput(target).min)).toBe(PANEL_MIN_ZOOM);
-		expect(Number(zoomInput(target).max)).toBe(PANEL_MAX_ZOOM);
+		expect(widthInput(target).min).toBe(String(PANEL_MIN_WIDTH));
+		expect(widthInput(target).max).toBe(String(PANEL_MAX_WIDTH));
+		expect(zoomInput(target).min).toBe(String(PANEL_MIN_ZOOM));
+		expect(zoomInput(target).max).toBe(String(PANEL_MAX_ZOOM));
 		unmount(instance);
 	});
-});
 
-describe('ControlBarTray — pass-through wiring on defaulted props', () => {
-	it('a width thumb move commits through the tray onresizeall and updates the caption', () => {
-		const { target, instance, onresizeall } = mountTray();
+	it('width commits route through the tray on every thumb move (live cadence)', () => {
+		const { target, onresizeall, instance } = mountTray();
 		const input = widthInput(target);
-		input.value = '600';
+		input.value = '800';
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		flushSync();
-		expect(onresizeall).toHaveBeenCalledTimes(1);
-		expect(onresizeall).toHaveBeenCalledWith(600);
-		expect(widthCaption(target)).toBe('600px');
-		unmount(instance);
-	});
-
-	it('a zoom thumb move flows into the zoom binding (caption follows live)', () => {
-		const { target, instance } = mountTray();
-		const input = zoomInput(target);
-		input.value = '0.9';
-		input.dispatchEvent(new Event('input', { bubbles: true }));
-		flushSync();
-		expect(zoomCaption(target)).toBe('90%');
+		expect(onresizeall).toHaveBeenCalledWith(800);
 		unmount(instance);
 	});
 });
