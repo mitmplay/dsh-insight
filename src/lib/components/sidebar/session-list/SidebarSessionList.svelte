@@ -36,6 +36,7 @@
 	 * this pane absorbs its height either way.
 	 */
 	import SidebarSessionListHeader from './SidebarSessionListHeader.svelte';
+	import { PanelListbox, PanelListboxList } from '@deepseek-insight/container-base';
 	import { defaultSpineGroupPrefs, type SpineGroupPrefs } from '$lib/utils/spine-group-prefs';
 	import { appConfig } from '$lib/services/config/app-config.svelte';
 	import { heartbeatScope } from '$lib/services/jobs/heartbeat-scope.svelte';
@@ -125,8 +126,7 @@
 
 	/** Filter keystroke — the live query, plus the collapsed group's
 	 *  auto-expand (both facts in ONE report so the owner persists once). */
-	function onFilterInput(event: Event): void {
-		const value = (event.currentTarget as HTMLInputElement).value;
+	function onFilterInput(value: string): void {
 		onspinechange?.(
 			spine.collapsed ? { collapsed: false, nameFilter: value } : { nameFilter: value }
 		);
@@ -151,7 +151,13 @@
 </script>
 
 <div class="pane" data-testid="sidebar-spine-pane">
-	<div class="spine-group" data-testid="sidebar-spine-group">
+	<!-- R8 re-point (ADR-0070 D9): the box is the PACKAGE organ now —
+	     the green diagonal wash travels through the --panel-listbox-* vars
+	     on .spine-group below; the retired hand-rolled box CSS was deleted
+	     in the same commit. The empty-state hints ride the emptysnippet
+	     (D7); the rows scroll is PanelListboxList (D8). -->
+	<PanelListbox count={visible.length} collapsed={spine.collapsed} onToggle={toggle} testid="sidebar-spine-group" class="spine-group">
+		{#snippet header()}
 		<SidebarSessionListHeader
 			collapsed={spine.collapsed}
 			nameFilter={spine.nameFilter}
@@ -163,20 +169,22 @@
 			ondatechange={onDateFilter}
 			ontogglesubagents={toggleSubagents}
 		/>
-		{#if !spine.collapsed}
-			<div class="group-rows" id="sidebar-spine-group-rows" bind:this={rowsEl} data-testid="sidebar-spine-group-rows">
-				{#if visible.length === 0 && !current}
-					<p class="hint" data-testid="sidebar-sessions-empty">{t(m.noSessionsMatch)}</p>
-				{:else if visible.length === 0}
-					<p class="hint" data-testid="sidebar-sessions-empty">{t(m.noOtherSessionsMatch)}</p>
-				{:else}
-					{#each visible as s (s.sessionId)}
-						<RowSessionItem session={s} depth={depthById[s.sessionId] ?? 0} {workspaces} />
-					{/each}
-				{/if}
-		</div>
-		{/if}
-	</div>
+		{/snippet}
+		{#snippet emptysnippet()}
+			{#if visible.length === 0 && !current}
+				<p class="hint" data-testid="sidebar-sessions-empty">{t(m.noSessionsMatch)}</p>
+			{:else if visible.length === 0}
+				<p class="hint" data-testid="sidebar-sessions-empty">{t(m.noOtherSessionsMatch)}</p>
+			{/if}
+		{/snippet}
+		<PanelListboxList testid="sidebar-spine-group-rows" id="sidebar-spine-group-rows" class="group-rows">
+			<div class="rows-inner" bind:this={rowsEl}>
+				{#each visible as s (s.sessionId)}
+					<RowSessionItem session={s} depth={depthById[s.sessionId] ?? 0} {workspaces} />
+				{/each}
+			</div>
+		</PanelListboxList>
+	</PanelListbox>
 </div>
 
 <style>
@@ -194,33 +202,32 @@
 		flex-direction: column;
 	}
 
-	/* Group box (2026-09-01): the Panels box grammar — border, radius,
-	   quiet padding — under a green diagonal wash fading to transparent
-	   (the filter row's purple wash reads as its sibling). Accent-blue
-	   stays the floor's live set marker (SidebarOpenPanels), so the
-	   spine marks itself in green. */
-	.spine-group {
+	/* Group box (2026-09-01; R8 re-point ADR-0070 D9): the BOX is the
+	   PanelListbox organ now — its paint travels through the
+	   --panel-listbox-* vars BELOW (the green diagonal wash, the same
+	   values the hand-rolled CSS carried). Accent-blue stays the floor's
+	   live set marker (SidebarOpenPanels), so the spine marks itself in
+	   green. This class keeps only the layout the organ cannot know. */
+	.pane :global(.spine-group) {
+		--panel-listbox-wash: linear-gradient(45deg, color-mix(in srgb, var(--color-status-pass) 26%, transparent), transparent);
+		--panel-listbox-border: color-mix(in srgb, var(--color-surface-border, #dee2e6) 75%, transparent);
+		--panel-listbox-radius: 0.5rem;
 		flex: 1;
 		min-height: 0;
-		display: flex;
-		flex-direction: column;
 		gap: 0.125rem;
 		padding: 0.25rem;
-		border: 1px solid color-mix(in srgb, var(--color-surface-border, #dee2e6) 75%, transparent);
-		border-radius: 0.5rem;
-		background: linear-gradient(45deg, color-mix(in srgb, var(--color-status-pass) 26%, transparent), transparent);
 		/* NO margins — the parent column's gap spaces this box; a margin
 		   here would count as scrollable overflow inside the column. */
 	}
 
-	/* Rows scroll pane (moved down one level, 2026-09-01): owns the
-	   internal scrolling the pane root used to — the inter-row gap moved
-	   with it. Collapsed, the whole rows block unmounts and the header
-	   alone is the group. */
-	.group-rows {
-		flex: 1 1 auto;
-		min-height: 0;
-		overflow-y: auto;
+	/* Rows scroll pane (R8: the flex/min-height/overflow-y grammar is the
+	   PanelListboxList organ's — ADR-0070 D8; the hand-rolled copy was
+	   deleted same commit). The consumer keeps only the inter-row gap and
+	   the row-inner wrapper the heartbeat observer anchors into. */
+	.pane :global(.group-rows) {
+		gap: 0.125rem;
+	}
+	.rows-inner {
 		display: flex;
 		flex-direction: column;
 		gap: 0.125rem;

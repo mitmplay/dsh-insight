@@ -87,6 +87,38 @@ Everything a second consumer would otherwise re-roll badly now ships here:
 - **`SidebarContainer`** — the sidebar shell: collapsed stub / embedded bare rail / standalone width-wrapper + gutter. Words and skin via snippets; state page-owned.
 - **`createPrefsStore`** — the persistence primitive (SSR guard, junk fallback, clamp, best-effort write). Blob shapes are consumer-owned.
 
+## R8 — the PanelListbox family (ADR-0070)
+
+The one listbox grammar every sidebar tray consumes — four presentational
+organs (props in, callbacks out, zero consumer state):
+
+- **`PanelListbox`** — the group box + collapse wiring. `count === 0` with
+  no `emptysnippet` renders NOTHING (D7). Dressing via `--panel-listbox-wash`,
+  `--panel-listbox-border`, `--panel-listbox-radius` with neutral defaults (D5).
+- **`PanelListboxHeader`** — chevron (`expanded`, honest `aria-expanded`,
+  `onToggle`) + label area (`label` English default or a rich-stem snippet)
+  + `trailing` actions snippet for consumer domain controls (D3).
+- **`PanelListboxList`** — internal scroll grammar only: `flex: 1 1 auto`,
+  `min-height: 0`, `overflow-y: auto`. Any outer pane cap (e.g. DSI's 50%)
+  stays the consumer's wrapper (D8).
+- **`PanelListboxListItem`** — row shell + `onselect` + content
+  snippet; never a verb set (D4). `linked` (D2): when true, emphasis
+  follows the consumer-provided `selected` (the selectedPanelId contract);
+  when false the row ignores selection entirely. R9 `href` (ADR-0071 D2):
+  three renderings of one grammar — `href` → an anchor that STILL fires
+  `onselect` (the consumer may preventDefault a handled click);
+  `onselect` only → a button; neither → an inert element with no click
+  handler.
+- **`PanelListboxFilter`** — the search-input organ (ADR-0071 D1):
+  PLUMBING ONLY — `value` in, `oninput` keystrokes out. It never
+  learns what matched; the match pipeline is the consumer's pure module.
+  Grammar (stretch / navy ring / placeholder tone / height) via
+  `--panel-listbox-filter-*` tokens with neutral defaults.
+
+Every organ takes a `testid` prop with a neutral default (D6). No consumer
+color name ever appears in the base — set the vars per surface (DSI's
+accent-blue live-set wash, the spine's green, the playground's own).
+
 ### The two-app contract
 
 | Fact | DSI | Playground (packages/container-base/playground) |

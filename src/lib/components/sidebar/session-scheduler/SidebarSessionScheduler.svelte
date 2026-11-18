@@ -98,9 +98,10 @@
 	): T[] {
 		const kept: (typeof tasks)[number][] = [];
 		for (const task of tasks) {
-			// Stage 1 — name: a non-empty filter keeps title substrings (an
+			// Stage 1 — name: a non-empty filter keeps title substrings, CASE-
+			// INSENSITIVE (operator 2026-11-18: 'night' finds 'Nightly'; an
 			// empty title matches only the empty filter — never invented).
-			if (nameFilter !== '' && !task.title.includes(nameFilter)) continue;
+			if (nameFilter !== '' && !task.title.toLowerCase().includes(nameFilter.toLowerCase())) continue;
 			// Stage 2 — date: a picked day keeps rows scheduled on it.
 			if (dateFilter !== '' && shelfDateStamp(task.scheduledAt) !== dateFilter) continue;
 			// Stage 3 — view (D2; S = pending delivery, SC#1 2026-11-11).
@@ -135,6 +136,7 @@
 	 * targets reserve none; their rows render inert).
 	 */
 	import { onMount } from 'svelte';
+	import { PanelListbox } from '@deepseek-insight/container-base';
 	import SidebarSessionSchedulerHeader from './SidebarSessionSchedulerHeader.svelte';
 	import SidebarSessionSchedulerList from './SidebarSessionSchedulerList.svelte';
 	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
@@ -164,9 +166,10 @@
 		saveSchedulerPrefs({ collapsed, nameFilter, dateFilter, viewMode }, currentProfile());
 	}
 
-	/** Filter-row callbacks — the header stays stateless (D1), the host owns + persists. */
-	function onFilterInput(event: Event): void {
-		nameFilter = (event.currentTarget as HTMLInputElement).value;
+	/** Filter-row callback — the header stays stateless (D1), the host owns + persists.
+	 *  R9: the organ reports the raw value; the host persists + recomputes. */
+	function onFilterInput(value: string): void {
+		nameFilter = value;
 		persistPrefs();
 	}
 
@@ -232,64 +235,83 @@
 	const filteredTasks = $derived(filterShelfTasks(tasks, nameFilter, dateFilter, viewMode));
 </script>
 
-<div class="shelf" data-testid="scheduler-shelf">
-	<SidebarSessionSchedulerHeader
-		{collapsed}
-		pendingCount={pendingCountOf(filteredTasks)}
-		deliveredCount={deliveredCountOf(filteredTasks)}
-		{nameFilter}
-		{dateFilter}
-		{viewMode}
-		sessionDates={shelfDates}
-		ontoggle={toggle}
-		onfilterinput={onFilterInput}
-		ondatechange={onDateChange}
-		onviewchange={onViewChange}
-	/>
-	{#if !collapsed}
-		<SidebarSessionSchedulerList tasks={filteredTasks} {loaded} onrowclick={onRowClick} />
-	{/if}
-</div>
+<!-- R9 re-point (ADR-0071 D3/D5): the box is the PanelListbox organ —
+	the shelf reads as a sibling of the Focused/Filter boxes; the animated
+	triplet-bloom gradient travels as --panel-listbox-* consumer vars
+	(D3); zero tasks keeps the header + the honest em-dash line via the
+	emptysnippet (D5). The header renders even at zero rows; the children
+	(the List) render only expanded — the organ owns that cut. -->
+<PanelListbox
+	count={filteredTasks.length}
+	collapsed={collapsed}
+	onToggle={toggle}
+	testid="scheduler-shelf"
+	class="shelf"
+>
+	{#snippet header()}
+		<SidebarSessionSchedulerHeader
+			{collapsed}
+			pendingCount={pendingCountOf(filteredTasks)}
+			deliveredCount={deliveredCountOf(filteredTasks)}
+			{nameFilter}
+			{dateFilter}
+			{viewMode}
+			sessionDates={shelfDates}
+			ontoggle={toggle}
+			onfilterinput={onFilterInput}
+			ondatechange={onDateChange}
+			onviewchange={onViewChange}
+		/>
+	{/snippet}
+	<SidebarSessionSchedulerList tasks={filteredTasks} {loaded} onrowclick={onRowClick} />
+	{#snippet emptysnippet()}
+		<!-- honest empty state (D5): the first read in flight renders nothing;
+		     a settled zero view renders the em-dash — never invented copy -->
+		{#if loaded}
+			<p class="empty">—</p>
+		{/if}
+	{/snippet}
+</PanelListbox>
 
 <style>
-	/* The panel-group box grammar (SidebarSessionFilter's sibling voice):
-	   accent-tinted border, radius, margins — the shelf reads as a
-	   sibling of the Focused/Filter boxes above/below it. */
-	.shelf {
-		/* Animated gradient surface (Filter Cluster ADR D6, task 3.1) — a
-		   component-local copy of the AppSidebarHeader rail-header grammar
-		   (KEEP IN SYNC with AppSidebarHeader.svelte — the rail gradient is
-		   the grammar's OWNER), recolored 2026-11-14 (operator pick):
-		   TRIPLET CORNER BLOOMS — three soft radial washes anchored at the
-		   corners over a near-white field (pastel maroon top-left keeping
-		   the family voice, pastel blue top-right, pastel green bottom-
-		   right). The 12s background-position pan drifts the bloom field
-		   gently; AA holds — --color-text-primary #212529 = ~12.7:1 on the
-		   palest field. Dark lamp (ADR-0023): same corner geometry,
-		   luminance-dropped stops. */
-		background-color: #f6f7f9;
-		background-image: radial-gradient(at 0% 0%, #f5d0d5 0, transparent 55%),
+	/* The shelf's box voice travels as --panel-listbox-* consumer vars
+	   (ADR-0071 D3 — the organ paints through them; DSI voices them).
+	   Animated gradient surface (Filter Cluster ADR D6, recolored
+	   2026-11-14, operator pick): TRIPLET CORNER BLOOMS — three soft
+	   radial washes anchored at the corners over a near-white field,
+	   layered OVER a base-color fill so the organ's single `background`
+	   shorthand carries both. The 12s background-position pan drifts the
+	   bloom field gently; AA holds — #212529 ≈ 12.7:1 on the palest
+	   field. Dark lamp (ADR-0023): same corner geometry, luminance-
+	   dropped stops. */
+	/* the class prop lands on the organ's root — scoped selectors cannot
+	   see it; the shelf's voice crosses through :global(.shelf) */
+	:global(.shelf) {
+		--panel-listbox-wash: radial-gradient(at 0% 0%, #f5d0d5 0, transparent 55%),
 			radial-gradient(at 100% 0%, #dbe4f7 0, transparent 55%),
-			radial-gradient(at 100% 100%, #ddf3e3 0, transparent 55%);
+			radial-gradient(at 100% 100%, #ddf3e3 0, transparent 55%),
+			linear-gradient(#f6f7f9, #f6f7f9);
+		--panel-listbox-border: color-mix(
+			in srgb,
+			var(--color-accent-blue, #3b82f6) 35%,
+			var(--color-surface-elevated)
+		);
+		--panel-listbox-radius: 0.5rem;
 		background-size: 300% 300%;
 		animation: shelf-gradient 12s ease-in-out infinite;
-		display: flex;
-		flex-direction: column;
 		gap: 0.25rem;
 		padding: 0.25rem;
 		min-width: 0;
 		margin: 0.125rem 0;
-		border: 1px solid color-mix(in srgb, var(--color-accent-blue, #3b82f6) 35%, var(--color-surface-elevated));
-		border-radius: 0.5rem;
 	}
 
 	/* Dark lamp: same corner geometry, dropped luminance — the shelf stays
 	   a readable sibling of the dark rail. */
-	:global(html[data-theme='dark']) .shelf {
-		background-color: #20222b;
-		background-image: radial-gradient(at 0% 0%, #402a2a 0, transparent 55%),
+	:global(html[data-theme='dark'] .shelf) {
+		--panel-listbox-wash: radial-gradient(at 0% 0%, #402a2a 0, transparent 55%),
 			radial-gradient(at 100% 0%, #26304a 0, transparent 55%),
-			radial-gradient(at 100% 100%, #1f3a2c 0, transparent 55%);
+			radial-gradient(at 100% 100%, #1f3a2c 0, transparent 55%),
+			linear-gradient(#20222b, #20222b);
 	}
 
 	@keyframes shelf-gradient {
@@ -307,9 +329,17 @@
 	/* Reduced motion: the pan is decoration — turn the ANIMATION off, the
 	   gradient tint itself stays (AppSidebarHeader grammar). */
 	@media (prefers-reduced-motion: reduce) {
-		.shelf {
+		:global(.shelf) {
 			animation: none;
 		}
 	}
 
+	/* The honest empty line (ADR-0071 D5): the em-dash rides the organ's
+	   emptysnippet; the shelf voices it like today's .empty. */
+	:global(.shelf .empty) {
+		margin: 0;
+		padding: 0.15rem 0.3rem;
+		font-size: 0.6875rem;
+		color: var(--color-text-secondary, #6c757d);
+	}
 </style>

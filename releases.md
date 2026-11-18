@@ -1,3 +1,20 @@
+## 0.13.0
+
+Bumped from 0.12.1 — the listbox grammar becomes package organs twice over: R8 promotes the PanelListbox family and migrates the sidebar, R9 adds the filter organ and migrates the scheduler shelf, and the playground's two-tray sidebar proves both.
+
+### Features
+- **PanelListbox family (ADR-0070, R8)** — four presentational organs (`PanelListbox`, `PanelListboxHeader`, `PanelListboxList`, `PanelListboxListItem`) land in container-base with one `linked` selection contract riding the `selectedPanelId` knob; DSI's open-panels group and recency spine re-point onto them same-release, retired box/header grammar deleted in the same commits (37f01ec8, 1343457f); lineage stays DSI. Specs: `dev/specs/2026-11/2026-11-18 - Container Base R8 PanelListbox Family/`.
+- **Playground two-tray sidebar (R8 W2, b200fb0d)** — lower unlinked tray + upper linked tray; the promote verb opens the pane in PanelsZoom and lights the upper-tray row; close drops the item back; the tray journey persists through the `pg-panels` revive path and the survival matrix gained its journey row (tests/e2e/survival-matrix.spec.ts).
+- **PanelListboxFilter organ (ADR-0071, R9)** — the search input ships once: value + oninput + placeholder/testid props, match logic stays consumer-side; the shelf's and spine's hand-drawn filter inputs retire same-commit (651b0fa9).
+- **Item href mode (R9)** — `PanelListboxListItem` renders anchor / button / inert (ADR-0071 D2); anchor clicks still report `onselect` with the MouseEvent forwarded so consumers can `preventDefault` — the scheduler shelf's click-through gate keeps working.
+- **Scheduler shelf migration (R9 W2)** — the last hand-rolled listbox joins the family: triplet-bloom gradient as `--panel-listbox-*` consumer vars, zero-task shelf keeps its header via the emptysnippet (em-dash), 10-row cap stays consumer-side. Specs: `dev/specs/2026-11/2026-11-18 - Container Base R9 PanelListboxFilter Scheduler Migration/`.
+- **Playground tray filters (R9 W3, 42972579)** — two independent persisted filters (`pg-tray-filters` blob, junk-revive fallback), case-insensitive (084e754d), each narrowing only its own tray; tray-filter e2e added to the survival matrix (d3e3d2df).
+- **Header search slot (operator UX amendment, 44ac105c)** — the filter sits inside the header's title container, trailing stays icons/pills; the five `--panel-listbox-filter-*` tokens are voiced in DSI `app.css` (light + dark).
+
+### Bug fixes
+- **Tray-filter e2e hydration gate** — fills gate on hydrated row content after fresh dev-server dep re-optimization full-reloads mid-test (fe5e216d, d3e3d2df); the journey-row promote click retries across hydration (fe5e216d).
+- **Parity pins migrated to the organ contract** — chevron glyph and `Focused -` title pins read the organs' testid + text + glyph swap (a43bab9d), and R8's W5 parity fixes kept the floor trio at baseline.
+
 ## 0.12.1
 
 Bumped from 0.12.0 — the sidebar collapse button becomes a package organ (ADR-0069), the playground chrome reaches DSI parity, and the workspace-file reload valve learns to respect edit mode.

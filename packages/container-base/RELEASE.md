@@ -1,5 +1,22 @@
 # RELEASE — @deepseek-insight/container-base
 
+## 0.2.0
+
+Bumped from 0.1.1 — the listbox family and the filter organ (R8 + R9); the playground becomes the second app with a real two-tray sidebar.
+
+### Features
+- **PanelListbox family (ADR-0070, R8, ede24164)** — `PanelListbox` / `PanelListboxHeader` / `PanelListboxList` / `PanelListboxListItem` join `src/components/`: linked + unlinked modes, `--panel-listbox-*` consumer styling, injectable testids, empty-snippet law. Exported via `index.ts` (47e1194a mirror sync included).
+- **PanelListboxFilter (ADR-0071 D1, edbd514d)** — the fifth organ: value + oninput + placeholder/testid, plumbing only.
+- **Item href mode (ADR-0071 D2, edbd514d)** — anchor / button / inert renderings; anchors forward the MouseEvent to `onselect` so consumers can preventDefault (W1.5 amendment in 651b0fa9).
+- **Header search slot (44ac105c)** — `PanelListboxHeader` gains an optional `search` snippet inside the title container; the five `--panel-listbox-filter-*` tokens join `tokens.css`.
+
+### Consumers
+- Playground: two-tray sidebar + journey (b200fb0d), tray filters persisted under `pg-tray-filters` (42972579), case-insensitive matching (084e754d).
+- DSI: open-panels + spine + scheduler shelf all consume the family; both hand-drawn filter inputs retired same-commit (651b0fa9).
+
+### Tests
+- Package suites grew to 285 (36 files): `panel-listbox.test.ts` (organs + item modes), `panel-listbox-filter.test.ts`, `two-tray-host.test.ts`, `journey-revive.test.ts`, extended `playground-conformance.test.ts`.
+
 ## 0.1.1
 
 Bumped from 0.1.0 — the capture buttons move into the package and the desk remembers before paint.

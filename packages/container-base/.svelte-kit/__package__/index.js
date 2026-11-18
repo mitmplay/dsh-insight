@@ -42,3 +42,9 @@ export { default as SliderWidth, WIDTH_BOUNDS } from './components/SliderWidth.s
 export { default as SliderZoom, ZOOM_BOUNDS } from './components/SliderZoom.svelte';
 // ── sidebar (R2 W5, ADR-0063 D5) ──
 export { default as SidebarContainer, SIDEBAR_COLLAPSED_WIDTH } from './components/SidebarContainer.svelte';
+// ── listbox family (R8, ADR-0070) ──
+export { default as PanelListbox } from './components/PanelListbox.svelte';
+export { default as PanelListboxHeader } from './components/PanelListboxHeader.svelte';
+export { default as PanelListboxList } from './components/PanelListboxList.svelte';
+export { default as PanelListboxListItem } from './components/PanelListboxListItem.svelte';
+export { default as PanelListboxFilter } from './components/PanelListboxFilter.svelte';

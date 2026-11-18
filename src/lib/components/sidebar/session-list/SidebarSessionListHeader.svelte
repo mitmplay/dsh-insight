@@ -9,7 +9,8 @@
 	 */
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
-	import { Bot, BotOff, ChevronDown, ChevronRight } from '@lucide/svelte';
+	import { Bot, BotOff } from '@lucide/svelte';
+	import { PanelListboxFilter, PanelListboxHeader } from '@deepseek-insight/container-base';
 	import FilterDateButton from '$lib/components/common/buttons/FilterDateButton.svelte';
 
 	let {
@@ -31,104 +32,72 @@
 		 *  dots (2026-09-04). Absent = a dot-less calendar. */
 		sessionDates?: Set<string>;
 		ontoggle: () => void;
-		onfilterinput: (event: Event) => void;
+		onfilterinput: (value: string) => void;
 		ondatechange: (date: string) => void;
 		ontogglesubagents: () => void;
 	} = $props();
 </script>
 
-<div class="group-head">
-	<button
-		type="button"
-		class="group-toggle"
-		data-testid="sidebar-spine-group-toggle"
-		aria-expanded={!collapsed}
-		aria-controls="sidebar-spine-group-rows"
-		onclick={ontoggle}
-	>
-		{#if collapsed}<ChevronRight size={12} aria-hidden="true" />{:else}<ChevronDown
-				size={12}
-				aria-hidden="true"
-			/>{/if}
+<!-- R8 re-point (ADR-0070 D9): the chevron + label row is the PACKAGE
+     organ now — the retired .group-head/.group-toggle hand-rolled
+     grammar was deleted in the same commit. The filter input, the date
+     badge, and the sub-agent toggle are DOMAIN controls injected through
+     the trailing snippet (D3); the view-state owner is unchanged. -->
+<PanelListboxHeader
+	expanded={!collapsed}
+	onToggle={ontoggle}
+	label={t(m.sessions)}
+	testid="sidebar-spine-group-header"
+	toggleTestid="sidebar-spine-group-toggle"
+	controls="sidebar-spine-group-rows"
+	class="group-head"
+>
+	{#snippet children()}
 		<span class="head-title" data-testid="sidebar-spine-group-title">{t(m.sessions)}</span>
-	</button>
-	<input
-		class="filter-input"
-		data-testid="sidebar-spine-filter"
-		type="search"
-		placeholder={t(m.filterBySessionName)}
-		aria-label={t(m.filterBySessionNameLabel)}
-		value={nameFilter}
-		oninput={onfilterinput}
-	/>
-	<!-- Date filter (2026-09-04, the OCI FilterDateButton port): the
-	     badge sits directly AFTER the name-filter input — same pinned
-	     header, same view-state contract (spine.dateFilter). -->
-	<FilterDateButton value={dateFilter} dates={sessionDates} onchange={ondatechange} />
-	<button
-		type="button"
-		class="subagents-btn"
-		class:active={subagentsHidden}
-		data-testid="sidebar-spine-subagents"
-		aria-pressed={subagentsHidden}
-		title={subagentsHidden ? 'Show sub-agents' : 'Hide sub-agents'}
-		onclick={ontogglesubagents}
-	>
-		{#if subagentsHidden}<BotOff size={12} aria-hidden="true" />{:else}<Bot
-				size={12}
-				aria-hidden="true"
-			/>{/if}
-	</button>
-</div>
+	{/snippet}
+	{#snippet search()}
+		<!-- R9 re-point (ADR-0071 D9): the hand-drawn input is the
+		     PanelListboxFilter organ now — the retired .filter-input rule
+		     block was deleted in the same commit. R9 UX amendment (operator
+		     2026-11-18): title and search share ONE container, the input
+		     owns the free width; testid preserved via the organ prop (D6). -->
+		<PanelListboxFilter
+			value={nameFilter}
+			oninput={onfilterinput}
+			placeholder={t(m.filterBySessionName)}
+			ariaLabel={t(m.filterBySessionNameLabel)}
+			testid="sidebar-spine-filter"
+		/>
+	{/snippet}
+	{#snippet trailing()}
+		<!-- Date filter (2026-09-04, the OCI FilterDateButton port): the
+		     badge sits directly AFTER the name-filter input — same pinned
+		     header, same view-state contract (spine.dateFilter). -->
+		<FilterDateButton value={dateFilter} dates={sessionDates} onchange={ondatechange} />
+		<button
+			type="button"
+			class="subagents-btn"
+			class:active={subagentsHidden}
+			data-testid="sidebar-spine-subagents"
+			aria-pressed={subagentsHidden}
+			title={subagentsHidden ? 'Show sub-agents' : 'Hide sub-agents'}
+			onclick={ontogglesubagents}
+		>
+			{#if subagentsHidden}<BotOff size={12} aria-hidden="true" />{:else}<Bot
+					size={12}
+					aria-hidden="true"
+				/>{/if}
+		</button>
+	{/snippet}
+</PanelListboxHeader>
 
 <style>
-	/* Header row (2026-09-01): chevron+title toggle, name filter input,
-	   [x] clear, sub-agent toggle — one pinned line; the input owns the
-	   free width. Never scrolls (the rows pane below does). */
-	.group-head {
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		gap: 0.25rem;
-		min-width: 0;
-	}
-
-	/* Title toggle — the Panels .group-head grammar (small, weight 600,
-	   hover field, navy keyboard ring); the chevron leads. */
-	.group-toggle {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		flex-shrink: 0;
-		min-width: 0;
-		padding: 0.1875rem 0.375rem;
-		border: none;
-		border-radius: 0.375rem;
-		background: transparent;
-		font-size: 0.6875rem;
-		line-height: 1.25;
-		font-weight: 600;
-		color: var(--color-text-primary, #212529);
-		cursor: pointer;
-		transition: background-color 0.15s ease;
-	}
-
-	.group-toggle:hover {
-		background: var(--color-surface-hover, #e9ecef);
-	}
-
-	/* Keyboard focus gets a RING, not just the hover field (WCAG 2.4.7),
-	   the same navy the Panels header rings with. */
-	.group-toggle:focus-visible {
-		background: var(--color-surface-hover, #e9ecef);
-		outline: 2px solid var(--color-navy-focus);
-		outline-offset: -2px;
-	}
-
-	.group-toggle :global(svg) {
-		flex-shrink: 0;
-		color: var(--color-text-secondary, #6c757d);
-	}
+	/* (R8: the retired .group-head row layout + .group-toggle chevron
+	   grammar is the PanelListboxHeader organ's — deleted same commit,
+	   ADR-0070 D9. R9: the retired .filter-input rule block is the
+	   PanelListboxFilter organ's — deleted same commit, ADR-0071 D9. The
+	   input keeps the header's free width through the organ's trailing
+	   cluster; DSI voices the organ's ring/tones via its theme vars.) */
 
 	.head-title {
 		min-width: 0;
@@ -136,30 +105,6 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		color: blueviolet;
-	}
-
-	/* Name filter (2026-09-01): the input owns the header's free width;
-	   secondary-tone placeholder (#6c757d on white ≈ 4.6:1), navy ring on
-	   focus — the group's one keyboard indicator family. */
-	.filter-input {
-		flex: 1;
-		min-width: 0;
-		height: 1.375rem;
-		padding: 0 0.375rem;
-		border: 1px solid color-mix(in srgb, var(--color-surface-border, #dee2e6) 75%, transparent);
-		border-radius: 0.375rem;
-		background: var(--color-surface-elevated, var(--color-surface-elevated));
-		font-size: 0.6875rem;
-		color: var(--color-text-primary, #212529);
-	}
-
-	.filter-input::placeholder {
-		color: var(--color-text-secondary, #6c757d);
-	}
-
-	.filter-input:focus-visible {
-		outline: 2px solid var(--color-navy-focus);
-		outline-offset: -1px;
 	}
 
 	/* Sub-agent toggle (2026-10-29): the row-btn ghost glyph never read

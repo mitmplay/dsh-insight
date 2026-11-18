@@ -50,12 +50,17 @@
 <script lang="ts">
 	/**
 	 * SchedulerList — the shelf's expanded row list (extracted from
-	 * SidebarSessionScheduler 2026-11-11): the loading/empty/rows
-	 * projection of the host's filtered ledger. The host owns the read
-	 * (wire + fold + filters, ADR-0058 D4); this component is a pure
-	 * projection — no fetch, no prefs, no state beyond the per-row meta.
+	 * SidebarSessionScheduler 2026-11-11): the rows projection of the
+	 * host's filtered ledger. R9 re-point (ADR-0071 D2): the rows are
+	 * the PanelListboxListItem organ — target-bearing rows render the
+	 * anchor mode (href, still firing onselect; the host's click gate
+	 * preventDefaults a handled click), 'new'-kind rows render the INERT
+	 * mode (neither href nor onselect). The 10-row cap STAYS HERE — the
+	 * consumer wrapper owns any cap (ADR-0070 D8). No fetch, no prefs,
+	 * no state beyond the per-row meta.
 	 */
 	import { resolve } from '$app/paths';
+	import { PanelListboxListItem } from '@deepseek-insight/container-base';
 	import { humanizeCountdown } from './SidebarSessionScheduler.svelte';
 	import { addPanelFromSidebar } from '$lib/services/panels/panel-registry';
 	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
@@ -113,29 +118,27 @@
 </script>
 
 <!-- ROWS CAP (operator 2026-11-11): past 10 rows the column stops growing
-	and scrolls — the shelf never pushes the sidebar's lower siblings off. -->
+	and scrolls — the shelf never pushes the sidebar's lower siblings off.
+	The cap lives on THIS wrapper (ADR-0070 D8: the organ owns only its
+	internal scroll grammar). -->
 <div class="rows" class:scrollable={tasks.length > 10}>
-	{#if !loaded}
-		<!-- first read in flight: show nothing rather than a premature empty line -->
-	{:else if tasks.length === 0}
-		<!-- the honest empty line: nothing to show, said without copy -->
-		<p class="empty">—</p>
-	{:else}
+	{#if loaded}
 		{#each tasks as task (task.id)}
 			{#if task.targetSessionId !== null && task.targetSessionId !== ''}
-				<a
-					class="row"
+				<!-- anchor mode: the seed deep link is the no-floor fallback;
+				     the host's click gate preventDefaults a handled click -->
+				<PanelListboxListItem
 					href={resolve(shelfSeed(task) as '/')}
-					data-testid="scheduler-shelf-row"
-					onclick={(event) => onrowclick(event, task)}
+					onselect={(event) => onrowclick(event, task)}
+					testid="scheduler-shelf-row"
 				>
 					{@render rowBody(task)}
-				</a>
+				</PanelListboxListItem>
 			{:else}
 				<!-- inert: 'new'-kind targets reserve no session to open -->
-				<div class="row" data-testid="scheduler-shelf-row">
+				<PanelListboxListItem testid="scheduler-shelf-row">
 					{@render rowBody(task)}
-				</div>
+				</PanelListboxListItem>
 			{/if}
 		{/each}
 	{/if}
@@ -183,21 +186,8 @@
 		overscroll-behavior-y: contain;
 	}
 
-	.row {
-		display: flex;
-		align-items: center;
-		gap: 0.3rem;
-		min-width: 0;
-		padding: 0.2rem 0.3rem;
-		border-radius: 0.375rem;
-		font-size: 0.6875rem;
-		color: var(--color-text-primary, #212529);
-		text-decoration: none;
-	}
-
-	a.row:hover {
-		background-color: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
-	}
+	/* (R9: the retired .row / a.row:hover row grammar is the
+	   PanelListboxListItem organ's — deleted same commit, ADR-0071 D9.) */
 
 	/* Status dots — armed green / paused amber / ended gray, via the
 	   theme's status tokens (both themes). */
@@ -266,12 +256,5 @@
 	   2026-11-11: CheckCheck replaces the 'delivered' word). */
 	.meta :global(svg) {
 		flex-shrink: 0;
-	}
-
-	.empty {
-		margin: 0;
-		padding: 0.15rem 0.3rem;
-		font-size: 0.6875rem;
-		color: var(--color-text-secondary, #6c757d);
 	}
 </style>

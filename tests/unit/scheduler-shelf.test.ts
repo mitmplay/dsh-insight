@@ -261,8 +261,11 @@ describe('scheduler-shelf filter pipeline (Filter Cluster 1.2-T)', () => {
 		expect(deliveredCountOf([])).toBe(0);
 	});
 
-	it('name stage: substring on title; empty title matches only the empty filter', () => {
+	it('name stage: substring on title, CASE-INSENSITIVE (operator 2026-11-18); empty title matches only the empty filter', () => {
 		expect(filterShelfTasks(ledger, 'report', '', 'all').map((t) => t.id)).toEqual(['armed-sched', 'other-day']);
+		// non-sensitive: 'night' finds 'Nightly report', 'REPORT' finds both
+		expect(filterShelfTasks(ledger, 'night', '', 'all').map((t) => t.id)).toEqual(['armed-sched']);
+		expect(filterShelfTasks(ledger, 'REPORT', '', 'all').map((t) => t.id)).toEqual(['armed-sched', 'other-day']);
 		expect(filterShelfTasks([T({ id: 'blank', title: '' })], '', '', 'all').length).toBe(1);
 		expect(filterShelfTasks([T({ id: 'blank', title: '' })], 'report', '', 'all').length).toBe(0);
 	});

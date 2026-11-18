@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import PanelListbox from '../src/components/PanelListbox.svelte';
+import PanelListboxHeader from '../src/components/PanelListboxHeader.svelte';
+import PanelListboxList from '../src/components/PanelListboxList.svelte';
+import PanelListboxListItem from '../src/components/PanelListboxListItem.svelte';
+import PanelListboxFilter from '../src/components/PanelListboxFilter.svelte';
 
 /**
  * 4.1-T (ADR-0065 W4) — playground conformance: the second consumer
@@ -35,6 +40,30 @@ describe('playground conformance (4.1-T, ADR-0065 W4)', () => {
 	it('hosts panel title text in a PanelHeaderSkeleton header (D6)', () => {
 		expect(pageSrc).toMatch(/<PanelHeaderSkeleton title=\{pane\.title\}>/);
 		expect(pageSrc).toMatch(/<span class="pane-title">\{pane\.title\}<\/span>/);
+	});
+
+	// 1.2-T (ADR-0070 W1): the four listbox organs are exported from the
+	// single public surface and typed.
+	it('exports the four PanelListbox organs from index.ts (1.2-T, ADR-0070)', () => {
+		expect(PanelListbox).toBeTruthy();
+		expect(PanelListboxHeader).toBeTruthy();
+		expect(PanelListboxList).toBeTruthy();
+		expect(PanelListboxListItem).toBeTruthy();
+		// the public surface is index.ts ONLY — the four organs must be
+		// re-exported there (the barrel is what dist/ and the playground consume)
+		const indexSrc = readFileSync(new URL('../src/index.ts', 'file://' + here), 'utf8');
+		for (const organ of ['PanelListbox', 'PanelListboxHeader', 'PanelListboxList', 'PanelListboxListItem']) {
+			expect(indexSrc).toContain('export { default as ' + organ + " } from './components/" + organ + ".svelte'");
+		}
+	});
+
+	// 1.3-T (ADR-0071 W1): the fifth organ rides the same public surface.
+	it('exports PanelListboxFilter from index.ts (1.3-T, ADR-0071)', () => {
+		expect(PanelListboxFilter).toBeTruthy();
+		const indexSrc = readFileSync(new URL('../src/index.ts', 'file://' + here), 'utf8');
+		expect(indexSrc).toContain(
+			"export { default as PanelListboxFilter } from './components/PanelListboxFilter.svelte'"
+		);
 	});
 
 	it('renders PanelClose + CanvasCopyButton inside the header actions (D6)', () => {

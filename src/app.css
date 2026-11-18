@@ -107,6 +107,15 @@
 	--color-ws-violet: #9400d3;          /* sidebar workspace violet ink (calibrated, SidebarOpenPanelRows) */
 	--color-ws-green: #00a802;           /* workspace fork-children green spawn line */
 	--color-ws-blue: #0066cc;            /* workspace blue child paint */
+
+	/* PanelListbox filter organ (ADR-0071 + UX amendment 2026-11-18): DSI
+	 * voices the five tokens (the base ships no skin; tokens.css defaults
+	 * never load here — the transparent-input trap hit live). */
+	--panel-listbox-filter-border: color-mix(in srgb, var(--color-surface-border) 75%, transparent);
+	--panel-listbox-filter-bg: var(--color-surface-elevated);
+	--panel-listbox-filter-fg: var(--color-text-primary);
+	--panel-listbox-filter-placeholder: var(--color-text-secondary);
+	--panel-listbox-filter-ring: var(--color-navy-focus);
 }
 
 /* SessionStatus run color — app-wide (2026-09-03): the live-motion glyph
@@ -201,6 +210,14 @@
 	--color-ws-violet: #c084fc;
 	--color-ws-green: #4ade80;
 	--color-ws-blue: #6cb8ff;
+
+	/* PanelListbox filter organ, dark lamp (2026-11-18): elevated field,
+	 * light ink — the ring follows the dark navy ramp. */
+	--panel-listbox-filter-border: color-mix(in srgb, var(--color-surface-border) 60%, transparent);
+	--panel-listbox-filter-bg: var(--color-surface-elevated);
+	--panel-listbox-filter-fg: var(--color-text-primary);
+	--panel-listbox-filter-placeholder: var(--color-text-secondary);
+	--panel-listbox-filter-ring: var(--color-navy-focus);
 
 	/* Sub-agent tints, dark ramp (ADR-0023 sweep): dark beige tones that
 	 * keep the read-only signal without glaring against the dark palette;

@@ -61,9 +61,16 @@ describe('scheduler-shelf-header', () => {
 	it('pills render values including honest 0, input sits after the fold toggle', () => {
 		h = mountHeader({ pendingCount: 0, deliveredCount: 0 });
 		// Row order (operator amendment 2026-11-11): toggle → input → pills.
+		// R9: the input lives in the header organ's trailing cluster, so the
+		// contract is DOCUMENT order, not direct sibling adjacency.
 		const toggle = h.host.querySelector('[data-testid="scheduler-shelf-toggle"]');
 		const input = h.host.querySelector('[data-testid="sidebar-scheduler-filter"]');
-		expect(input?.previousElementSibling).toBe(toggle);
+		const order = [...h.host.querySelectorAll('[data-testid]')].map((el) => el.getAttribute('data-testid'));
+		expect(order.indexOf('scheduler-shelf-toggle')).toBeGreaterThanOrEqual(0);
+		expect(order.indexOf('sidebar-scheduler-filter')).toBeGreaterThan(order.indexOf('scheduler-shelf-toggle'));
+		expect(order.indexOf('scheduler-counts')).toBeGreaterThan(order.indexOf('sidebar-scheduler-filter'));
+		expect(toggle).not.toBeNull();
+		expect(input).not.toBeNull();
 		expect(h.host.querySelector('[data-testid="scheduler-counts"]')?.textContent).toBe('(0/0)');
 		unmount(h.instance as never);
 		h.host.remove();

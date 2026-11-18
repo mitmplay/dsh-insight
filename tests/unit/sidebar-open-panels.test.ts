@@ -100,6 +100,36 @@ describe('SidebarOpenPanels — the pinned panel group', () => {
 		expect(h.querySelector('[data-testid="sidebar-panel-rows-scroll"]')).not.toBeNull();
 	});
 
+	it('3.1-T (ADR-0070 D9): the header + box ride the PACKAGE organs; the string contract survives', async () => {
+		const h = await mountPanels(
+			[panelRow({ panel: convPanel('p1', 's-1'), title: 'One' })],
+			[],
+			'p1'
+		);
+		// The box is the PanelListbox organ (organ root class rides beside
+		// the consumer dressing class).
+		const box = h.querySelector('[data-testid="sidebar-panel-group"]')!;
+		expect(box.classList.contains('panel-listbox')).toBe(true);
+		// The header row is the PanelListboxHeader organ; the toggle testid
+		// and the rows aria-controls survive as injectable props (D6).
+		const toggle = h.querySelector('[data-testid="sidebar-panel-group-toggle"]') as HTMLButtonElement;
+		expect(toggle.classList.contains('lb-chevron')).toBe(true);
+		expect(toggle.getAttribute('aria-controls')).toBe('sidebar-panel-group-rows');
+		// The `Focused - <name>` string contract: stem rides as TEXT inside
+		// the title testid (the chip's text follows it).
+		const title = h.querySelector('[data-testid="sidebar-panel-group-title"]')!;
+		expect(title.textContent).toContain('Focused');
+		expect(title.textContent).toContain('One');
+		// The rows body is the PanelListboxList organ (internal scroll owner).
+		const list = h.querySelector('[data-testid="sidebar-panel-rows-scroll"]')!;
+		expect(list.classList.contains('panel-listbox-list')).toBe(true);
+		// Collapsed: the organ hides the list, the header stays.
+		toggle.click();
+		flushSync();
+		expect(h.querySelector('[data-testid="sidebar-panel-rows-scroll"]')).toBeNull();
+		expect(h.querySelector('[data-testid="sidebar-panel-group-toggle"]')).not.toBeNull();
+	});
+
 	it('zero rows and zero ghosts render NO pane at all', async () => {
 		const h = await mountPanels([]);
 		expect(h.querySelector('[data-testid="sidebar-panel-pane"]')).toBeNull();

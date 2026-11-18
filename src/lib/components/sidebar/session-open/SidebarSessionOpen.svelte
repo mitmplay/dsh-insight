@@ -81,6 +81,7 @@
 	import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
 	import SidebarSessionOpenHeader from './SidebarSessionOpenHeader.svelte';
 	import SidebarOpenPanelRows from './SidebarOpenPanelRows.svelte';
+	import { PanelListbox, PanelListboxList } from '@deepseek-insight/container-base';
 
 	let {
 		workspaces
@@ -496,11 +497,14 @@
 
 {#if rows.length > 0 || (ws?.ghosts ?? []).length > 0}
 	<div class="pane" data-testid="sidebar-panel-pane">
-		<div class="panel-group" data-testid="sidebar-panel-group">
-			<!-- The group header (SidebarSessionOpenHeader, extracted
-			     2026-11-11): collapse toggle + focused-name chip + lineage
-			     fold pair + sub-agent view filter — all state arrives as
-			     props; every action returns as a callback. -->
+		<!-- R8 re-point (ADR-0070 D9): the group box is the PACKAGE organ
+		     (PanelListbox) — wash/border/radius travel through the
+		     --panel-listbox-* vars set on .panel-group below; the 50% cap
+		     STAYS on .pane here (D8 — the organ owns only the internal
+		     scroll, which is PanelListboxList now). The retired .panel-group
+		     hand-rolled box CSS was deleted in the same commit. -->
+		<PanelListbox count={renderList.length} {collapsed} onToggle={toggle} testid="sidebar-panel-group" class="panel-group">
+						{#snippet header()}
 			<SidebarSessionOpenHeader
 				{collapsed}
 				{headName}
@@ -514,13 +518,9 @@
 				ontoggle={toggle}
 				ontogglesubagents={toggleSubagents}
 			/>
-			{#if !collapsed}
-				<!-- The rows body (SidebarOpenPanelRows): the interleaved
-				     panel/ghost sequence. All state arrives as props; every
-				     action returns as a callback — this component owns the
-				     registry, the fold state, and the workspace context. -->
-				<div class="panel-container" data-testid="sidebar-panel-rows-scroll">
-					<SidebarOpenPanelRows
+			{/snippet}
+			<PanelListboxList testid="sidebar-panel-rows-scroll">
+				<SidebarOpenPanelRows
 						{visibleRender}
 						{panelIndex}
 						{subtreeCount}
@@ -533,11 +533,10 @@
 						onmove={onMove}
 						ontogglefold={toggleFold}
 						onclose={(panelId) => ws?.remove(panelId)}
-						onadopt={onAdopt}
-					/>
-				</div>
-			{/if}
-		</div>
+					onadopt={onAdopt}
+				/>
+			</PanelListboxList>
+		</PanelListbox>
 	</div>
 {/if}
 
@@ -567,43 +566,36 @@
 		flex-direction: column;
 	}
 
-	/* Group box (2026-08-24, restyled 2026-08-26): the open panels
-	   render as ONE detached group — tinted surface + border + radius —
-	   so the floor's live set never visually blends into the recency
-	   spine below the separator. The catchier field is an accent-blue
-	   WASH (14% → 7% down the box) instead of the old quiet grey —
-	   readable, not loud. WCAG: the wash stays light enough that the
-	   darkest text below (accent-deep, 5.17:1 worst-case at the top of
-	   the gradient) clears AA for the box's small text sizes. */
-	.panel-group {
+	/* Group box (2026-08-24, restyled 2026-08-26; R8 re-point ADR-0070 D9):
+	   the BOX is the PanelListbox organ now — its paint travels through the
+	   --panel-listbox-* vars BELOW (accent-blue live-set wash, the same
+	   values the hand-rolled CSS carried); this class keeps only the
+	   layout the organ cannot know (fill the capped pane, internal gap and
+	   padding). WCAG: the wash stays light enough that the darkest text
+	   below (accent-deep, 5.17:1 worst-case at the top of the gradient)
+	   clears AA for the box's small text sizes. */
+	.pane :global(.panel-group) {
+		--panel-listbox-wash: linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--color-accent-blue, #3b82f6) 14%, var(--color-surface-elevated)),
+			color-mix(in srgb, var(--color-accent-blue, #3b82f6) 7%, var(--color-surface-elevated))
+		);
+		--panel-listbox-border: color-mix(in srgb, var(--color-accent-blue, #3b82f6) 35%, var(--color-surface-elevated));
+		--panel-listbox-radius: 0.5rem;
+		--panel-listbox-header-fg: var(--color-navy-focus);
 		/* Fill the capped pane (and shrink to it) so the rows container
 		   below can scroll internally; uncapped, basis auto keeps the
 		   natural content height. */
 		flex: 1 1 auto;
 		min-height: 0;
-		display: flex;
-		flex-direction: column;
 		gap: 0.125rem;
 		padding: 0.25rem;
-		border: 1px solid color-mix(in srgb, var(--color-accent-blue, #3b82f6) 35%, var(--color-surface-elevated));
-		border-radius: 0.5rem;
-		background: linear-gradient(
-			180deg,
-			color-mix(in srgb, var(--color-accent-blue, #3b82f6) 14%, var(--color-surface-elevated)),
-			color-mix(in srgb, var(--color-accent-blue, #3b82f6) 7%, var(--color-surface-elevated))
-		);
 		/* NO bottom margin — the parent column's gap spaces this box
 		   from the separator; a margin here would count as scrollable
 		   overflow inside the capped pane (phantom scrollbar). */
 	}
 
-	/* The rows scroll pane (inside the capped group): flex 1 + min-height
-	   0 lets it shrink under the pane's cap; past the cap the ROWS scroll
-	   and the group header stays pinned (the spine group's 2026-09-01
-	   structure). */
-	.panel-container {
-		flex: 1 1 auto;
-		min-height: 0;
-		overflow-y: auto;
-	}
+	/* (R8: the retired .panel-container scroll rules are the organ's now —
+	   PanelListboxList owns flex/min-height/overflow-y, ADR-0070 D8; the
+	   hand-rolled copy was deleted in the same commit.) */
 </style>

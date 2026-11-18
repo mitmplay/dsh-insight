@@ -40,3 +40,8 @@ export { default as LanguageMenu } from './i18n/LanguageMenu.svelte';
 export { default as SliderWidth, WIDTH_BOUNDS } from './components/SliderWidth.svelte';
 export { default as SliderZoom, ZOOM_BOUNDS } from './components/SliderZoom.svelte';
 export { default as SidebarContainer, SIDEBAR_COLLAPSED_WIDTH } from './components/SidebarContainer.svelte';
+export { default as PanelListbox } from './components/PanelListbox.svelte';
+export { default as PanelListboxHeader } from './components/PanelListboxHeader.svelte';
+export { default as PanelListboxList } from './components/PanelListboxList.svelte';
+export { default as PanelListboxListItem } from './components/PanelListboxListItem.svelte';
+export { default as PanelListboxFilter } from './components/PanelListboxFilter.svelte';

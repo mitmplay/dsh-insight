@@ -40,6 +40,25 @@
 	 * feedback, not skin; mirrors DSI's status palette app.css:70-71) */
 	--color-status-pass: #10b981;
 	--color-status-fail: #ef4444;
+
+	/* Listbox family (ADR-0070 R8, D5): the PanelListbox organs' neutral
+	 * defaults — every consumer sets its own surface voice (DSI's
+	 * accent-blue live-set wash, the spine's green, the playground's own). */
+	--panel-listbox-wash: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0));
+	--panel-listbox-border: rgba(0, 0, 0, 0.12);
+	--panel-listbox-radius: 8px;
+	--panel-listbox-header-fg: inherit;
+	--panel-listbox-item-hover: rgba(0, 0, 0, 0.05);
+	--panel-listbox-item-active: rgba(0, 0, 0, 0.1);
+	--panel-listbox-item-focus: currentColor;
+
+	/* Filter organ (ADR-0071 R9, D1): the search-input grammar's neutral
+	 * defaults — the consumer voices them (DSI's navy ring, elevated bg). */
+	--panel-listbox-filter-border: rgba(0, 0, 0, 0.18);
+	--panel-listbox-filter-bg: #ffffff;
+	--panel-listbox-filter-fg: #212529;
+	--panel-listbox-filter-placeholder: #6c757d;
+	--panel-listbox-filter-ring: #1e3a8a;
 }
 
 /* Capture spinner (ADR-0066 R6): keyframes live on the ground so the

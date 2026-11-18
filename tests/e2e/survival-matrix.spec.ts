@@ -158,3 +158,86 @@ test.describe('survival matrix — independence + junk edges', () => {
 		await expect(page.locator('html')).toHaveAttribute('data-theme', /^(light|dark)$/);
 	});
 });
+test.describe('survival matrix - tray journey (R8, ADR-0070 D10)', () => {
+	test.setTimeout(120000);
+	test('playground: a promoted pane returns UPSTAIRS WITH FOCUS after hard reload; resting panes stay down', async ({ page }) => {
+		await page.goto(PG, { waitUntil: 'domcontentloaded' });
+		await page.waitForLoadState('load').catch(() => {});
+		// promote Scheduler from the lower tray (one click: open AND select).
+		// Retry across hydration: a click before the handlers wire up is lost
+		// (the same trap openMenu's retry loop exists for).
+		for (let i = 0; i < 10; i++) {
+			await page.getByTestId('pg-tray-resting-scheduler').click();
+			try {
+				await page.getByTestId('pg-tray-upstairs-scheduler').waitFor({ state: 'visible', timeout: 1500 });
+				break;
+			} catch {
+				// pre-hydration click lost — retry
+			}
+		}
+		await expect(page.getByTestId('pg-tray-upstairs-scheduler')).toBeVisible();
+		await expect(page.getByTestId('pg-tray-upstairs-scheduler')).toHaveAttribute('aria-current', 'true');
+		// HARD RELOAD - the journey brings it back upstairs, focused
+		await page.reload({ waitUntil: 'domcontentloaded' });
+		await page.waitForLoadState('load').catch(() => {});
+		await expect(page.getByTestId('pg-tray-upstairs-scheduler')).toBeVisible();
+		await expect(page.getByTestId('pg-tray-upstairs-scheduler')).toHaveAttribute('aria-current', 'true');
+		await expect(page.getByTestId('pg-tray-resting-scheduler')).toHaveCount(0);
+		// second assert: the resting panes stayed down across the reload
+		await expect(page.getByTestId('pg-tray-resting-sessions')).toBeVisible();
+		await expect(page.getByTestId('pg-tray-upstairs-sessions')).toHaveCount(0);
+	});
+});
+
+test.describe('survival matrix - tray filters (R9, ADR-0071 D7/D8)', () => {
+	test.setTimeout(120000);
+	// a fill before hydration wires the organ's input handler loses the
+	// keystroke (the journey spec's retry loop exists for the same trap)
+	async function fillUntil(
+		page: import('@playwright/test').Page,
+		testid: string,
+		value: string,
+		probe: () => Promise<void>
+	): Promise<void> {
+		for (let i = 0; i < 10; i++) {
+			const input = page.getByTestId(testid);
+			await input.fill('');
+			await input.fill(value);
+			try {
+				await probe();
+				return;
+			} catch {
+				// pre-hydration input lost — retry
+			}
+		}
+		throw new Error('filter never took effect: ' + testid);
+	}
+	test('playground: each tray filter narrows its own list; both survive a reload', async ({ page }) => {
+		await page.goto(PG, { waitUntil: 'domcontentloaded' });
+		await page.waitForLoadState('load').catch(() => {});
+		// HYDRATION GATE: the tray ROWS render only after Svelte mounts — a
+		// fill before this lands on a dead input (the fresh dev server's dep
+		// re-optimization full-reloads mid-test; the header input is visible
+		// while the handlers are not wired). Wait for CONTENT, not the input.
+		await expect(page.getByTestId('pg-tray-resting-scheduler')).toBeVisible({ timeout: 30000 });
+		// type in the RESTING header — the resting list narrows, upstairs untouched
+		await fillUntil(page, 'pg-tray-resting-filter', 'Sched', async () => {
+			await expect(page.getByTestId('pg-tray-resting-sessions')).toHaveCount(0, { timeout: 1500 });
+		});
+		await expect(page.getByTestId('pg-tray-resting-scheduler')).toBeVisible();
+		await expect(page.getByTestId('pg-tray-upstairs-notes')).toBeVisible();
+		// type in the UPSTAIRS header — upstairs narrows, resting query independent
+		await fillUntil(page, 'pg-tray-upstairs-filter', 'zzz-no-match', async () => {
+			await expect(page.getByTestId('pg-tray-upstairs-empty')).toBeVisible({ timeout: 1500 });
+		});
+		await expect(page.getByTestId('pg-tray-resting-scheduler')).toBeVisible();
+		// RELOAD — both filters come back from the pg-tray-filters blob
+		await page.reload({ waitUntil: 'domcontentloaded' });
+		await page.waitForLoadState('load').catch(() => {});
+		await expect(page.getByTestId('pg-tray-resting-filter')).toHaveValue('Sched');
+		await expect(page.getByTestId('pg-tray-upstairs-filter')).toHaveValue('zzz-no-match');
+		await expect(page.getByTestId('pg-tray-resting-scheduler')).toBeVisible();
+		await expect(page.getByTestId('pg-tray-resting-sessions')).toHaveCount(0);
+		await expect(page.getByTestId('pg-tray-upstairs-empty')).toBeVisible();
+	});
+});

@@ -18,6 +18,11 @@
 		PanelClose,
 		CanvasCopyButton,
 		SidebarCollapseButton,
+		PanelListbox,
+		PanelListboxFilter,
+		PanelListboxHeader,
+		PanelListboxList,
+		PanelListboxListItem,
 		resizeOne,
 		createGutterResize,
 		definePanelKind,
@@ -60,7 +65,7 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 	type DemoPane = { id: string; title: string; body: string };
 	// D6 (ADR-0066): closed panes + capture targets ride the demo state —
 	// the header hosts the title; PanelClose + CanvasCopyButton are its actions.
-	const closed = $state<Record<string, boolean>>({});
+	// (R8: the old closed map is dead - the journey fact owns tray membership)
 	// REACTIVE: the header actions snippet captures container at render —
 	// a plain object would freeze it as undefined before bind:this lands.
 	const paneBodies = $state<Record<string, HTMLElement | null>>({});
@@ -72,7 +77,13 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 	const demoKind = definePanelKind({
 		kind: 'demo-pane',
 		requiredKeys: (entry) => typeof entry['id'] === 'string',
-		revive: (entry) => ({ id: entry['id'] as string, width: entry['width'] as number | undefined }),
+		// R8 (ADR-0070 D10): the tray journey rides THIS declaration - junk
+		// values fall back to 'resting' honestly; no pg-tray_* key ever exists.
+		revive: (entry) => ({
+			id: entry['id'] as string,
+			width: entry['width'] as number | undefined,
+			journey: entry['journey'] === 'upstairs' ? ('upstairs' as const) : ('resting' as const)
+		}),
 		laneDefaultWidth: 730,
 		band: () => ({ min: 280, max: 1400 }),
 		persisted: true
@@ -90,7 +101,7 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		zoom: number;
 		panelWidth: number;
 		selectedPanelId: string | null;
-		panels: { id: string; kind: string; width: number }[];
+		panels: { id: string; kind: string; width: number; journey: 'upstairs' | 'resting' }[];
 	}>(
 		{
 			key: 'pg-panels',
@@ -98,7 +109,14 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 				zoom: 1,
 				panelWidth: 730,
 				selectedPanelId: demoPanes[0].id,
-				panels: demoPanes.map((p) => ({ id: p.id, kind: 'demo-pane', width: 730 }))
+				// R8: the fresh desk opens with Notes upstairs (linked tray has a
+				// row to light); the other two rest in the lower tray.
+				panels: demoPanes.map((p, i) => ({
+					id: p.id,
+					kind: 'demo-pane',
+					width: 730,
+					journey: (i === 0 ? 'upstairs' : 'resting') as 'upstairs' | 'resting'
+				}))
 			}),
 			revive: (raw) => {
 				const rec = raw as {
@@ -108,7 +126,7 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 					panels?: unknown;
 				};
 				if (typeof rec.zoom !== 'number' || !Number.isFinite(rec.zoom)) return null;
-				const revived = revivePanels<{ id: string; kind: string; width: number }>(
+				const revived = revivePanels<{ id: string; kind: string; width: number; journey: 'upstairs' | 'resting' }>(
 					rec.panels,
 					[demoKind],
 					[demoWidthKnob],
@@ -155,24 +173,14 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		// then diverge individual panes until the next preset sync).
 		paneWidths = demoPanes.map(() => ({ width }));
 		// real id + kind on every entry (design §2); zoom commits widths untouched
-		sliderPrefs.save({
-			zoom,
-			panelWidth: width,
-			selectedPanelId,
-			panels: paneWidths.map((p, i) => ({ id: demoPanes[i].id, kind: 'demo-pane', width: p.width }))
-		});
+		persistPrefs();
 	}
 	function commitZoom(): void {
 		// Zoom commits ZOOM ONLY — the pane widths stay exactly as recorded
 		// (SSC#2 lesson: sharing one commit made every zoom move reset the
 		// widths the gutters had set).
 		// real id + kind on every entry (design §2); zoom commits widths untouched
-		sliderPrefs.save({
-			zoom,
-			panelWidth: width,
-			selectedPanelId,
-			panels: paneWidths.map((p, i) => ({ id: demoPanes[i].id, kind: 'demo-pane', width: p.width }))
-		});
+		persistPrefs();
 	}
 
 	// Demo sidebar state (page-owned, per the ownership split the base
@@ -189,7 +197,49 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 			(p) => ({ width: loaded.panels.find((e) => e.id === p.id)?.width ?? loaded.panelWidth })
 		)
 	);
-	const panels = $derived(demoPanes.map((p, i) => ({ id: p.id, width: paneWidths[i]?.width })));
+	// R8 two-tray journey state: which demo panes rest in the lower tray vs
+	// live upstairs on the floor. Initialized from the revived blob entries.
+	let journeys = $state<Record<string, 'upstairs' | 'resting'>>(
+		Object.fromEntries(
+			demoPanes.map((p) => [
+				p.id,
+				(loaded.panels.find((e) => e.id === p.id)?.journey ?? 'resting') as 'upstairs' | 'resting'
+			])
+		)
+	);
+	const upstairs = $derived(demoPanes.filter((p) => journeys[p.id] === 'upstairs'));
+	const resting = $derived(demoPanes.filter((p) => journeys[p.id] !== 'upstairs'));
+	// the floor renders ONLY the upstairs panes (the lower tray owns the rest)
+	const panels = $derived(
+		upstairs.map((p) => ({ id: p.id, width: paneWidths[demoPanes.indexOf(p)]?.width }))
+	);
+	function persistPrefs(): void {
+		sliderPrefs.save({
+			zoom,
+			panelWidth: width,
+			selectedPanelId,
+			panels: paneWidths.map((w, i) => ({
+				id: demoPanes[i].id,
+				kind: 'demo-pane',
+				width: w.width,
+				journey: journeys[demoPanes[i].id] ?? 'resting'
+			}))
+		});
+	}
+	// promote (ADR-0070 §5): open the pane AND select it - the upper tray lights
+	function promote(id: string): void {
+		journeys[id] = 'upstairs';
+		selectedPanelId = id;
+		persistPrefs();
+	}
+	// close on the floor drops the pane back to the lower tray
+	function dropBack(id: string): void {
+		journeys[id] = 'resting';
+		if (selectedPanelId === id) {
+			selectedPanelId = demoPanes.find((p) => p.id !== id && journeys[p.id] === 'upstairs')?.id ?? null;
+		}
+		persistPrefs();
+	}
 	// Drag state is deliberately NOT $state: mousemove never renders it - the
 	// width writes do. Snapshot + start x captured at gutter mousedown.
 	let dragSnapshot: number[] = [];
@@ -230,19 +280,16 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 			}, BADGE_AFTERGLOW_MS);
 		}
 		// real id + kind on every entry (design §2); zoom commits widths untouched
-		sliderPrefs.save({
-			zoom,
-			panelWidth: width,
-			selectedPanelId,
-			panels: paneWidths.map((p, i) => ({ id: demoPanes[i].id, kind: 'demo-pane', width: p.width }))
-		});
+		persistPrefs();
 	}
-	let selectedPanelId = $state<string | null>(demoPanes[0].id);
+	// R8: selection restore rides the SAME revive fact (the UAT's 'with
+	// focus' clause) - the cross-check already validated it above.
+	let selectedPanelId = $state<string | null>(loaded.selectedPanelId ?? demoPanes[0].id);
 	// Initialize-on-mount (the DSI contract, ADR-0065 R4 fix): the keys EXIST
 	// the moment the page opens — a profiled URL gets its suffixed keys with
 	// defaults written, no interaction required. Load-then-save is also a
 	// normalization pass: a revived blob is re-clamped before its first write.
-	sliderPrefs.save({ zoom, panelWidth: width, selectedPanelId, panels: paneWidths.map((p, i) => ({ id: demoPanes[i].id, kind: 'demo-pane', width: p.width })) });
+	persistPrefs();
 
 	// The sidebar's OWN prefs (SSC#2 gutter bug): the playground page owns
 	// width + collapse and persists them under pg-sidebar, so a drag
@@ -302,6 +349,47 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		saveSidebar();
 	}
 
+	// tray collapse (page-owned; the organs only report the toggle)
+	let trayUpExpanded = $state(true);
+	let trayDownExpanded = $state(true);
+
+	// R9 tray filters (ADR-0071 D7/D8): EACH tray header carries its own
+	// PanelListboxFilter and filters only its own list by title — two
+	// independent queries, never one shared value. They persist under a
+	// pg- grammar key (one blob, two named fields; a junk stored value
+	// falls back to the empty string), seeded on mount like every other
+	// playground key. A filtered-out FOCUSED pane only loses its lit row —
+	// selectedPanelId is untouched (the honest view-filter semantics).
+	const trayFilterPrefs = createPrefsStore<{ upstairs: string; resting: string }>({
+		key: 'pg-tray-filters',
+		defaults: () => ({ upstairs: '', resting: '' }),
+		revive: (raw) => {
+			const rec = raw as { upstairs?: unknown; resting?: unknown };
+			return {
+				upstairs: typeof rec.upstairs === 'string' ? rec.upstairs : '',
+				resting: typeof rec.resting === 'string' ? rec.resting : ''
+			};
+		}
+	});
+	const loadedTrayFilters = trayFilterPrefs.load();
+	let trayUpFilter = $state(loadedTrayFilters.upstairs);
+	let trayDownFilter = $state(loadedTrayFilters.resting);
+	// Initialize-on-mount: the key exists the moment the page opens (the
+	// DSI contract, ADR-0065 R4 fix) — no interaction required.
+	function saveTrayFilters(): void {
+		trayFilterPrefs.save({ upstairs: trayUpFilter, resting: trayDownFilter });
+	}
+	saveTrayFilters();
+	// The trays' projections: the floor keeps rendering EVERY upstairs pane
+	// (a tray filter is a view filter — it hides rows, never closes panes).
+	// Case-insensitive (operator 2026-11-18: 'notes' finds 'Notes').
+	const upstairsShown = $derived(
+		upstairs.filter((p) => p.title.toLowerCase().includes(trayUpFilter.toLowerCase()))
+	);
+	const restingShown = $derived(
+		resting.filter((p) => p.title.toLowerCase().includes(trayDownFilter.toLowerCase()))
+	);
+
 	const LANGUAGES: Record<string, string> = { en: 'English', zh: '中文', id: 'Bahasa Indonesia' };
 	const GREETINGS: Record<string, string> = { en: 'Hello floor', zh: '你好地板', id: 'Halo lantai' };
 	const labels: Record<ThemeChoice, string> = { system: 'System', light: 'Light', dark: 'Dark' };
@@ -334,6 +422,87 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 			{#snippet collapsedContent()}
 				<SidebarCollapseButton collapsed={true} class="restore-btn" testid="pg-sidebar-restore" onToggle={toggleSidebar} />
 			{/snippet}
+			<!-- R8 two-tray sidebar (ADR-0070 D10): the UPPER tray is the linked
+			     listbox mirroring the floor's open set; the LOWER tray is the
+			     unlinked resting list whose click PROMOTES AND OPENS. -->
+			<div class="trays">
+				<PanelListbox count={upstairsShown.length} collapsed={!trayUpExpanded} testid="pg-tray-upstairs">
+					{#snippet header()}
+						<PanelListboxHeader
+							label="Upstairs"
+							expanded={trayUpExpanded}
+							onToggle={() => (trayUpExpanded = !trayUpExpanded)}
+							testid="pg-tray-upstairs-header"
+							toggleTestid="pg-tray-upstairs-toggle"
+						>
+							<!-- R9 UX amendment: title + search share ONE container -->
+							{#snippet search()}
+								<PanelListboxFilter
+									value={trayUpFilter}
+									oninput={(v) => {
+										trayUpFilter = v;
+										saveTrayFilters();
+									}}
+									placeholder="Filter"
+									testid="pg-tray-upstairs-filter"
+								/>
+							{/snippet}
+						</PanelListboxHeader>
+					{/snippet}
+					<PanelListboxList testid="pg-tray-upstairs-list">
+							{#each upstairsShown as pane (pane.id)}
+								<PanelListboxListItem
+									linked
+									selected={selectedPanelId === pane.id}
+									testid="pg-tray-upstairs-{pane.id}"
+									onselect={() => (selectedPanelId = pane.id)}
+								>
+									{pane.title}
+								</PanelListboxListItem>
+							{/each}
+					</PanelListboxList>
+					{#snippet emptysnippet()}
+						<p class="tray-hint" data-testid="pg-tray-upstairs-empty">Nothing upstairs</p>
+					{/snippet}
+				</PanelListbox>
+				<PanelListbox count={restingShown.length} collapsed={!trayDownExpanded} testid="pg-tray-resting">
+					{#snippet header()}
+						<PanelListboxHeader
+							label="Tray"
+							expanded={trayDownExpanded}
+							onToggle={() => (trayDownExpanded = !trayDownExpanded)}
+							testid="pg-tray-resting-header"
+							toggleTestid="pg-tray-resting-toggle"
+						>
+							<!-- R9 UX amendment: title + search share ONE container -->
+							{#snippet search()}
+								<PanelListboxFilter
+									value={trayDownFilter}
+									oninput={(v) => {
+										trayDownFilter = v;
+										saveTrayFilters();
+									}}
+									placeholder="Filter"
+									testid="pg-tray-resting-filter"
+								/>
+							{/snippet}
+						</PanelListboxHeader>
+					{/snippet}
+					<PanelListboxList testid="pg-tray-resting-list">
+							{#each restingShown as pane (pane.id)}
+								<PanelListboxListItem
+									testid="pg-tray-resting-{pane.id}"
+									onselect={() => promote(pane.id)}
+								>
+									{pane.title}
+								</PanelListboxListItem>
+							{/each}
+					</PanelListboxList>
+					{#snippet emptysnippet()}
+						<p class="tray-hint" data-testid="pg-tray-resting-empty">All panes upstairs</p>
+					{/snippet}
+				</PanelListbox>
+			</div>
 			<div class="demo-sections">
 				{#each demoSections as s (s)}
 					<div class="demo-section">{s}</div>
@@ -398,7 +567,7 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 							{/snippet}
 							{#snippet actions()}
 								<CanvasCopyButton container={paneBodies[pane.id]} mode="visible" size={14} class="hdr-btn" />
-								<PanelClose sessionId={pane.id} onremove={() => (closed[pane.id] = true)} />
+								<PanelClose sessionId={pane.id} onremove={() => dropBack(pane.id)} />
 							{/snippet}
 						</PanelHeaderSkeleton>
 						{#if badgePhases[pane.id]}
@@ -464,7 +633,8 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		color: var(--color-text-secondary);
 		cursor: pointer;
 	}
-	.restore-btn:hover {
+	/* :global - the button root belongs to the package organ now */
+	:global(.restore-btn:hover) {
 		color: var(--color-text-primary);
 	}
 	.demo-header {
@@ -474,6 +644,19 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		padding: 0.5rem;
 		font-weight: 600;
 		border-bottom: 1px solid var(--color-surface-border);
+	}
+	.trays {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 0.5rem;
+		border-bottom: 1px solid var(--color-surface-border);
+	}
+	.tray-hint {
+		margin: 0;
+		padding: 0.25rem 0.5rem;
+		font-size: 0.75rem;
+		color: var(--color-text-secondary);
 	}
 	.demo-sections {
 		border-bottom: 1px solid var(--color-surface-border);

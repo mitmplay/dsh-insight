@@ -1831,7 +1831,7 @@ describe('SidebarOpenPanels — manager mirror rows (W5 5.1-T)', () => {
 		publishState({ rows: [mgrRow], selectedPanelId: 'm1' });
 		const { target, instance } = mountPanelList();
 		try {
-			const head = target.querySelector('[data-testid="sidebar-panel-group-toggle"]') as HTMLElement;
+			const head = target.querySelector('[data-testid="sidebar-panel-group-title"]') as HTMLElement;
 			expect(head.textContent.replace(/\s+/g, ' ').trim()).toBe('Focused - Prompt Manager');
 		} finally {
 			unmount(instance);

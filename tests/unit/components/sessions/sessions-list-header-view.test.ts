@@ -91,8 +91,10 @@ describe('SidebarSessionList — header VIEW state', () => {
 		const toggle = target.querySelector('[data-testid="sidebar-spine-group-toggle"]');
 		expect(toggle).not.toBeNull();
 		expect(toggle?.getAttribute('aria-expanded')).toBe('true');
-		expect(toggle?.querySelector('svg.lucide-chevron-down')).not.toBeNull();
-		expect(toggle?.querySelector('svg.lucide-chevron-right')).toBeNull();
+		// R8 (ADR-0070 D6): the chevron is the ORGAN's inline glyph now — the
+		// pin is behavior + glyph swap, not the lucide class. Down chevron:
+		// M6 9 l6 6.
+		expect(toggle?.querySelector('svg path')?.getAttribute('d')).toContain('M6 9l6 6');
 		unmount(instance);
 	});
 
@@ -104,8 +106,8 @@ describe('SidebarSessionList — header VIEW state', () => {
 		const toggle = target.querySelector('[data-testid="sidebar-spine-group-toggle"]');
 		expect(toggle).not.toBeNull();
 		expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-		expect(toggle?.querySelector('svg.lucide-chevron-right')).not.toBeNull();
-		expect(toggle?.querySelector('svg.lucide-chevron-down')).toBeNull();
+		// Right chevron: M9 6 l6 6 (the organ's inline glyph swap).
+		expect(toggle?.querySelector('svg path')?.getAttribute('d')).toContain('M9 6l6 6');
 		unmount(instance);
 	});
 
