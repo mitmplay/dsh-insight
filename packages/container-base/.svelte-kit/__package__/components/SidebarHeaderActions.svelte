@@ -86,6 +86,10 @@
 		width: 22px;
 		height: 22px;
 		flex-shrink: 0;
+		/* kill the UA button chrome — DSI's global reset hides it, a fresh
+		 * consumer (playground) does not have that reset (visual pass fix) */
+		border: none;
+		padding: 0;
 		border-radius: 0.25rem;
 		color: var(--color-text-secondary);
 		background: transparent;

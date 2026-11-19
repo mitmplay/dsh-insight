@@ -1,3 +1,19 @@
+## 0.13.1
+
+Bumped from 0.13.0 — the sidebar header corner becomes a package organ twice over: R10 brings the ControlBar tray home and R11 promotes the SidebarHeaderActions cluster (every sidebar speaks copy from one mount), the playground gains copy-image and grows into the greenfield template, and the dev error page heals itself.
+
+### Features
+- **ControlBar tray base migration (ADR-0073, R10, 940e8bae)** — the floor's hover-tray machine (gear trigger, 250ms hide grace, focus guards, Escape, portal, viewport clamp) ships as `ControlBar`/`ControlBarTray` package organs with a fixed anatomy (capture row → width slider → zoom slider → extras); DSI becomes a thin consumer and `TrayButtons` retires grep-zero (2c139b8e, 2d5e7d3c). 15 new suites.
+- **SidebarHeaderActions corner organ (ADR-0074, R11, 4da8d7ac)** — one base mount gives any sidebar app copy camera → collapse chevron → extras, labels via props, whole-surface capture target consumer-owned; DSI's hand-rolled corner retires into a thin consumer (c4213daf) and the playground mounts it — copy-image for the first time (234ad8b1). Corner skin lives in base scoped CSS via the new `--color-surface-hover` token; organ order and DSI anchors pinned by 8 cluster tests + `tests/unit/app-sidebar-header-action.test.ts`.
+- **Playground copy gesture gate (234ad8b1)** — `tests/e2e/playground-corner.spec.ts`: an actual click on the playground camera writes `image/png` to the clipboard (the capture-clipboard pattern, D5 proof of ADR-0074).
+- **Greenfield template polish (03d5c270)** — the playground ships its own global reset (DSI leans on Tailwind preflight; a fresh consumer had none, so base organs showed UA button chrome), resolves the package from `/src` for live HMR (vite alias — source edits to base components no longer need `build:package`), and gained DSI-parity EmptyFloor messaging (`pg-floor-empty`).
+- **Self-healing dev error page (ADR-0075, d5f893ee)** — in dev, a 500 error page reloads itself once after 1.5s: agent file edits invalidate the SSR graph for ~5s and every request in the window 500s (reproduced live: 26 consecutive 500s). Gate: `src/lib/utils/error-self-heal.ts`, pinned by `tests/unit/error-page-self-heal.test.ts` (4 tests); prod byte-identical.
+
+### Bug fixes
+- **The capture button that loaded nothing (RCA 2026-11-19, b3dab037)** — CanvasCopyButton's variable-specifier `html-to-image` import could never resolve in the browser; every capture click silently no-op'd since R6. Literal import + visible degraded state + loud failure log; the owed gesture gate `tests/e2e/capture-clipboard.spec.ts` proves a real click ends in `image/png` on the clipboard.
+- **Playground floor kept resting panes (e7c5873c, 49f79542, R10 operator fixes)** — the floor slot rendered `demoPanes` instead of the upstairs set, so resting panes never left the floor; gear joins the header action cluster and the bottom sliders retire (the tray owns width/zoom).
+- **Selection refresh-reverts (b7ec17fd, R10)** — `deskEntries` is the write-side counterpart of `revivePanels`; focus changes persist; `ssr=false` kills the first-paint default flash.
+- **Corner skin UA chrome (4dde30e8, R11 visual pass)** — the base corner skin now kills UA button borders/padding itself (a fresh consumer has no global reset); playground HMR alias landed in the same fix window.
 ## 0.13.0
 
 Bumped from 0.12.1 — the listbox grammar becomes package organs twice over: R8 promotes the PanelListbox family and migrates the sidebar, R9 adds the filter organ and migrates the scheduler shelf, and the playground's two-tray sidebar proves both.

@@ -1,5 +1,24 @@
 # RELEASE — @deepseek-insight/container-base
 
+## 0.3.0
+
+Bumped from 0.2.0 — the corner grammar completes: the ControlBar tray (R10) and the SidebarHeaderActions cluster (R11) join the package; the playground becomes the greenfield template.
+
+### Features
+- **ControlBar / ControlBarTray (ADR-0073, R10, 2c139b8e)** — the hover-tray machine: gear trigger, 250ms hide grace (re-enter cancels), focus guards, Escape, portal to `document.body`, viewport clamp; fixed tray anatomy — capture row (prop-gated on `captureContainer`) → width slider → zoom slider → extras snippet. 15 suites (hover/portal/clamp/anatomy/bindings).
+- **SidebarHeaderActions (ADR-0074, R11, 4da8d7ac)** — the sidebar header corner: copy camera → collapse chevron → extras snippet, fixed order; labels via props (the base never translates); capture target consumer-owned (null-container no-op contract); prop-overridable testids with DSI-compatible defaults; corner skin in scoped CSS via tokens (new `--color-surface-hover`). `CanvasCopyButton` gained an optional `testid` prop (default `canvas-copy-button` — backwards compatible). 8 cluster suites.
+
+### Bug fixes
+- **Literal html-to-image import (b3dab037)** — the variable-specifier peer import never resolved in the browser; captures were silent no-ops since R6. Literal import, visible degraded state (`aria-disabled` + opacity), loud error log. Gesture gate: `capture-clipboard.spec.ts`.
+- **Corner skin self-sufficiency (4dde30e8 + 03d5c270)** — UA button chrome reset (`border: none; padding: 0`) moved into the corner skin; a fresh consumer has no global reset. The playground also gained its own reset stylesheet and resolves the package from `/src` for live HMR (vite alias — template-grade dev experience).
+
+### Consumers
+- Playground (now versioned 0.1.0 — the greenfield template): corner mount with page-shell capture (copy-image NEW), tray in extras, empty-floor messaging.
+- DSI: ControlBar + SidebarHeaderActions thin consumers; `TrayButtons` and the hand-rolled corner + `:global` skin retired grep-zero.
+
+### Tests
+- Package suites grew to 378 (44 files): `controlbar` suites, `sidebar-header-actions.test.ts`, `capture-clipboard` e2e gesture gate, `playground-corner.spec.ts`.
+
 ## 0.2.0
 
 Bumped from 0.1.1 — the listbox family and the filter organ (R8 + R9); the playground becomes the second app with a real two-tray sidebar.
