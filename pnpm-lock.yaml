@@ -13,8 +13,8 @@ importers:
   .:
     dependencies:
       '@deepseek-insight/container-base':
-        specifier: workspace:*
-        version: link:packages/container-base
+        specifier: ^0.3.0
+        version: 0.3.0(html-to-image@1.11.13)(svelte@5.56.10)
       '@git-diff-view/svelte':
         specifier: ^0.1.7
         version: 0.1.7(svelte@5.56.10)
@@ -157,6 +157,15 @@ packages:
 
   '@chevrotain/types@11.1.2':
     resolution: {integrity: sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==}
+
+  '@deepseek-insight/container-base@0.3.0':
+    resolution: {integrity: sha512-ZesWmE/Ss35yWIQTcgTlng5TVU99sN5EJBgMTSrGtDKec3NkiPbhB4w2Yu0ISO85M2a9J/Me4zDyIel/O8dj5A==}
+    peerDependencies:
+      html-to-image: ^1.11.13
+      svelte: ^5.0.0
+    peerDependenciesMeta:
+      html-to-image:
+        optional: true
 
   '@esbuild/aix-ppc64@0.28.2':
     resolution: {integrity: sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ==}
@@ -2455,6 +2464,12 @@ snapshots:
   '@braintree/sanitize-url@7.1.2': {}
 
   '@chevrotain/types@11.1.2': {}
+
+  '@deepseek-insight/container-base@0.3.0(html-to-image@1.11.13)(svelte@5.56.10)':
+    dependencies:
+      svelte: 5.56.10
+    optionalDependencies:
+      html-to-image: 1.11.13
 
   '@esbuild/aix-ppc64@0.28.2':
     optional: true

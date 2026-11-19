@@ -1,3 +1,11 @@
+## 0.13.2
+
+Patch fix: the registry install that never worked — every published release since the container-base split carried `"@deepseek-insight/container-base": "workspace:*"`, a monorepo-only pointer that can never resolve from the npm registry. npm fails silently (spinner swallows the message, debug log ends mid-idealTree), pnpm says it out loud: "Cannot resolve package from workspace because workspace packages were not loaded into the resolver". Battle-tested live on the steady_johnson debian container 2026-11-19: `npx @deepseek-insight/dsi` → instant silent exit 1 on both 0.12.1 and 0.13.1; the dsh --sync --zai flow only completes with a pnpm override pinning ^0.3.0.
+
+### Bug fixes
+- **The publish that shipped an unresolvable dependency** — `@deepseek-insight/container-base` pinned to its real registry version ^0.3.0 (matching `npm view @deepseek-insight/container-base` 0.3.0) instead of `workspace:*`; npm-publishing had leaked the monorepo pointer into every tarball. Going forward `pnpm publish` (which rewrites the `workspace:` protocol at pack time) is the sanctioned publish path.
+- **dsh webVersion tracking** — `dsh.webVersion` 0.2.2-rc.3 → rc.5.
+
 ## 0.13.1
 
 Bumped from 0.13.0 — the sidebar header corner becomes a package organ twice over: R10 brings the ControlBar tray home and R11 promotes the SidebarHeaderActions cluster (every sidebar speaks copy from one mount), the playground gains copy-image and grows into the greenfield template, and the dev error page heals itself.

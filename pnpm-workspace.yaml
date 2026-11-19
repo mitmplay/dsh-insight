@@ -12,6 +12,7 @@ minimumReleaseAgeExclude:
   - '@lix-js/sdk-linux-x64@0.16.1'
   - '@lix-js/sdk-win32-x64@0.16.1'
   - '@lix-js/sdk@0.16.1'
+  - '@deepseek-insight/container-base@0.3.0'
 overrides:
   cookie: ^0.7.0
   monaco-editor: 0.57.0
