@@ -14,6 +14,7 @@ export { default as WidthBadge } from './components/WidthBadge.svelte';
 export { default as CanvasCopyButton } from './components/CanvasCopyButton.svelte';
 export { default as PanelClose } from './components/PanelClose.svelte';
 export { default as SidebarCollapseButton } from './components/SidebarCollapseButton.svelte';
+export { default as SidebarHeaderActions } from './components/SidebarHeaderActions.svelte';
 export type { PaneCore, WidthClamp, PaneMoveDir } from './layout/floor-math';
 export { resizeOne, scaleProportionally, isUniformRow, movePanelWithin } from './layout/floor-math';
 export { slotAfter, insertAtAnchor, focusedSlot } from './layout/placement';

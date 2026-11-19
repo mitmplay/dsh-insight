@@ -23,6 +23,10 @@
 	--color-text-primary: #212529;
 	--color-text-secondary: #6c757d;
 
+	/* Hover wash (R11, ADR-0074: the corner icon skin's hover/focus
+	 * background — mirrors DSI's --color-surface-hover app.css token) */
+	--color-surface-hover: rgba(0, 0, 0, 0.05);
+
 	/* Control-bar shadows (R10, ADR-0073: the hover-tray machine's
 	 * elevation — shadow color crosses only through tokens, W6 ground
 	 * rule) */

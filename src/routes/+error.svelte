@@ -8,9 +8,17 @@
 	 * arrival restores the persisted desk, so "back" costs nothing.
 	 */
 	import { page } from '$app/state';
+	import { dev } from '$app/environment';
+	import { armSelfHeal } from '$lib/utils/error-self-heal';
+	import { resolve } from '$app/paths';
 
 	const status = $derived(page.status);
 	const message = $derived(page.error?.message ?? 'Something went wrong.');
+	// ADR-0075: in dev, a 500 is the HMR rebuild window (agent file edits
+	// invalidate the SSR graph for ~5s) — reload once so the operator's
+	// tab self-heals. Client-only ($effect never runs on SSR), and
+	// non-500 statuses are real states whose evidence a reload erases.
+	$effect(() => armSelfHeal(page.status, dev));
 </script>
 
 <!-- i18n-skip: brand, never translated -->
@@ -30,7 +38,7 @@
 		<p class="text-sm text-text-secondary" data-testid="error-message">{message}</p>
 	{/if}
 	<a
-		href="/"
+		href={resolve('/')}
 		class="mt-2 rounded-md border border-surface-border px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-alt"
 		data-testid="error-back-home"
 	>

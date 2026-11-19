@@ -75,7 +75,8 @@
 		title = 'Copy canvas as image (Shift+Click to save)',
 		size = 12,
 		class: className = '',
-		mode = 'full'
+		mode = 'full',
+		testid = 'canvas-copy-button'
 	}: {
 		container: HTMLElement | null | undefined;
 		title?: string;
@@ -87,6 +88,9 @@
 		 *  the render is cropped to the container's client box
 		 *  (PromptManagerToolbar, 2026-09-19). */
 		mode?: 'full' | 'visible';
+		/** Anchor hook (R11, ADR-0074): defaults to the historic
+		 *  canvas-copy-button so existing specs stay byte-compatible. */
+		testid?: string;
 	} = $props();
 
 	const DESIRED_RATIO = 2;
@@ -455,7 +459,7 @@
 	class:ccb-degraded={degraded}
 	{title}
 	aria-disabled={degraded}
-	data-testid="canvas-copy-button"
+	data-testid={testid}
 	onclick={handleAction}
 >
 	{#if state === 'done'}

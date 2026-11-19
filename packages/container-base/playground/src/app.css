@@ -1,0 +1,37 @@
+/*
+ * Playground global stylesheet — the greenfield template's reset.
+ *
+ * WHY THIS EXISTS (2026-11-19, R11 visual pass): DSI's polish leans on
+ * Tailwind preflight, which zeroes UA button chrome (border, padding,
+ * background) and normalizes box-sizing for EVERY element. A fresh
+ * consumer has none of that, so base components rendered with visible
+ * UA borders here while looking clean in DSI. The template ships the
+ * minimal preflight equivalent so what you see here is what a new
+ * project gets — and the base components' own skin is the only skin.
+ */
+@import '@deepseek-insight/container-base/theme/tokens.css';
+
+*,
+::before,
+::after {
+	box-sizing: border-box;
+	border: 0 solid;
+}
+
+body {
+	margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+	color: inherit;
+	background: none;
+}
+
+button {
+	cursor: pointer;
+	padding: 0;
+}

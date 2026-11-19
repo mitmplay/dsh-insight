@@ -20,6 +20,9 @@ export { default as CanvasCopyButton } from './components/CanvasCopyButton.svelt
 export { default as PanelClose } from './components/PanelClose.svelte';
 export { default as SidebarCollapseButton } from './components/SidebarCollapseButton.svelte';
 
+// ── sidebar header corner (R11 W1, ADR-0074) ──
+export { default as SidebarHeaderActions } from './components/SidebarHeaderActions.svelte';
+
 // ── layout (W3, D8) ──
 export type { PaneCore, WidthClamp, PaneMoveDir } from './layout/floor-math';
 export { resizeOne, scaleProportionally, isUniformRow, movePanelWithin } from './layout/floor-math';

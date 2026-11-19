@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, createRawSnippet } from 'svelte';
-	import '@deepseek-insight/container-base/theme/tokens.css';
+	// the template's reset + tokens (app.css imports the tokens door)
+	import '../app.css';
 	import {
 		createThemePrefs,
 		createLocalePrefs,
@@ -16,6 +17,7 @@
 		PanelClose,
 		CanvasCopyButton,
 		SidebarCollapseButton,
+		SidebarHeaderActions,
 		PanelListbox,
 		PanelListboxFilter,
 		PanelListboxHeader,
@@ -370,6 +372,9 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 	// renders no empty row when the snippet is absent). pg- testids keep
 	// the playground identity namespace separate from the DSI floor.
 	let floorEl: HTMLElement | null = $state(null);
+	// R11 (ADR-0074): the page SHELL is the whole-surface capture target —
+	// the corner copy button photographs the entire demo shell.
+	let shellEl: HTMLElement | null = $state(null);
 	function resizeAll(w: number): void {
 		width = w;
 		commitWidth();
@@ -433,7 +438,7 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 	onmouseup={onWindowMouseUp}
 />
 
-<div class="shell">
+<div class="shell" bind:this={shellEl}>
 	<div class="sidebar-col" data-testid="pg-sidebar-host">
 		<SidebarContainer
 			collapsed={sidebarCollapsed}
@@ -450,7 +455,16 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 				<div class="demo-header">
 					<span>Demo</span>
 					<div class="hdr-actions">
-						<SidebarCollapseButton class="hdr-btn" testid="pg-sidebar-toggle" onToggle={toggleSidebar} />
+						<!-- R11 (ADR-0074): the corner is ONE base mount now — the copy
+						     camera photographs the page shell, collapse keeps
+						     pg-sidebar-toggle, the floor tray rides extras. -->
+						<SidebarHeaderActions
+							captureContainer={shellEl}
+							captureTitle="Copy page image (Shift+Click to save)"
+							captureMode="visible"
+							collapseTestId="pg-sidebar-toggle"
+							onToggleCollapse={toggleSidebar}
+							>
 						<ControlBar
 						ariaLabel="Demo floor controls"
 						testId="pg-controlbar"
@@ -472,7 +486,8 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 						widthCaption={pgWidthCaption}
 						zoomAriaLabel="Floor zoom"
 						zoomCaption={pgZoomCaption}
-					/>
+						/>
+					</SidebarHeaderActions>
 					</div>
 				</div>
 			{/snippet}
@@ -624,6 +639,15 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 				<ResizeGutter index={i} ariaLabel="Resize panel" title="Drag to resize" onGutterDown={(e) => onGutterDown(e, i)} />
 			{/each}
 		</PanelsZoom>
+		<!-- DSI EmptyFloor parity (operator, 2026-11-19): an empty floor says
+		     so, centered over the WHOLE floor — NOT inside the zoom row (the
+		     row is width: max-content, so a child there cannot center). -->
+		{#if upstairs.length === 0}
+			<div class="empty-floor" data-testid="pg-floor-empty">
+				<p>No panels open.</p>
+				<p class="hint">Promote a session from the upstairs tray to open a panel.</p>
+			</div>
+		{/if}
 	</main>
 </div>
 
@@ -747,6 +771,28 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		min-width: 0;
 		min-height: 0;
 		flex-direction: column;
+		/* positioning context for the empty-floor overlay (DSI parity) */
+		position: relative;
+	}
+	/* The empty floor centers over the whole floor, NOT inside the zoom
+	 * row (width: max-content collapses a child to its own text width).
+	 * pointer-events pass through so the trays stay clickable beneath. */
+	.empty-floor {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		text-align: center;
+		pointer-events: none;
+		color: var(--color-text-secondary);
+		font-size: 0.875rem;
+	}
+	.empty-floor .hint {
+		font-size: 0.75rem;
+		opacity: 0.8;
 	}
 	.pane-title {
 		font-weight: 600;

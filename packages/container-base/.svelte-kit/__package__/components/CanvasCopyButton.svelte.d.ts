@@ -9,6 +9,9 @@ type $$ComponentProps = {
      *  the render is cropped to the container's client box
      *  (PromptManagerToolbar, 2026-09-19). */
     mode?: 'full' | 'visible';
+    /** Anchor hook (R11, ADR-0074): defaults to the historic
+     *  canvas-copy-button so existing specs stay byte-compatible. */
+    testid?: string;
 };
 declare const CanvasCopyButton: import("svelte").Component<$$ComponentProps, {}, "">;
 type CanvasCopyButton = ReturnType<typeof CanvasCopyButton>;
