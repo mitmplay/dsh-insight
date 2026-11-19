@@ -27,8 +27,9 @@ Screenshot: Sidebar, Workspace-explorer, Agent, Glass-browser, Subagent
 
 ```bash
 npx @deepseek-insight/dsi@latest dsh --sync --zai # open http://localhost:5174
-
-DSH_VERSION=0.2.2-rc.1 npx @deepseek-insight/dsi@latest dsh --sync --zai # downgrade
+```
+```bash
+DSH_VERSION=0.2.2-rc.3 npx @deepseek-insight/dsi@latest dsh --sync # downgrade
 ```
 When it is up, your browser opens the page by itself (default `http://127.0.0.1:5174`).
 

@@ -6,8 +6,9 @@ orb/ssh layer).
 
 ## TL;DR
 
-Five commands on the Mac, one script, ~20 minutes (the `cargo install sheldon`
-compile is the long pole). The container ends up serving the DSI web UI to
+Five commands on the Mac, one script, **~10 minutes** (the longest stage is
+now the apt batch; sheldon installs from its prebuilt aarch64-musl release in
+seconds — no cargo compile). The container ends up serving the DSI web UI to
 the Mac at **`http://127.0.0.1:15174/?token=…`** — port **5174 only** leaves
 the container; **3080 stays internal** by design.
 
@@ -24,8 +25,14 @@ docker cp /tmp/setup-dsi.sh trixie:/root/setup-dsi.sh
 # 3. run the six-stage setup (~20 min; watch it on a desk T-tab if you like)
 docker exec -it trixie bash -lc 'bash /root/setup-dsi.sh'
 
-# 4. run DSI (interactive shell so fnm's PATH from ~/.zshrc loads)
-docker exec -it trixie zsh -ic 'cd ~/agentic-ai && dsi dsh --sync --zai'
+# 4. run DSI — INTERACTIVE, typed on the desk T-tab (a one-shot
+#    zsh -ic '…' exec is NOT the sanctioned procedure: the operator
+#    watches every step; the p10k wizard may fire on first zsh — q skips
+#    it and the staged ~/.p10k.zsh keeps the theme)
+docker exec -it trixie zsh
+# then type on the desk terminal, inside the container prompt:
+mkdir ~/agentic-ai
+npx @deepseek-insight/dsi@latest dsh --sync --zai
 
 # 5. bridge the loopback-bound host out (dsh binds 127.0.0.1 INSIDE the
 #    container — docker -p cannot forward to a container's loopback)
@@ -129,10 +136,14 @@ apt install -y \
   fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji
 echo "=== STEP 2/6 zsh as shell ==="
 usermod -s "$(which zsh)" root
-echo "=== STEP 3/6 rustup + sheldon (few minutes) ==="
-curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal
-source "$HOME/.cargo/env"
-cargo install sheldon
+echo "=== STEP 3/6 sheldon prebuilt (aarch64/arm64) ==="
+# prebuilt musl binary — ~2s instead of the ~5min cargo compile
+SHELDON_VERSION=0.8.5
+curl -fsSL "https://github.com/rossmacarthur/sheldon/releases/download/${SHELDON_VERSION}/sheldon-${SHELDON_VERSION}-aarch64-unknown-linux-musl.tar.gz" \
+  | tar -xJ -C /usr/local/bin --strip-components=1 "sheldon-${SHELDON_VERSION}-aarch64-unknown-linux-musl/sheldon"
+chmod +x /usr/local/bin/sheldon
+# fallback (other arches, or if the release asset is gone): rustup + cargo install sheldon
+#   curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal && source "$HOME/.cargo/env" && cargo install sheldon
 echo "=== STEP 4/6 zshrc + sheldon config ==="
 printf '%s\n' 'export PATH="$HOME/.cargo/bin:$PATH"' 'eval "$(sheldon source)"' >> ~/.zshrc
 mkdir -p ~/.config/sheldon

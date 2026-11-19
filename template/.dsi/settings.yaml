@@ -18,10 +18,10 @@ server:
   ringCapacity: 500
 panel:
   defaultWidth: 730
+  maxWidth: 1024
   minWidth: 480
-  maxWidth: 860
-  minZoom: 0.25
   maxZoom: 1.25
+  minZoom: 0.25
   sidebar: { width: {2: 340, 4: 400}, state: {1, 3: collapse} }
   glass:   { width: {1: 860, 2: 800, 3: 1270, 4: 1570} }
   agent:   { width: {1: 630, 2: 808, 3:  808, 4:  505} }
