@@ -42,11 +42,24 @@ describe('playground independence (W1 1.1-T)', () => {
 
 	it('no file under playground/ references DSI src ($lib, src/lib, or the dsi package)', () => {
 		const banned = [/@deepseek-insight\/(dsi)\b/, /from ['"]\$lib/, /deepseek-insight\/src\//, /import .*['"].*src\/lib\//];
+		// Narrow allowance (ADR-0066 D6 follow-up): a vite.config.ts-style BUILD
+		// config may import a shared DSI src helper by relative path — the
+		// playground's autoTrace preprocess lives at
+		// ../../../src/lib/preprocess/auto-trace.ts and is dev-tooling only
+		// (never bundled into the playground app, never a runtime dep). The
+		// $lib and dsi-package bans still apply to configs; only the two
+		// src/lib relative-import patterns are exempted, and only for
+		// vite.config.ts.
+		const buildConfigOnly = [/deepseek-insight\/src\//, /import .*['"].*src\/lib\//];
+		const isBuildConfig = (file: string) => /(^|\/)vite\.config\.ts$/.test(file);
 		const offenders: string[] = [];
 		for (const file of walk(PG)) {
 			if (!/\.(svelte|ts|js|html|json|css)$/.test(file)) continue;
 			const text = readFileSync(file, 'utf8');
-			if (banned.some((re) => re.test(text))) offenders.push(file);
+			const active = isBuildConfig(file)
+			? banned.filter((re) => !buildConfigOnly.some((b) => b.source === re.source))
+			: banned;
+			if (active.some((re) => re.test(text))) offenders.push(file);
 		}
 		expect(offenders).toEqual([]);
 	});

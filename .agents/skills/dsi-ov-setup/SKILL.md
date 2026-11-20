@@ -266,6 +266,7 @@ This is the only install path that reconciles `dsh.profile.bundles` and survives
 - Piped `init` answers are prompt-order-fragile (Step 3) — count prompts, don't trust defaults.
 - When a D4 peer-dependency rejection forces `dsh plugin allow-version`, allow the **exact** plugin version and then install by **exact pin** (`add pkg@0.5.16`, not a `^` range) — a caret range can resolve to a sibling version the exemption does not cover, and the install rolls back (RCA 2026-09-24).
 - Re-examine actual prompt output on every version bump; this sequence was tested against OpenViking 0.4.20 / plugin 0.3.2 (2026-09-16) and the wizard's prompts are not a stable contract.
+- **Prompt-order drift (seen 2026-11-20, OV 0.4.20):** the wizard may skip the "GLM plan" prompt entirely — the API-key prompt follows GLM selection directly, so a piped plan answer is consumed AS the key and the key lands in `model`. Always re-read `ov.conf` (redacted) after init and assert the `model` field holds a model name (e.g. `glm-4.6v`), never a key; repair programmatically from the env var if swapped.
 
 ## 5. Report the run — always, before finishing
 

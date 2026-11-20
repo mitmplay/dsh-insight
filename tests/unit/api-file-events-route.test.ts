@@ -95,7 +95,15 @@ describe('file-events route (The Silent Root D2/D3)', () => {
 		expect(body.error.code).toBe('bad-root');
 	});
 
-	it('happy path: baseline event first, then exactly ONE generation per debounced ring', async () => {
+	// Timing note: fs.watch delivery latency on macOS plus the route's 300 ms
+	// debounce can exceed vitest's 5 s default under parallel load (the full-run
+	// timeout flake). The explicit 20 s per-test budget is the LAST-RESORT
+	// measure; synchronization itself is unchanged — readEvents resolves as
+	// soon as the baseline + one debounced ring arrive, not on a fixed sleep.
+	it(
+		'happy path: baseline event first, then exactly ONE generation per debounced ring',
+		{ timeout: 20_000 },
+		async () => {
 		const root = makeTempRoot();
 		const ac = new AbortController();
 		const res = await route.GET({
@@ -104,7 +112,7 @@ describe('file-events route (The Silent Root D2/D3)', () => {
 		} as any);
 		expect(res.headers.get('content-type')).toContain('text/event-stream');
 
-		const readPromise = readEvents(res, 2, 5000);
+		const readPromise = readEvents(res, 2, 15_000);
 		// Event storm: several writes inside the debounce window → ONE ring.
 		writeFileSync(join(root, 'a.txt'), '1');
 		writeFileSync(join(root, 'b.txt'), '2');
@@ -116,7 +124,8 @@ describe('file-events route (The Silent Root D2/D3)', () => {
 		expect(events[1]).toEqual({ event: 'generation', data: '1' });
 
 		ac.abort();
-	});
+		}
+	);
 
 	it('fs.watch refusal (EACCES mount) → the unavailable SSE event, then close', async () => {
 		const root = makeTempRoot();

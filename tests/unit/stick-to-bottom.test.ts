@@ -82,6 +82,54 @@ describe('stick-to-bottom — the generic contract', () => {
 		r.unmount();
 	});
 
+	it('an upward wheel tick releases the pin WITHIN the threshold (2026-11-21 bug)', async () => {
+		const r = renderHost({ children: 2 });
+		await settle();
+		// one small wheel-up tick (a real gesture's first delta): scrollTop
+		// moves only 40px — inside the 48px threshold, so the scroll path
+		// alone kept the pin engaged and streaming growth yanked it back.
+		r.el.scrollTop = 160;
+		r.el.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
+		flushSync();
+		const host = r.comp as unknown as { addChild(): void; flips: boolean[] };
+		host.addChild();
+		await settle();
+		expect(r.el.scrollTop).toBe(160); // growth must NOT yank back
+		expect(host.flips).toEqual([false]); // the wheel reported the release
+		r.unmount();
+	});
+
+	it('the scroll event after a wheel release does NOT re-arm inside the threshold', async () => {
+		const r = renderHost({ children: 3 }); // content 300, viewport 50
+		await settle();
+		// pinned at the bottom (scroll event keeps lastTop honest)
+		scrollTo(r.el, 250);
+		// a small tick lands at 210 — inside the 48px zone (>= 202)
+		r.el.scrollTop = 210;
+		r.el.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
+		// the scroll event the tick generated: position within threshold,
+		// traveling UP — must not re-arm the pin that was just dropped
+		r.el.dispatchEvent(new Event('scroll', { bubbles: true }));
+		flushSync();
+		const host = r.comp as unknown as { addChild(): void };
+		host.addChild();
+		await settle();
+		expect(r.el.scrollTop).toBe(210); // still released — no yank, no re-arm
+		r.unmount();
+	});
+
+	it('a downward wheel tick does NOT release the pin', async () => {
+		const r = renderHost({ children: 2 });
+		await settle();
+		r.el.dispatchEvent(new WheelEvent('wheel', { deltaY: 40 }));
+		flushSync();
+		const host = r.comp as unknown as { addChild(): void };
+		host.addChild();
+		await settle();
+		expect(r.el.scrollTop).toBe(300); // still glued
+		r.unmount();
+	});
+
 	it('scrolling back to the bottom re-engages', async () => {
 		const r = renderHost({ children: 2 });
 		await settle();

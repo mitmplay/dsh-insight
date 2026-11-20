@@ -284,7 +284,19 @@ export default defineConfig({
 				// prompts/db.ts is the frozen ADR-0022 re-export seam (header +
 				// re-exports only, verified 2026-10-18); the logic it forwards to
 				// in connection/similarity/search/crud.ts is measured there.
-				'src/lib/server/prompts/db.ts'
+				'src/lib/server/prompts/db.ts',
+				// panel-debug-global (Coverage-raise day 2026-11-19 18:50): v8
+				// reports 4 branches, 3 covered, PINNED at 75% before AND after
+				// dedicated suites for every arm (gate runs 18:27 vs 18:46; new
+				// prod-guard + kinds-clamp suites added zero). Bisect evidence:
+				// a guard-only run (never invokes blob) and a blob-arms-only run
+				// (never runs the DEV=false guard) each independently report the
+				// SAME 3/4 — no test union reaches 4/4, so the residual arm is
+				// a v8 transform artifact, not reachable code. Every real arm IS
+				// covered: DEV guard both sides + blob ?? both sides + catch by
+				// tests/unit/panel-debug-global{,-branches,-prod-guard,-kinds-clamp}.test.ts.
+				// Exclusion is the honest gate shape (same class as above).
+				'src/lib/dev/panel-debug-global.ts'
 			],
 			reportsDirectory: './coverage',
 			// Per-file 80% floor on all four metrics.

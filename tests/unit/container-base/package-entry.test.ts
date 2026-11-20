@@ -27,7 +27,8 @@ describe('container-base package entry (W1)', () => {
 		expect(Object.keys(pkg.exports)).toEqual(['.', './theme/tokens.css']);
 		// R3: the package is public — the private flag is gone (ADR-0064 D3)
 		expect(pkg.private).toBeUndefined();
-		expect(pkg.version).toBe('0.2.0');
+		// pinned to the current manifest (went stale once at 0.1.1 -> 0.2.0)
+		expect(pkg.version).toBe('0.3.0');
 	});
 
 	it('pnpm-workspace.yaml still carries the three pre-existing keys', () => {
@@ -42,6 +43,7 @@ describe('container-base package entry (W1)', () => {
 		const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as {
 			dependencies: Record<string, string>;
 		};
-		expect(pkg.dependencies['@deepseek-insight/container-base']).toBe('workspace:*');
+		// pinned to the current manifest (version-range dep since 0.3.0)
+		expect(pkg.dependencies['@deepseek-insight/container-base']).toBe('^0.3.0');
 	});
 });

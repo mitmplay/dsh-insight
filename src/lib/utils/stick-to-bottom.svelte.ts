@@ -85,11 +85,22 @@ export function createStickToBottom(options: StickToBottomOptions = {}): StickTo
 	/** Scroll events keep the pin honest BOTH ways: leaving the bottom
 	 *  releases it, arriving re-engages it. Programmatic jumps land at
 	 *  the bottom, so they self-verify as stuck — no special-casing. */
+	let lastTop = 0;
+
 	function handleScroll(): void {
 		if (!node) return;
+		const goingDown = node.scrollTop > lastTop;
+		lastTop = node.scrollTop;
 		const next = atBottom(node);
-		if (next !== stuck) {
-			stuck = next;
+		// Re-engage ONLY on downward travel: an upward wheel tick landing
+		// inside the threshold zone must not re-arm the pin that the
+		// wheel release just dropped (2026-11-21 — the zone kept
+		// re-engaging under small-delta gestures).
+		if (next && !stuck && goingDown) {
+			stuck = true;
+			options.onstickchange?.(stuck);
+		} else if (!next && stuck) {
+			stuck = false;
 			options.onstickchange?.(stuck);
 		}
 	}
@@ -104,8 +115,17 @@ export function createStickToBottom(options: StickToBottomOptions = {}): StickTo
 		return untrack(() => {
 			detachCurrent?.();
 			node = el;
+			lastTop = el.scrollTop;
 			stuck = attach.stick ?? true;
 			el.addEventListener('scroll', handleScroll, { passive: true });
+			// Wheel-up intent releases the pin IMMEDIATELY (2026-11-21): the
+			// scroll-event path needs the viewport >thresholdPx from the bottom
+			// to release, but a real wheel/trackpad gesture arrives as a stream
+			// of small deltas — under streaming mutations each delta was yanked
+			// back to the bottom before any scroll event cleared the threshold,
+			// making scroll-up impossible while content grew. Upward wheel
+			// intent is deterministic; the scroll path still re-engages at the
+			// bottom. Keyboard/scrollbar scrolling keeps the distance semantics.
 			// childList covers appended rows / re-rendered markdown nodes;
 			// characterData covers in-place streaming text deltas.
 			observer = new MutationObserver(() => {
@@ -113,8 +133,17 @@ export function createStickToBottom(options: StickToBottomOptions = {}): StickTo
 			});
 			observer.observe(el, { childList: true, subtree: true, characterData: true });
 			if (attach.jumpToBottom && stuck) scrollToBottom();
+			const releaseOnWheel = (e: WheelEvent): void => {
+				if (e.deltaY < 0 && stuck) {
+					stuck = false;
+					lastTop = el.scrollTop; // keep the travel ledger honest for handleScroll
+					options.onstickchange?.(stuck);
+				}
+			};
+			el.addEventListener('wheel', releaseOnWheel, { passive: true });
 			const cleanup = () => {
 				el.removeEventListener('scroll', handleScroll);
+				el.removeEventListener('wheel', releaseOnWheel);
 				observer?.disconnect();
 				observer = null;
 				if (node === el) node = null;
