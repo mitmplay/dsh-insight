@@ -5,16 +5,20 @@
 Bumped from 0.3.0 — the capture hook opens and the type floor hardens: `CanvasCopyButton` gains an optional `prepare` hook (ADR-0076) and the package survives the repo-wide `pnpm check` wave with honest types instead of casts.
 
 ### Features
-- **`CanvasCopyButton` prepare hook (9253fc56, ADR-0076)** — optional `prepare?: () => void | Promise<void> | (() => void)`: awaited after the guard, a returned restore callback runs in `finally` (restore-throw swallowed), no-prop path free of even one microtask hop. Consumers stage DOM state before the raster — CodeCard's capture opens every fold so the PNG carries all lines.
+- **`CanvasCopyButton` prepare hook (9253fc56, ADR-0076)** — optional `prepare?: () => void | Promise<void> | (() => void)`: awaited after the guard, a returned restore callback runs in `finally` (restore-throw swallowed, warns loudly), no-prop path free of even one microtask hop. Consumers stage DOM state before the raster — CodeCard's capture opens every fold so the PNG carries all lines.
+- **Playground persisted width entries carry `id` (+page.svelte)** — `paneWidths` is now `{ id, width }[]` (initial state and the slider-preset write both include the pane id), matching the persisted shape to `deskEntries`' save order.
 
 ### Bug fixes / type hardening (e7c5e0f1)
 - `CanvasCopyButton`: engine state typed inline (`'idle' | 'busy' | 'done'` on the `$state` declaration) — a top-level type alias in a Svelte script trips svelte2tsx rune injection under the package tsconfig.
-- `panel-kinds.ts`: `deskEntries` journey generic loosened to `J extends string` (the runtime contract never needed the stricter constraint).
-- tsconfig: `vite/client` types + DOM lib, extends the generated `.svelte-kit` config; `svelte.config.js` pins `runes: true` — svelte2tsx auto-detection was nondeterministic and flipped legacy-store transforms intermittently.
-- Tests: clipboard mock typed soundly (tuple indexing), control-bar suites + playground `+page` snippets annotated `Snippet<[number]>`, `journey-revive.test.ts` generic aligned.
+- `panel-kinds.ts`: `deskEntries` journey generic becomes `<P, J extends string = string>` — the `journey` callback's return type flows through to the entries (the runtime contract never needed the flat `string`).
+- tsconfig: now extends the generated `../../.svelte-kit/tsconfig.json`, gains `vite/client` types + `DOM`/`DOM.Iterable` libs, and drops `verbatimModuleSyntax` (the generated config's transform setup needs it off).
+- Repo root `svelte.config.js` pins `runes: true` — svelte2tsx auto-detection was nondeterministic and flipped legacy-store transforms intermittently (root-level pin; the package has no own svelte.config).
+- Playground: revive generic loosened to the runtime contract (`kind?`/`width?`), caption snippets annotated `Snippet<[number]>`.
+- Tests: clipboard mock typed soundly (tuple indexing), control-bar/sidebar-header suites snippet-typed, `journey-revive.test.ts` generic aligned.
 
 ### Tests
-- Package suites 384/384 green (44 files) after the wave; no behavior change — types and the new hook only.
+- `canvas-copy-button.test.ts` grows the prepare-hook matrix (+130 lines, 6 new cases): default no-prop byte-identical, prepare awaited before the raster (order pinned), restore after success, restore on render failure, restore's own throw swallowed, async-promise prepare awaited.
+- Package suites 384/384 green (44 files) after the wave; the only behavior change is the new hook (opt-in, no-prop path untouched).
 
 ## 0.3.0
 
