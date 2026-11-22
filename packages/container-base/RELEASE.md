@@ -1,5 +1,9 @@
 # RELEASE — @deepseek-insight/container-base
 
+## 0.3.2
+
+Bumped from 0.3.1 — **docs-only republish** (README is packed in the tarball per ADR-0064 D2's `files` manifest, so doc changes are version-visible to npm): the README gains a plain-words paragraph for the layman reader — what the package is (the desktop-app furniture two real apps already share), the two reuse laws (never ships words, never ships colors), and the per-app/per-desk memory with pre-paint application. Zero code, zero test changes: `git diff 0497afe6..db2667a8 -- packages/container-base` touches only `README.md` and `RELEASE.md`.
+
 ## 0.3.1
 
 Bumped from 0.3.0 — the capture hook opens and the type floor hardens: `CanvasCopyButton` gains an optional `prepare` hook (ADR-0076) and the package survives the repo-wide `pnpm check` wave with honest types instead of casts.

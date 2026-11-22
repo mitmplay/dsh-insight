@@ -5,6 +5,20 @@ zoom viewport, pane shells, rail + gutter, layout math, action registry,
 armed-chord keyboard machine, prefs storage primitive, and a default theme
 token set.
 
+**In plain words:** when you build a desktop-style web app — the kind with
+sidebars, resizable panels, sliders, and settings that should survive a
+reload — every app ends up needing the same furniture, and every team
+rebuilds it slightly worse. This package is that furniture, built once and
+battle-tested in two real apps: collapsible sidebars, panel listboxes with
+search, width/zoom sliders, a dark/light theme switch, a language switcher,
+and a capture button that screenshots a panel to your clipboard. Two rules
+keep it reusable: it **never ships words** (every label comes in through
+props, so your app stays in its own language) and it **never ships colors**
+(you set the look with CSS variables; the package only provides the
+mechanism). It also remembers each user's choices — theme, locale, panel
+sizes — in their browser, keyed per app and per desk, applied before the
+first paint so nothing flashes.
+
 ## Install (npm)
 
 ```sh
