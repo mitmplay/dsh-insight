@@ -1,5 +1,21 @@
 # RELEASE — @deepseek-insight/container-base
 
+## 0.3.1
+
+Bumped from 0.3.0 — the capture hook opens and the type floor hardens: `CanvasCopyButton` gains an optional `prepare` hook (ADR-0076) and the package survives the repo-wide `pnpm check` wave with honest types instead of casts.
+
+### Features
+- **`CanvasCopyButton` prepare hook (9253fc56, ADR-0076)** — optional `prepare?: () => void | Promise<void> | (() => void)`: awaited after the guard, a returned restore callback runs in `finally` (restore-throw swallowed), no-prop path free of even one microtask hop. Consumers stage DOM state before the raster — CodeCard's capture opens every fold so the PNG carries all lines.
+
+### Bug fixes / type hardening (e7c5e0f1)
+- `CanvasCopyButton`: engine state typed inline (`'idle' | 'busy' | 'done'` on the `$state` declaration) — a top-level type alias in a Svelte script trips svelte2tsx rune injection under the package tsconfig.
+- `panel-kinds.ts`: `deskEntries` journey generic loosened to `J extends string` (the runtime contract never needed the stricter constraint).
+- tsconfig: `vite/client` types + DOM lib, extends the generated `.svelte-kit` config; `svelte.config.js` pins `runes: true` — svelte2tsx auto-detection was nondeterministic and flipped legacy-store transforms intermittently.
+- Tests: clipboard mock typed soundly (tuple indexing), control-bar suites + playground `+page` snippets annotated `Snippet<[number]>`, `journey-revive.test.ts` generic aligned.
+
+### Tests
+- Package suites 384/384 green (44 files) after the wave; no behavior change — types and the new hook only.
+
 ## 0.3.0
 
 Bumped from 0.2.0 — the corner grammar completes: the ControlBar tray (R10) and the SidebarHeaderActions cluster (R11) join the package; the playground becomes the greenfield template.
