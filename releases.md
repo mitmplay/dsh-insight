@@ -1,3 +1,25 @@
+## 0.14.0
+
+Bumped from 0.13.2 — the capture stage opens and the gates tighten: CodeCard's capture button learns a prepare hook (ADR-0076), the anchor popups finish their press-time gesture contract, and the floor's coverage gate goes fully green (every file ≥80%) with the type-check wave paid off.
+
+### Features
+- **CodeCard capture prepare hook (9253fc56, ADR-0076)** — CanvasCopyButton gains an optional `prepare?: () => void | Promise<void> | (() => void)`: awaited after the guard, a returned restore callback runs in `finally` (its own throw swallowed with a loud warn), no-prop path stays free of even one microtask hop. CodeCard's capture uses it to open every fold so the PNG carries all lines, the footer and the raw panes. Package-side matrix: 6 new cases in `packages/container-base/tests/components/canvas-copy-button.test.ts` (+130 lines).
+- **Docs for humans** — `packages/container-base/README.md` gains a plain-words paragraph (what the package is, the never-ships-words / never-ships-colors laws, per-app per-desk memory with pre-paint application); shipped as the container-base 0.3.2 docs-only republish (b6da5d89).
+
+### Bug fixes
+- **Anchor popups finish the press-time gesture contract (be2f9c17, 2026-11-21)** — popups toggle on pointerdown (press owns the gesture; poll invalidations can no longer split mousedown/mouseup across re-rendered nodes) and close on a TRUSTED outside pointerdown; click stays keyboard-only (detail 0). Four stale "outside click closes" tests updated to the trusted-pointerdown dispatch — 25/25 across the plan/deliverables/plan-popup suites.
+- **CodeCard eslint-disable scope (d5cbfbc2)** — the multi-line `eslint-disable-next-line svelte/no-at-html-tags` comment only suppressed its own second line, so the svelte-quality gate failed every push that touched the file; single-line comment restores the suppression (the identical pattern in FileContentViewer was already single-line).
+- **Stick-to-bottom wheel release (ec551088, 2026-11-21)** — upward wheel intent releases the pin so scrolling up is no longer fighting the auto-scroll race.
+
+### Tests / coverage
+- **Coverage gate fully green (311cd980, five sub-agent wave)** — the four sub-80% anchor components (DeliverablesButton, InjectedShelfButton, PlanButton, UserMessagesButton) now carry dedicated branch suites: `tests/unit/deliverables-button-branches.test.ts` (5), `tests/unit/components/conversation/injected-shelf-button-branches.test.ts` (8), `tests/unit/plan-button-branches.test.ts` (5), `tests/unit/components/anchor/user-messages-button-{branches,detail-guards}.test.ts` (5+7). All files ≥80%; totals: branch 92.49%, line 98.43%.
+
+### Chores
+- **Type-check wave (e7c5e0f1)** — 22 pnpm-check errors fixed across app and container-base (CodeCard sync prepare, window casts, snippet generics, deskEntries journey generic, container-base tsconfig extends the generated config + vite/client + DOM libs; root `svelte.config.js` pins `runes: true` — svelte2tsx auto-detection was nondeterministic).
+- **Generated package output untracked (72a4d7b0)** — `packages/container-base/.svelte-kit/` gitignored, 82 build artifacts removed from git (the RCA 2026-11-20 gitignore-as-toolchain-contract close-out); README/RELEASE/version shipped as container-base 0.3.1 → 0.3.2 (0497afe6, c71a192f, b6da5d89).
+- **Fresh-publish pin (11b475e7)** — `minimumReleaseAgeExclude` tracks container-base@0.3.2; prompts.sqlite template refreshed (69557986).
+- **KB: the coverage gate that phantom-failed (71a61cde)** — v8 coverage-merge flake diagnosed (multi-project instrument-and-merge is order-dependent under forks); rule pinned: a threshold ERROR is only real if it reproduces on an immediate re-run.
+
 ## 0.13.2
 
 Patch fix: the registry install that never worked — every published release since the container-base split carried `"@deepseek-insight/container-base": "workspace:*"`, a monorepo-only pointer that can never resolve from the npm registry. npm fails silently (spinner swallows the message, debug log ends mid-idealTree), pnpm says it out loud: "Cannot resolve package from workspace because workspace packages were not loaded into the resolver". Battle-tested live on the steady_johnson debian container 2026-11-19: `npx @deepseek-insight/dsi` → instant silent exit 1 on both 0.12.1 and 0.13.1; the dsh --sync --zai flow only completes with a pnpm override pinning ^0.3.0.
