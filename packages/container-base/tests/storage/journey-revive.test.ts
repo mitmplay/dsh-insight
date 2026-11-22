@@ -26,7 +26,7 @@ const demoKind = definePanelKind({
 const widthKnob = { key: 'width', default: 730, clamp: (w: number) => clampKindWidth(w, demoKind) };
 
 function revive(panels: unknown): { id: string; journey: Journey }[] {
-	const result = revivePanels<{ id: string; kind: string; width: number; journey: Journey }>(
+	const result = revivePanels<{ id: string; kind?: string; width?: number; journey: Journey }>(
 		panels,
 		[demoKind],
 		[widthKnob],
@@ -61,7 +61,7 @@ describe('journey revive through the demoKind declaration (2.1-T)', () => {
 	});
 
 	it('save roundtrip keeps the fact through a prefs store', () => {
-		const store = createPrefsStore<{ panels: { id: string; kind: string; journey: Journey }[] }>({
+		const store = createPrefsStore<{ panels: { id: string; kind?: string; journey: Journey }[] }>({
 			key: 'pg-panels',
 			defaults: () => ({ panels: [] }),
 			revive: (raw) => {

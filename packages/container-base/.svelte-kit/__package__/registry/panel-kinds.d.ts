@@ -89,7 +89,7 @@ export declare function revivePanels<P>(raw: unknown, declarations: readonly Pan
  */
 export declare function deskEntries<P extends {
     id: string;
-}>(args: {
+}, J extends string = string>(args: {
     /** The kind label every entry carries (the declaration's kind). */
     kind: string;
     /** The live pane set in SAVE ORDER (the array order is persisted). */
@@ -97,12 +97,12 @@ export declare function deskEntries<P extends {
     /** Live width per pane, index-aligned with panels; undefined omits the key (the knob's default wins at revive). */
     widths?: readonly (number | undefined)[];
     /** The live journey per pane — the persisted tray-membership fact. */
-    journey: (panel: P) => string;
+    journey: (panel: P) => J;
 }): {
     id: string;
     kind: string;
     width?: number;
-    journey: string;
+    journey: J;
 }[];
 /**
  * Clamp a width through a kind's band — the LAZY resolver is evaluated

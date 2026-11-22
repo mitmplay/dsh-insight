@@ -26,7 +26,7 @@
 	 */
 	/** Engine shape — inline types (a top-level type alias in a svelte
 	 *  script trips svelte2tsx rune injection under the package tsconfig). */
-	let state = $state<'idle' | 'busy' | 'done'>('idle');
+	let state: 'idle' | 'busy' | 'done' = $state('idle');
 
 	let engine: {
 		toBlob: (el: HTMLElement, options?: Record<string, unknown>) => Promise<Blob | null>;

@@ -1,4 +1,4 @@
-import { createRawSnippet, flushSync, mount, unmount } from 'svelte';
+import { createRawSnippet, flushSync, mount, unmount, type Snippet } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ControlBar, ControlBarTray } from '../../src/index';
 import { WIDTH_BOUNDS, ZOOM_BOUNDS } from '../../src/index';
@@ -134,7 +134,7 @@ describe('ControlBarTray — uncovered branches', () => {
 
 	it('zoomCaption snippet renders with the live zoom value', () => {
 		const root = host();
-		const zoomCaption = createRawSnippet((getValue) => {
+		const zoomCaption: Snippet<[number]> = createRawSnippet((getValue) => {
 			const v = getValue() as number;
 			return { render: () => '<span data-testid="zcap">z=' + v + '</span>' };
 		});

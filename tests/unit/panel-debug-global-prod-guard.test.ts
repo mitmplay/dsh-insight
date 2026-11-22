@@ -16,13 +16,13 @@ async function importFresh(): Promise<{ installPanelDebugGlobal: () => void }> {
 
 describe('installPanelDebugGlobal — PROD/DEV guard', () => {
 	beforeEach(() => {
-		delete globalOf();
+		delete (window as unknown as { __DSI_PANELS?: unknown }).__DSI_PANELS;
 	});
 
 	afterEach(() => {
 		vi.unstubAllEnvs();
 		vi.resetModules();
-		delete globalOf();
+		delete (window as unknown as { __DSI_PANELS?: unknown }).__DSI_PANELS;
 	});
 
 	it('DEV=false: returns early WITHOUT setting window.__DSI_PANELS', async () => {

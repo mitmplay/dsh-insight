@@ -1,4 +1,4 @@
-import { createRawSnippet, flushSync, mount, unmount } from 'svelte';
+import { createRawSnippet, flushSync, mount, unmount, type Snippet } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ControlBar, ControlBarTray } from '../../src/index';
 import { WIDTH_BOUNDS, ZOOM_BOUNDS } from '../../src/index';
@@ -167,7 +167,7 @@ describe('ControlBarTray — fixed anatomy (1.2-T)', () => {
 	it('caption snippets render with the live value', () => {
 		const root = host();
 		let seen = 0;
-		const widthCaption = createRawSnippet((getValue) => {
+		const widthCaption: Snippet<[number]> = createRawSnippet((getValue) => {
 			const v = getValue() as number;
 			seen = v;
 			return { render: () => '<span data-testid="cap">w=' + v + '</span>' };

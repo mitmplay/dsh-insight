@@ -39,7 +39,7 @@ describe('SidebarHeaderActions (R11 corner organ)', () => {
 
 	it('keeps the fixed organ order: copy → collapse → extras (D1)', () => {
 		const { target } = mountCluster({ children: extras });
-		const kids = Array.from(target.querySelector('.rail-header-actions')!.children);
+		const kids = Array.from(target.querySelector('.rail-header-actions')!.children) as HTMLElement[];
 		const copyIdx = kids.findIndex((k) => k.dataset.testid === 'canvas-copy-button');
 		const collapseIdx = kids.findIndex((k) => k.getAttribute('aria-expanded') !== null);
 		const extrasIdx = kids.findIndex((k) => k.classList.contains('extras-probe'));

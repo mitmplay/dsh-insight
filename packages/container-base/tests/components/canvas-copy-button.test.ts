@@ -122,7 +122,7 @@ function installClipboard(write: (items: ClipboardItem[]) => Promise<void>) {
 	});
 
 	it('copies the PNG to the clipboard and flips to the done state', async () => {
-		const write = vi.fn(async () => {});
+		const write = vi.fn(async (_items: ClipboardItem[]) => {});
 		installClipboard(write);
 		const container = document.createElement('div');
 		container.style.width = '300px';
@@ -130,7 +130,7 @@ function installClipboard(write: (items: ClipboardItem[]) => Promise<void>) {
 		const { btn } = mountCapture(container);
 		btn.click();
 		await vi.waitFor(() => expect(write).toHaveBeenCalled());
-		const items = write.mock.calls[0][0] as ClipboardItem[];
+		const items = write.mock.calls[0][0];
 		expect(items[0]).toBeInstanceOf(ClipboardItem);
 		await vi.waitFor(() => expect(btn.querySelector('.ccb-spin')).toBeFalsy());
 		expect(btn.querySelector('svg')?.getAttribute('stroke')).toBe('var(--color-status-pass)');

@@ -90,9 +90,10 @@ describe('DeliverablesButton', () => {
 		(target.querySelector('[data-testid="deliverables-button"]') as HTMLButtonElement).click();
 		flushSync();
 		expect(target.querySelector('[data-testid="deliverables-popup"]')).not.toBeNull();
-		// isTrusted=false in happy-dom; shadowing it fakes a real user click
-		// (the plan-button pattern).
-		const trusted = new MouseEvent('click', { bubbles: true });
+		// isTrusted=false in happy-dom; shadowing it fakes a real user press.
+		// The close contract is a TRUSTED outside POINTERDOWN (2026-11-21
+		// press-time toggle), not a click.
+		const trusted = new PointerEvent('pointerdown', { bubbles: true });
 		Object.defineProperty(trusted, 'isTrusted', { get: () => true });
 		document.body.dispatchEvent(trusted);
 		flushSync();

@@ -94,16 +94,18 @@
 
 	/**
 	 * Prepare hook (ADR-0076 D3): open ALL fold states so the PNG carries
-	 * every line, the output footer and the raw panes; wait one microtask
-	 * so Svelte flushes the expanded DOM, then hand back the exact
-	 * restore — pre-click states verbatim (already-open stays open).
+	 * every line, the output footer and the raw panes, then hand back the
+	 * exact restore — pre-click states verbatim (already-open stays open).
+	 * Deliberately SYNCHRONOUS: the prepare prop's type is
+	 * `() => void | (() => void)` and CanvasCopyButton's handleAction
+	 * awaits prepare() anyway, so Svelte still flushes the expanded DOM
+	 * before the raster — same staging behavior, no async wrapper.
 	 */
-	async function prepareCapture(): Promise<() => void> {
+	function prepareCapture(): () => void {
 		const prev = { expanded, footerOpen, rawOpen };
 		expanded = true;
 		footerOpen = true;
 		rawOpen = true;
-		await Promise.resolve();
 		return () => {
 			expanded = prev.expanded;
 			footerOpen = prev.footerOpen;
@@ -208,8 +210,7 @@
 		{/if}
 
 		<div class="mt-1.5 rounded-lg ring-1 ring-surface-border bg-surface-elevated p-2" data-testid="code-block">
-			<!-- eslint-disable-next-line svelte/no-at-html-tags — highlightCode
-			     output is escaped/governed by hljs (FileContentViewer contract) -->
+			<!-- eslint-disable-next-line svelte/no-at-html-tags — highlightCode output is escaped/governed by hljs (FileContentViewer contract; single-line so eslint's next-line scope covers the <pre>) -->
 			<pre class="overflow-x-auto font-mono text-[11px] leading-relaxed"><code class="hljs">{@html highlightCode(shown.join('\n'), 'typescript')}</code></pre>
 			{#if overCap}
 				<button

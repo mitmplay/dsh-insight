@@ -89,7 +89,11 @@ test('reload paints the SAVED width on the first layout — no default-width fra
 	expect(captured!.raw).toBe(BLOB);
 
 	// FACT 2 — the app consumed it (consume-once: the register entry is gone).
-	expect(await page.evaluate(() => (window.__BOOT_PREFS || {})['dsi-panels'])).toBeUndefined();
+	expect(
+		await page.evaluate(
+			() => ((window as { __BOOT_PREFS?: Record<string, unknown> }).__BOOT_PREFS || {})['dsi-panels']
+		)
+	).toBeUndefined();
 
 	// FACT 3 — the FIRST sampled frame already shows the saved width, and
 	// NO frame ever shows the default (no second-render flash).

@@ -103,7 +103,7 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		zoom: number;
 		panelWidth: number;
 		selectedPanelId: string | null;
-		panels: { id: string; kind: string; width: number; journey: 'upstairs' | 'resting' }[];
+		panels: { id: string; kind?: string; width?: number; journey: 'upstairs' | 'resting' }[];
 	}>(
 		{
 			key: 'pg-panels',
@@ -128,7 +128,7 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 					panels?: unknown;
 				};
 				if (typeof rec.zoom !== 'number' || !Number.isFinite(rec.zoom)) return null;
-				const revived = revivePanels<{ id: string; kind: string; width: number; journey: 'upstairs' | 'resting' }>(
+				const revived = revivePanels<{ id: string; kind?: string; width?: number; journey: 'upstairs' | 'resting' }>(
 					rec.panels,
 					[demoKind],
 					[demoWidthKnob],
@@ -173,7 +173,7 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 		// DSI's honest-slider semantic: the width slider is the row PRESET —
 		// it syncs EVERY pane to the width (the all-equal preset; the gutters
 		// then diverge individual panes until the next preset sync).
-		paneWidths = demoPanes.map(() => ({ width }));
+		paneWidths = demoPanes.map((p) => ({ id: p.id, width }));
 		// real id + kind on every entry (design §2); zoom commits widths untouched
 		persistPrefs();
 	}
@@ -194,9 +194,9 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 	// DSI's protocol in miniature: snapshot on mousedown, resizeOne per move,
 	// persist on mouseup. Clamped through demoKind's band (280..1400) —
 	// the declaration is the ONE band site (ADR-0065 W4).
-	let paneWidths = $state<{ width: number }[]>(
+	let paneWidths = $state<{ id: string; width: number }[]>(
 		demoPanes.map(
-			(p) => ({ width: loaded.panels.find((e) => e.id === p.id)?.width ?? loaded.panelWidth })
+			(p) => ({ id: p.id, width: loaded.panels.find((e) => e.id === p.id)?.width ?? loaded.panelWidth })
 		)
 	);
 	// R8 two-tray journey state: which demo panes rest in the lower tray vs
@@ -419,11 +419,11 @@ import { liveBadgePhases, settleBadgePhases, BADGE_AFTERGLOW_MS, type BadgePhase
 
 	// R10 W3: playground caption snippets — the playground's own words
 	// (the base never ships a caption; these mirror the sidebar sliders).
-	const pgWidthCaption = createRawSnippet((getValue) => {
+	const pgWidthCaption: import('svelte').Snippet<[number]> = createRawSnippet((getValue) => {
 		const v = getValue();
 		return { render: () => '<span>' + String(v) + 'px</span>' };
 	});
-	const pgZoomCaption = createRawSnippet((getValue) => {
+	const pgZoomCaption: import('svelte').Snippet<[number]> = createRawSnippet((getValue) => {
 		const v = getValue() as number;
 		return { render: () => '<span>' + Math.round(v * 100) + '%</span>' };
 	});

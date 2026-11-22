@@ -64,5 +64,6 @@ src/lib/paraglide/
 
 # nested SvelteKit app sync output (dev artifact)
 packages/container-base/playground/.svelte-kit/
+packages/container-base/.svelte-kit/
 
 .npmcache/

@@ -57,9 +57,10 @@ function popupEl(target: HTMLElement): HTMLElement | null {
 }
 
 /** happy-dom marks dispatched events untrusted; the popup closes only on
- *  TRUSTED outside clicks, so outside-click tests stamp isTrusted on. */
+ *  TRUSTED outside POINTERDOWNS (2026-11-21 press-time toggle), so these
+ *  tests stamp isTrusted on a pointerdown. */
 function trustedClick(el: Element): void {
-	const e = new MouseEvent('click', { bubbles: true });
+	const e = new PointerEvent('pointerdown', { bubbles: true });
 	Object.defineProperty(e, 'isTrusted', { value: true });
 	el.dispatchEvent(e);
 	flushSync();
