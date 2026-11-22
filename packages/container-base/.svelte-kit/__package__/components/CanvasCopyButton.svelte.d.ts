@@ -12,6 +12,11 @@ type $$ComponentProps = {
     /** Anchor hook (R11, ADR-0074): defaults to the historic
      *  canvas-copy-button so existing specs stay byte-compatible. */
     testid?: string;
+    /** Prepare hook (ADR-0076 D1/D2): awaited after the guard, before
+     *  the raster. May return a restore fn that runs in finally — on
+     *  success AND failure. The restore's own throw is swallowed so it
+     *  never masks the capture result. */
+    prepare?: () => void | Promise<void> | (() => void);
 };
 declare const CanvasCopyButton: import("svelte").Component<$$ComponentProps, {}, "">;
 type CanvasCopyButton = ReturnType<typeof CanvasCopyButton>;

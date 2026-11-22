@@ -74,8 +74,8 @@
 		}
 	}
 
-	function handleClickOutside(e: MouseEvent): void {
-		if (!open || !e.isTrusted) return; // synthetic clicks (tests) never close
+	function handlePointerdownOutside(e: PointerEvent): void {
+		if (!open || !e.isTrusted) return; // synthetic pointers (tests) never close
 		const target = e.target as Node;
 		if (popupEl?.contains(target)) return; // inside the popup
 		if (triggerEl?.contains(target)) return; // the toggle that OPENED it
@@ -87,9 +87,22 @@
 	export function focus(): void {
 		popupEl?.focus();
 	}
+
+	// Explicit window listener, NOT svelte:window onpointerdown: Svelte 5
+	// delegates pointer events to the app ROOT, and presses on surfaces
+	// outside the mounted tree (document.body — every outside press)
+	// never pass through it. The close contract must see the whole page.
+	$effect(() => {
+		window.addEventListener('pointerdown', handlePointerdownOutside);
+		return () => window.removeEventListener('pointerdown', handlePointerdownOutside);
+	});
 </script>
 
-<svelte:window onclick={handleClickOutside} onkeydown={handleKeydown} />
+<!-- Close on PRESS, not click (2026-11-21): poll invalidations
+		re-render the page mid-gesture, so a click can fire on an ancestor
+		far above the trigger and close the popup its own press just
+		opened. The press itself carries the honest target. -->
+<svelte:window onkeydown={handleKeydown} />
 
 {#if open}
 	<div

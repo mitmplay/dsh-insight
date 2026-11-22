@@ -28,6 +28,7 @@
 	 * field renders as a TEXT node.
 	 */
 	import { Code2 } from '@lucide/svelte';
+	import { CanvasCopyButton } from '@deepseek-insight/container-base';
 	import ToolCallDetail from '$lib/components/message/ToolCallDetail.svelte';
 	import FileContentViewer from '$lib/components/common/viewers/FileContentViewer.svelte';
 	import TerminalContentViewer from '$lib/components/common/viewers/TerminalContentViewer.svelte';
@@ -86,6 +87,29 @@
 	let footerOpen = $state(false);
 
 	let rawOpen = $state(false);
+
+	/** The card element itself — the capture target (ADR-0076: the
+	 *  photograph is the code-card, not the popup scroller). */
+	let cardEl = $state<HTMLElement | null>(null);
+
+	/**
+	 * Prepare hook (ADR-0076 D3): open ALL fold states so the PNG carries
+	 * every line, the output footer and the raw panes; wait one microtask
+	 * so Svelte flushes the expanded DOM, then hand back the exact
+	 * restore — pre-click states verbatim (already-open stays open).
+	 */
+	async function prepareCapture(): Promise<() => void> {
+		const prev = { expanded, footerOpen, rawOpen };
+		expanded = true;
+		footerOpen = true;
+		rawOpen = true;
+		await Promise.resolve();
+		return () => {
+			expanded = prev.expanded;
+			footerOpen = prev.footerOpen;
+			rawOpen = prev.rawOpen;
+		};
+	}
 </script>
 
 {#if rawOnly}
@@ -105,12 +129,23 @@
 		{/if}
 	</div>
 {:else}
-	<div class="p-3" data-testid="code-card">
-		<div class="flex items-center gap-1.5 text-xs">
-			<Code2 size={12} class="shrink-0 text-accent-purple" aria-hidden="true" />
-			<span class="font-medium text-text-primary" data-testid="code-card-title">
-				{program?.description ?? t(m.code)}
-			</span>
+	<div class="p-3" data-testid="code-card" bind:this={cardEl}>
+		<div class="flex items-center justify-between gap-1.5 text-xs">
+			<div class="flex min-w-0 items-center gap-1.5">
+				<Code2 size={12} class="shrink-0 text-accent-purple" aria-hidden="true" />
+				<span class="font-medium text-text-primary" data-testid="code-card-title">
+					{program?.description ?? t(m.code)}
+				</span>
+			</div>
+			<!-- Capture button (ADR-0076): the whole card as one PNG —
+			     prepare opens every fold, restore re-folds in finally. -->
+			<CanvasCopyButton
+				container={cardEl}
+				size={12}
+				class="shrink-0 rounded-md p-1 text-text-muted hover:bg-surface-alt hover:text-text-secondary"
+				mode="full"
+				prepare={prepareCapture}
+			/>
 		</div>
 
 		{#if program && program.plan.length > 0}

@@ -366,3 +366,129 @@ function installClipboard(write: (items: ClipboardItem[]) => Promise<void>) {
 		await vi.waitFor(() => expect(toBlob).toHaveBeenCalledTimes(2));
 	});
 });
+
+/**
+ * 1.1-T (ADR-0076, the prepare hook) - the optional pre-render hook:
+ * awaited after the guard before the raster, its returned restore runs
+ * in finally (success AND failure), and a throwing restore is swallowed.
+ */
+describe('CanvasCopyButton prepare hook (ADR-0076)', () => {
+	function installClipboard(write: (items: ClipboardItem[]) => Promise<void>) {
+		Object.defineProperty(navigator, 'clipboard', { value: { write }, configurable: true });
+	}
+
+	// (a) default no-op — no prepare prop: behavior byte-identical (no
+	// extra awaits between click and render, no restore stage).
+	it('runs byte-identical without a prepare prop (default no-op)', async () => {
+		installClipboard(vi.fn(async () => {}));
+		const container = document.createElement('div');
+		container.style.width = '300px';
+		container.style.height = '200px';
+		const { btn } = mountCapture(container);
+		btn.click();
+		await vi.waitFor(() => expect(toBlob).toHaveBeenCalledTimes(1));
+		expect(btn.querySelector('svg')?.getAttribute('stroke')).toBe('var(--color-status-pass)');
+	});
+
+	// (b) prepare awaited BEFORE the render; the mock engine records order.
+	it('awaits prepare before the raster (order recorded by the mock engine)', async () => {
+		installClipboard(vi.fn(async () => {}));
+		const order: string[] = [];
+		const container = document.createElement('div');
+		container.style.width = '300px';
+		container.style.height = '200px';
+		(toBlob as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+			order.push('render');
+			return new Blob(['png'], { type: 'image/png' });
+		});
+		const { btn } = mountCapture(container, {
+			prepare: () => {
+				order.push('prepare');
+			}
+		});
+		btn.click();
+		await vi.waitFor(() => expect(order.length).toBe(2));
+		expect(order).toEqual(['prepare', 'render']);
+	});
+
+	// (c) the returned restore runs after a SUCCESSFUL capture.
+	it('runs the returned restore after a successful capture', async () => {
+		const write = vi.fn(async () => {});
+		installClipboard(write);
+		const restore = vi.fn();
+		const container = document.createElement('div');
+		container.style.width = '300px';
+		container.style.height = '200px';
+		const { btn } = mountCapture(container, { prepare: () => restore });
+		btn.click();
+		await vi.waitFor(() => expect(restore).toHaveBeenCalledTimes(1));
+		expect(write).toHaveBeenCalled();
+		expect(btn.querySelector('svg')?.getAttribute('stroke')).toBe('var(--color-status-pass)');
+	});
+
+	// (d) restore runs on a LOUD render failure too (finally, not success-only).
+	it('runs the returned restore when the render fails (loud error path)', async () => {
+		installClipboard(vi.fn(async () => {}));
+		(toBlob as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('render blew up'));
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const restore = vi.fn();
+		const container = document.createElement('div');
+		container.style.width = '300px';
+		container.style.height = '200px';
+		try {
+			const { btn } = mountCapture(container, { prepare: () => restore });
+			btn.click();
+			await vi.waitFor(() => expect(restore).toHaveBeenCalledTimes(1));
+			// failure surfaced loudly AND state fell back to idle
+			await vi.waitFor(() => expect(errSpy).toHaveBeenCalled());
+			expect(btn.querySelector('svg')?.getAttribute('stroke')).toBe('var(--color-status-fail)');
+		} finally {
+			errSpy.mockRestore();
+		}
+	});
+
+	// (e) a throwing restore is swallowed — never masks the capture result.
+	it('swallows a throw from the restore itself', async () => {
+		installClipboard(vi.fn(async () => {}));
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const restore = vi.fn(() => {
+			throw new Error('restore blew up');
+		});
+		const container = document.createElement('div');
+		container.style.width = '300px';
+		container.style.height = '200px';
+		try {
+			const { btn } = mountCapture(container, { prepare: () => restore });
+			btn.click();
+			await vi.waitFor(() =>
+				expect(btn.querySelector('svg')?.getAttribute('stroke')).toBe('var(--color-status-pass)')
+			);
+			expect(restore).toHaveBeenCalledTimes(1);
+			await vi.waitFor(() => expect(warnSpy).toHaveBeenCalled());
+		} finally {
+			warnSpy.mockRestore();
+		}
+	});
+
+	// (f) an async prepare (returns a Promise<void>) is awaited.
+	it('awaits an async prepare promise before the raster', async () => {
+		installClipboard(vi.fn(async () => {}));
+		const order: string[] = [];
+		const container = document.createElement('div');
+		container.style.width = '300px';
+		container.style.height = '200px';
+		(toBlob as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+			order.push('render');
+			return new Blob(['png'], { type: 'image/png' });
+		});
+		const { btn } = mountCapture(container, {
+			prepare: async () => {
+				await new Promise((r) => setTimeout(r, 10));
+				order.push('prepare');
+			}
+		});
+		btn.click();
+		await vi.waitFor(() => expect(order.length).toBe(2));
+		expect(order).toEqual(['prepare', 'render']);
+	});
+});

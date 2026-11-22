@@ -49,7 +49,19 @@
 			class:active={open}
 			title={t(() => (liveCount === 1 ? m.jobsLiveTitle_one({ n: liveCount }) : m.jobsLiveTitle_other({ n: liveCount })))}
 			data-testid="jobs-button-trigger"
-			onclick={() => (open = !open)}
+			// Toggle on PRESS, not click (2026-11-21): the conversation poll
+			// invalidations re-render the page mid-gesture, so mousedown and
+			// mouseup can land on different trigger nodes — the click then
+			// fires on the common ancestor, the toggle never runs, and only
+			// the OTHER popup's window outside-closer answers (Jobs closes,
+			// nothing opens). Press-time is immune; click stays for keyboard
+			// activation only (detail 0). Non-primary buttons never toggle.
+			onpointerdown={(e) => {
+				if (e.button === 0) open = !open;
+			}}
+			onclick={(e) => {
+				if (e.detail === 0) open = !open; // keyboard Enter/Space
+			}}
 		>
 			{#if liveCount > 0}<span class="dot"></span>{/if}{liveCount > 0 ? liveCount : jobs.length}
 		</button>

@@ -174,7 +174,7 @@ describe('UserMessageJumper — group-key identification (OCI port)', () => {
 		const { target, cleanup } = mountInto(UserMessageJumper, { groups, container, triggerEl: toggleWrapper, open: true });
 		expect(target.querySelector('[data-testid="user-message-jumper"]')).not.toBeNull();
 
-		const trusted = new MouseEvent('click', { bubbles: true });
+		const trusted = new PointerEvent('pointerdown', { bubbles: true });
 		Object.defineProperty(trusted, 'isTrusted', { value: true });
 		toggleBtn.dispatchEvent(trusted);
 		flushSync();
@@ -184,12 +184,13 @@ describe('UserMessageJumper — group-key identification (OCI port)', () => {
 		toggleWrapper.remove();
 	});
 
-	it('TRUSTED click elsewhere closes the popup (real outside click)', () => {
+	it('TRUSTED pointerdown elsewhere closes the popup (real outside press)', async () => {
 		const container = document.createElement('div');
 		const { target, cleanup } = mountInto(UserMessageJumper, { groups, container, triggerEl: undefined, open: true });
 		expect(target.querySelector('[data-testid="user-message-jumper"]')).not.toBeNull();
+		await Promise.resolve(); // let the shell's window-listener $effect attach
 
-		const trusted = new MouseEvent('click', { bubbles: true });
+		const trusted = new PointerEvent('pointerdown', { bubbles: true });
 		Object.defineProperty(trusted, 'isTrusted', { value: true });
 		document.body.dispatchEvent(trusted);
 		flushSync();

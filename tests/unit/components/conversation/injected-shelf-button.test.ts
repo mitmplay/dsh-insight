@@ -200,20 +200,20 @@ describe('InjectedShelfButton (Loadinjected W4 4.4-T)', () => {
 		h.cleanup();
 	});
 
-	it('HOSTED close contract — a TRUSTED outside click closes; the opening toggle is exempt', () => {
+	it('HOSTED close contract — a TRUSTED outside press closes; the opening toggle is exempt', () => {
 		const h = mountButton(ENTRIES);
 		const btn = h.target.querySelector('[data-testid="injected-shelf-button"]') as HTMLElement;
 		btn.click();
 		flushSync();
-		// Trusted click on the toggle's WRAPPER — the opening-click exemption.
+		// Trusted press on the toggle's WRAPPER — the opening-press exemption.
 		// (Dispatching on the button itself would run its toggle handler.)
-		const trustedOnToggle = new MouseEvent('click', { bubbles: true });
+		const trustedOnToggle = new PointerEvent('pointerdown', { bubbles: true });
 		Object.defineProperty(trustedOnToggle, 'isTrusted', { value: true });
 		(btn.parentElement as HTMLElement).dispatchEvent(trustedOnToggle);
 		flushSync();
 		expect(h.target.querySelector('[data-testid="injected-shelf-popup"]')).not.toBeNull();
-		// Trusted click outside — closes.
-		const trustedOutside = new MouseEvent('click', { bubbles: true });
+		// Trusted press outside — closes.
+		const trustedOutside = new PointerEvent('pointerdown', { bubbles: true });
 		Object.defineProperty(trustedOutside, 'isTrusted', { value: true });
 		document.body.dispatchEvent(trustedOutside);
 		flushSync();

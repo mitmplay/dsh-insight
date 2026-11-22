@@ -76,7 +76,8 @@
 		size = 12,
 		class: className = '',
 		mode = 'full',
-		testid = 'canvas-copy-button'
+		testid = 'canvas-copy-button',
+		prepare
 	}: {
 		container: HTMLElement | null | undefined;
 		title?: string;
@@ -91,6 +92,11 @@
 		/** Anchor hook (R11, ADR-0074): defaults to the historic
 		 *  canvas-copy-button so existing specs stay byte-compatible. */
 		testid?: string;
+		/** Prepare hook (ADR-0076 D1/D2): awaited after the guard, before
+		 *  the raster. May return a restore fn that runs in finally — on
+		 *  success AND failure. The restore's own throw is swallowed so it
+		 *  never masks the capture result. */
+		prepare?: () => void | Promise<void> | (() => void);
 	} = $props();
 
 	const DESIRED_RATIO = 2;
@@ -436,7 +442,17 @@
 		e.stopPropagation();
 		if (!container || degraded) return;
 		state = 'busy';
+		let restore: (() => void) | null = null;
 		try {
+			// ADR-0076: stage the DOM before the raster. An async prepare is
+			// awaited; a returned fn is the restore, run in finally below.
+			// The if (not optional-chain + await) keeps the no-prop path free
+			// of even one microtask hop - existing consumers stay
+			// timing-identical.
+			if (prepare) {
+				const staged = await prepare();
+				if (typeof staged === 'function') restore = staged;
+			}
 			if (e.shiftKey) {
 				await saveAsFile();
 			} else {
@@ -449,6 +465,16 @@
 			// capture indistinguishable from a slow one for four days.
 			console.error('[container-base] capture failed:', err);
 			state = 'idle';
+		} finally {
+			// Restore runs on success AND failure (D2), and its own throw
+			// is swallowed so a bad restore never masks the capture result.
+			if (restore) {
+				try {
+					restore();
+				} catch (restoreErr) {
+					console.warn('[container-base] capture restore failed:', restoreErr);
+				}
+			}
 		}
 	}
 </script>
