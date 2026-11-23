@@ -70,7 +70,7 @@ afterEach(() => {
 });
 
 describe('sidebar-open-panel-rows — SCH badge (Scheduled Mark 2.2-T)', () => {
-	it('a scheduled panel row shows the badge with EXACT text SCH and keeps the title', () => {
+	it('a scheduled panel row shows the icon-only badge with accessible name SCH and keeps the title', () => {
 		const target = mountWith([
 			panelRow({ panel: convPanel('p1', 's-sched'), title: 'Nightly report', origin: 'scheduled' })
 		]);
@@ -78,7 +78,7 @@ describe('sidebar-open-panel-rows — SCH badge (Scheduled Mark 2.2-T)', () => {
 		expect(row).not.toBeNull();
 		const badge = badgeIn(target, 'sidebar-panel-row');
 		expect(badge).not.toBeNull();
-		expect(badge?.textContent).toBe('SCH');
+		expect(badge?.getAttribute('aria-label')).toBe('SCH');
 		expect(row?.querySelector('.label')?.textContent).toBe('Nightly report');
 	});
 

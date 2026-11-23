@@ -37,7 +37,7 @@
 	 */
 	import { isRegisteredWorkspace, workspaceDisplayLabel } from '$lib/utils/session-filters';
 	import type { DsiWorkspaceSummary } from '$lib/types';
-	import { Clock } from '@lucide/svelte';
+	import { Bot, Clock } from '@lucide/svelte';
 	import * as m from '$lib/paraglide/messages';
 	import SessionStatus from './SessionStatus.svelte';
 	import WorkspaceChip from '../common/WorkspaceChip.svelte';
@@ -54,7 +54,8 @@
 		workspace,
 		workspaces,
 		label,
-		scheduled = false
+		scheduled = false,
+		subagents = 0
 	}: {
 		/** Live-turn flag — bars when true, static dot when false. */
 		running: boolean;
@@ -103,6 +104,12 @@
 		 *  D3: no behavior keys to the badge). Default false = every row
 		 *  before this wave renders byte-identically. */
 		scheduled?: boolean;
+		/** Sub-Agent Parent Badge count (ADR-0078 D2, 2026-11-23): show the
+		 *  muted Bot+count pill. The CALLER derives the number from the row
+		 *  list (dumb prop, mirrors scheduled ADR-0057 D2) — this presenter
+		 *  never counts anything, and no behavior keys to the badge (D3).
+		 *  Default 0 = every row before this wave renders byte-identically. */
+		subagents?: number;
 	} = $props();
 </script>
 
@@ -147,13 +154,28 @@
 	<span class="ws-slot" aria-hidden="true"></span>
 {/if}
 {#if scheduled}
-	<!-- Scheduled Mark pill (ADR-0057 D2): a muted clock+SCH badge riding
-	     BEFORE the label on scheduler-born rows. Pure decoration — the
-	     title string is untouched and nothing behaves differently
-	     (ADR-0057 D3). The glyph is aria-hidden; the SCH text stays
-	     readable (assistive tech + Playwright role/text selectors). -->
-	<span class="sch-badge" data-testid="sidebar-sch-badge"
-		><Clock size={8} aria-hidden="true" /><span class="sch-text">{m.scheduledBadge()}</span></span
+	<!-- Scheduled Mark pill (ADR-0057 D2): a muted clock badge riding
+	     BEFORE the label on scheduler-born rows. 2026-11-23 operator
+	     amendment: the visible "SCH" text is REMOVED — the pill is
+	     icon-only so the row keeps its space for the label, and the
+	     schedule meaning moves to aria-label + title (the i18n string,
+	     "SCH" in every locale, stays the accessible name for assistive
+	     tech and text selectors). Pure decoration — the title string is
+	     untouched and nothing behaves differently (ADR-0057 D3). The
+	     glyph is aria-hidden. -->
+	<span class="sch-badge" data-testid="sidebar-sch-badge" aria-label={m.scheduledBadge()} title={m.scheduledBadge()}
+		><Clock size={8} aria-hidden="true" /></span
+	>
+{/if}
+{#if (subagents ?? 0) > 0}
+	<!-- Sub-Agent Parent Badge pill (ADR-0078 D2): a muted Bot+count badge
+	     riding BEFORE the label on spawner rows, so the parent discloses
+	     how many sub-agents it spawned even when the Bot/BotOff filter
+	     hides the children. Pure decoration — the title string is untouched
+	     and nothing behaves differently (ADR-0078 D3). The glyph is
+	     aria-hidden; the count stays readable text. -->
+	<span class="sub-badge" data-testid="sidebar-sub-badge"
+		><Bot size={8} aria-hidden="true" /><span class="sub-text">{subagents}</span></span
 	>
 {/if}
 <span class="label">{label}</span>
@@ -265,14 +287,39 @@
 		white-space: nowrap;
 	}
 
-	/* ── Scheduled pill (ADR-0057 D2, 2026-11-10) ────────────────────
-	   Muted pill BEFORE the label on origin-'scheduled' rows, per the
-	   operator screenshot palette: hairline border, muted ink, tiny
-	   fixed footprint. flex-shrink 0 keeps it whole while the label's
-	   ellipsize grammar (above) absorbs the shortened name column —
-	   the pill never squeezes and the title never overflows. Both
-	   paints are theme vars, so light + dark need no overrides. */
+	/* ── Scheduled pill (ADR-0057 D2, 2026-11-10; icon-only 2026-11-23)
+	   Clock-only pill BEFORE the label on origin-'scheduled' rows.
+	   2026-11-23 operator change, two parts: (1) the "SCH" text is gone
+	   — the row's space goes to the label, and the pill's meaning is
+	   the accessible name (aria-label, above); (2) the background is no
+	   longer surface-elevated white, which read as a second workspace
+	   chip — it is now a CYAN tint distinct from every row paint (muted
+	   grey, fork green, doc maroon, ws blue) and from the workspace
+	   chip's blue field. The color-mix recipe mirrors WorkspaceChip's
+	   calibrated one (accent mixed into navy-focus over transparent),
+	   so it tracks both themes with no per-theme overrides: light theme
+	   mixes #06b6d4 toward navy (dark enough for the 3:1 non-text floor
+	   on white), dark theme mixes #22d3ee (bright on #21252c). */
 	.sch-badge {
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+		padding: 0 0.28rem;
+		border: 1px solid
+			color-mix(in srgb, var(--color-accent-cyan, #06b6d4) 45%, var(--color-navy-focus));
+		border-radius: 9999px;
+		background: color-mix(in srgb, var(--color-accent-cyan, #06b6d4) 12%, transparent);
+		color: color-mix(in srgb, var(--color-accent-cyan, #06b6d4) 60%, var(--color-navy-focus));
+		line-height: 1.2;
+	}
+
+	/* ── Sub-Agent Parent pill (ADR-0078 D2/D4, 2026-11-23) ───────────
+	   Muted pill BEFORE the label on spawner rows — the count survives
+	   the Bot/BotOff filter that hides the child rows. Own class (D4:
+	   no shared badge class), mirroring the .sch-badge values so the
+	   two pills read as one family and can coexist on one row; the
+	   label's ellipsis grammar absorbs the width the same way. */
+	.sub-badge {
 		flex-shrink: 0;
 		display: inline-flex;
 		align-items: center;
@@ -287,8 +334,8 @@
 		letter-spacing: 0.02em;
 	}
 
-	/* The SCH text carries the weight so the 8px glyph reads with it. */
-	.sch-text {
+	/* The count carries the weight so the 8px glyph reads with it. */
+	.sub-text {
 		font-weight: 600;
 	}
 </style>

@@ -4,7 +4,7 @@
  * (the `<path>/<type>/<content>` envelope around `N: text` lines).
  */
 import { describe, expect, it } from 'vitest';
-import { buildDispatchReadView, dispatchRendererKey } from '$lib/utils/dispatch-view';
+import { buildDispatchReadView, buildEditWriteView, dispatchRendererKey } from '$lib/utils/dispatch-view';
 
 const MD_CONTENT =
 	'<path>/Users/wharsojo/openclaw-insight/PREREQUISITES.md</path>\n' +
@@ -103,5 +103,44 @@ describe('dispatchRendererKey', () => {
 	it('falls back to generic for unknown tools — never guesses', () => {
 		expect(dispatchRendererKey('grep')).toBe('generic');
 		expect(dispatchRendererKey('brand_new_tool')).toBe('generic');
+	});
+});
+
+/* ─── D7 (ADR-0077 Amendment 3): the structured edit/write view ─── */
+
+describe('buildEditWriteView — the structured edit/write view (D7)', () => {
+	it('edit args: path + small params + new_string with real newlines preserved', () => {
+		const argsRaw = JSON.stringify({
+			file_path: '/a/b/code-programs.ts',
+			old_string: 'const old = 1;',
+			new_string: 'const new = 2;\nconst newer = 3;'
+		});
+		const v = buildEditWriteView(argsRaw, 'edit');
+		expect(v?.tool).toBe('edit');
+		expect(v?.valueKey).toBe('new_string');
+		expect(v?.value).toBe('const new = 2;\nconst newer = 3;');
+		expect(v?.params.map((p) => p.label)).toEqual(['file_path', 'old_string']);
+		expect(v?.params[0]?.value).toBe('/a/b/code-programs.ts'); // full path — the card basenames it for display
+	});
+
+	it('write args: content value; description rides as a small param', () => {
+		const v = buildEditWriteView(JSON.stringify({ file_path: '/f.md', description: 'note', content: '# Title\n\nBody' }), 'write');
+		expect(v?.valueKey).toBe('content');
+		expect(v?.value).toBe('# Title\n\nBody');
+		expect(v?.params.map((p) => p.label)).toEqual(['file_path', 'description']);
+	});
+
+	it('old_string over 80 chars is truncated for a glance', () => {
+		const v = buildEditWriteView(JSON.stringify({ file_path: '/f', old_string: 'x'.repeat(120), new_string: 'y' }), 'edit');
+		expect(v?.params.find((p) => p.label === 'old_string')?.value.endsWith('…')).toBe(true);
+	});
+
+	it('junk, non-family, and missing-value args return undefined, no throw', () => {
+		expect(buildEditWriteView('{not json', 'edit')).toBeUndefined();
+		expect(buildEditWriteView('[]', 'write')).toBeUndefined();
+		expect(buildEditWriteView(undefined, 'edit')).toBeUndefined();
+		expect(buildEditWriteView(JSON.stringify({ file_path: '/f' }), 'edit')).toBeUndefined(); // no value key
+		expect(buildEditWriteView(JSON.stringify({ file_path: '/f', content: 'x' }), 'read')).toBeUndefined(); // non-family tool
+		expect(() => buildEditWriteView(JSON.stringify({ new_string: 5 }), 'edit')).not.toThrow(); // non-string value
 	});
 });

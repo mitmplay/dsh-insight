@@ -98,6 +98,26 @@ export function panelHeaderLabel(panel: DsiPanelEntry): string | undefined {
 	return undefined;
 }
 
+
+/**
+ * Sub-Agent Parent count (ADR-0078 D2, 2026-11-23): how many rows in
+ * `rows` are origin-'subagent' children of `sessionId`. Pure — the
+ * spine caller (RowSessionItem) and the panel layer call the SAME
+ * helper so both surfaces agree on the number. The list is keyed by
+ * session id; duplicates are asserted away by counting DISTINCT ids
+ * (the weakest point in the spec's own words). No store, no fetch.
+ */
+export function subagentCountFor(sessionId: string, rows: readonly DsiSessionSummary[]): number {
+	const seen = new Set<string>();
+	let count = 0;
+	for (const r of rows) {
+		if (r.parentSessionId !== sessionId || r.origin !== 'subagent') continue;
+		if (seen.has(r.sessionId)) continue;
+		seen.add(r.sessionId);
+		count++;
+	}
+	return count;
+}
 /** Cold-row facts the derivations read — structural: the route's ColdLoad
  *  satisfies it without importing the route's local interface. */
 export interface PanelRowsCold {

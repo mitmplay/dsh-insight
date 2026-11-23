@@ -30,11 +30,13 @@
 	import { resolve } from '$app/paths';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
 	import { isScheduledSession, refreshScheduleLedger } from '$lib/services/schedule-ledger.svelte';
+	import { subagentCountFor } from '$lib/services/panels/panel-rows';
 
 	let {
 		session,
 		depth = 0,
-		workspaces
+		workspaces,
+		rows = []
 	}: {
 		/** The session this row renders. */
 		session: DsiSessionSummary;
@@ -43,6 +45,12 @@
 		depth?: number;
 		/** Host workspace registry — the authority for chip ghost styling. */
 		workspaces: DsiWorkspaceSummary[];
+		/** The whole row list (ADR-0078 D2, 2026-11-23): the list owner
+		 *  threads it so this caller can derive the per-parent sub-agent
+		 *  count caller-side (dumb number into WorkspaceRowItem; no store
+		 *  subscription, D3 — no behavior keys to the badge). Default []
+		 *  keeps direct mounts rendering byte-identically. */
+		rows?: DsiSessionSummary[];
 	} = $props();
 
 	/** Seed deep link (?sessionKey=, ADR-0006 R1) — the agent chip rides
@@ -63,6 +71,11 @@
 	 *  origin); header origin stays as the forward-compatible second key.
 	 *  WorkspaceRowItem takes a dumb boolean; no behavior keys to it (D3). */
 	const scheduled = $derived(session.origin === 'scheduled' || isScheduledSession(session.sessionId));
+
+	/** Sub-Agent Parent count (ADR-0078 D2): derived from the threaded
+	 *  row list — origin-'subagent' children of THIS session. A child
+	 *  row itself has no matching children, so it paints nothing (D1). */
+	const subagents = $derived(subagentCountFor(session.sessionId, rows));
 
 	$effect(() => {
 		void refreshScheduleLedger();
@@ -134,6 +147,7 @@
 		{workspaces}
 		label={session.title ?? 'untitled'}
 		{scheduled}
+		{subagents}
 		{depth}
 		fork={session.parentSessionId != null && session.origin !== 'subagent' && !isGlass}
 	/>

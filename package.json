@@ -1,6 +1,6 @@
 {
 	"name": "@deepseek-insight/dsi",
-	"version": "0.14.0",
+	"version": "0.14.1",
 	"description": "See your multiple agents run on the floor (agent, sub-agent, etc), each conversation on the floor are updated instantly.",
 	"keywords": [
 		"Deepseek",
@@ -39,7 +39,7 @@
 		"node": ">=22.19"
 	},
 	"dsh": {
-		"webVersion": "0.2.2-rc.5"
+		"webVersion": "0.2.3-alpha.2"
 	},
 	"bin": {
 		"dsi": "bin/dsi.mjs"
@@ -78,7 +78,7 @@
 		"ws": "^8.21.3"
 	},
 	"dependencies": {
-		"@deepseek-insight/container-base": "^0.3.0",
+		"@deepseek-insight/container-base": "^0.3.3",
 		"@git-diff-view/svelte": "^0.1.7",
 		"@modelcontextprotocol/sdk": "1.25.2",
 		"@playwright/mcp": "0.0.83",
@@ -91,6 +91,7 @@
 		"monaco-yaml": "^5.5.1",
 		"node-pty": "1.2.0-beta.15",
 		"playwright-core": "1.61.0",
+		"prettier": "3.9.6",
 		"yaml": "^2.9.0"
 	}
 }

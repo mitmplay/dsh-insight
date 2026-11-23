@@ -30,6 +30,9 @@
 		current,
 		/** Filtered rows (the owner's list WITHOUT paneled sessions). */
 		visible,
+		/** ADR-0078: the pre-view-filter list the sub-badge count derives
+		 *  from — relayed untouched to the rows. */
+		unfilteredRows,
 		depthById = {},
 		/** Host workspace registry — the authority for chip ghost styling. */
 		workspaces,
@@ -45,6 +48,8 @@
 	}: {
 		current: DsiSessionSummary | null;
 		visible: DsiSessionSummary[];
+		/** ADR-0078: the unfiltered row list the count derives from. */
+		unfilteredRows?: DsiSessionSummary[];
 		/** Nesting depths by sessionId (W4 task 4.1) — pass-through. */
 		depthById?: Record<string, number>;
 		workspaces: DsiWorkspaceSummary[];
@@ -58,7 +63,7 @@
 
 <div class="list" data-testid="sidebar-sessions-list">
 	<hr/>
-	<SidebarSessionList {current} {visible} {depthById} {workspaces} {sessionDates} {spine} {onspinechange} />
+	<SidebarSessionList {current} {visible} {unfilteredRows} {depthById} {workspaces} {sessionDates} {spine} {onspinechange} />
 </div>
 
 <style>

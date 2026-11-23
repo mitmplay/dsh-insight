@@ -41,11 +41,12 @@ afterEach(() => {
 });
 
 describe('row-session-item — SCH badge (Scheduled Mark 2.2-T)', () => {
-	it('a scheduled row shows the badge with EXACT text SCH and keeps the title', () => {
+	it('a scheduled row shows the icon-only badge with accessible name SCH and keeps the title', () => {
 		const { target, c } = mountRow('scheduled');
 		const badge = target.querySelector('[data-testid="sidebar-sch-badge"]');
 		expect(badge).not.toBeNull();
-		expect(badge?.textContent).toBe('SCH');
+		expect(badge?.getAttribute('aria-label')).toBe('SCH');
+		expect(badge?.getAttribute('title')).toBe('SCH');
 		// D2: the title string is untouched — badge is separate DOM.
 		expect(target.querySelector('.label')?.textContent).toBe('Nightly report');
 		unmount(c);
@@ -88,7 +89,7 @@ describe('row-session-item — SCH badge via schedule-ledger join (ADR-0057 Amen
 		const { target, c } = mountRow(null, 'ledger-sch-1');
 		const badge = target.querySelector('[data-testid="sidebar-sch-badge"]');
 		expect(badge).not.toBeNull();
-		expect(badge?.textContent).toBe('SCH');
+		expect(badge?.getAttribute('aria-label')).toBe('SCH');
 		// D2: the title string is untouched — badge is separate DOM.
 		expect(target.querySelector('.label')?.textContent).toBe('Nightly report');
 		unmount(c);

@@ -322,3 +322,104 @@ describe('GET /api/a2a/[id] (Task 3.2-T)', () => {
 		expect(res.status).toBe(404);
 	});
 });
+
+// Coverage floor for /api/a2a/register — the arms of readBody (L22-28) and
+// the seq-watermark fallback (L77-78) the block above never reaches. Same
+// harness: handlers invoked directly, a fresh tmp DB per test (beforeEach),
+// historySpy standing in for the target ledger tail.
+describe('POST /api/a2a/register — body validation + seq-tail floor (readBody L22-28, watermark L77-78)', () => {
+	const ID = 'a2a-floor000000000000';
+
+	/** POST a raw body string straight through the real Request.json() path. */
+	async function postRaw(raw: string) {
+		return registerRoute(mkEvent({
+			request: new Request(`${BASE}/api/a2a/register`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: raw
+			})
+		}));
+	}
+
+	/** A VALID body; overrides narrow it to the case under test (undefined
+	 *  drops the key, i.e. a missing field). */
+	function body(overrides: Record<string, unknown> = {}): string {
+		return JSON.stringify({
+			from: 'session-sender',
+			to: 'session-target',
+			message: 'hello',
+			watermark: 0,
+			id: ID,
+			...overrides
+		});
+	}
+
+	/** A rejected body: 400 + the bad-body code + the exact honest message. */
+	async function expectRejected(raw: string, message: string): Promise<void> {
+		const res = await postRaw(raw);
+		expect(res.status).toBe(400);
+		const parsed = (await res.json()) as { ok: boolean; error: { code: string; message: string } };
+		expect(parsed.ok).toBe(false);
+		expect(parsed.error.code).toBe('bad-body');
+		expect(parsed.error.message).toBe(message);
+		expect(getRow(ID)).toBeNull(); // nothing was inserted
+	}
+
+	it('L22: a null body is not an object → 400 body must be an object', async () => {
+		await expectRejected('null', 'body must be an object');
+	});
+
+	it('L22: a JSON string body is not an object → 400 body must be an object', async () => {
+		await expectRejected('"just a string"', 'body must be an object');
+	});
+
+	it('L24: a missing or empty "to" → 400 naming the field', async () => {
+		await expectRejected(body({ to: undefined }), '"to" must be a non-empty string');
+		await expectRejected(body({ to: '' }), '"to" must be a non-empty string');
+	});
+
+	it('L26: a missing or empty "message" → 400 naming the field', async () => {
+		await expectRejected(body({ message: undefined }), '"message" must be a non-empty string');
+		await expectRejected(body({ message: '' }), '"message" must be a non-empty string');
+	});
+
+	it('L28: an empty-string id and a non-string id → 400; an absent id still mints (the valid arm)', async () => {
+		await expectRejected(body({ id: '' }), '"id" must be a non-empty string when present');
+		await expectRejected(body({ id: 7 }), '"id" must be a non-empty string when present');
+		// control: the same body with a valid id is honored verbatim
+		const res = await postRaw(body());
+		expect(res.status).toBe(200);
+		expect(getRow(ID)?.state).toBe('waiting');
+	});
+
+	it('L77-78: watermark<0 with an EMPTY target ledger → watermarkSeq -1 (the length === 0 arm)', async () => {
+		historySpy.mockResolvedValue({ events: [], hasMore: false });
+		const res = await postRaw(body({ watermark: -1 }));
+		expect(res.status).toBe(200);
+		expect(historySpy).toHaveBeenCalledTimes(1);
+		expect(historySpy).toHaveBeenCalledWith('session-target');
+		const row = getRow(ID);
+		expect(row?.state).toBe('waiting');
+		expect(row?.watermarkTurn).toBe(-1);
+		expect(row?.watermarkSeq).toBe(-1); // honest "nothing seen yet", never NULL-by-guess
+	});
+
+	it('L77: watermark<0 when the history page carries NO events field → the ?? [] arm → watermarkSeq -1', async () => {
+		historySpy.mockResolvedValue({});
+		const res = await postRaw(body({ watermark: -1 }));
+		expect(res.status).toBe(200);
+		expect(getRow(ID)?.watermarkSeq).toBe(-1);
+	});
+
+	it('watermark>=0 never reads history and keeps watermarkSeq NULL even when a tail exists', async () => {
+		historySpy.mockResolvedValue({
+			events: [{ event: { type: 'assistant/message', seq: 99, time: 1, data: {} } }],
+			hasMore: false
+		});
+		const res = await postRaw(body({ watermark: 5 }));
+		expect(res.status).toBe(200);
+		expect(historySpy).not.toHaveBeenCalled();
+		expect(getRow(ID)?.watermarkTurn).toBe(5);
+		expect(getRow(ID)?.watermarkSeq).toBeNull();
+	});
+});

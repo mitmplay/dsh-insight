@@ -36,6 +36,57 @@ export function dispatchRendererKey(name: string): DispatchRenderer {
 	return 'generic';
 }
 
+/* ─── D7 (ADR-0077 Amendment 3): the structured edit/write view ─── */
+
+/** The edit/write family: dispatches carrying these keys render structured. */
+const EDITWRITE_TOOLS: ReadonlySet<string> = new Set(['edit', 'write']);
+
+/** The family's small scalar params shown as label rows (never the big value). */
+const SMALL_PARAMS: ReadonlySet<string> = new Set(['file_path', 'old_string', 'description']);
+/** The family's big value param, rendered as its own multi-line block. */
+const VALUE_KEYS: ReadonlySet<string> = new Set(['new_string', 'content']);
+
+/** One structured view of an edit/write dispatch (D7, ADR-0077 Amendment 3). */
+export interface EditWriteView {
+	/** Wire tool name (edit / write). */
+	tool: string;
+	/** Small scalar params in wire order, `old_string` truncated for a glance. */
+	params: { label: string; value: string }[];
+	/** The big value (new_string / content) — real text, real newlines. */
+	value: string;
+	/** Which key the value came from. */
+	valueKey: string;
+}
+
+/**
+ * Build the structured edit/write view from a dispatch's own wire args —
+ * valid JSON written by the harness, never the (possibly invalid) program
+ * text (ADR-0077 Amendment 3, D7). Display-derived: parse or shape failures
+ * return undefined and the caller keeps the existing renderer. Never throws.
+ * @param argsRaw - the dispatch arguments as raw JSON.
+ * @param tool - the dispatch's wire tool name.
+ */
+export function buildEditWriteView(argsRaw: string | undefined, tool: string): EditWriteView | undefined {
+	if (!EDITWRITE_TOOLS.has(tool) || argsRaw === undefined) return undefined;
+	let args: Record<string, unknown>;
+	try {
+		const parsed: unknown = JSON.parse(argsRaw);
+		if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+		args = parsed as Record<string, unknown>;
+	} catch {
+		return undefined;
+	}
+	const valueKey = [...VALUE_KEYS].find((k) => typeof args[k] === 'string' && (args[k] as string).length > 0);
+	if (valueKey === undefined) return undefined;
+	const params: { label: string; value: string }[] = [];
+	for (const [label, v] of Object.entries(args)) {
+		if (!SMALL_PARAMS.has(label) || typeof v !== 'string' || v === '') continue;
+		const cut = label === 'old_string' && v.length > 80 ? v.slice(0, 80) + '…' : v;
+		params.push({ label, value: cut });
+	}
+	return { tool, params, value: args[valueKey] as string, valueKey };
+}
+
 /** Extension → language hint. Markdown keeps its own tag (FileContentViewer
  * renders it as prose); code languages pass through when registered;
  * everything else declines to the plain-pre fallback. */

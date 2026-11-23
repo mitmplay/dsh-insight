@@ -46,6 +46,10 @@
 	let {
 		current,
 		visible,
+		/** ADR-0078: the pre-view-filter row list (owner-threaded) — the
+		 *  sub-agent parent count derives from it so the badge survives
+		 *  the Bot/BotOff toggle. Absent falls back to current+visible. */
+		unfilteredRows,
 		depthById = {},
 		workspaces,
 		sessionDates = new Set<string>(),
@@ -56,6 +60,8 @@
 		current: DsiSessionSummary | null;
 		/** Filtered rows (the owner's list WITHOUT the current session). */
 		visible: DsiSessionSummary[];
+		/** ADR-0078: the unfiltered row list the count derives from. */
+		unfilteredRows?: DsiSessionSummary[];
 		/** Nesting depths by sessionId (W4 task 4.1, ADR D6): sub-agents
 		 *  that STAY in the spine (off-floor parent) indent under their
 		 *  family head — same anchor grammar, inline indent; absent = 0. */
@@ -132,6 +138,15 @@
 		);
 	}
 
+	/** The FULL row list for the Sub-Agent Parent count (ADR-0078 D2,
+	 *  2026-11-23): current + visible threaded down so every spawner row
+	 *  — including the pinned current session — derives its child count
+	 *  from the same list the spine renders. Display-only; the list
+	 *  identity never keys behavior. */
+	const allRows: DsiSessionSummary[] = $derived(
+		unfilteredRows ?? (current ? [current, ...visible] : [...visible])
+	);
+
 	/** Sub-agent toggle — hide or re-show origin-'subagent' rows. */
 	function toggleSubagents(): void {
 		onspinechange?.({ subagentsHidden: !spine.subagentsHidden });
@@ -180,7 +195,7 @@
 		<PanelListboxList testid="sidebar-spine-group-rows" id="sidebar-spine-group-rows" class="group-rows">
 			<div class="rows-inner" bind:this={rowsEl}>
 				{#each visible as s (s.sessionId)}
-					<RowSessionItem session={s} depth={depthById[s.sessionId] ?? 0} {workspaces} />
+					<RowSessionItem session={s} depth={depthById[s.sessionId] ?? 0} {workspaces} rows={allRows} />
 				{/each}
 			</div>
 		</PanelListboxList>

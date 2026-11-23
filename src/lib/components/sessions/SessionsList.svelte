@@ -34,6 +34,12 @@
 		message = '',
 		current,
 		visible,
+		/** The PRE-view-filter row list (ADR-0078 D2, 2026-11-23): the
+		 *  sub-agent parent count derives from it so the badge survives
+		 *  the Bot/BotOff toggle and the name/date filters. Optional —
+		 *  absent falls back to `visible`. */
+		unfilteredRows,
+		allRows,
 		depthById = {},
 		workspaces,
 		paneledSessionIds = [],
@@ -51,6 +57,12 @@
 		message?: string;
 		current: DsiSessionSummary | null;
 		visible: DsiSessionSummary[];
+		/** ADR-0078: the unfiltered row list the count derives from. */
+		unfilteredRows?: DsiSessionSummary[];
+		/** ADR-0078 Amendment 1: the FULL ready list (pre-suppression) —
+		 *  the open-panel group's count derives from THIS, because
+		 *  unfilteredRows drops children under an open parent. */
+		allRows?: DsiSessionSummary[];
 		/** Nesting depths by sessionId (W4 task 4.1) — rows indent under
 		 *  their family head; absent = depth 0 (plain row). */
 		depthById?: Record<string, number>;
@@ -85,7 +97,7 @@
 	{:else if phase === 'error'}
 		<p class="hint error" data-testid="sidebar-sessions-error" role="alert">{message}</p>
 	{:else}
-		<SidebarOpenPanels {workspaces} />
+		<SidebarOpenPanels {workspaces} sessions={allRows ?? unfilteredRows ?? []} />
 		<SidebarSessionScheduler />
 		<SidebarSessionFilter workspaces={wsPills} {presets} {filter} onchange={onfilterchange} {oncreated} registry={workspaces} />
 
@@ -96,6 +108,7 @@
 		<SidebarSessionContainer
 			{current}
 			{visible}
+			{unfilteredRows}
 			{depthById}
 			{workspaces}
 			{paneledSessionIds}

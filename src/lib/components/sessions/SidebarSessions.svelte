@@ -288,6 +288,11 @@
 	{message}
 	{current}
 	{visible}
+	unfilteredRows={unsuppressed}
+	/** ADR-0078 Amendment 1: the FULL ready list (pre-suppression) —
+	 *  unsuppressed drops the children under an open parent, so the
+	 *  panel-group count must derive from THIS. */
+	allRows={ready}
 	{workspaces}
 	{depthById}
 	paneledSessionIds={paneledSessionIds}

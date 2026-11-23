@@ -5,7 +5,7 @@ allowBuilds:
   esbuild: true
   node-pty: true
 minimumReleaseAgeExclude:
-  - '@deepseek-insight/container-base@0.3.2'
+  - '@deepseek-insight/container-base@0.3.3'
   - '@inlang/paraglide-js@2.25.2'
   - '@inlang/sdk@3.0.5'
   - '@lix-js/sdk-darwin-arm64@0.16.1'

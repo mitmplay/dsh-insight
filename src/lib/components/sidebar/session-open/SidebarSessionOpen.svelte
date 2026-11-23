@@ -77,17 +77,24 @@
 	} from '$lib/services/panels/panel-registry';
 	import { getWorkspaceState } from '$lib/services/conversation/workspace-context.svelte';
 	import { familyRenderOrder } from '$lib/services/lineage/lineage';
-	import type { DsiWorkspaceSummary } from '$lib/types';
+	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
 	import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
 	import SidebarSessionOpenHeader from './SidebarSessionOpenHeader.svelte';
 	import SidebarOpenPanelRows from './SidebarOpenPanelRows.svelte';
 	import { PanelListbox, PanelListboxList } from '@deepseek-insight/container-base';
 
 	let {
-		workspaces
+		workspaces,
+		/** The PRE-view-filter session list (ADR-0078 Amendment 1, 2026-11-23):
+		 *  the sub-agent parent count derives from it so the badge survives
+		 *  the Bot/BotOff toggle — the same source discipline as the spine's
+		 *  unfilteredRows fix (Amendment 0). Never the filtered list. */
+		sessions = []
 	}: {
 		/** Host workspace registry — the authority for chip ghost styling. */
 		workspaces: DsiWorkspaceSummary[];
+		/** ADR-0078 Amendment 1: the unfiltered DsiSessionSummary rows. */
+		sessions?: DsiSessionSummary[];
 	} = $props();
 
 	const ws = $derived(getWorkspaceState());
@@ -522,6 +529,7 @@
 			<PanelListboxList testid="sidebar-panel-rows-scroll">
 				<SidebarOpenPanelRows
 						{visibleRender}
+						{sessions}
 						{panelIndex}
 						{subtreeCount}
 						{directChildren}

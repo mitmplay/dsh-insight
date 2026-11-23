@@ -36,6 +36,60 @@ function render(props: { dispatches?: DsiCodeDispatch[]; resultText?: string }) 
 	return { target, unmount: () => unmount(comp) };
 }
 
+describe('CodeCard — D7 structured edit/write dispatches (ADR-0077 Amendment 3)', () => {
+	const editDispatch: DsiCodeDispatch = {
+		subCallId: 'c1:code:9',
+		name: 'edit',
+		argsRaw: JSON.stringify({
+			file_path: '/x/code-programs.ts',
+			old_string: 'const old = 1;',
+			new_string: 'const next = 2;\nconst nexter = 3;'
+		}),
+		settled: true,
+		isError: false,
+		contentText: 'edited'
+	};
+
+	it('an edit dispatch renders the structured block: params + multi-line value', () => {
+		const { target, unmount } = render({ dispatches: [editDispatch] });
+		const block = target.querySelector('[data-testid="code-dispatch-editwrite"]') as HTMLElement;
+		expect(block).not.toBeNull();
+		expect(block.getAttribute('data-sub-tool')).toBe('edit');
+		expect(block.textContent).toContain('file_path:');
+		expect(block.textContent).toContain('/x/code-programs.ts');
+		expect(block.textContent).toContain('old_string:');
+		const pre = block.querySelector('pre') as HTMLElement;
+		expect(pre?.textContent).toBe('const next = 2;\nconst nexter = 3;'); // real newlines, escape-soup-free
+		expect(target.querySelector('[data-testid="code-dispatch-terminal"]')).toBeNull(); // not a terminal block
+		unmount();
+	});
+
+	it('a write dispatch renders content as the value; a bash dispatch keeps the terminal renderer', () => {
+		const writeDispatch: DsiCodeDispatch = {
+			subCallId: 'c1:code:10',
+			name: 'write',
+			argsRaw: JSON.stringify({ file_path: '/x/new.md', content: '# Title\n\nBody' }),
+			settled: true,
+			isError: false,
+			contentText: 'written'
+		};
+		const { target, unmount } = render({ dispatches: [writeDispatch, { subCallId: 'c1:code:11', name: 'bash', argsRaw: '{"command":"ls"}', settled: true, isError: false, contentText: 'x' }] });
+		const block = target.querySelector('[data-testid="code-dispatch-editwrite"]') as HTMLElement;
+		expect(block).not.toBeNull();
+		expect(block.textContent).toContain('# Title');
+		expect((target.querySelector('[data-testid="code-dispatch-terminal"]'))).not.toBeNull();
+		unmount();
+	});
+
+	it('an errored edit dispatch keeps its content and gains the danger ring', () => {
+		const { target, unmount } = render({ dispatches: [{ ...editDispatch, isError: true }] });
+		const block = target.querySelector('[data-testid="code-dispatch-editwrite"]') as HTMLElement;
+		expect(block.className).toContain('ring-danger-wash-border');
+		expect(block.textContent).toContain('const next = 2;');
+		unmount();
+	});
+});
+
 describe('CodeCard — dispatch sections', () => {
 	it('renders a .md read as markdown prose through FileContentViewer (no N: gutter)', () => {
 		const { target, unmount } = render({ dispatches: [read(1)] });

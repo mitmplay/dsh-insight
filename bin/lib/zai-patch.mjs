@@ -42,12 +42,19 @@ export const ZAI_PROVIDER = {
 					maxTokens: 131072,
 					input: ['text', 'image'],
 				},
+				{
+					id: 'glm-5.4',
+					name: 'GLM-5.4',
+					contextWindow: 1000000,
+					maxTokens: 131072,
+					input: ['text'],
+				},
 			],
 		},
 	},
 };
 
-export const ZAI_DEFAULT_MODEL = { provider: 'zai', model: 'glm-5.3-flash' };
+export const ZAI_DEFAULT_MODEL = { provider: 'zai', model: 'glm-5.4' };
 
 const LLM_ENTRY_NAME = '@deepseek-ai/dsh-llm-pi-ai';
 const MODEL_ENTRY_NAME = '@deepseek-ai/dsh-agent-default-model';

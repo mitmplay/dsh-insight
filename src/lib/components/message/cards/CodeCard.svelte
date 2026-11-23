@@ -33,9 +33,9 @@
 	import FileContentViewer from '$lib/components/common/viewers/FileContentViewer.svelte';
 	import TerminalContentViewer from '$lib/components/common/viewers/TerminalContentViewer.svelte';
 	import { highlightCode } from '$lib/utils/highlight-code';
-	import { truncate } from '$lib/utils/truncate';
-	import { parseCodeProgram, planStepTitle } from '$lib/utils/code-programs';
-	import { buildDispatchReadView, dispatchRendererKey } from '$lib/utils/dispatch-view';
+	import { codeArgTargets, expandDisplayValues, parseCodeProgram, planStepTitle, previewArg, splicePrettified } from '$lib/utils/code-programs';
+	import { prettifyCode, prettifyProgram } from '$lib/utils/prettify-code';
+	import { buildDispatchReadView, buildEditWriteView, dispatchRendererKey } from '$lib/utils/dispatch-view';
 	import type { DsiCodeDispatch } from '$lib/types';
 
 	let {
@@ -52,15 +52,43 @@
 		 * (the P3 heredoc outliers — FileContentViewer's RENDER_CAP idiom). */
 	const LINES_CAP = 40;
 	let expanded = $state(false);
-	const lines = $derived(program?.code.split('\n') ?? []);
+	const displaySrc = $derived(expandDisplayValues(program?.code ?? ''));
+	/** D5 + D6 (ADR-0077 Amendments): `code:` args prettify per-value; the
+	 * whole program formats per D6 — both land async, the verbatim/bash
+	 * display shows until then, never a flash of nothing. The WIRE copy
+	 * stays byte-identical either way. */
+	const codeTargets = $derived(codeArgTargets(displaySrc));
+	let prettyMap = $state<Record<string, string>>({});
+	let prettyProgram = $state<string | null>(null);
+	$effect(() => {
+		const src = displaySrc;
+		const targets = codeTargets;
+		if (src.trim() === '') {
+			prettyProgram = null;
+			prettyMap = {};
+			return;
+		}
+		let cancelled = false;
+		void (async () => {
+			const prog = await prettifyProgram(src);
+			const entries = await Promise.all(targets.map(async (t) => [t, await prettifyCode(t)] as const));
+			if (cancelled) return;
+			if (prettyProgram === prog && targets.length === 0) return; // nothing new — no post-flush re-render
+			prettyProgram = prog;
+			prettyMap = Object.fromEntries(entries);
+		})();
+		return () => {
+			cancelled = true;
+		};
+	});
+	const lines = $derived(splicePrettified(prettyProgram ?? displaySrc, new Map(Object.entries(prettyMap))).split('\n'));
 	const overCap = $derived(lines.length > LINES_CAP);
 	const shown = $derived(overCap && !expanded ? lines.slice(0, LINES_CAP) : lines);
 
 	/** Strip args cap — the strip stays one glance; the peek row (120)
 	 * and the code block below carry the longer truth. */
-	function stripArg(arg: string): string {
-		const cut = truncate(arg, 60);
-		return cut.head + (cut.truncated ? '…' : '');
+	function stripArg(tool: string, arg: string): string {
+		return previewArg(tool, arg, 60);
 	}
 
 	/** Read view per dispatch subCallId — recomputed, never cached across
@@ -159,7 +187,7 @@
 					<span class="shrink-0">
 						<span class="font-medium text-text-primary">{planStepTitle(step.tool)}</span>
 						{#if step.arg !== undefined}
-							<span class="text-text-muted"> {stripArg(step.arg)}</span>
+							<span class="text-text-muted"> {stripArg(step.tool, step.arg)}</span>
 						{/if}
 					</span>
 				{/each}
@@ -174,6 +202,7 @@
 				{#each dispatches as d (d.subCallId)}
 					{@const view = readViews.get(d.subCallId)}
 					{@const renderer = dispatchRendererKey(d.name)}
+					{@const ew = buildEditWriteView(d.argsRaw, d.name)}
 					{#if !d.settled}
 						<!-- D5 placeholder: identity from the -start event; fills on settle. -->
 						<div
@@ -188,6 +217,24 @@
 							{:else if dispatchFileName(d) !== undefined}
 								<span class="truncate">{dispatchFileName(d)}</span>
 							{/if}
+						</div>
+					{:else if ew}
+						<!-- D7 (ADR-0077 Amendment 3): edit/write renders structured from its
+						     own wire args (valid JSON) — params + the big value multi-line;
+						     the value renders as a TEXT node (XSS posture above holds). -->
+						<div
+							class="rounded-lg bg-surface px-2 py-1.5 {d.isError === true ? 'ring-1 ring-danger-wash-border' : ''}"
+							data-testid="code-dispatch-editwrite"
+							data-sub-tool={d.name}
+						>
+							<div class="flex flex-wrap items-center gap-x-1 font-mono text-[10px]">
+								<span class="font-medium text-text-primary">{planStepTitle(d.name)}</span>
+								{#each ew.params as prm (prm.label)}
+									<span class="text-text-muted">{prm.label}:</span>
+									<span class="text-text-secondary">{prm.value}</span>
+								{/each}
+							</div>
+							<pre class="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-text-secondary"><code class="hljs">{ew.value}</code></pre>
 						</div>
 					{:else if renderer === 'file' && view !== undefined}
 						<div class="{d.isError === true ? 'ring-1 ring-danger-wash-border' : ''}" data-testid="code-dispatch-file" data-sub-tool={d.name}>

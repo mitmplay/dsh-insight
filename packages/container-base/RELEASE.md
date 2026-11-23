@@ -1,5 +1,9 @@
 # RELEASE — @deepseek-insight/container-base
 
+## 0.3.3
+
+Bumped from 0.3.2 - **constant republish**: the 0.3.2 tarball shipped `CONTAINER_BASE_VERSION = 0.3.0` while its manifest said 0.3.2 - the release flow forgot the constant. 0.3.3 bumps `src/index.ts:7` to 0.3.3 and rebuilds the dist, so the runtime export matches the manifest. Caught by the version-pin test (`tests/publish/manifest.test.ts` + DSI root `tests/unit/container-base/package-entry.test.ts`), which refused the stale artifact - the pin did its job. Published to npm 2026-11-23 (operator-approved).
+
 ## 0.3.2
 
 Bumped from 0.3.1 — **docs-only republish** (README is packed in the tarball per ADR-0064 D2's `files` manifest, so doc changes are version-visible to npm): the README gains a plain-words paragraph for the layman reader — what the package is (the desktop-app furniture two real apps already share), the two reuse laws (never ships words, never ships colors), and the per-app/per-desk memory with pre-paint application. Zero code, zero test changes: `git diff 0497afe6..db2667a8 -- packages/container-base` touches only `README.md` and `RELEASE.md`.

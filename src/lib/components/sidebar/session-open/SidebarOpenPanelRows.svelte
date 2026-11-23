@@ -10,6 +10,8 @@
 	import RowButtonMoveUp from './RowButtonMoveUp.svelte';
 	import WorkspaceRowItem from '../../sessions/WorkspaceRowItem.svelte';
 	import { isScheduledSession, refreshScheduleLedger } from '$lib/services/schedule-ledger.svelte';
+	import { subagentCountFor } from '$lib/services/panels/panel-rows';
+	import type { DsiSessionSummary } from '$lib/types';
 
 </script>
 
@@ -36,6 +38,7 @@
 		selectedPanelId,
 		unfoldedParents,
 		workspaces,
+		sessions = [],
 		onselect,
 		onmove,
 		ontogglefold,
@@ -60,6 +63,10 @@
 		unfoldedParents: Record<string, boolean>;
 		/** Host workspace registry — the authority for chip ghost styling. */
 		workspaces: DsiWorkspaceSummary[];
+		/** The PRE-view-filter session list (ADR-0078 Amendment 1) — the
+		 *  sub-agent parent count derives from it, so the badge survives the
+		 *  Bot/BotOff toggle. The ghost call site gets NOTHING (D1). */
+		sessions?: DsiSessionSummary[];
 		/** Row click — the host selects through the registry. */
 		onselect: (row: PanelRow) => void;
 		/** Move chevron — the host invokes the registry. */
@@ -137,6 +144,7 @@
 							{workspaces}
 							label={row.title ?? sid ?? row.panel.id}
 							scheduled={scheduledRow(row)}
+							subagents={sid !== null ? subagentCountFor(sid, sessions) : 0}
 						/>
 						{#if row.spawnerTitle}
 							<!-- Orphan hint (ADR D4): the spawner exists on the host but

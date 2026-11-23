@@ -1,3 +1,17 @@
+## 0.14.1
+
+Bumped from 0.14.0 - the sub-agent parent badge ships with its amendment, the scheduled pill goes icon-only, the provider speaks glm-5.4, and a DSH jump audit pays the release-KB debt and republishes container-base 0.3.3 with its version constant actually bumped.
+
+### Features
+- **Readable Command (9aff41d4, ADR-0077)** - CodeCard speaks bash on the display copy while the wire stays verbatim; the structured dispatch view for edit/write sub-calls lands as Amendment 3 (15c50636). Regression: code-card-capture tests + dispatch view tests.
+- **Sub-Agent Parent Badge (46d28d2d, ADR-0078)** - spawner rows show a Bot+count pill; children stay quiet under the Bot/BotOff filter. Amendment 1 threads the count over the FULL ready list and proves the 5 pre-existing sidebar.spec failures on a clean-stash baseline (f7946426, 3a04645e). Regression: workspace-row-item-sub-badge + sidebar-open-panel-rows-sub-badge unit pins, e2e subagent-parent-badge.spec.
+- **glm-5.4 in the ZAI provider (481d5caf, c9432fcf)** - the --zai bootstrap template and the default model move to glm-5.4; the unit test now derives the default from the constant so it cannot stale again.
+
+### Bug fixes
+- **Scheduled pill goes icon-only (96069c61)** - the SCH text left the sidebar row (space back to the label), meaning carried by aria-label/title; the pill background leaves surface-elevated white for a theme-aware cyan tint (contrast light 4.2:1, dark 8.3:1). Four text assertions moved to aria-label.
+- **container-base 0.3.3 republished with its version constant actually bumped (f4486037)** - the 0.3.2 tarball shipped CONTAINER_BASE_VERSION = 0.3.0; DSI moves to ^0.3.3, the constant reads 0.3.3, and the version-pin test does its job again. Full suite 8,938 green.
+- **DSH 0.2.3-alpha.2 jump audit (b1c68daa, release KB)** - wire, rejection codes and ledger verified unchanged at the tags; the audit caught and paid the uncommitted dsh.webVersion bump and the two stale pins.
+
 ## 0.14.0
 
 Bumped from 0.13.2 — the capture stage opens and the gates tighten: CodeCard's capture button learns a prepare hook (ADR-0076), the anchor popups finish their press-time gesture contract, and the floor's coverage gate goes fully green (every file ≥80%) with the type-check wave paid off.

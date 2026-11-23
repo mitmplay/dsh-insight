@@ -94,7 +94,7 @@ for (const theme of THEMES) {
 		// SPINE surface: the fixture's recency card carries the pill.
 		const spineBadge = spineCard(page, SCH_ID).locator('[data-testid="sidebar-sch-badge"]');
 		await expect(spineBadge).toBeVisible();
-		await expect(spineBadge).toHaveText('SCH');
+		await expect(spineBadge).toHaveAttribute('aria-label', 'SCH');
 
 		// Theme evidence into test-results (screenshots are generated
 		// artifacts, never source) — taken BEFORE the panel-open click
@@ -111,7 +111,7 @@ for (const theme of THEMES) {
 		await spineCard(page, SCH_ID).click();
 		const panelBadge = panelRowBySession(page, SCH_ID).locator('[data-testid="sidebar-sch-badge"]');
 		await expect(panelBadge).toBeVisible();
-		await expect(panelBadge).toHaveText('SCH');
+		await expect(panelBadge).toHaveAttribute('aria-label', 'SCH');
 		await panelRowBySession(page, SCH_ID).screenshot({
 			path: `test-results/scheduled-badge/${theme}-panel-row.png`
 		});

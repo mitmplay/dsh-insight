@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 
-import { addZaiProvider, zaiPatchPath, ZaiPatchError } from '../../bin/lib/zai-patch.mjs';
+import { addZaiProvider, zaiPatchPath, ZAI_DEFAULT_MODEL, ZaiPatchError } from '../../bin/lib/zai-patch.mjs';
 
 function tmpFile(name: string): string {
 	const dir = mkdtempSync(join(tmpdir(), 'dsi-zai-patch-'));
@@ -52,7 +52,7 @@ describe('addZaiProvider (D7, D10)', () => {
 		const model = entries.find((e) => e.id === 'agent-default-model');
 		expect(llm?.name).toBe('@deepseek-ai/dsh-llm-pi-ai');
 		expect(model?.name).toBe('@deepseek-ai/dsh-agent-default-model');
-		expect(model?.config).toEqual({ provider: 'zai', model: 'glm-5.3-flash' });
+		expect(model?.config).toEqual({ provider: ZAI_DEFAULT_MODEL.provider, model: ZAI_DEFAULT_MODEL.model });
 		const zai = (llm?.config as { providers: { zai: { id?: never } } }).providers.zai;
 		expect(zai).toMatchObject({ apiKeyEnv: 'ZAI_API_KEY', api: 'openai-completions' });
 		rmSync(p, { force: true });

@@ -4,10 +4,12 @@
 <script lang="ts">
 	import RowSessionItem from '$lib/components/sidebar/session-list/RowSessionItem.svelte';
 	import type { DsiSessionSummary, DsiWorkspaceSummary } from '$lib/types';
-	let { session, workspaces }: {
+	let { session, workspaces, rows = [] }: {
 		session: DsiSessionSummary;
 		workspaces: DsiWorkspaceSummary[];
+		/** ADR-0078: the whole row list the count derives from. */
+		rows?: DsiSessionSummary[];
 	} = $props();
 </script>
 
-<RowSessionItem {session} {workspaces} />
+<RowSessionItem {session} {workspaces} {rows} />
