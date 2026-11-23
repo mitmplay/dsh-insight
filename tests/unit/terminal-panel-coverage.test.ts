@@ -1,7 +1,7 @@
 /**
  * TerminalPanel coverage tests — the happy paths the floor test skips:
  * full xterm attach (mocked addons), the SSE frame pump (output / settled /
- * exit / closed / error), serialized keystroke writes, close-on-unmount
+ * exit / closed / error / baton), serialized keystroke writes, close-on-unmount
  * (panel close IS terminal close; no close button), the xterm-failure
  * fallback surface (pre + input line), and the opening / open-failed
  * postures. xterm + addon-fit + EventSource + ResizeObserver
@@ -400,6 +400,53 @@ describe('TerminalPanel — enabled lifecycle (coverage)', () => {
 		flushSync();
 		// stream still open after error (only 'closed' closes it)
 		expect(lastES!.closed).toBe(false);
+		h.cleanup();
+	});
+
+	it('baton badge (ADR-0079 D7): a pushed automation frame shows "agent holds this terminal" with NO keystroke; released shows "released"; operator hides it', async () => {
+		fetchRoute = openRoute();
+		const h = await mountPanel();
+		await tick();
+		flushSync();
+		const badge = (): string | null => h.target.querySelector('[data-testid="terminal-baton-badge"]')?.textContent ?? null;
+		// before any baton frame the desk's own hold is the silent default
+		expect(badge()).toBeNull();
+
+		// an agent takes the baton — the badge appears from the pushed frame alone
+		lastES!.emit('baton', JSON.stringify({ holder: 'automation', holderId: 'lead', since: 123 }));
+		await tick();
+		flushSync();
+		expect(badge()).toBe('agent holds this terminal');
+		expect(h.target.querySelector('[data-testid="terminal-baton-badge"]')?.getAttribute('title')).toBe('lead');
+		// nothing was typed: no heal badge, no write POST
+		expect(h.target.querySelector('[data-testid="terminal-heal-badge"]')).toBeNull();
+		expect(vi.mocked(fetch).mock.calls.some((c) => String(c[0]).includes('/send') && (c[1] as RequestInit | undefined)?.body?.toString().includes('"write"'))).toBe(false);
+
+		// the agent releases — the badge says so
+		lastES!.emit('baton', JSON.stringify({ holder: 'unassigned', holderId: null, since: 456 }));
+		await tick();
+		flushSync();
+		expect(badge()).toBe('released');
+
+		// the operator heals back — the badge goes quiet (the default needs no badge)
+		lastES!.emit('baton', JSON.stringify({ holder: 'operator', holderId: null, since: 789 }));
+		await tick();
+		flushSync();
+		expect(badge()).toBeNull();
+		h.cleanup();
+	});
+
+	it('baton badge sits BESIDE the settle badge and never disturbs it (sibling badge, same pipe)', async () => {
+		fetchRoute = openRoute();
+		const h = await mountPanel();
+		await tick();
+		flushSync();
+		lastES!.emit('settled', JSON.stringify({ reason: 'inferred_idle' }));
+		lastES!.emit('baton', JSON.stringify({ holder: 'automation', holderId: 'curl', since: 1 }));
+		await tick();
+		flushSync();
+		expect(h.target.querySelector('[data-testid="terminal-settle-badge"]')?.textContent).toContain('output idle');
+		expect(h.target.querySelector('[data-testid="terminal-baton-badge"]')?.textContent).toBe('agent holds this terminal');
 		h.cleanup();
 	});
 

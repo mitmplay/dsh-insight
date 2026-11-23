@@ -21,6 +21,20 @@ instantiates it (ADR The Surviving Shell 2026-09-24 + amendments
   keystroke — never retry blind, never re-mint in a loop.
 - The operator's tab heals identically (their first key after your takeover
   shows the heal badge); watching is token-free, so displays never break.
+- **READ before you take** (ADR-0079 D2/D5): `GET /api/terminal` lists each
+  session's `baton` — `holder`, `holderId`, `since`, `lastWriteAt`,
+  `pinned`, `readyForAutomation`. One token-free call answers "who holds
+  it, may I take it". `readyForAutomation:false` (operator-held, pinned, or
+  exited) means WAIT or ask — silence is not consent, never interrupt a
+  human on their own tab. `pinned:true` is a hard no.
+- **LABEL your takeover** (D3/D7): every reattach you make carries
+  `{"holder":"automation","holderId":"<your agent name>"}`. The desk shows
+  "agent holds this terminal" the moment you take it — no keystroke needed.
+  The desk's own `{}` reattach is the operator taking it BACK.
+- **RELEASE when done** (D4): `action:"release"` hands the baton to nobody
+  (`holder:"unassigned"`); the operator's next keystroke heals once — the
+  priced cost. Baton litter (the desk saying "agent holds" after you left)
+  is the failure mode release exists to end.
 
 ### 2. THE DESK IS THE UX (what the operator sees)
 - Run commands UNPIPED — the operator watches progress paint live; `| tail`
@@ -80,12 +94,13 @@ Usage: `/dsi-drive-terminal {session} {command}`
 
 ```mermaid
 flowchart LR
-    A["/dsi-drive-terminal"] --> B["Step 1<br/>floor + baton"]
+    A["/dsi-drive-terminal"] --> B["Step 1<br/>floor + facet + labeled baton"]
     B --> C["Step 2<br/>type (paced, checked)"]
     C --> D["Step 3<br/>read promptly"]
     D --> E{"done?"}
     E -->|"no"| C
-    E -->|"yes"| F["report what the<br/>operator saw"]
+    E -->|"yes"| R["Step 5<br/>release the baton"]
+    R --> F["report what the<br/>operator saw"]
 ```
 
 ---
@@ -96,13 +111,23 @@ Resolve the floor port by PROBE, never by memory of a previous session:
 
 ```sh
 PORT=5175   # only after a listener probe confirms it
-curl -s http://127.0.0.1:$PORT/api/terminal            # list sessions
-curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/reattach -o /tmp/t.json
+AGENT=lead  # your agent name — the label the desk and other drivers read
+curl -s http://127.0.0.1:$PORT/api/terminal            # sessions + each baton facet (holder, readyForAutomation)
+curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/reattach \
+  -H 'content-type: application/json' \
+  -d "{\"holder\":\"automation\",\"holderId\":\"$AGENT\"}" -o /tmp/t.json   # LABELED takeover — the desk badge appears NOW
 TOK=$(sed 's/.*"token":"\([^"]*\)".*/\1/' /tmp/t.json)
 OFF=$(sed 's/.*"fromByte":\([0-9]*\).*/\1/' /tmp/t.json)
+printf '%s' "$TOK" > /tmp/t1-token   # Steps 2 and 5 read the token from here
 ```
 
-- No live session → `POST /api/terminal` opens one (new T-tab on the desk).
+- **Pre-flight (ADR-0079 D5)**: read the target's `baton` in the list FIRST.
+  `readyForAutomation:true` → take it (labeled). `false` because the
+  operator holds it → do NOT reattach; report and wait for the operator's
+  word. `pinned:true` → never, not even asked twice. A body-less or
+  `{}` reattach is the OPERATOR label — never send one as a driver.
+- No live session → `POST /api/terminal` opens one (new T-tab on the desk;
+  the same optional `{holder, holderId}` body labels the open).
 - `403`/foreign responses on write → heal: reattach, retry the same write.
 - **Resolve the session id from evidence, never from the tab position.**
   The desk badge names its session: `T{position}:{id}` (`T1:7` = tab
@@ -158,6 +183,29 @@ prompt). Escape per SYSTEM PROTOCOL §3, confirm with a marker, re-send.
 
 ---
 
+## Step 5: Release ⛔ MANDATORY — hand the baton back (ADR-0079 D4)
+
+The LAST wire act, after the exit marker is in the ring and before hands-off:
+
+```sh
+node -e 'const fs=require("fs");const tok=fs.readFileSync("/tmp/t1-token","utf8").trim();
+fs.writeFileSync("/tmp/t1-rel.json",JSON.stringify({token:tok,action:"release"}))'
+curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/send \
+  -H 'content-type: application/json' --data-binary @/tmp/t1-rel.json
+```
+
+- Expect `{"released":true,"baton":{"holder":"unassigned",…}}` — the desk
+  badge flips to "released" and your token is dead on purpose. The
+  operator's first keystroke pays one `403` and heals: the priced cost,
+  already visible to them as the heal badge.
+- `403 FOREIGN_SESSION` on release → you already lost the baton (the
+  operator healed past you) — nothing to release, move on.
+- A long-running command you want to keep watching: you may hold the baton
+  while it runs; release the moment you stop writing. Never leave it held
+  after your report.
+
+---
+
 ## Drive Checklist — MANDATORY
 
 This is the ONLY checklist output to the user. Declared at the start,
@@ -166,8 +214,9 @@ verified at the end.
 ```
 📋 drive-terminal: {session} — {goal}
 
+   [ ]  1.0  ⛔ Facet read FIRST: readyForAutomation true + pinned false — operator-held means WAIT (ADR-0079 D5)
    [ ]  1.1  ⛔ Floor port probed (listener confirmed, not assumed)
-   [ ]  1.2  ⛔ Baton taken (reattach → token + offset captured)
+   [ ]  1.2  ⛔ Baton taken LABELED {holder:automation, holderId:<agent>} (reattach → token + offset captured)
    [ ]  1.3  ⛔ Session id resolved from badge suffix / sessions list — NOT assumed from the tab position
    [ ]  2.1  ⛔ Every write response checked (written / healed / refused)
    [ ]  2.2  ⛔ Long commands carry an exit marker; completion gated on it
@@ -177,10 +226,13 @@ verified at the end.
    [ ]  3.2  ⛔ Ring misses recovered (fromByte=0 or file+cat)
    [ ]  4.1  ⛔ Any silent eater escaped (Ctrl+C / :qa!) and marker-confirmed
    [ ]  4.2  ⛔ Dead-session eater ruled OUT via GET /api/terminal exited flag (RCA 2026-11-04)
-   [ ]  5.1  ⛔ Commands ran UNPIPED — the operator could watch everything
-   [ ]  5.2  ⛔ Report states what the desk showed, not just what was read
+   [ ]  5.1  ⛔ Baton RELEASED (action:release → holder unassigned) before hands-off (ADR-0079 D4)
+   [ ]  6.1  ⛔ Commands ran UNPIPED — the operator could watch everything
+   [ ]  6.2  ⛔ Report states what the desk showed, not just what was read
 
    ⛔ Behavioral Commitments:
+   [ ]  I will NOT take an operator-held terminal (readyForAutomation:false) without the operator's word
+   [ ]  I will NOT leave the baton held — release is the last wire act
    [ ]  I will NOT retry a refused write blind — heal (reattach) first
    [ ]  I will NOT type while a command is still running
    [ ]  I will NOT pipe or silence output the operator is watching
@@ -214,8 +266,9 @@ Recipe (all reads, zero writes):
 2. Read the ring tail — the watcher path, no token:
    \`curl -s "http://127.0.0.1:$PORT/api/terminal/$ID/output?fromByte=0"\`
    (the retained ring is the authority; ANSI-strip the tail per Step 3).
-3. Report: session id, exited or live, the last screenful of output, and —
-   if live — the likely foreground command visible in the scrollback.
+3. Report: session id, exited or live, who holds the baton (the list's
+   `baton` — a read, never a probe write), the last screenful of output,
+   and — if live — the likely foreground command visible in the scrollback.
 
 Peek NEVER: reattaches, writes bytes, mints or accepts a token. If the
 operator then says "drive it", hand over to the full drive pipeline (Step 1).
@@ -230,6 +283,7 @@ The skill is the DO-path; the docs carry the WHY and the CONTRACT.
 flowchart LR
     A["/dsi-drive-terminal<br/>this skill"] --> B["KB terminal-driving.md<br/>feature / contract / scenario"]
     B --> C["ADR The Surviving Shell<br/>lease + auto-heal decisions"]
+    B --> G["ADR-0079 The Baton Facet<br/>facet + label + release decisions"]
     A --> D["Live floor<br/>the operator's desk tab"]
 ```
 

@@ -28,7 +28,9 @@
  * internals; they call subscribeTerminalStream and get an unsubscribe.
  */
 
-export type TerminalHubFrameKind = 'output' | 'settled' | 'exit' | 'closed' | 'error';
+/** `baton` (ADR-0079 D7): the write baton's holder moved for this session —
+ *  holder / holderId / since, token-free — the desk badge's only feed. */
+export type TerminalHubFrameKind = 'output' | 'settled' | 'exit' | 'closed' | 'baton' | 'error';
 
 export interface TerminalHubFrameData {
 	sessionId: string;
@@ -41,6 +43,9 @@ export interface TerminalHubFrameData {
 	quiescent?: boolean;
 	lingeringPids?: number[];
 	error?: string;
+	holder?: string;
+	holderId?: string | null;
+	since?: number;
 	[key: string]: unknown;
 }
 
@@ -162,7 +167,7 @@ function openHub(ids: string[]): void {
 		}
 	};
 
-	for (const kind of ['output', 'settled', 'exit', 'closed', 'error'] as const) {
+	for (const kind of ['output', 'settled', 'exit', 'closed', 'baton', 'error'] as const) {
 		es.addEventListener(kind, (e) => {
 			const data = 'data' in e ? (e as MessageEvent).data : '';
 			dispatch(kind, String(data));

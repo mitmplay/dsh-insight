@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { GET as listRoute, POST as openRoute } from '../../src/routes/api/terminal/+server';
+import { POST as reattachRoute } from '../../src/routes/api/terminal/[id]/reattach/+server';
 import { POST as sendRoute } from '../../src/routes/api/terminal/[id]/send/+server';
 import { GET as streamRoute } from '../../src/routes/api/terminal/[id]/stream/+server';
 import { terminalRegistry } from '$lib/server/terminal/registry.js';
@@ -118,6 +119,49 @@ describe('terminal action routes', () => {
 		expect(unknown.status).toBe(404);
 		expect(await unknown.json()).toEqual({ error: 'NO_SESSION' });
 		await terminalRegistry.close(sessionId, token);
+	});
+
+	it('the list carries the baton facet: operator → labeled reattach → write stamps → release → unassigned (ADR-0079)', { timeout: 30_000 }, async () => {
+		writeConfig(true);
+		const opened = await openRoute({ request: post('/api/terminal', {}) }) as Response;
+		const { sessionId, token } = (await opened.json()) as { sessionId: string; token: string };
+		type Facet = { holder: string; holderId: string | null; since: number; lastWriteAt: number | null; pinned: boolean; readyForAutomation: boolean };
+		const facet = async (): Promise<Facet> => {
+			const body = (await (await listRoute() as Response).json()) as { sessions: Array<{ id: string; exited: boolean; baton: Facet }> };
+			return body.sessions.find((s) => s.id === sessionId)!.baton; // one token-free GET answers "who holds it"
+		};
+		const t0 = await facet();
+		expect(t0).toMatchObject({ holder: 'operator', holderId: null, lastWriteAt: null, pinned: false, readyForAutomation: false });
+		expect(typeof t0.since).toBe('number');
+
+		// a driver labels its takeover through the route body — the facet flips, no keystroke
+		const re = (await reattachRoute({ params: { id: sessionId }, request: post('/api/terminal/' + sessionId + '/reattach', { holder: 'automation', holderId: 'curl-driver' }) }) as Response);
+		expect(re.status).toBe(200);
+		const tok2 = ((await re.json()) as { token: string }).token;
+		expect(await facet()).toMatchObject({ holder: 'automation', holderId: 'curl-driver', readyForAutomation: true });
+
+		// an accepted write stamps lastWriteAt
+		const wrote = await sendRoute({ params: { id: sessionId }, request: post('/api/terminal/' + sessionId + '/send', { token: tok2, action: 'write', data: 'echo facet\n', timeoutMs: 5_000 }) }) as Response;
+		expect(wrote.status).toBe(200);
+		const t2 = await facet();
+		expect(t2.lastWriteAt).toBeGreaterThanOrEqual(t2.since);
+
+		// release hands the baton to nobody — the response carries the facet it produced
+		const rel = await sendRoute({ params: { id: sessionId }, request: post('/api/terminal/' + sessionId + '/send', { token: tok2, action: 'release' }) }) as Response;
+		expect(rel.status).toBe(200);
+		expect(await rel.json()).toMatchObject({ released: true, baton: { holder: 'unassigned', holderId: null, readyForAutomation: true } });
+		expect(await facet()).toMatchObject({ holder: 'unassigned', holderId: null, readyForAutomation: true });
+
+		// the released token pays exactly one refusal, then the heal (reattach) owns it again
+		const stale = await sendRoute({ params: { id: sessionId }, request: post('/api/terminal/' + sessionId + '/send', { token: tok2, action: 'write', data: 'x\n' }) }) as Response;
+		expect(stale.status).toBe(403);
+		expect(await stale.json()).toEqual({ error: 'FOREIGN_SESSION' });
+		const healed = (await reattachRoute({ params: { id: sessionId }, request: post('/api/terminal/' + sessionId + '/reattach', {}) }) as Response);
+		const tok3 = ((await healed.json()) as { token: string }).token;
+		const again = await sendRoute({ params: { id: sessionId }, request: post('/api/terminal/' + sessionId + '/send', { token: tok3, action: 'write', data: 'echo healed\n' }) }) as Response;
+		expect(again.status).toBe(200);
+		expect(await facet()).toMatchObject({ holder: 'operator', readyForAutomation: false });
+		void token;
 	});
 
 	it('bad signal name is BAD_REQUEST; signal path reaches the foreground group', async () => {

@@ -12,7 +12,9 @@
  * - tail replay via registry.readFrom(id, resume[id] ?? 0) — the FIRST
  *   output frame carries nextOffset/lossy/spillPath (same shape as the
  *   per-session endpoint, plus the sessionId tag);
- * - live subscription via registry.events(id), frames tagged sessionId;
+ * - live subscription via registry.events(id), frames tagged sessionId —
+ *   including the `baton` frame (ADR-0079 D7: holder/holderId/since), so
+ *   the desk badge learns of a takeover the moment it happens;
  * - a dead/unknown id is NOT fatal to the hub: it emits one per-session
  *   error frame (NO_SESSION) and keeps serving the rest (AC5).
  *
@@ -100,6 +102,11 @@ export const GET = (ctx: { url: URL }): Response => {
 					}
 					if (event.type === 'settled') {
 						enqueue(sseFrame('settled', { sessionId: id, reason: event.reason }));
+						return;
+					}
+					if (event.type === 'baton') {
+						// the baton facet moved for THIS session — tagged like every hub frame
+						enqueue(sseFrame('baton', { sessionId: id, holder: event.holder, holderId: event.holderId, since: event.since }));
 						return;
 					}
 					if (event.type === 'exit') {

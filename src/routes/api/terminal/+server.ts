@@ -6,6 +6,11 @@
  * terminal config and the explicit request before the registry spawns
  * anything. The whole surface is gated by terminal.enabled — a disabled
  * flag answers NOT_ENABLED and the floor renders nothing.
+ *
+ * Baton facet (ADR-0079): GET lists each session with its token-free
+ * `baton` facet (the registry's list() carries it); POST accepts the same
+ * optional mint labels as reattach — absent or malformed means the
+ * operator default, never a 400 (D3).
  */
 import { homedir } from 'node:os';
 
@@ -13,6 +18,7 @@ import { json } from '@sveltejs/kit';
 
 import { readTerminalConfig } from '$lib/server/insight-config.js';
 import { terminalRegistry } from '$lib/server/terminal/registry.js';
+import type { BatonMintOptions } from '$lib/server/terminal/registry.js';
 import type { TerminalSpec } from '$lib/server/terminal/types.js';
 
 export const GET = (): Response => {
@@ -29,6 +35,20 @@ interface OpenBody {
 	cwd?: string;
 	rows?: number;
 	cols?: number;
+	holder?: unknown;
+	holderId?: unknown;
+}
+
+/** resolve(request) for the mint labels (ADR-0079 D3) — the route's own
+ *  defaulting step: only `automation` is a claimable non-default label, a
+ *  label is a non-empty string or nothing, and anything else lands as the
+ *  operator + null. Malformed never answers 400 — a takeover must be
+ *  visible, not refused. */
+function resolveMintOptions(body: { holder?: unknown; holderId?: unknown }): BatonMintOptions {
+	return {
+		holder: body.holder === 'automation' ? 'automation' : 'operator',
+		holderId: typeof body.holderId === 'string' && body.holderId.length > 0 ? body.holderId : null
+	};
 }
 
 function intInRange(v: unknown, min: number, max: number, fallback: number): number {
@@ -66,7 +86,7 @@ export const POST = async ({ request }: { request: Request }): Promise<Response>
 	} catch {
 		body = {};
 	}
-	const { session, token } = terminalRegistry.create(resolveSpec(body, cfg));
+	const { session, token } = terminalRegistry.create(resolveSpec(body, cfg), resolveMintOptions(body));
 	return json({
 		sessionId: session.id,
 		token,

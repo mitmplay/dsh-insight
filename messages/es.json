@@ -409,6 +409,8 @@
   "terminalDisabled": "Terminal deshabilitado — actívalo en ajustes (terminal.enabled).",
   "terminalOpening": "Abriendo terminal…",
   "terminalTokenRefreshed": "token renovado — tu tecla se reintentó",
+  "terminalBatonHolder": "un agente tiene esta terminal",
+  "terminalBatonReleased": "baton liberado",
   "jobTailEmpty": "sin salida — el comando no escribió nada en el registro del trabajo",
   "jobTailWaiting": "esperando salida…",
   "terminalClosed": "Terminal cerrada",

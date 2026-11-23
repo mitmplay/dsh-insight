@@ -17,7 +17,10 @@ import {
 	TERMINAL_SIGNALS,
 	TERMINAL_SETTLE_REASONS,
 	TERMINAL_REFUSAL_CODES,
-	TERMINAL_SPEC_MEMBERS
+	TERMINAL_SPEC_MEMBERS,
+	BATON_HOLDERS,
+	TERMINAL_SESSION_EVENT_TYPES,
+	BATON_EVENT_MEMBERS
 } from './_terminal-contract-refs.js';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
@@ -61,5 +64,19 @@ describe.skipIf(!existsSync(dshTypes))('terminal contract mirrors (DSH blueprint
 		}
 		expect([...TERMINAL_REFUSAL_CODES]).toContain('NOT_ENABLED');
 		expect([...TERMINAL_REFUSAL_CODES]).toContain('LINGERING_PIDS');
+	});
+});
+
+describe('baton facet contracts (ADR-0079 — DSI-native additions, no DSH blueprint)', () => {
+	it('the holder vocabulary is exactly operator | automation | unassigned (D1/D3)', () => {
+		expect([...BATON_HOLDERS]).toEqual(['operator', 'automation', 'unassigned']);
+	});
+
+	it('the session event vocabulary carries the baton frame beside the four mirrored facts (D7)', () => {
+		expect([...TERMINAL_SESSION_EVENT_TYPES]).toEqual(['output', 'settled', 'exit', 'closed', 'baton']);
+	});
+
+	it('the baton frame carries exactly type/holder/holderId/since (D7 wire shape)', () => {
+		expect([...BATON_EVENT_MEMBERS]).toEqual(['type', 'holder', 'holderId', 'since']);
 	});
 });

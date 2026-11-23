@@ -409,6 +409,8 @@
   "terminalDisabled": "Terminal is disabled — enable it in settings (terminal.enabled).",
   "terminalOpening": "Opening terminal…",
   "terminalTokenRefreshed": "token refreshed — your keystroke was retried",
+  "terminalBatonHolder": "agent holds this terminal",
+  "terminalBatonReleased": "released",
   "jobTailEmpty": "no output — the command wrote nothing to the job's log",
   "jobTailWaiting": "waiting for output…",
   "terminalClosed": "Terminal closed",

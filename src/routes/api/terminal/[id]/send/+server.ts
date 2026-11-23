@@ -1,7 +1,10 @@
 /**
  * /api/terminal/[id]/send — the tokened action dispatcher (Wave 3, 3.1).
- * write | signal | close. The registry owns the fence; refusals surface as
- * their stable codes (SEND_ACTIVE rides the write path as 409).
+ * write | signal | close | resize | release. The registry owns the fence;
+ * refusals surface as their stable codes (SEND_ACTIVE rides the write path
+ * as 409). `release` (ADR-0079 D4) is the baton hand-back: fence-checked
+ * like every verb, it discards the token, says `unassigned`, and answers
+ * with the facet it produced.
  */
 import { json } from '@sveltejs/kit';
 
@@ -11,7 +14,7 @@ import type { TerminalSignal } from '$lib/server/terminal/types.js';
 
 interface SendBody {
 	token?: string;
-	action?: 'write' | 'signal' | 'close' | 'resize';
+	action?: 'write' | 'signal' | 'close' | 'resize' | 'release';
 	data?: string;
 	signal?: TerminalSignal;
 	timeoutMs?: number;
@@ -59,6 +62,12 @@ export const POST = async (ctx: { params: { id: string }; request: Request }): P
 				}
 				terminalRegistry.resize(id, token, cols, rows);
 				return json({ resized: true });
+			}
+			case 'release': {
+				// ADR-0079 D4: hand the baton to nobody — the next writer
+				// (operator or agent) pays one refused write, then heals.
+				const baton = terminalRegistry.release(id, token);
+				return json({ released: true, baton });
 			}
 			default:
 				return json({ error: 'BAD_REQUEST' }, { status: 400 });

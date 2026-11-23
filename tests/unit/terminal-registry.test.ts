@@ -50,7 +50,8 @@ describe('TerminalRegistry', () => {
 		await new Promise((res) => setTimeout(res, 300));
 		const reason = await r.send(session.id, token, 'echo reg-ok\n', 5_000);
 		expect(['stdin_read', 'inferred_idle']).toContain(reason);
-		expect(r.list()).toContainEqual({ id: session.id, exited: false });
+		// the row carries the additive baton facet (ADR-0079 D2) — id/exited readers keep working
+		expect(r.list()).toContainEqual(expect.objectContaining({ id: session.id, exited: false }));
 	});
 
 	it('a wrong token is refused FOREIGN_SESSION, an unknown id NO_SESSION', async () => {

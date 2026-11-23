@@ -129,6 +129,11 @@ import TermFontSlider from './TermFontSlider.svelte';
 	 *  next keystroke. A second consecutive refusal gives up quietly — the
 	 *  next keystroke starts a fresh heal. */
 	let healCount = $state(0);
+	/** The baton facet as last PUSHED (ADR-0079 D7): null until the first
+	 *  `baton` frame — which equals "the operator holds it" (the default
+	 *  mint), so the badge stays silent for the desk's own normal state and
+	 *  speaks only when an agent holds the terminal or released it. */
+	let baton = $state<{ holder: string; holderId: string | null; since: number } | null>(null);
 	async function writeWithHeal(data: string): Promise<void> {
 		const url = '/api/terminal/' + (sessionId ?? '') + '/send';
 		let res = await post(url, { token, action: 'write', data });
@@ -174,6 +179,11 @@ import TermFontSlider from './TermFontSlider.svelte';
 		}
 		if (ev === 'closed') {
 			panelState = reduceTerminalFrame(panelState, { event: 'closed', quiescent: Boolean(data.quiescent) });
+		}
+		if (ev === 'baton') {
+			// the write/heal chain above is untouched — this only MIRRORS the
+			// pushed facet; the fence still decides who may type
+			baton = { holder: String(data.holder ?? ''), holderId: typeof data.holderId === 'string' ? data.holderId : null, since: Number(data.since) };
 		}
 		if (ev === 'error') panelState = reduceTerminalFrame(panelState, { event: 'error', error: String(data.error) });
 	}
@@ -426,6 +436,14 @@ input line) appears ONLY when xterm cannot attach.
 		{/if}
 		{#if healCount > 0}
 			<span data-testid="terminal-heal-badge" class="rounded bg-slate-700 px-1.5 py-0.5">{t(m.terminalTokenRefreshed)}</span>
+		{/if}
+		<!-- Baton badge (ADR-0079 D7): the pushed holder, beside its sibling
+		     the settle badge. Agent-held = amber; released = plain. The
+		     operator's own hold renders nothing — it is the default. -->
+		{#if baton?.holder === 'automation'}
+			<span data-testid="terminal-baton-badge" class="rounded bg-amber-700 px-1.5 py-0.5" title={baton.holderId ?? undefined}>{t(m.terminalBatonHolder)}</span>
+		{:else if baton?.holder === 'unassigned'}
+			<span data-testid="terminal-baton-badge" class="rounded bg-slate-700 px-1.5 py-0.5">{t(m.terminalBatonReleased)}</span>
 		{/if}
 		<div class="grow"></div>
 		<!-- Terminal base font (ADR-0041 Am.4): right-aligned in the

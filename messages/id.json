@@ -409,6 +409,8 @@
   "terminalDisabled": "Terminal dinonaktifkan — aktifkan di pengaturan (terminal.enabled).",
   "terminalOpening": "Membuka terminal…",
   "terminalTokenRefreshed": "token disegarkan — ketikan Anda dicoba ulang",
+  "terminalBatonHolder": "agen memegang terminal ini",
+  "terminalBatonReleased": "dilepas",
   "jobTailEmpty": "tidak ada output — perintah tidak menulis apa pun ke log pekerjaan",
   "jobTailWaiting": "menunggu output…",
   "terminalClosed": "Terminal ditutup",

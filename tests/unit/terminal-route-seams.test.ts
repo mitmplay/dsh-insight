@@ -11,7 +11,14 @@
  *   - stream: peek gate, dead events() -> 404, frame order (tail then live
  *     deltas/settled/exit/closed), the vanished-between-peek-and-subscribe
  *     error frame, and stream teardown after 'closed'.
+ *   - Baton facet (ADR-0079, task 2.1-T): send `release` forwarding + refusal
+ *     mapping; GET /api/terminal passes the facet through; the `baton`
+ *     frame is projected on the per-session stream, tagged `sessionId` on
+ *     the hub, and the hub survives an unknown id beside it.
  */
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const registrySpies = vi.hoisted(() => ({
@@ -20,6 +27,7 @@ const registrySpies = vi.hoisted(() => ({
 	signal: vi.fn(),
 	resize: vi.fn(),
 	close: vi.fn(),
+	release: vi.fn(),
 	readFrom: vi.fn(),
 	events: vi.fn(),
 	exitOutcome: vi.fn(),
@@ -37,9 +45,11 @@ vi.mock('$lib/server/terminal/session.js', async (importOriginal) => {
 
 import { TerminalRegistryRefusal } from '$lib/server/terminal/registry.js';
 import { TerminalSendRefusal } from '$lib/server/terminal/session.js';
+import { GET as listRoute } from '../../src/routes/api/terminal/+server';
 import { POST as sendRoute } from '../../src/routes/api/terminal/[id]/send/+server';
 import { GET as outputRoute } from '../../src/routes/api/terminal/[id]/output/+server';
 import { GET as streamRoute } from '../../src/routes/api/terminal/[id]/stream/+server';
+import { GET as hubRoute } from '../../src/routes/api/terminal/stream/+server';
 
 function post(body: unknown): Request {
 	return new Request('http://localhost/api/terminal/t1/send', {
@@ -368,3 +378,130 @@ describe('GET /api/terminal/[id]/stream — the SSE downstream', () => {
 	});
 });
 
+/** Pump the hub for a beat after `drive` runs, then cancel the reader —
+ *  for streams that stay open by design (the hub outlives a closed id). */
+async function collectSse(response: Response, drive: () => void): Promise<Array<{ event: string } & Record<string, unknown>>> {
+	const frames: Array<{ event: string } & Record<string, unknown>> = [];
+	const reader = response.body!.getReader();
+	const dec = new TextDecoder();
+	let buf = '';
+	const pump = (): void => {
+		reader.read().then(({ done, value }) => {
+			if (done) return;
+			buf += dec.decode(value, { stream: true });
+			let idx: number;
+			while ((idx = buf.indexOf('\n\n')) !== -1) {
+				const chunk = buf.slice(0, idx);
+				buf = buf.slice(idx + 2);
+				const ev = /event: (.+)/.exec(chunk)?.[1];
+				const data = /data: (.+)/.exec(chunk)?.[1];
+				if (ev && data) frames.push({ event: ev, ...(JSON.parse(data) as Record<string, unknown>) });
+			}
+			pump();
+		});
+	};
+	pump();
+	drive();
+	await new Promise((r) => setTimeout(r, 50));
+	await reader.cancel();
+	return frames;
+}
+
+const FACET = {
+	holder: 'unassigned',
+	holderId: null,
+	since: 5,
+	lastWriteAt: 4,
+	pinned: false,
+	readyForAutomation: true
+};
+
+describe('POST /api/terminal/[id]/send — release, the baton hand-back (ADR-0079 D4)', () => {
+	it('release forwards (id, token) and answers {released:true, baton}', async () => {
+		registrySpies.release.mockReturnValueOnce(FACET);
+		const res = await send({ token: 'tok', action: 'release' });
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ released: true, baton: FACET });
+		expect(registrySpies.release).toHaveBeenCalledExactlyOnceWith('t1', 'tok');
+	});
+
+	it.each<[code: 'NO_SESSION' | 'FOREIGN_SESSION', status: number]>([
+		['NO_SESSION', 404],
+		['FOREIGN_SESSION', 403]
+	])('release refusal %s maps to HTTP %i', async (code, status) => {
+		registrySpies.release.mockImplementationOnce(() => {
+			throw new TerminalRegistryRefusal(code, 'why');
+		});
+		const res = await send({ token: 'tok', action: 'release' });
+		expect(res.status).toBe(status);
+		expect(await res.json()).toEqual({ error: code });
+	});
+});
+
+describe('GET /api/terminal — the baton facet rides the token-free list (ADR-0079 D2)', () => {
+	const cfgDirs: string[] = [];
+	afterEach(() => {
+		delete process.env.DSI_CONFIG_PATH;
+		for (const d of cfgDirs) rmSync(d, { recursive: true, force: true });
+		cfgDirs.length = 0;
+	});
+
+	it('passes registry.list() through untouched — {id, exited} readers keep working, the facet is additive', async () => {
+		const dir = mkdtempSync(join(tmpdir(), 'dsi-term-seams-'));
+		cfgDirs.push(dir);
+		process.env.DSI_CONFIG_PATH = join(dir, 'settings.yaml');
+		writeFileSync(join(dir, 'settings.yaml'), 'terminal:\n  enabled: true\n', 'utf-8');
+		const operatorFacet = { ...FACET, holder: 'operator', readyForAutomation: false };
+		registrySpies.list.mockReturnValueOnce([
+			{ id: 't1', exited: false, baton: operatorFacet },
+			{ id: 't2', exited: false, baton: FACET }
+		]);
+		const res = listRoute() as Response;
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { enabled: boolean; sessions: unknown[] };
+		expect(body.enabled).toBe(true);
+		expect(body.sessions).toEqual([
+			{ id: 't1', exited: false, baton: operatorFacet },
+			{ id: 't2', exited: false, baton: FACET }
+		]);
+	});
+});
+
+describe('the baton frame on both SSE paths (ADR-0079 D7)', () => {
+	it('per-session stream projects the baton frame one-to-one — holder/holderId/since, no sessionId tag', async () => {
+		const session = fakeSession();
+		registrySpies.events.mockReturnValueOnce(session);
+		registrySpies.exitOutcome.mockReturnValueOnce(null);
+		registrySpies.list.mockReturnValueOnce([]);
+		const res = streamRoute(get('http://localhost/api/terminal/t1/stream')) as Response;
+		const framesDone = drainSse(res);
+		session.emit({ type: 'baton', holder: 'automation', holderId: 'lead', since: 123 });
+		session.emit({ type: 'closed', quiescent: true, lingeringPids: [] });
+		const frames = await framesDone;
+		expect(frames.map((f) => f.event)).toEqual(['output', 'baton', 'closed']);
+		expect(frames[1]).toEqual({ event: 'baton', holder: 'automation', holderId: 'lead', since: 123 });
+	});
+
+	it('hub tags the baton frame with its sessionId and survives an unknown id beside it', async () => {
+		const session = fakeSession();
+		registrySpies.peek.mockImplementation((id: string) => {
+			if (id === 'ghost') throw new TerminalRegistryRefusal('NO_SESSION', 'no such terminal session');
+			return { id, exited: false };
+		});
+		registrySpies.events.mockImplementation((id: string) => (id === 't1' ? session : undefined));
+		registrySpies.readFrom.mockReturnValue({ text: '', nextOffset: 0, lossy: false, spillPath: null });
+		registrySpies.exitOutcome.mockReturnValue(null);
+		registrySpies.list.mockReturnValue([{ id: 't1', exited: false }]);
+		const res = hubRoute({ url: new URL('http://localhost/api/terminal/stream?ids=' + encodeURIComponent('["t1","ghost"]')) }) as Response;
+		// the hub NEVER closes on one session's closed frame (it keeps serving
+		// the remaining ids) — so collect for a beat, then cancel like a client
+		const frames = await collectSse(res, async () => {
+			session.emit({ type: 'baton', holder: 'unassigned', holderId: null, since: 9 });
+			session.emit({ type: 'closed', quiescent: true, lingeringPids: [] });
+		});
+		// the dead id cost ONE error frame; the live id's baton frame still lands, tagged
+		expect(frames.map((f) => f.event)).toEqual(['output', 'error', 'baton', 'closed']);
+		expect(frames[1]).toMatchObject({ sessionId: 'ghost', error: 'NO_SESSION' });
+		expect(frames[2]).toEqual({ event: 'baton', sessionId: 't1', holder: 'unassigned', holderId: null, since: 9 });
+	});
+});

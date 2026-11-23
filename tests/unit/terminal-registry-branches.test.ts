@@ -22,6 +22,9 @@ function fakeSession(overrides: Partial<TerminalSession> = {}): TerminalSession 
 		write: vi.fn(),
 		signalForeground: () => 4242,
 		close: vi.fn(async () => ({ quiescent: true })),
+		// the registry pushes its baton frame on the session's own channel
+		// (ADR-0079 D7) — the fake carries the emitter surface it needs
+		emit: vi.fn(() => true),
 		...overrides
 	} as unknown as TerminalSession;
 }
@@ -37,9 +40,14 @@ const spec: TerminalSpec = {
 	tailBytes: 1024
 };
 
+/** A hand-seeded entry carries the default baton facet (ADR-0079): the
+ *  registry writes these fields only through create()/reattach()/release(). */
+const OPERATOR_FACET = { holder: 'operator', holderId: null, since: 0, lastWriteAt: null, pinned: false } as const;
+const OPERATOR_BATON = { ...OPERATOR_FACET, readyForAutomation: false };
+
 function seeded(session: TerminalSession, token = 'tok') {
 	const r = new TerminalRegistry();
-	(r as unknown as { entries: Map<string, unknown> }).entries.set(session.id, { session, token, spec });
+	(r as unknown as { entries: Map<string, unknown> }).entries.set(session.id, { session, token, spec, ...OPERATOR_FACET });
 	return { r, session, token };
 }
 
@@ -52,7 +60,8 @@ describe('TerminalRegistry branches', () => {
 		} catch (e) {
 			expect((e as TerminalRegistryRefusal).code).toBe('NO_SESSION');
 		}
-		expect(r.peek(session.id)).toEqual({ id: session.id, exited: false });
+		// {id, exited} grew the token-free baton facet (ADR-0079 D2) — additive
+		expect(r.peek(session.id)).toEqual({ id: session.id, exited: false, baton: OPERATOR_BATON });
 	});
 
 	it('reattach: NO_SESSION on unknown id, re-mint evicts the old token', () => {
@@ -118,10 +127,10 @@ it('close surfaces a non-quiescent ladder with lingering pids', async () => {
 	it('list reports every session with its exit state', () => {
 		const { r, session } = seeded(fakeSession());
 		const exited = fakeSession({ id: 'fake-2', isExited: () => true });
-		(r as unknown as { entries: Map<string, unknown> }).entries.set(exited.id, { session: exited, token: 't2', spec });
+		(r as unknown as { entries: Map<string, unknown> }).entries.set(exited.id, { session: exited, token: 't2', spec, ...OPERATOR_FACET });
 		expect(r.list()).toEqual([
-			{ id: 'fake-1', exited: false },
-			{ id: 'fake-2', exited: true }
+			{ id: 'fake-1', exited: false, baton: OPERATOR_BATON },
+			{ id: 'fake-2', exited: true, baton: OPERATOR_BATON }
 		]);
 	});
 

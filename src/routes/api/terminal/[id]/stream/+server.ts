@@ -2,7 +2,8 @@
  * /api/terminal/[id]/stream — the SSE downstream (Wave 3, task 3.2).
  *
  * Frames: output (byte-offset deltas with lossy + spillPath), settled,
- * exit, closed, error. Watching is the open path (no token — ADR D7);
+ * exit, closed, baton (ADR-0079 D7 — holder/holderId/since, token-free),
+ * error. Watching is the open path (no token — ADR D7);
  * the stream ends after closed. fromByte resumes a late attacher from the
  * ring tail; a slid-out offset reports lossy and names the spill.
  * X-Accel-Buffering: no keeps reverse proxies from buffering the stream.
@@ -74,6 +75,11 @@ export const GET = (ctx: { params: { id: string }; url: URL }): Response => {
 				}
 				if (event.type === 'settled') {
 					enqueue(sseFrame('settled', { reason: event.reason }));
+					return;
+				}
+				if (event.type === 'baton') {
+					// the baton facet moved (mint / release) — projected one-to-one
+					enqueue(sseFrame('baton', { holder: event.holder, holderId: event.holderId, since: event.since }));
 					return;
 				}
 				if (event.type === 'exit') {
