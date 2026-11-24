@@ -31,7 +31,8 @@ const registrySpies = vi.hoisted(() => ({
 	readFrom: vi.fn(),
 	events: vi.fn(),
 	exitOutcome: vi.fn(),
-	list: vi.fn()
+	list: vi.fn(),
+	onSessionBorn: vi.fn(() => () => undefined)
 }));
 
 vi.mock('$lib/server/terminal/registry.js', async (importOriginal) => {

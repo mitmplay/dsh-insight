@@ -19,7 +19,7 @@ import { json } from '@sveltejs/kit';
 import { readTerminalConfig } from '$lib/server/insight-config.js';
 import { terminalRegistry } from '$lib/server/terminal/registry.js';
 import type { BatonMintOptions } from '$lib/server/terminal/registry.js';
-import type { TerminalSpec } from '$lib/server/terminal/types.js';
+import type { TerminalDeskIntent, TerminalSpec } from '$lib/server/terminal/types.js';
 
 export const GET = (): Response => {
 	const cfg = readTerminalConfig();
@@ -37,6 +37,9 @@ interface OpenBody {
 	cols?: number;
 	holder?: unknown;
 	holderId?: unknown;
+	/** Where the desk should show this birth (ADR 2026-11-24 D2) —
+	 *  optional; absent/garbage means headless, never a 400. */
+	desk?: unknown;
 }
 
 /** resolve(request) for the mint labels (ADR-0079 D3) — the route's own
@@ -49,6 +52,14 @@ function resolveMintOptions(body: { holder?: unknown; holderId?: unknown }): Bat
 		holder: body.holder === 'automation' ? 'automation' : 'operator',
 		holderId: typeof body.holderId === 'string' && body.holderId.length > 0 ? body.holderId : null
 	};
+}
+
+/** resolve(request) for the desk intent (ADR 2026-11-24 D2): only the
+ *  two named placements are intents; anything else — absent, mistyped,
+ *  garbage — is a HEADLESS mint, matching the mint-label convention that
+ *  malformed never answers 400. */
+function resolveDesk(body: { desk?: unknown }): TerminalDeskIntent | undefined {
+	return body.desk === 'new-tab' || body.desk === 'split-down' ? body.desk : undefined;
 }
 
 function intInRange(v: unknown, min: number, max: number, fallback: number): number {
@@ -86,7 +97,10 @@ export const POST = async ({ request }: { request: Request }): Promise<Response>
 	} catch {
 		body = {};
 	}
-	const { session, token } = terminalRegistry.create(resolveSpec(body, cfg), resolveMintOptions(body));
+	const { session, token } = terminalRegistry.create(resolveSpec(body, cfg), {
+		...resolveMintOptions(body),
+		deskIntent: resolveDesk(body)
+	});
 	return json({
 		sessionId: session.id,
 		token,

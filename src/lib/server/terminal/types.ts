@@ -128,6 +128,27 @@ export interface BatonFacet {
 	readyForAutomation: boolean;
 }
 
+/** Where a session WANTS to be seen on the Terminal Desk (ADR 2026-11-24
+ *  The Headless Split, D2) — set at birth by the mint, stored on the
+ *  registry record, echoed in list() and in the session-born event. An
+ *  unset intent is the headless ghost: alive, legal, never adoptable.
+ *  DSI-native — no DSH counterpart. */
+export type TerminalDeskIntent = 'new-tab' | 'split-down';
+
+/** The readiness facet (ADR-0080 D1/D2) - the server's time-based settle
+ *  assertion: the shell produced no output for >= idleMs. NOT a prompt
+ *  claim; the half-typed line stays the agent's peek (D2). DSI-native. */
+export interface SessionReadiness {
+	/** True when `!exited && lastOutputAt !== null && now - lastOutputAt >= idleMs`. */
+	settled: boolean;
+	/** Epoch ms when settled last became true (lastOutputAt + idleMs);
+	 *  null while unsettled or on a fresh open with no output yet. */
+	settledSince: number | null;
+	/** The last settle reason the passive observer / send recorded
+	 *  (ADR-0079's badge fact, now surfaced); null while unsettled. */
+	reason: TerminalSettleReason | null;
+}
+
 /** Events a live session emits. The transport's SSE route projects these
  *  one-to-one; nothing else observes a session's internals.
  *  @mirrors deepseek-harness/packages/subprocess/subprocess/src/types.ts:257-296

@@ -8,7 +8,7 @@
  * are all mocked; fetch is routed by URL.
  */
 import { mount, unmount, flushSync } from 'svelte';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetStreamHubForTests } from '../../src/lib/services/terminal/stream-hub.svelte';
 
 const xtermState = vi.hoisted(() => ({ fail: false }));
@@ -648,6 +648,131 @@ describe('TerminalPanel — row mode (Terminal Desk Wave 2, task 2.2-T)', () => 
 		await tick();
 		flushSync();
 		expect(onAssigned).toHaveBeenCalledWith('s1', 't1');
+		h.cleanup();
+	});
+});
+
+describe('TerminalPanel — focus-follows-baton (Terminal Desk Wave 3, ADR-0080 D3)', () => {
+	// the desk's module chain compiles lazily on its first dynamic import —
+	// warm it OUTSIDE the per-test timeout so mountDesk is fast
+	beforeAll(async () => {
+		await import('./TerminalDeskHost.svelte');
+	});
+	/** A desk with two shell tabs (t-a on tab 1, t-b on tab 2), restored
+	 *  with tab 2 selected — the rebuild ladder reattaches both survivors. */
+	async function mountDesk(): Promise<Mounted> {
+		const { default: Host } = await import('./TerminalDeskHost.svelte');
+		fetchRoute = (url, init) => {
+			if (url === '/api/terminal' && !init)
+				return Promise.resolve(jsonResponse({ enabled: true, sessions: [{ id: 't-a', exited: false }, { id: 't-b', exited: false }] }));
+			if (url.endsWith('/reattach')) return Promise.resolve(jsonResponse({ token: 'tk', fromByte: 0 }));
+			return Promise.resolve(jsonResponse({ ok: true }));
+		};
+		const target = document.body.appendChild(document.createElement('div'));
+		const app = mount(Host, {
+			target,
+			props: { restored: { tabs: [{ sessionIds: ['t-a'] }, { sessionIds: ['t-b'] }], selectedTab: 1 } }
+		});
+		flushSync();
+		await tick();
+		flushSync();
+		return {
+			target,
+			cleanup: () => {
+				unmount(app);
+				target.remove();
+			}
+		};
+	}
+	const emitTake = (sessionId: string): void => {
+		lastES!.emit('baton', JSON.stringify({ sessionId, holder: 'automation', holderId: 'lead', since: 1 }));
+	};
+	const selected = (h: Mounted, i: number): string | null =>
+		h.target.querySelector('[data-testid="terminal-tab-button-' + i + '"]')?.getAttribute('data-selected') ?? null;
+	const clickTab = (h: Mounted, i: number): void => {
+		(h.target.querySelector('[data-testid="terminal-tab-button-' + i + '"]') as HTMLElement).click();
+	};
+
+	it('a baton take for a held session selects its tab', async () => {
+		const h = await mountDesk();
+		expect(lastES).not.toBeNull();
+		// the restored desk starts on tab 2 (t-b)
+		expect(selected(h, 1)).toBe('true');
+		// an agent takes t-a → the desk flips to t-a's tab, client-side
+		emitTake('t-a');
+		await tick();
+		flushSync();
+		expect(selected(h, 0)).toBe('true');
+		expect(selected(h, 1)).toBe('false');
+		h.cleanup();
+	});
+
+	it('a take for a session the desk does NOT hold does not steal selection', async () => {
+		const h = await mountDesk();
+		clickTab(h, 1); // the operator reads t-b's tab
+		await tick();
+		flushSync();
+		// an agent takes a session the desk has no tab for — nothing moves
+		emitTake('t-other');
+		await tick();
+		flushSync();
+		expect(selected(h, 1)).toBe('true');
+		expect(selected(h, 0)).toBe('false');
+		h.cleanup();
+	});
+
+	it('release / operator-mint frames never change selection; the click-away stands', async () => {
+		const h = await mountDesk();
+		emitTake('t-a'); // take selects tab 1
+		await tick();
+		flushSync();
+		clickTab(h, 1); // the operator clicks away
+		await tick();
+		flushSync();
+		expect(selected(h, 1)).toBe('true'); // click-away took
+		// release (baton → unassigned): no selection change
+		lastES!.emit('baton', JSON.stringify({ sessionId: 't-a', holder: 'unassigned', holderId: null, since: 2 }));
+		await tick();
+		flushSync();
+		expect(selected(h, 1)).toBe('true');
+		// the desk's own mount reattach mints 'operator': never steals either
+		lastES!.emit('baton', JSON.stringify({ sessionId: 't-a', holder: 'operator', holderId: null, since: 3 }));
+		await tick();
+		flushSync();
+		expect(selected(h, 1)).toBe('true');
+		h.cleanup();
+	});
+
+	it('a repeat take frame for the holder ALREADY minted does not re-steal the selection', async () => {
+		const h = await mountDesk();
+		emitTake('t-a'); // the mint selects tab 1
+		await tick();
+		flushSync();
+		expect(selected(h, 0)).toBe('true');
+		clickTab(h, 1); // the operator clicks away
+		await tick();
+		flushSync();
+		expect(selected(h, 1)).toBe('true');
+		// a second frame for the SAME holder is not a mint — the click-away stands
+		emitTake('t-a');
+		await tick();
+		flushSync();
+		expect(selected(h, 1)).toBe('true');
+		h.cleanup();
+	});
+
+	it('an automation take overrides a stale selection only when it mints the holder (badge unchanged)', async () => {
+		const h = await mountDesk();
+		clickTab(h, 1);
+		await tick();
+		flushSync();
+		// take arrives while the operator is elsewhere → the desk follows it
+		emitTake('t-b');
+		await tick();
+		flushSync();
+		expect(selected(h, 1)).toBe('true');
+		// the baton badge still renders from the same frame (ADR-0079 unchanged)
+		expect(h.target.querySelector('[data-testid="terminal-baton-badge"]')?.textContent).toBe('agent holds this terminal');
 		h.cleanup();
 	});
 });

@@ -164,6 +164,29 @@ describe('terminal action routes', () => {
 		void token;
 	});
 
+	it('the GET payload carries readiness ADDITIVELY beside the unchanged ADR-0079 keys (ADR-0080 D5)', { timeout: 30_000 }, async () => {
+		writeConfig(true);
+		const opened = await openRoute({ request: post('/api/terminal', {}) }) as Response;
+		const { sessionId } = (await opened.json()) as { sessionId: string };
+		const body = (await (await listRoute() as Response).json()) as {
+			enabled: boolean;
+			theming: unknown;
+			maxSessions: number;
+			sessions: Array<{ id: string; exited: boolean; readiness?: { settled: boolean; settledSince: number | null; reason: string | null } }>;
+		};
+		const row = body.sessions.find((s) => s.id === sessionId)!;
+		// D5: the pre-existing payload keys are all still there — additive only.
+		expect(body).toHaveProperty('enabled');
+		expect(body).toHaveProperty('theming');
+		expect(body).toHaveProperty('maxSessions');
+		expect(Object.keys(row).sort()).toEqual(['baton', 'exited', 'id', 'readiness'].sort());
+		// D1/D2: readiness present, fresh-open shape is the unsettled triple.
+		expect(row.readiness).toBeDefined();
+		expect(row.readiness!.settled).toBe(false);
+		expect(row.readiness!.settledSince).toBe(null);
+		expect(row.readiness!.reason).toBe(null);
+	});
+
 	it('bad signal name is BAD_REQUEST; signal path reaches the foreground group', async () => {
 		writeConfig(true);
 		const open = await openRoute({ request: post('/api/terminal', {}) }) as Response;

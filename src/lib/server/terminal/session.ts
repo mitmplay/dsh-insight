@@ -30,6 +30,7 @@ import { scrubbedChildEnv } from './scrub.js';
 import type {
 	TerminalOutcome,
 	TerminalOutputRead,
+	SessionReadiness,
 	TerminalSessionEvent,
 	TerminalSettleReason,
 	TerminalSignal,
@@ -80,6 +81,10 @@ export class TerminalSession extends EventEmitter {
 	private spillDropped = false;
 
 	private exited = false;
+	/** Readiness state (ADR-0080 D1): the passive settle observer's facts,
+	 *  recorded as they happen - no new PTY reads, no ring parsing (D2). */
+	private lastOutputAt: number | null = null;
+	private lastSettleReason: TerminalSettleReason | null = null;
 	private outcome: TerminalOutcome | null = null;
 	private exitWaiters: Array<(o: TerminalOutcome) => void> = [];
 	private sendInFlight = false;
@@ -112,6 +117,8 @@ export class TerminalSession extends EventEmitter {
 
 	private onOutput(data: string): void {
 		const bytes = Buffer.byteLength(data);
+		this.lastOutputAt = Date.now();
+		this.lastSettleReason = null;
 		this.totalBytes += bytes;
 		this.tail += data;
 		if (Buffer.byteLength(this.tail) > this.spec.tailBytes + Math.min(64 * 1024, this.spec.tailBytes)) {
@@ -217,6 +224,20 @@ export class TerminalSession extends EventEmitter {
 		return this.exited;
 	}
 
+	/** Readiness facet (ADR-0080 D1/D2): derived at read time from the
+	 *  passive settle observer's facts - settled is TIME-based only, the
+	 *  ring is never parsed. Fresh open (no output yet) answers the
+	 *  unsettled triple: {settled:false, settledSince:null, reason:null}. */
+	readiness(): SessionReadiness {
+		const now = Date.now();
+		const settled = !this.exited && this.lastOutputAt !== null && now - this.lastOutputAt >= this.spec.idleMs;
+		return {
+			settled,
+			settledSince: settled && this.lastOutputAt !== null ? this.lastOutputAt + this.spec.idleMs : null,
+			reason: settled ? this.lastSettleReason : null
+		};
+	}
+
 	// ── send (D4) ────────────────────────────────────────────────────────
 
 	/**
@@ -251,6 +272,7 @@ export class TerminalSession extends EventEmitter {
 						await this.sleep(25);
 						continue;
 					}
+					this.lastSettleReason = reason;
 					this.emit('event', { type: 'settled', reason } satisfies TerminalSessionEvent);
 					return reason;
 				}
@@ -307,6 +329,7 @@ export class TerminalSession extends EventEmitter {
 					else if (sawOutput && Date.now() - lastActivity >= this.spec.idleMs) reason = 'inferred_idle';
 					else if (Date.now() >= deadline) reason = 'timeout';
 					if (reason) {
+						this.lastSettleReason = reason;
 						this.emit('event', { type: 'settled', reason } satisfies TerminalSessionEvent);
 						return;
 					}

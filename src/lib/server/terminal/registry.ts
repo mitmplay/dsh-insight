@@ -27,7 +27,9 @@ import { TerminalSession } from './session.js';
 import type {
 	BatonFacet,
 	BatonHolder,
+	TerminalDeskIntent,
 	TerminalOutcome,
+	SessionReadiness,
 	TerminalSessionEvent,
 	TerminalSettleReason,
 	TerminalSignal,
@@ -55,6 +57,15 @@ export interface BatonMintOptions {
 	holderId?: string | null;
 }
 
+/** The session-born event (ADR 2026-11-24 The Headless Split, D1): one
+ *  fact per intent-carrying birth — what was born, where it wants to be
+ *  seen, and whose the baton is. Token-free, like every facet push. */
+export interface SessionBornEvent {
+	sessionId: string;
+	deskIntent: TerminalDeskIntent;
+	baton: BatonFacet;
+}
+
 interface RegistryEntry {
 	session: TerminalSession;
 	token: string;
@@ -65,6 +76,8 @@ interface RegistryEntry {
 	since: number;
 	lastWriteAt: number | null;
 	pinned: boolean;
+	/** The desk intent carried at birth (ADR 2026-11-24 D2); null = headless. */
+	deskIntent: TerminalDeskIntent | null;
 }
 
 /** The close ladder's proven result, promoted to the wire vocabulary. */
@@ -75,6 +88,9 @@ export interface RegistryCloseResult {
 
 export class TerminalRegistry {
 	private readonly entries = new Map<string, RegistryEntry>();
+	/** The session-born listeners (ADR 2026-11-24 D1) — the SSE hub is the
+	 *  only production subscriber; the registry is the only emitter. */
+	private readonly bornListeners = new Set<(event: SessionBornEvent) => void>();
 
 	/** Spawn a session from a fully specified spec (no defaults here —
 	 *  the transport resolved them from config). Returns the minted token.
@@ -82,9 +98,10 @@ export class TerminalRegistry {
 	 *  operator — the common opener IS the desk tab. */
 	create(
 		spec: TerminalSpec,
-		options?: { promptDetect?: (tail: string) => boolean } & BatonMintOptions
+		options?: { promptDetect?: (tail: string) => boolean; deskIntent?: TerminalDeskIntent } & BatonMintOptions
 	): { session: TerminalSession; token: string } {
 		const session = new TerminalSession(spec, { promptDetect: options?.promptDetect });
+		const deskIntent = options?.deskIntent === 'new-tab' || options?.deskIntent === 'split-down' ? options.deskIntent : null;
 		const entry: RegistryEntry = {
 			session,
 			token: '',
@@ -93,10 +110,15 @@ export class TerminalRegistry {
 			holderId: null,
 			since: Date.now(),
 			lastWriteAt: null,
-			pinned: false
+			pinned: false,
+			deskIntent
 		};
 		this.entries.set(session.id, entry);
-		return { session, token: this.mint(entry, options?.holder, options?.holderId) };
+		const token = this.mint(entry, options?.holder, options?.holderId);
+		// D1/D2: only an intent-carrying birth announces itself — a headless
+		// mint behaves byte-for-byte as before (no event, no desk ping).
+		if (deskIntent !== null) this.emitBorn(entry);
+		return { session, token };
 	}
 
 	/** One mint = one baton fact (ADR-0079 D1/D3/D7): a fresh token, the
@@ -121,6 +143,32 @@ export class TerminalRegistry {
 			holderId: entry.holderId,
 			since: entry.since
 		} satisfies TerminalSessionEvent);
+	}
+
+	/** Subscribe to session-born (ADR 2026-11-24 D1). @returns the
+	 *  unsubscribe — the hub route drops it when the client cancels. */
+	onSessionBorn(listener: (event: SessionBornEvent) => void): () => void {
+		this.bornListeners.add(listener);
+		return () => {
+			this.bornListeners.delete(listener);
+		};
+	}
+
+	/** One intent-carrying birth = one born event to every current
+	 *  listener. Headless births emit nothing (D2's consent shape). */
+	private emitBorn(entry: RegistryEntry): void {
+		const event: SessionBornEvent = {
+			sessionId: entry.session.id,
+			deskIntent: entry.deskIntent as TerminalDeskIntent,
+			baton: this.facet(entry)
+		};
+		for (const listener of this.bornListeners) {
+			try {
+				listener(event);
+			} catch {
+				// a dead subscriber never breaks the birth
+			}
+		}
 	}
 
 	/** D5: the facet is DERIVED at read time and stored nowhere. Conservative
@@ -247,10 +295,11 @@ export class TerminalRegistry {
 	}
 
 	/** Every live session id (the operator's list — one owner, no scoping),
-	 *  each with its baton facet (ADR-0079 D2): one token-free call answers
-	 *  "who holds each baton, and may automation take it?" */
-	list(): Array<{ id: string; exited: boolean; baton: BatonFacet }> {
-		return [...this.entries.values()].map((e) => ({ id: e.session.id, exited: e.session.isExited(), baton: this.facet(e) }));
+	 *  each with its baton facet (ADR-0079 D2) and its readiness facet
+	 *  (ADR-0080 D1, additive): one token-free call answers "who holds
+	 *  each baton, may automation take it, and is the shell settled?" */
+	list(): Array<{ id: string; exited: boolean; baton: BatonFacet; readiness: SessionReadiness; deskIntent?: TerminalDeskIntent }> {
+		return [...this.entries.values()].map((e) => ({ id: e.session.id, exited: e.session.isExited(), baton: this.facet(e), readiness: e.session.readiness(), deskIntent: e.deskIntent ?? undefined }));
 	}
 
 	/** Close every session and await quiescence (server shutdown path). */

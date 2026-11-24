@@ -17,12 +17,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { peekMock, eventsMock, readFromMock, exitOutcomeMock, listMock } = vi.hoisted(() => ({
+const { peekMock, eventsMock, readFromMock, exitOutcomeMock, listMock, onBornMock } = vi.hoisted(() => ({
 	peekMock: vi.fn(),
 	eventsMock: vi.fn(),
 	readFromMock: vi.fn(),
 	exitOutcomeMock: vi.fn(),
-	listMock: vi.fn()
+	listMock: vi.fn(),
+	onBornMock: vi.fn(() => () => undefined)
 }));
 
 vi.mock('$lib/server/terminal/registry.js', () => {
@@ -41,7 +42,8 @@ vi.mock('$lib/server/terminal/registry.js', () => {
 			events: eventsMock,
 			readFrom: readFromMock,
 			exitOutcome: exitOutcomeMock,
-			list: listMock
+			list: listMock,
+			onSessionBorn: onBornMock
 		}
 	};
 });
@@ -267,6 +269,39 @@ describe('terminal stream hub route — mock registry', () => {
 		});
 		expect(() => hubRoute({ url: url(['t-1']) })).toThrow(TypeError);
 	});
+
+	describe('session-born route arm (ADR 2026-11-24 D1)', () => {
+		function bornUrl(emptyIds: boolean): URL {
+			const p = new URLSearchParams();
+			p.set('ids', JSON.stringify(emptyIds ? [] : ['t-1']));
+			p.set('born', '1');
+			return new URL('http://localhost/api/terminal/stream?' + p.toString());
+		}
+
+		it('empty ids WITH born=1 is a legal stream (the desk with zero rows)', () => {
+			onBornMock.mockClear();
+			const res = hubRoute({ url: bornUrl(true) }) as Response;
+			expect(res).toBeInstanceOf(Response);
+			expect(res.status).toBe(200);
+			expect(onBornMock).toHaveBeenCalledTimes(1);
+		});
+
+		it('a registry birth is fanned as an SSE session-born frame, token-free', () => {
+			hubRoute({ url: bornUrl(true) }) as Response;
+			const bornListener = onBornMock.mock.calls[0][0] as (e: Record<string, unknown>) => void;
+			bornListener({ sessionId: 't-9', deskIntent: 'new-tab', baton: { holder: 'operator', holderId: null, since: 5 } });
+			const all = frames().join('');
+			expect(all).toContain('event: session-born');
+			expect(all).toContain('"sessionId":"t-9","deskIntent":"new-tab"');
+			expect(all).not.toContain('"token"');
+		});
+
+		it('empty ids WITHOUT born=1 still answers 400 NO_IDS (pin unchanged)', () => {
+			onBornMock.mockClear();
+			expect((hubRoute({ url: url([]) }) as Response).status).toBe(400);
+			expect(onBornMock).not.toHaveBeenCalled();
+		});
+	});
 });
 
 /* ============================================================
@@ -275,7 +310,7 @@ describe('terminal stream hub route — mock registry', () => {
  * map from painted offsets, ONE hub ladder, dispatch by id.
  * ============================================================ */
 
-import { subscribeTerminalStream, resetStreamHubForTests } from '../../src/lib/services/terminal/stream-hub.svelte';
+import { subscribeTerminalStream, subscribeSessionBorn, resetStreamHubForTests } from '../../src/lib/services/terminal/stream-hub.svelte';
 
 /** The scriptable EventSource the hub under test opens. */
 class FakeEventSource {
@@ -476,12 +511,48 @@ describe('terminal stream hub service — refcount client hub', () => {
 		expect(FakeEventSource.instances[FakeEventSource.instances.length - 1].url).not.toContain('t-9');
 	});
 
+	it('session-born fans to the born listener, NOT to rows (ADR 2026-11-24 D1)', () => {
+		const seen: unknown[] = [];
+		const rowFrames: string[] = [];
+		subscribeSessionBorn((f) => seen.push(f));
+		subscribeTerminalStream('t-1', 0, { onFrame: (k, d) => rowFrames.push(k + ':' + String(d.sessionId)) });
+		const es = FakeEventSource.instances[FakeEventSource.instances.length - 1];
+		// the born URL opts the connection in
+		expect(es.url).toContain('born=1');
+		es.emit('session-born', { sessionId: 't-9', deskIntent: 'split-down', baton: { holder: 'automation', holderId: 'lead', since: 1 } });
+		expect(seen).toEqual([{ sessionId: 't-9', deskIntent: 'split-down', baton: { holder: 'automation', holderId: 'lead', since: 1 } }]);
+		// no row received it — the born session has no row yet
+		expect(rowFrames).toEqual([]);
+		// torn born frames are dropped
+		es.listeners.get('session-born')![0]({ data: 'not-json{' });
+		expect(seen).toHaveLength(1);
+	});
+
 	it('torn/untagged frames are dropped, never dispatched (AC3 guard)', () => {
 		const seen: unknown[] = [];
 		subscribeTerminalStream('t-1', 0, { onFrame: (k, d) => seen.push([k, d]) });
-		const es = FakeEventSource.instances[0];
+		const es = FakeEventSource.instances[FakeEventSource.instances.length - 1];
 		es.listeners.get('output')![0]({ data: 'not-json{' });
 		es.listeners.get('output')![0](frame('', JSON.stringify({ text: 'no-owner' })));
 		expect(seen).toEqual([]);
+	});
+
+	describe('session-born lifecycle (ADR 2026-11-24 Wave 2, amended Wave 3)', () => {
+		it('born listeners ride the ROW source — no second connection (ADR-0053 economy)', () => {
+			const off = subscribeSessionBorn(() => undefined);
+			// no source opens for the born listener alone
+			expect(FakeEventSource.instances).toHaveLength(0);
+			subscribeTerminalStream('t-1', 0, { onFrame: () => undefined });
+			expect(FakeEventSource.instances).toHaveLength(1); // THE row source
+			expect(FakeEventSource.instances[0].url).toContain('born=1'); // born rides it
+			off();
+			// born unsubscribe alone does NOT close the rows' hub
+			expect(FakeEventSource.instances[0].closed).toBe(false);
+		});
+
+		it('a plain row-only subscription stays born-less on the wire', () => {
+			subscribeTerminalStream('t-1', 0, { onFrame: () => undefined });
+			expect(FakeEventSource.instances[0].url).not.toContain('born=1');
+		});
 	});
 });

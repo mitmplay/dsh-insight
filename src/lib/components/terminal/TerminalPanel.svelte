@@ -134,6 +134,30 @@ import TermFontSlider from './TermFontSlider.svelte';
 	 *  mint), so the badge stays silent for the desk's own normal state and
 	 *  speaks only when an agent holds the terminal or released it. */
 	let baton = $state<{ holder: string; holderId: string | null; since: number } | null>(null);
+
+	/** Focus-follows-baton (ADR-0080 D3): when an automation take frame
+	 *  arrives for THIS panel's session and the panel lives under a desk,
+	 *  the desk selects the tab that holds us — client-side, no focus wire
+	 *  verb, the server never commands the page. Selection goes through
+	 *  the desk's OWN public path (a click on its tab button), so every
+	 *  desk invariant (mirror write, selection clamp) applies unchanged.
+	 *  Release frames (holder 'unassigned') and the desk's own mount-take
+	 *  (holder 'operator') never steal selection — an operator's
+	 *  click-away afterwards stands. Solo panels (no desk ancestor) and
+	 *  already-selected tabs are no-ops. */
+	function selectHostingDeskTab(): void {
+		if (!sessionId || !hostEl) return;
+		const desk = hostEl.closest('[data-testid="terminal-desk"]');
+		if (!desk) return; // solo mode — one tab, nothing to select
+		const buttons = desk.querySelectorAll<HTMLDivElement>('div[role="tab"][data-testid^="terminal-tab-button-"]');
+		for (const button of buttons) {
+			// the truthful badge grammar: shell-tab titles carry the session ids
+			if ((button.getAttribute('title') ?? '').includes(sessionId)) {
+				if (button.getAttribute('data-selected') !== 'true') button.click();
+				return;
+			}
+		}
+	}
 	async function writeWithHeal(data: string): Promise<void> {
 		const url = '/api/terminal/' + (sessionId ?? '') + '/send';
 		let res = await post(url, { token, action: 'write', data });
@@ -183,7 +207,14 @@ import TermFontSlider from './TermFontSlider.svelte';
 		if (ev === 'baton') {
 			// the write/heal chain above is untouched — this only MIRRORS the
 			// pushed facet; the fence still decides who may type
+			const prev = baton;
 			baton = { holder: String(data.holder ?? ''), holderId: typeof data.holderId === 'string' ? data.holderId : null, since: Number(data.since) };
+			// focus-follows-baton (ADR-0080 D3): a baton event that MINTS an
+			// automation holder is a take — the desk follows it. Release
+			// frames ('unassigned'), the desk's own mount reattach (holder
+			// 'operator'), and a repeat frame for the holder already minted
+			// never steal the selection.
+			if (baton.holder === 'automation' && prev?.holder !== 'automation') selectHostingDeskTab();
 		}
 		if (ev === 'error') panelState = reduceTerminalFrame(panelState, { event: 'error', error: String(data.error) });
 	}
@@ -216,7 +247,10 @@ import TermFontSlider from './TermFontSlider.svelte';
 				xterm.onResize((e) => syncPtyDims(e.cols, e.rows));
 				syncPtyDims(xterm.cols, xterm.rows);
 				xterm.onData((data) => {
-					if (sessionId && token) queueWrite(data);
+					// token '' (an ADOPTED row, ADR 2026-11-24 D3) still queues:
+					// the first keystroke's write 403s and the heal below CLAIMS
+					// the baton — contact claims, adoption never does.
+					if (sessionId) queueWrite(data);
 				});
 				xterm.focus();
 			} catch {
@@ -462,6 +496,7 @@ input line) appears ONLY when xterm cannot attach.
 		<div class="p-3 text-xs text-slate-500" data-testid="terminal-opening">{t(m.terminalOpening)}</div>
 	{:else}
 		<div
+			bind:this={hostEl}
 			class="relative min-h-72 grow overflow-hidden"
 			data-testid="terminal-host"
 			onclick={() => (xterm ? xterm.focus() : termEl?.querySelector('textarea')?.focus())}

@@ -1,65 +1,65 @@
 ---
 name: "dsi-drive-terminal"
-description: "Drive the operator's live Terminal Desk tab (T1, T2, …) over DSI's terminal wire with curl — baton etiquette, human-pace typing, ring reads, silent-eater escapes. Reserved keyword"
+description: "Drive the operator's live Terminal Desk tab (T1, T2, …) over DSI's terminal wire with curl — baton etiquette, human-pace typing, ring reads, silent-eater escapes. Reserved keyword /dsi-drive-terminal"
 ---
 
 # Drive Terminal
 
 One goal → a live terminal session driven over DSI's terminal wire with
-curl: take the baton, type like a human, read what the shell said — while
-the operator watches the same bytes paint their desk tab.
+curl: read who holds the baton, take it labelled, type like a human, read
+what the shell said, hand it back — while the operator watches the same
+bytes paint their desk tab.
 
 ## SYSTEM PROTOCOL: THE BATON LAW
 
 The session's write token is a baton with ONE holder. Every rule below
 instantiates it (ADR The Surviving Shell 2026-09-24 + amendments
-2026-11-04; mechanics: `dev/feature-contract-scenario/terminal-driving.md`):
+2026-11-04; ADR-0079 The Baton Facet 2026-11-23; mechanics:
+`dev/feature-contract-scenario/terminal-driving.md`). Each law is stated
+once — the steps and the checklist only point back at it.
 
-### 1. BATON ETIQUETTE (who may type)
-- Take the baton (`reattach`) only when about to write; a refused write
-  (`403 FOREIGN_SESSION`) means heal — reattach once, retry the SAME
-  keystroke — never retry blind, never re-mint in a loop.
-- The operator's tab heals identically (their first key after your takeover
-  shows the heal badge); watching is token-free, so displays never break.
-- **READ before you take** (ADR-0079 D2/D5): `GET /api/terminal` lists each
-  session's `baton` — `holder`, `holderId`, `since`, `lastWriteAt`,
-  `pinned`, `readyForAutomation`. One token-free call answers "who holds
-  it, may I take it". `readyForAutomation:false` (operator-held, pinned, or
-  exited) means WAIT or ask — silence is not consent, never interrupt a
-  human on their own tab. `pinned:true` is a hard no.
-- **LABEL your takeover** (D3/D7): every reattach you make carries
-  `{"holder":"automation","holderId":"<your agent name>"}`. The desk shows
-  "agent holds this terminal" the moment you take it — no keystroke needed.
-  The desk's own `{}` reattach is the operator taking it BACK.
-- **RELEASE when done** (D4): `action:"release"` hands the baton to nobody
-  (`holder:"unassigned"`); the operator's next keystroke heals once — the
-  priced cost. Baton litter (the desk saying "agent holds" after you left)
-  is the failure mode release exists to end.
+1. **READ before you take.** `GET /api/terminal` is token-free and lists
+   every session with its `baton`: `holder` (`operator` | `automation` |
+   `unassigned`), `holderId`, `since`, `lastWriteAt`, `pinned`,
+   `readyForAutomation`. One call answers "who holds it, may I take it".
+2. **WHOSE WORD COUNTS.** A session the operator NAMED in the ask
+   (`/dsi-drive-terminal T1:7 …`) is yours to take even while it reads
+   `operator` — the desk re-takes the baton on every mount, so an open
+   tab always reads that way. A tab you picked YOURSELF must read
+   `readyForAutomation:true`; otherwise wait and ask — silence is not
+   consent. `pinned:true` → never. `exited:true` → dead; nothing to drive.
+3. **LABEL every takeover.** Each reattach you make — the first and every
+   heal — carries `{"holder":"automation","holderId":"<your agent name>"}`.
+   The desk shows "agent holds this terminal" the moment you take it, no
+   keystroke needed. A `{}` reattach is the desk's own: it means the operator.
+4. **A REFUSED WRITE IS READ, THEN HEALED.** On `403 FOREIGN_SESSION`, read
+   the facet once:
+   - `holder:"operator"` and `lastWriteAt` is null or OLDER than `since` →
+     the desk only re-mounted (reload, HMR swap): heal — labelled
+     reattach, retry the SAME keystroke.
+   - `holder:"operator"` and `lastWriteAt` is newer than or equal to
+     `since` → a human typed: STOP. Report and wait; never take a tab
+     back from someone typing in it.
+   - `holder:"automation"` under another name → another driver: stop and
+     report. `holder:"unassigned"` → released: heal and take it.
+   Never retry blind, never re-mint in a loop.
+5. **RELEASE is your last wire act.** `action:"release"` hands the baton
+   to nobody (`holder:"unassigned"`); the operator's next keystroke heals
+   once — the priced cost. A desk still reading "agent holds" after you
+   left is baton litter.
+6. **THE DESK IS THE UX.** Run commands UNPIPED — the operator watches
+   progress paint live. The PTY echoes reality: no echo = the write was
+   refused or the shell is busy. NEVER type while a command is still
+   running (keystrokes go into that process's stdin, silently).
+7. **A RECEIPT PROVES NOTHING.** Check every response: `{"written":true}`
+   | `403` → law 4 | `409 SEND_ACTIVE` → wait | `400` → fix the body.
+   A dead session still answers `written:true` (RCA 2026-11-04):
+   completion gates on ECHO + the exit marker in the ring, read as output —
+   never the receipt, never how the typed line looks.
 
-### 2. THE DESK IS THE UX (what the operator sees)
-- Run commands UNPIPED — the operator watches progress paint live; `| tail`
-  a build they are watching and you have hidden their own terminal.
-- The PTY echoes reality: no echo = the write was refused or the shell is
-  busy. NEVER type while a command is still running (keystrokes go into
-  that process's stdin, silently).
+## The Readiness Gate (ADR-0080) ⛔ MANDATORY before typing
 
-### 3. ESCAPE THE SILENT EATER (writes say `written:true`, nothing executes)
-- An interactive prompt is consuming stdin — met live: `git push` username
-  prompt, open commit editor, package-manager approve prompt.
-- Escape: `\u0003\u0003` (Ctrl+C ×2), or ESC + `:qa!\r` (vi family), then a
-  marker (`echo ALIVE\r\n`) to confirm the prompt answers.
-
-### Enforcement Rules
-- Every write response MUST be checked: `{"written":true}` or handled
-  (`403` → heal, `409 SEND_ACTIVE` → wait, `400` → fix the body).
-- **The receipt is necessary, never sufficient**: a dead session still
-  answers `written:true` (known trap — `session.ts` silently no-ops an
-  exited target; honest refusal deferred). Completion gates on ECHO +
-  the exit marker in the ring, never on the receipt alone. A receipt
-  with no echo → check `GET /api/terminal` `exited` first, silent
-  eater second (RCA 2026-11-04).
-
----
+`GET /api/terminal` carries each session's `readiness: {settled, settledSince, reason}` — the server's promise that the shell produced NO output for ≥ `idleMs`. **`readiness.settled === true` is the gate to type; screen text is evidence, never the gate** (the 2026-11-24 ring-redraw artifact caught peek text lying). `drive.mjs type`/`take` refuses with a named CONCERN while `settled` is false (`--force` overrides) — the peek of the last line is demoted to ONE secondary check: the half-typed line (a settled shell can still hold a line the operator never pressed Enter on). A settled:false with a long-running command means WAIT and re-read; never guess from scrollback.
 
 ## When to Use
 
@@ -70,12 +70,9 @@ instantiates it (ADR The Surviving Shell 2026-09-24 + amendments
 
 ### Step 0: No Params — Usage Guide
 
-When the user sends `/dsi-drive-terminal` with no arguments:
-
-1. Ask which session and what to run:
-2. Reply with a usage guide — NOT execution
-
-**Response format:**
+`/dsi-drive-terminal` with no arguments asks for two things and replies
+with this guide — NOT execution. Many commands → confirm the order first,
+and do NOT take the baton until the goal is confirmed.
 
 ```
 📋 **Drive Terminal** — No inputs specified. I need two things:
@@ -86,210 +83,162 @@ When the user sends `/dsi-drive-terminal` with no arguments:
 Usage: `/dsi-drive-terminal {session} {command}`
 ```
 
-**Rules:**
-- If the goal spans many commands, confirm the order before typing
-- Do NOT take the baton until the goal is confirmed
-
-## Pipeline
-
-```mermaid
-flowchart LR
-    A["/dsi-drive-terminal"] --> B["Step 1<br/>floor + facet + labeled baton"]
-    B --> C["Step 2<br/>type (paced, checked)"]
-    C --> D["Step 3<br/>read promptly"]
-    D --> E{"done?"}
-    E -->|"no"| C
-    E -->|"yes"| R["Step 5<br/>release the baton"]
-    R --> F["report what the<br/>operator saw"]
-```
-
----
+Pipeline: Step 1 floor + facet + labelled baton → Step 2 type → Step 3 read
+→ Step 4 on trouble → Step 5 release → report what the operator saw.
 
 ## Step 1: Floor + Baton ⛔ MANDATORY
 
-Resolve the floor port by PROBE, never by memory of a previous session:
+Resolve the floor port by PROBE, never by memory of a previous session. The probe rides a discovery ladder (ADR-0080 D4, MAC AND LINUX): `lsof -nP -iTCP -sTCP:LISTEN` first, then `ss -ltn` when lsof is absent, then a 5100-5199 sweep — and every candidate is confirmed by the JSON probe (the GET must answer DSI's `{enabled,…}` JSON) before it counts as a floor; a port whose GET returns broken/non-JSON is never a floor. `drive.mjs` runs this ladder for you.
+Resolve the session id from the desk badge — `T{position}:{id}` (`T1:7` =
+tab index 1, session `t-7`) — never from the tab position: "T1" once drove
+`t-7` while `t-1` sat dead for an hour, and 69 keystrokes vanished
+(RCA 2026-11-04, "The Surface That Only Ever Said Yes").
 
 ```sh
-PORT=5175   # only after a listener probe confirms it
-AGENT=lead  # your agent name — the label the desk and other drivers read
-curl -s http://127.0.0.1:$PORT/api/terminal            # sessions + each baton facet (holder, readyForAutomation)
-curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/reattach \
-  -H 'content-type: application/json' \
-  -d "{\"holder\":\"automation\",\"holderId\":\"$AGENT\"}" -o /tmp/t.json   # LABELED takeover — the desk badge appears NOW
-TOK=$(sed 's/.*"token":"\([^"]*\)".*/\1/' /tmp/t.json)
-OFF=$(sed 's/.*"fromByte":\([0-9]*\).*/\1/' /tmp/t.json)
-printf '%s' "$TOK" > /tmp/t1-token   # Steps 2 and 5 read the token from here
+PORT=5175      # only after a listener probe confirms it
+ID=t-7         # the badge suffix, cross-checked against the list
+curl -s http://127.0.0.1:$PORT/api/terminal     # ⛔ the facet read — laws 1 and 2, BEFORE anything else
 ```
 
-- **Pre-flight (ADR-0079 D5)**: read the target's `baton` in the list FIRST.
-  `readyForAutomation:true` → take it (labeled). `false` because the
-  operator holds it → do NOT reattach; report and wait for the operator's
-  word. `pinned:true` → never, not even asked twice. A body-less or
-  `{}` reattach is the OPERATOR label — never send one as a driver.
-- No live session → `POST /api/terminal` opens one (new T-tab on the desk;
-  the same optional `{holder, holderId}` body labels the open).
-- `403`/foreign responses on write → heal: reattach, retry the same write.
-- **Resolve the session id from evidence, never from the tab position.**
-  The desk badge names its session: `T{position}:{id}` (`T1:7` = tab
-  index 1, session `t-7`; splits join with `+`, unassigned tabs show
-  plain `Tn`). Cross-check `GET /api/terminal` (`exited` flag) — the
-  live trap: desk tab "T1" drove session `t-7` while `t-1` was an hour
-  dead, and 69 keystrokes vanished (RCA 2026-11-04, "The Surface That Only
-  Ever Said Yes").
+Take it, labelled (law 3):
 
----
+```sh
+curl -s -o /tmp/t1-take.json -w '%{http_code}\n' -X POST http://127.0.0.1:$PORT/api/terminal/$ID/reattach \
+  -H 'content-type: application/json' -d '{"holder":"automation","holderId":"lead"}'
+node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync("/tmp/t1-take.json","utf8"));if(!j.token){console.error(j);process.exit(1)}fs.writeFileSync("/tmp/t1-token",j.token);fs.writeFileSync("/tmp/t1-offset",String(j.fromByte))'
+```
+
+- The first line prints the status: `200` expected; `404` = `NO_SESSION`,
+  a wrong id — re-resolve it from the badge. The second line exits non-zero
+  when no token came back.
+- No live session → open one WITH A DESK INTENT (ADR 2026-11-24 The
+  Headless Split, D5): `"desk":"new-tab"` makes a new T-tab appear on the
+  operator's desk the moment the session is born — a mint WITHOUT `desk`
+  is a headless ghost: real, baton-holding, rendered NOWHERE. Default to
+  `"desk":"new-tab"` when opening for the operator:
+  `curl -s -X POST http://127.0.0.1:$PORT/api/terminal -H 'content-type: application/json' -d '{"holder":"automation","holderId":"lead","desk":"new-tab"}'` → `{sessionId, token}`.
+  The visible-split form is `"desk":"split-down"` — it stacks a row under
+  the desk's SELECTED tab (use it when the operator asked for a split).
+  The adopted row streams token-free; the baton is YOURS until you release
+  — the desk claims only when the operator actually types into it (D3).
+- Freshly opened, the shell needs a moment: its first prompt lands ~1 s
+  after open. Wait ~2 s, then make your FIRST line a marker (`echo READY` +
+  Enter) and gate on `READY` in the ring. Never judge a typed line by how it
+  looks in a stripped ring: keys sent before the first prompt are echoed by
+  the terminal itself, and the line editor redraws with backspaces (`x\bxyz`
+  stands for `xyz`). The marker's output is the proof.
 
 ## Step 2: Type ⛔ MANDATORY
 
-Build the JSON body with node — never inline-quote shell strings (one bad
+One helper for every tokened call — define and use it in the SAME shell
+call. It builds the body with node, so nothing is inline-quoted (one bad
 escape is a silent `BAD_REQUEST`):
 
 ```sh
-node -e 'const fs=require("fs");const tok=fs.readFileSync("/tmp/t1-token","utf8").trim();
-fs.writeFileSync("/tmp/t1-cmd.json",JSON.stringify({token:tok,action:"write",data:"uname -a\r\n"}))'
-curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/send \
-  -H 'content-type: application/json' --data-binary @/tmp/t1-cmd.json
+tt() {  # tt <action> [data] — one call to the send route, response printed
+  node -e 'const fs=require("fs");const [a,d]=process.argv.slice(1);const b={token:fs.readFileSync("/tmp/t1-token","utf8").trim(),action:a};if(d!==undefined)b.data=d;fs.writeFileSync("/tmp/t1-body.json",JSON.stringify(b))' "$@"
+  curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/send -H 'content-type: application/json' --data-binary @/tmp/t1-body.json; echo
+}
+for ch in e c h o ' ' A L I V E; do tt write "$ch"; sleep 0.12; done; tt write $'\r'
 ```
 
-- **Human pace when the operator watches**: one char per write, ~60 ms
-  apart, each response checked `{"written":true}`. Faster bursts hit the
-  write fence and DROP characters (live: `sudo apt update` →
-  `sudoaptupdate`, zsh "command not found").
-- **Passwords**: same pacing; PTY echo is off — the secret never lands in
+- **Human pace, ONE pace: one keystroke per write, ~120 ms apart, every
+  response checked** (law 7). Faster bursts hit the write fence and DROP
+  characters (live: `sudo apt update` → `sudoaptupdate`).
+- Passwords: same pacing; PTY echo is off — the secret never lands in
   scrollback, the desk shows dots.
-- **End every long command with a marker**: `; echo STEP-DONE-$?` — the
-  marker is the completion gate (exit code included).
-
----
+- End every long command with a marker: `; echo STEP-DONE-$?` — the marker
+  is the completion gate (exit code included).
 
 ## Step 3: Read ⛔ MANDATORY
 
 ```sh
-curl -s "http://127.0.0.1:$PORT/api/terminal/$ID/output?fromByte=$OFF"
+curl -s "http://127.0.0.1:$PORT/api/terminal/$ID/output?fromByte=$(cat /tmp/t1-offset)"
 ```
 
-- `$OFF` captured BEFORE the command; read right after it finishes.
-- ANSI strip: `sed 's/\\u001b\[[0-9;?]*[a-zA-Z=]//g; s/\\u0007//g; s/\\r\\n/\n/g; s/\\n/\n/g; s/\\r//g'`
-- Empty/short read → the ring rotated; re-read `fromByte=0` (full retained
-  ring) or re-run redirecting output to a file and `cat` a slice.
+- The offset was captured BEFORE you typed; read right after the command
+  finishes, and keep each read's `nextOffset` for the next one.
+- ANSI strip, on the raw JSON text (the `.\b` pass undoes the line editor's redraw, so `x\bxyz` reads `xyz`): `sed 's/\\u001b\[[0-9;?]*[a-zA-Z=]//g; s/\\u0007//g; s/.\\b//g; s/\\r\\n/\n/g; s/\\n/\n/g; s/\\r//g'`
+- Empty/short read → the ring rotated (it holds only the last few KB):
+  re-read `fromByte=0`, or re-run with output redirected to a file and
+  `cat` a slice.
 
----
+## Step 4: Refused or Swallowed ⛔ MANDATORY
 
-## Step 4: Silent Eater ⛔ MANDATORY
+- `403 FOREIGN_SESSION` → law 4: read the facet, then heal or stop.
+- `written:true` but nothing executes or echoes → a silent eater (credential
+  prompt, commit editor, approve prompt). Escape with `tt write $'\003\003'`
+  (Ctrl+C ×2) or ESC + `:qa!\r` (vi family), confirm with a marker (`echo ALIVE`),
+  re-send. No echo at all → check `exited` in the list first.
 
-Writes say `written:true` but nothing executes or echoes → an interactive
-prompt is consuming stdin (credential prompt, commit editor, approve
-prompt). Escape per SYSTEM PROTOCOL §3, confirm with a marker, re-send.
+## Step 5: Release ⛔ MANDATORY — hand the baton back
 
----
-
-## Step 5: Release ⛔ MANDATORY — hand the baton back (ADR-0079 D4)
-
-The LAST wire act, after the exit marker is in the ring and before hands-off:
+The LAST wire act, after the exit marker is in the ring and before
+hands-off:
 
 ```sh
-node -e 'const fs=require("fs");const tok=fs.readFileSync("/tmp/t1-token","utf8").trim();
-fs.writeFileSync("/tmp/t1-rel.json",JSON.stringify({token:tok,action:"release"}))'
-curl -s -X POST http://127.0.0.1:$PORT/api/terminal/$ID/send \
-  -H 'content-type: application/json' --data-binary @/tmp/t1-rel.json
+tt release
 ```
 
-- Expect `{"released":true,"baton":{"holder":"unassigned",…}}` — the desk
-  badge flips to "released" and your token is dead on purpose. The
-  operator's first keystroke pays one `403` and heals: the priced cost,
-  already visible to them as the heal badge.
-- `403 FOREIGN_SESSION` on release → you already lost the baton (the
-  operator healed past you) — nothing to release, move on.
-- A long-running command you want to keep watching: you may hold the baton
-  while it runs; release the moment you stop writing. Never leave it held
-  after your report.
-
----
+- Expect `200 {"released":true,"baton":{"holder":"unassigned",…}}` — the
+  desk badge flips to "released" and your token is dead on purpose.
+- `403` on release → you already lost the baton; nothing to release.
+- Hold the baton while a long command runs if you want to keep watching;
+  release the moment you stop writing — never leave it held after your report.
 
 ## Drive Checklist — MANDATORY
 
-This is the ONLY checklist output to the user. Declared at the start,
-verified at the end.
+The ONLY checklist output to the user. Declared at the start, verified at
+the end.
 
 ```
 📋 drive-terminal: {session} — {goal}
 
-   [ ]  1.0  ⛔ Facet read FIRST: readyForAutomation true + pinned false — operator-held means WAIT (ADR-0079 D5)
-   [ ]  1.1  ⛔ Floor port probed (listener confirmed, not assumed)
-   [ ]  1.2  ⛔ Baton taken LABELED {holder:automation, holderId:<agent>} (reattach → token + offset captured)
-   [ ]  1.3  ⛔ Session id resolved from badge suffix / sessions list — NOT assumed from the tab position
-   [ ]  2.1  ⛔ Every write response checked (written / healed / refused)
-   [ ]  2.2  ⛔ Long commands carry an exit marker; completion gated on it
-   [ ]  2.4  ⛔ Receipt cross-checked by echo + marker (dead sessions answer written:true)
-   [ ]  2.3  ⛔ Operator-paced typing (≈120 ms/char, verified) when watched
-   [ ]  3.1  ⛔ Output read from pre-captured offset, promptly
-   [ ]  3.2  ⛔ Ring misses recovered (fromByte=0 or file+cat)
-   [ ]  4.1  ⛔ Any silent eater escaped (Ctrl+C / :qa!) and marker-confirmed
-   [ ]  4.2  ⛔ Dead-session eater ruled OUT via GET /api/terminal exited flag (RCA 2026-11-04)
-   [ ]  5.1  ⛔ Baton RELEASED (action:release → holder unassigned) before hands-off (ADR-0079 D4)
+   [ ]  1.1  ⛔ Facet read FIRST — whose word: named by the operator, or readyForAutomation true
+   [ ]  1.2  ⛔ Floor port probed (listener confirmed, not assumed)
+   [ ]  1.3  ⛔ Session id resolved from the badge suffix / list — NOT from the tab position
+   [ ]  1.4  ⛔ Baton taken LABELED {holder:automation, holderId:<agent>} — token + offset captured; fresh shell: `echo READY` first
+   [ ]  2.1  ⛔ Every write answered {"written":true}; any 403 read first → heal or STOP
+   [ ]  2.2  ⛔ One keystroke per write, ~120 ms apart
+   [ ]  2.3  ⛔ Long commands carry an exit marker; completion gated on its output in the ring
+   [ ]  3.1  ⛔ Output read from the pre-captured offset, promptly
+   [ ]  4.1  ⛔ Silent eater escaped + marker-confirmed; a dead session ruled out (exited)
+   [ ]  5.1  ⛔ Baton RELEASED before hands-off (holder → unassigned)
    [ ]  6.1  ⛔ Commands ran UNPIPED — the operator could watch everything
    [ ]  6.2  ⛔ Report states what the desk showed, not just what was read
 
    ⛔ Behavioral Commitments:
-   [ ]  I will NOT take an operator-held terminal (readyForAutomation:false) without the operator's word
+   [ ]  I will NOT take a tab the operator did not name unless readyForAutomation is true
+   [ ]  I will NOT take a tab back from someone who typed in it — a 403 is read, never retried blind
    [ ]  I will NOT leave the baton held — release is the last wire act
-   [ ]  I will NOT retry a refused write blind — heal (reattach) first
-   [ ]  I will NOT type while a command is still running
-   [ ]  I will NOT pipe or silence output the operator is watching
-   [ ]  I will NOT send keystrokes into an unverified prompt state
+   [ ]  I will NOT type while a command is still running, or pipe away what the operator watches
    [ ]  I will NOT claim success without the exit marker in the read
-   [ ]  I will re-output this checklist at each step transition
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ### Check-Off Rules
 
-- Re-output the checklist with `[✅]` / `[🔄]` / `[ ]` at each step
-  transition (1→2, 2→3, 3→4).
-- At completion, output the final checklist: ALL `[✅]`, any `[❌]`.
-- Do NOT deliver without the final checklist.
+Re-output the checklist with `[✅]` / `[🔄]` / `[ ]` at each step transition
+(1→2, 2→3, 3→4); at completion output the final checklist — ALL `[✅]`, any
+`[❌]` — and never deliver without it.
 <!-- RCA: AI-Research/LLMs Skip Mandatory Steps/001. LLMs Skip Mandatory Steps/002.The Visible checklist Pattern/2026-06-11 - The Visible Checklist Pattern - AI Research v1 - report.md -->
 
----
+## --peek — the Read-Only Mode
 
-## --peek — the Read-Only Mode (2026-11-07, ADR amendment D7)
-
-\`/dsi-drive-terminal --peek {session or tab badge}\` checks WHAT IS GOING ON
-on the designated terminal and writes NOTHING. No baton is taken — watching
-is token-free, so the operator's tab never heals, never blinks.
-
-Recipe (all reads, zero writes):
-
-1. Resolve the session id from evidence — the badge law stands: read the
-   desk badge \`T{n}:{id}\` or \`GET /api/terminal\` (\`curl -s http://127.0.0.1:$PORT/api/terminal\`),
-   cross-check the \`exited\` flag. NEVER assume tab position = session id.
-2. Read the ring tail — the watcher path, no token:
-   \`curl -s "http://127.0.0.1:$PORT/api/terminal/$ID/output?fromByte=0"\`
-   (the retained ring is the authority; ANSI-strip the tail per Step 3).
-3. Report: session id, exited or live, who holds the baton (the list's
-   `baton` — a read, never a probe write), the last screenful of output,
-   and — if live — the likely foreground command visible in the scrollback.
+`/dsi-drive-terminal --peek {session or tab badge}` reports WHAT IS GOING
+ON on that terminal and writes NOTHING — no baton is taken, so the
+operator's tab never heals, never blinks. Resolve the session id from
+evidence (the badge law in Step 1), read the ring tail token-free
+(`curl -s "http://127.0.0.1:$PORT/api/terminal/$ID/output?fromByte=0"`, ANSI-stripped per Step 3),
+and report: session id, exited or live, who holds the baton (the list's
+`baton` — a read, never a probe write), the last screenful, and — if live —
+the likely foreground command in the scrollback.
 
 Peek NEVER: reattaches, writes bytes, mints or accepts a token. If the
-operator then says "drive it", hand over to the full drive pipeline (Step 1).
+operator then says "drive it", that is the word — Step 1.
 
----
-
-## How This Skill Connects to the Docs
-
-The skill is the DO-path; the docs carry the WHY and the CONTRACT.
-
-```mermaid
-flowchart LR
-    A["/dsi-drive-terminal<br/>this skill"] --> B["KB terminal-driving.md<br/>feature / contract / scenario"]
-    B --> C["ADR The Surviving Shell<br/>lease + auto-heal decisions"]
-    B --> G["ADR-0079 The Baton Facet<br/>facet + label + release decisions"]
-    A --> D["Live floor<br/>the operator's desk tab"]
-```
-
-## Attention-Degradation Protection
-
-This skill stays SHORT. The mechanics and contract live in the KB note
-(`dev/feature-contract-scenario/terminal-driving.md`); the decisions live in
-the ADR. This skill only orchestrates the drive.
+The skill is the DO-path. The WHY and the CONTRACT live in the KB note
+`dev/feature-contract-scenario/terminal-driving.md`; the decisions in ADR
+The Surviving Shell (lease + auto-heal) and ADR-0079 The Baton Facet
+(facet + label + release). Each law once, one helper, one pace — on purpose.
 <!-- RCA: AI-Research/YT-Research/2026-06-22 - Why Long Instructions Make AI Dumber - Attention Degradation Science.md -->

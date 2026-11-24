@@ -12,12 +12,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { peekMock, eventsMock, readFromMock, exitOutcomeMock, listMock } = vi.hoisted(() => ({
+const { peekMock, eventsMock, readFromMock, exitOutcomeMock, listMock, onBornMock } = vi.hoisted(() => ({
 	peekMock: vi.fn(),
 	eventsMock: vi.fn(),
 	readFromMock: vi.fn(),
 	exitOutcomeMock: vi.fn(),
-	listMock: vi.fn()
+	listMock: vi.fn(),
+	onBornMock: vi.fn(() => () => undefined)
 }));
 
 vi.mock('$lib/server/terminal/registry.js', () => {
@@ -36,7 +37,8 @@ vi.mock('$lib/server/terminal/registry.js', () => {
 			events: eventsMock,
 			readFrom: readFromMock,
 			exitOutcome: exitOutcomeMock,
-			list: listMock
+			list: listMock,
+			onSessionBorn: onBornMock
 		}
 	};
 });

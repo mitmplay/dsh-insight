@@ -15,6 +15,8 @@ function fakeSession(overrides: Partial<TerminalSession> = {}): TerminalSession 
 	return {
 		id: 'fake-1',
 		isExited: () => false,
+		// ADR-0080 D1: list() projects the readiness facet from the session
+		readiness: () => ({ settled: false, settledSince: null, reason: null }),
 		streamBytes: () => 42,
 		readFrom: () => ({ text: '', nextOffset: 42, lossy: false }),
 		exitOutcome: () => null,
@@ -128,9 +130,12 @@ it('close surfaces a non-quiescent ladder with lingering pids', async () => {
 		const { r, session } = seeded(fakeSession());
 		const exited = fakeSession({ id: 'fake-2', isExited: () => true });
 		(r as unknown as { entries: Map<string, unknown> }).entries.set(exited.id, { session: exited, token: 't2', spec, ...OPERATOR_FACET });
+		// ADR-0080 D1 (additive): rows gain `readiness`; the ADR-0079 facet
+		// keys stay byte-identical (the UNSETTLED triple on a fresh fake).
+		const unsettled = { settled: false, settledSince: null, reason: null };
 		expect(r.list()).toEqual([
-			{ id: 'fake-1', exited: false, baton: OPERATOR_BATON },
-			{ id: 'fake-2', exited: true, baton: OPERATOR_BATON }
+			{ id: 'fake-1', exited: false, baton: OPERATOR_BATON, readiness: unsettled },
+			{ id: 'fake-2', exited: true, baton: OPERATOR_BATON, readiness: unsettled }
 		]);
 	});
 

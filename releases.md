@@ -1,3 +1,13 @@
+## 0.14.2
+
+Bumped from 0.14.1 - the terminal desk learns to be driven: the baton facet ships, readiness rides the wire, and wire-born sessions open as visible desk tabs (The Headless Split).
+
+### Features
+- **The Baton Facet (ADR-0079, 3483ac01)** - every terminal session carries a baton (operator / automation / unassigned) read token-free from the list; writes are refused with 403 FOREIGN_SESSION when another driver holds it; the desk shows an "agent holds this terminal" badge and the drive skill takes/releases labelled. Amendment accepted on live proof (0c3cc97c). Regression: terminal facet registry tests + desk badge tests.
+- **Readiness on the wire + focus follows the baton (ADR-0080, d47dde70)** - the list carries readiness {settled, settledSince, reason} so an agent never types into a busy shell; taking the baton focuses the tab. Live-verified on lane 5202 (0b816bca). Regression: readiness wire + focus tests.
+- **The Headless Split (waves 1-4, 51bbec57..c638fc1e)** - sessions born over the wire with desk intent ("new-tab", "split-down") now render on the desk the moment they are born: session-born event on the multiplexed hub (6c7ccc14), desk adopts wire-born rows display-first with born listeners on the row hub (e61a7c36), and the drive skill opens with desk:'new-tab' (4c520b2a, 39dba3d8). Live-verified on lane 5201. Regression: session-born fan-out, adoption and route-seam onSessionBorn spy tests.
+- **One-call drive script (c8187e9c)** - drive.mjs take/peek/type/release with the readiness gate and port discovery ladder, replacing hand-rolled curl loops.
+
 ## 0.14.1
 
 Bumped from 0.14.0 - the sub-agent parent badge ships with its amendment, the scheduled pill goes icon-only, the provider speaks glm-5.4, and a DSH jump audit pays the release-KB debt and republishes container-base 0.3.3 with its version constant actually bumped.

@@ -37,6 +37,10 @@ vi.mock('$lib/server/terminal/session.js', async (importOriginal) => {
 		isExited(): boolean {
 			return this.exited;
 		}
+		/** ADR-0080 D1: list() projects the readiness facet from the session */
+		readiness() {
+			return { settled: false, settledSince: null, reason: null };
+		}
 		streamBytes(): number {
 			return this.bytes;
 		}

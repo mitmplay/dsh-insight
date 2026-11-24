@@ -12,6 +12,7 @@
 	import { jobsRoster, isLiveJob } from '$lib/services/jobs/roster-store.svelte';
 	import { registerJobTabOpener, registerJobTabClearer, connectJobFollow } from '$lib/services/jobs/follow-client.svelte';
 	import { appConfig, loadAppConfig } from '$lib/services/config/app-config.svelte';
+	import { subscribeSessionBorn, type SessionBornFrame } from '$lib/services/terminal/stream-hub.svelte';
 	import type { DsiJobFollowEvent } from '$lib/types';
 import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 
@@ -214,7 +215,11 @@ import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 	});
 
 	onMount(() => {
+		// ADR 2026-11-24 D1: the desk hears session-born on the ONE hub. The
+		// subscription itself keeps the hub open even with zero rows.
+		const offBorn = subscribeSessionBorn((frame) => adoptBorn(frame));
 		return () => {
+			offBorn();
 			unregisterJobTabOpener();
 			unregisterJobTabClearer();
 			for (const timer of pendingCloses.values()) clearTimeout(timer);
@@ -381,6 +386,11 @@ import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 	function closeTab(tabIndex: number): void {
 		const tab = tabs[tabIndex];
 		for (const row of tab.rows) {
+			if (row.assigned && row.assigned.token === '') {
+				// adopted row — heal-close (see killRow, ADR 2026-11-24 D3)
+				void destroyRowSession(row.assigned);
+				continue;
+			}
 			if (row.assigned) {
 				void fetch('/api/terminal/' + row.assigned.sessionId + '/send', {
 					method: 'POST',
@@ -402,6 +412,14 @@ import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 	 *  the clear verb's per-session half (ADR D5c amendment 2026-11-03). */
 	function killRow(row: Row): void {
 		if (!row.assigned) return;
+		if (row.assigned.token === '') {
+			// An ADOPTED row (ADR 2026-11-24 D3) holds no token — the desk
+			// never minted one. Closing it goes through the heal ladder
+			// (reattach → destroy), which claims the baton as the operator's
+			// close, kills the PTY, and prunes the entry.
+			void destroyRowSession(row.assigned);
+			return;
+		}
 		void fetch('/api/terminal/' + row.assigned.sessionId + '/send', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
@@ -451,6 +469,37 @@ import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 		row.assigned = { sessionId, token };
 	}
 
+	// ── Adoption of wire-born sessions (ADR 2026-11-24 The Headless Split) ──
+	// D2: only intent-carrying births are adoptable. D3: DISPLAY-FIRST — the
+	// row renders from ring + SSE with NO token mint and NO {} reattach at
+	// adoption; the first operator keystroke triggers the panel's existing
+	// write-heal, which is the claim. D4: the row carries its sessionId in
+	// `assigned`, so the mirror effect publishes it and the rebuild ladder
+	// restores it after a refresh — no new persistence.
+	const pendingBorn: SessionBornFrame[] = [];
+
+	function adoptBorn(frame: SessionBornFrame): void {
+		if (restoring) {
+			// born while the rebuild ladder is still running — hold, and flush
+			// after restore (the sessionId dedupe below then drops doubles)
+			pendingBorn.push(frame);
+			return;
+		}
+		if (frame.deskIntent !== 'new-tab' && frame.deskIntent !== 'split-down') return; // D2: headless = invisible
+		const already = tabs.some((tb) => tb.rows.some((r) => r.assigned?.sessionId === frame.sessionId));
+		if (already) return; // duplicate birth / already adopted / already ours
+		// D3: token '' — the panel streams token-free and claims ONLY on the
+		// operator's first keystroke through its existing 403-heal.
+		const row: Row = { key: mkKey(), assigned: { sessionId: frame.sessionId, token: '' } };
+		if (frame.deskIntent === 'new-tab' || tabs.length === 0) {
+			tabs.push({ key: mkKey(), rows: [row] });
+			selectedTab = tabs.length - 1;
+		} else {
+			const shell = tabs[Math.min(selectedTab, tabs.length - 1)];
+			shell.rows.push(row);
+		}
+	}
+
 	onMount(() => {
 		if (!restoring) return;
 		// The REBUILD ladder (ADR D3): probe the registry's live sessions,
@@ -464,7 +513,7 @@ import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 				const probe = await fetch('/api/terminal');
 				const body = (await probe.json()) as {
 					enabled: boolean;
-					sessions?: Array<{ id: string; exited: boolean }>;
+					sessions?: Array<{ id: string; exited: boolean; deskIntent?: string }>;
 				};
 				const live = new Set((body.sessions ?? []).filter((s) => !s.exited).map((s) => s.id));
 				for (const remember of restored?.tabs ?? []) {
@@ -481,6 +530,16 @@ import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 						rows.push({ key: mkKey(), assigned: { sessionId, token: re.token } });
 					}
 					if (rows.length > 0) built.push({ key: mkKey(), rows });
+				}
+				// ADR 2026-11-24 §6 branch I: a birth that happened while NO desk
+				// was mounted left its intent in the registry. The rebuild ladder
+				// adopts those too — DISPLAY-FIRST (no reattach, token ''), like
+				// the live-born path. Sessions the mirror already placed skip.
+				for (const s of body.sessions ?? []) {
+					if (s.exited) continue; // an exited session is never adopted
+					if (s.deskIntent !== 'new-tab' && s.deskIntent !== 'split-down') continue;
+					if (built.some((tb) => tb.rows.some((r) => r.assigned?.sessionId === s.id))) continue;
+					built.push({ key: mkKey(), rows: [{ key: mkKey(), assigned: { sessionId: s.id, token: '' } }] });
 				}
 			} catch {
 				// the probe failing degrades to the fresh-desk fallback below
@@ -499,6 +558,9 @@ import { TERM_FONT_DEFAULT } from '$lib/utils/panel-prefs';
 				openJobTab(remembered.owner, remembered.jobId, remembered.jobId, false); // never steal focus from the restored selection
 			}
 			restoring = false;
+			// births that arrived mid-rebuild now find a settled tree; the
+			// sessionId dedupe in adoptBorn drops any the ladder already placed
+			for (const frame of pendingBorn.splice(0, pendingBorn.length)) adoptBorn(frame);
 		})();
 	});
 </script>

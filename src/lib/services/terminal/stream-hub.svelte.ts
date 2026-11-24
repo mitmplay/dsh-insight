@@ -29,8 +29,18 @@
  */
 
 /** `baton` (ADR-0079 D7): the write baton's holder moved for this session —
- *  holder / holderId / since, token-free — the desk badge's only feed. */
-export type TerminalHubFrameKind = 'output' | 'settled' | 'exit' | 'closed' | 'baton' | 'error';
+ *  holder / holderId / since, token-free — the desk badge's only feed.
+ *  `session-born` (ADR 2026-11-24 D1): a wire mint ANNOUNCED itself with a
+ *  desk intent — this event is the desk's adoption trigger, never routed
+ *  to rows (the born session has no row yet). */
+export type TerminalHubFrameKind = 'output' | 'settled' | 'exit' | 'closed' | 'baton' | 'session-born' | 'error';
+
+/** The session-born payload the desk's adoption handler receives. */
+export interface SessionBornFrame {
+	sessionId: string;
+	deskIntent?: 'new-tab' | 'split-down';
+	baton?: { holder?: string; holderId?: string | null; since?: number };
+}
 
 export interface TerminalHubFrameData {
 	sessionId: string;
@@ -69,6 +79,9 @@ const HUB_RECONNECT_MIN_MS = 1000;
 const HUB_RECONNECT_MAX_MS = 8000;
 
 const subs = new Map<number, HubSubscription>();
+/** Session-born listeners (ADR 2026-11-24 D1) — the desk registers one on
+ *  mount; they count toward the hub's refcount like row subscriptions. */
+const bornListeners = new Set<(frame: SessionBornFrame) => void>();
 let nextSubToken = 0;
 
 let liveEs: EventSource | null = null;
@@ -137,6 +150,10 @@ function openHub(ids: string[]): void {
 	params.set('ids', JSON.stringify(ids));
 	const resume = currentResume();
 	if (Object.keys(resume).length > 0) params.set('resume', JSON.stringify(resume));
+	// ADR 2026-11-24 D1: born=1 opts the connection into session-born — the
+	// desk's adoption event rides the SAME source as the rows (no second
+	// connection; the route keeps the zero-ids capability as a spare).
+	if (bornListeners.size > 0) params.set('born', '1');
 	const es = new EventSource('/api/terminal/stream?' + params.toString());
 	liveEs = es;
 	liveIds = ids;
@@ -147,6 +164,20 @@ function openHub(ids: string[]): void {
 			data = JSON.parse(raw) as TerminalHubFrameData;
 		} catch {
 			return; // a torn frame is dropped, never dispatched
+		}
+		if (kind === 'session-born') {
+			// the adoption event goes to the DESK, never to rows (no row owns
+			// a session that was born a moment ago)
+			const born = data as unknown as SessionBornFrame;
+			if (typeof born?.sessionId !== 'string' || born.sessionId.length === 0) return;
+			for (const listener of bornListeners) {
+				try {
+					listener(born);
+				} catch {
+					// a throwing adopter never breaks the dispatch loop
+				}
+			}
+			return;
 		}
 		const id = typeof data?.sessionId === 'string' ? data.sessionId : '';
 		if (!id) return; // untagged frames have no owner — dropped (AC3)
@@ -167,7 +198,7 @@ function openHub(ids: string[]): void {
 		}
 	};
 
-	for (const kind of ['output', 'settled', 'exit', 'closed', 'baton', 'error'] as const) {
+	for (const kind of ['output', 'settled', 'exit', 'closed', 'baton', 'session-born', 'error'] as const) {
 		es.addEventListener(kind, (e) => {
 			const data = 'data' in e ? (e as MessageEvent).data : '';
 			dispatch(kind, String(data));
@@ -215,9 +246,26 @@ export function subscribeTerminalStream(id: string, fromByte: number, handlers: 
 	};
 }
 
+/** Subscribe the desk to session-born events (ADR 2026-11-24 D1). The
+ *  listeners ride whatever hub source the rows already keep open (born=1
+ *  rides its query) — NO second connection, per ADR-0053's connection
+ *  economy. A mounted desk ALWAYS holds ≥1 row (the virgin desk self-opens
+ *  one; the rebuild ladder falls back to one), so the hub is open in
+ *  practice; a birth racing the transient zero-row rebuild window is not
+ *  lost — its intent persists in the registry and the rebuild ladder's
+ *  list() sweep adopts it (ADR §6 branch I).
+ *  @returns the unsubscribe. */
+export function subscribeSessionBorn(handler: (frame: SessionBornFrame) => void): () => void {
+	bornListeners.add(handler);
+	return () => {
+		bornListeners.delete(handler);
+	};
+}
+
 /** Test-only: tear everything down (file isolation). */
 export function resetStreamHubForTests(): void {
 	closeHub();
 	subs.clear();
+	bornListeners.clear();
 	nextSubToken = 0;
 }

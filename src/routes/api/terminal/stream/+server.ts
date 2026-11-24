@@ -73,7 +73,12 @@ function parseResume(raw: string | null): Record<string, number> {
 export const GET = (ctx: { url: URL }): Response => {
 	const ids = parseIds(ctx.url.searchParams.get('ids'));
 	const resume = parseResume(ctx.url.searchParams.get('resume'));
-	if (ids.length === 0) return json({ error: 'NO_IDS' }, { status: 400 });
+	// ADR 2026-11-24 D1: born=1 opts this connection into the session-born
+	// control event — the one case where an EMPTY id set is a legal stream
+	// (a desk with zero rows still must hear births). Absent/garbage ids
+	// without born=1 stay a 400, unchanged.
+	const bornEnabled = ctx.url.searchParams.get('born') === '1';
+	if (ids.length === 0 && !bornEnabled) return json({ error: 'NO_IDS' }, { status: 400 });
 
 	const encoder = new TextEncoder();
 	const state = { closed: false };
@@ -123,6 +128,15 @@ export const GET = (ctx: { url: URL }): Response => {
 			};
 
 			const detach = new Map<string, () => void>();
+
+			// The birth signal (ADR 2026-11-24 D1): registry-level, NOT per-
+			// session — a born session has no row subscribed to it yet. Every
+			// born=1 connection hears every intent-carrying birth. Dropped with
+			// all other listeners on cancel.
+			const offBorn = terminalRegistry.onSessionBorn((event) => {
+				enqueue(sseFrame('session-born', { sessionId: event.sessionId, deskIntent: event.deskIntent, baton: event.baton }));
+			});
+			detachFns.push(offBorn);
 
 			for (const id of ids) {
 				// Unknown id: one error frame for THAT id, hub survives (AC5).

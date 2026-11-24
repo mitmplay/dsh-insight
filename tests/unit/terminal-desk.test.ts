@@ -19,14 +19,27 @@ import { readFileSync } from 'node:fs';
 // TerminalDesk.svelte:139). Give the compile room; leaks are the poison.
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
+const { xtermInstances } = vi.hoisted(() => ({ xtermInstances: [] as Array<{ dataHandler?: (d: string) => void }> }));
+
 vi.mock('@xterm/xterm', () => ({
 	Terminal: class {
-		open() {}
-		loadAddon() {}
-		write() {}
-		onData() {}
-		focus() {}
-		dispose() {}
+		calls: string[] = [];
+		constructor() {
+			xtermInstances.push(this);
+		}
+		open() { this.calls.push('open'); }
+		loadAddon() { this.calls.push('loadAddon'); }
+		write() { this.calls.push('write'); }
+		// recorded so adoption tests can SIMULATE the operator's first
+		// keystroke (the claim-on-contact path, ADR 2026-11-24 D3)
+		dataHandler?: (d: string) => void;
+		onData(fn?: (d: string) => void) {
+			this.calls.push('onData');
+			if (fn) this.dataHandler = fn;
+		}
+		onResize(fn?: unknown) { this.calls.push('onResize'); void fn; }
+		focus() { this.calls.push('focus'); }
+		dispose() { this.calls.push('dispose'); }
 	}
 }));
 
@@ -512,3 +525,168 @@ function click(target: HTMLElement, sel: string): void {
 	(target.querySelector(sel) as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
 	flushSync();
 }
+/* ============================================================
+ * Wave 3 — adoption of wire-born sessions (ADR 2026-11-24
+ * The Headless Split, D2/D3/D4). The born frame rides the ONE hub
+ * (session-born event); the desk adopts DISPLAY-FIRST: no token mint,
+ * no {} reattach at adoption; the first keystroke claims.
+ * ============================================================ */
+
+type AdoptMirror = { tabs: Array<{ sessionIds: string[] }>; selectedTab: number };
+
+describe('TerminalDesk — adoption of wire-born sessions (Wave 3)', () => {
+	let mirrors: AdoptMirror[];
+	let reattachCalls: string[];
+	let mintCalls: number;
+	let sendBodies: string[];
+
+	function adoptRoute(listSessions: Array<{ id: string; exited: boolean; deskIntent?: string }>): FetchRoute {
+		return (url, init) => {
+			if (url === '/api/terminal' && !init) return Promise.resolve(jsonResponse({ enabled: true, sessions: listSessions }));
+			if (url === '/api/terminal' && init) {
+				mintCalls++;
+				return Promise.resolve(jsonResponse({ sessionId: 'desk-' + mintCalls, token: 'tok-' + mintCalls, totalBytes: 0 }));
+			}
+			if (url.includes('/reattach')) {
+				reattachCalls.push(url);
+				return Promise.resolve(jsonResponse({ token: 'healed-tok', fromByte: 0 }));
+			}
+			if (url.includes('/send')) {
+				const body = JSON.parse(String(init?.body ?? '{}')) as { token?: string; action?: string };
+				sendBodies.push(String(init?.body ?? '{}'));
+				// the fence: a tokenless write (adopted row pre-claim) 403s
+				if (!body.token) return Promise.resolve(new Response(JSON.stringify({ error: 'FOREIGN_SESSION' }), { status: 403 }));
+				return Promise.resolve(jsonResponse({ ok: true }));
+			}
+			return Promise.resolve(jsonResponse({}));
+		};
+	}
+
+	async function mountAdoptDesk(restored?: AdoptMirror | null): Promise<{ target: HTMLElement; cleanup: () => void }> {
+		postOpens = 0;
+		closeCalls.length = 0;
+		eventSources.length = 0;
+		xtermInstances.length = 0;
+		mirrors = [];
+		reattachCalls = [];
+		mintCalls = 0;
+		sendBodies = [];
+		const { default: Host } = await import('./TerminalDeskHost.svelte');
+		const target = document.body.appendChild(document.createElement('div'));
+		const app = mount(Host, { target, props: { onShellExit: () => undefined, onMirror: (m: AdoptMirror) => mirrors.push(m), restored: restored ?? null } });
+		flushSync();
+		await tick();
+		flushSync();
+		return { target, cleanup: () => { unmount(app); target.remove(); } };
+	}
+
+	function bornFrom(payload: Record<string, unknown>): void {
+		const es = eventSources[eventSources.length - 1];
+		if (!es) throw new Error('no hub EventSource open');
+		es.emit('session-born', JSON.stringify(payload));
+	}
+
+	beforeEach(() => {
+		fetchRoute = () => undefined;
+	});
+
+	it('D2+D3: a session-born with new-tab intent adopts as a NEW SELECTED tab — no mint, no reattach', async () => {
+		fetchRoute = adoptRoute([]);
+		const h = await mountAdoptDesk();
+		await tick();
+		expect(h.target.querySelectorAll('[data-testid^="terminal-tab-button-"]').length).toBe(1);
+		bornFrom({ sessionId: 't-77', deskIntent: 'new-tab', baton: { holder: 'automation', holderId: 'lead', since: 1 } });
+		await tick();
+		flushSync();
+		expect(h.target.querySelectorAll('[data-testid^="terminal-tab-button-"]').length).toBe(2);
+		expect(h.target.querySelector('[data-testid="terminal-tab-button-1"]')?.getAttribute('data-selected')).toBe('true');
+		expect(mintCalls).toBe(1); // only the desk's own self-open row — adoption minted NOTHING
+		expect(reattachCalls).toHaveLength(0); // D3: adoption never claims
+		h.cleanup();
+	});
+
+	it('D2+D3: split-down intent stacks a row on the SELECTED tab', async () => {
+		fetchRoute = adoptRoute([]);
+		const h = await mountAdoptDesk();
+		await tick();
+		bornFrom({ sessionId: 't-88', deskIntent: 'split-down', baton: { holder: 'automation', holderId: 'lead', since: 1 } });
+		await tick();
+		flushSync();
+		const c0 = h.target.querySelector('[data-testid="terminal-tab-container-0"]')!;
+		expect(c0.querySelectorAll('[data-testid="terminal-panel"]').length).toBe(2);
+		expect(c0.querySelector('[data-testid="terminal-split-container"]')?.getAttribute('data-rows')).toBe('2');
+		expect(mintCalls).toBe(1);
+		expect(reattachCalls).toHaveLength(0);
+		h.cleanup();
+	});
+
+	it('D4: the adopted sessionId rides the mirror publish', async () => {
+		fetchRoute = adoptRoute([]);
+		const h = await mountAdoptDesk();
+		await tick();
+		bornFrom({ sessionId: 't-99', deskIntent: 'split-down', baton: { holder: 'automation', holderId: 'lead', since: 1 } });
+		await tick();
+		flushSync();
+		const flat = mirrors.flatMap((m) => m.tabs.flatMap((tb) => tb.sessionIds));
+		expect(flat).toContain('t-99');
+		h.cleanup();
+	});
+
+	it('D2: an intent-less birth is IGNORED (the headless ghost stays invisible)', async () => {
+		fetchRoute = adoptRoute([]);
+		const h = await mountAdoptDesk();
+		await tick();
+		bornFrom({ sessionId: 't-2', baton: { holder: 'automation', holderId: 'lead', since: 1 } });
+		await tick();
+		flushSync();
+		expect(h.target.querySelectorAll('[data-testid^="terminal-tab-button-"]').length).toBe(1);
+		h.cleanup();
+	});
+
+	it('D3: the FIRST operator keystroke claims via the existing heal — exactly once', async () => {
+		fetchRoute = adoptRoute([]);
+		const h = await mountAdoptDesk();
+		await tick();
+		bornFrom({ sessionId: 't-55', deskIntent: 'split-down', baton: { holder: 'automation', holderId: 'lead', since: 1 } });
+		await tick();
+		flushSync();
+		expect(reattachCalls).toHaveLength(0);
+		await tick();
+		flushSync();
+		// simulate the operator typing into the adopted row
+		// the xterm surface attaches through a dynamic import — POLL for the
+		// keystroke handler instead of a fixed sleep (skill 3.5.3)
+		let term: { dataHandler?: (d: string) => void } | undefined;
+		for (let i = 0; i < 50; i++) {
+			term = xtermInstances[xtermInstances.length - 1] as { dataHandler?: (d: string) => void };
+			if (typeof term?.dataHandler === 'function') break;
+			await tick(10);
+		}
+		term.dataHandler!('uname -sr\n');
+		await tick(30);
+		// one heal reattach (the claim) — adoption fired none, so 1 total
+		expect(reattachCalls).toHaveLength(1);
+		// the retried write carried the healed token
+		const writes = sendBodies
+			.map((b) => JSON.parse(b) as { action?: string; token?: string })
+			.filter((b) => b.action === 'write');
+		expect(writes.some((w) => w.token === 'healed-tok')).toBe(true);
+		h.cleanup();
+	});
+
+	it('branch I: a birth from BEFORE the mount (intent in the registry, no mirror) is adopted on rebuild — display-first', async () => {
+		// a dead intent session proves the exited guard; t-40 proves adoption
+		fetchRoute = adoptRoute([{ id: 't-7', exited: false }, { id: 't-40', exited: false, deskIntent: 'new-tab' }, { id: 't-41', exited: true, deskIntent: 'split-down' }]);
+		const h = await mountAdoptDesk({ tabs: [{ sessionIds: ['t-7'] }], selectedTab: 0 });
+		await tick(320); // probe + reattach + restore settle
+		flushSync();
+		// the mirror-remembered t-7 restored (reattach), the intent-carrying
+		// t-40 adopted WITHOUT reattach, the exited t-41 ignored
+		expect(reattachCalls.some((u) => u.includes('t-7'))).toBe(true);
+		expect(reattachCalls.some((u) => u.includes('t-40'))).toBe(false);
+		const labels = [...h.target.querySelectorAll('[data-testid^="terminal-tab-button-"]')].map((b) => b.textContent ?? '');
+		expect(labels.some((l) => l.includes('40'))).toBe(true);
+		expect(labels.some((l) => l.includes('41'))).toBe(false);
+		h.cleanup();
+	});
+});

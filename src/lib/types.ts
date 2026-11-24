@@ -725,6 +725,19 @@ export interface TerminalDeskMirror {
 	jobs?: Array<{ owner: string; jobId: string }>;
 }
 
+/** Mirrored from src/lib/server/terminal/types.ts SessionReadiness (ADR-0080
+ *  D1) - the readiness facet as the GET /api/terminal wire carries it.
+ *  Duplicated by the BC-2 rule: browser code never imports $lib/server.
+ *  Same-name mirror so a drift shows at review, not at runtime. */
+export interface SessionReadiness {
+	/** True when the shell produced no output for >= idleMs (time-based, D2). */
+	settled: boolean;
+	/** Epoch ms settled last became true; null while unsettled/fresh. */
+	settledSince: number | null;
+	/** The last recorded settle reason; null while unsettled. */
+	reason: 'stdin_read' | 'inferred_idle' | 'timeout' | 'session_exit' | null;
+}
+
 export interface DsiTerminalPanel {
 	/** Stable panel identity — selection and close target this. */
 	id: string;

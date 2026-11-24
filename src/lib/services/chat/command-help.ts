@@ -142,7 +142,7 @@ export const COMMAND_HELP: Record<CommandHelpTopic, CommandHelpEntry> = {
 	terminal: {
 		usage: '/dsi-terminal [--new-tab | --split-down]',
 		summary:
-			'Aims the operator terminal desk: the open desk takes the focus; otherwise a NEW panel opens to the right of this conversation. --new-tab appends a tab; --split-down stacks another shell under the selected one; the two flags cannot combine. Renders the disabled note unless terminal.enabled is set in settings.',
+			'Aims the operator terminal desk: the open desk takes the focus; otherwise a NEW panel opens to the right of this conversation. --new-tab appends a tab; --split-down stacks another shell under the selected one; the two flags cannot combine. Renders the disabled note unless terminal.enabled is set in settings. Opening or reloading the desk takes the typing baton back from any agent driving a tab — the desk badge shows who holds it.',
 		params: [],
 		examples: [
 			{
