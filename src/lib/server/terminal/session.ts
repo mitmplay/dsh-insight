@@ -79,6 +79,10 @@ export class TerminalSession extends EventEmitter {
 	private spillFile = '';
 	private spillHandle: import('node:fs/promises').FileHandle | null = null;
 	private spillDropped = false;
+	/** Serialized spill writes: a pending append can never race dispose()
+ *  and re-open the handle after it was closed (the GC-FileHandle leak). */
+	private spillChain: Promise<void> = Promise.resolve();
+	private spillDisposed = false;
 
 	private exited = false;
 	/** Readiness state (ADR-0080 D1): the passive settle observer's facts,
@@ -140,12 +144,17 @@ export class TerminalSession extends EventEmitter {
 		}
 		if (cut <= 0) return;
 		const dropped = this.tail.slice(0, cut);
-		void this.spillAppend(dropped);
+		this.spillAppend(dropped);
 		this.tailStartOffset += Buffer.byteLength(dropped);
 		this.tail = this.tail.slice(cut);
 	}
 
-	private async spillAppend(dropped: string): Promise<void> {
+	private spillAppend(dropped: string): void {
+		this.spillChain = this.spillChain.then(() => this.spillWrite(dropped)).catch(() => undefined);
+	}
+
+	private async spillWrite(dropped: string): Promise<void> {
+		if (this.spillDisposed) return; // dispose() owns the handle from here
 		try {
 			if (!this.spillFile) {
 				this.spillFile = join(tmpdir(), 'dsi-terminal-' + this.id + '.spill');
@@ -466,6 +475,8 @@ export class TerminalSession extends EventEmitter {
 
 	/** Release file handles; safe to call once the ladder settled. */
 	private async dispose(): Promise<void> {
+		this.spillDisposed = true;
+		await this.spillChain; // an in-flight append finishes BEFORE the close
 		if (this.spillHandle) {
 			await this.spillHandle.close().catch(() => undefined);
 			this.spillHandle = null;

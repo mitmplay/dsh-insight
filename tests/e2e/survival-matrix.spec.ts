@@ -221,6 +221,7 @@ test.describe('survival matrix - tray filters (R9, ADR-0071 D7/D8)', () => {
 		// while the handlers are not wired). Wait for CONTENT, not the input.
 		await expect(page.getByTestId('pg-tray-resting-scheduler')).toBeVisible({ timeout: 30000 });
 		// type in the RESTING header — the resting list narrows, upstairs untouched
+		await page.getByTestId('pg-tray-resting-filter').waitFor({ state: 'visible', timeout: 15000 });
 		await fillUntil(page, 'pg-tray-resting-filter', 'Sched', async () => {
 			await expect(page.getByTestId('pg-tray-resting-sessions')).toHaveCount(0, { timeout: 1500 });
 		});

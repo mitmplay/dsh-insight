@@ -63,7 +63,9 @@ class FakeEventSource implements FakeES {
 	listeners = new Map<string, Array<(e: MessageEvent) => void>>();
 	constructor(url: string) {
 		this.url = url;
-		eventSources.push(this);
+		// The Job Bridge (ADR-0081): the desk opens one roster-push stream on mount — out
+		// of this registry's scope, which pins the terminal hub sources (ADR-0053).
+		if (!url.includes('/api/dsh/jobs/stream')) eventSources.push(this);
 	}
 	close() {}
 	addEventListener(kind: string, fn: (e: MessageEvent) => void) {
@@ -506,18 +508,25 @@ describe('TerminalDesk — the grown-up strip (2026-11-03 amendment D5b/D5c/D5d)
 		expect(h.target.querySelector('[data-testid="terminal-tabstrip-clear-pop"]')).toBeNull();
 		h.cleanup();
 	});
-	it('D5d — the job-tab loop is a SIBLING of the shell loop (source-level pin)', () => {
-		// readFileSync pattern per this file's house style: the shipped bug
-		// nested the jobTabs each INSIDE the tabs each — each job tab then
-		// rendered once per shell tab. Pin the hoisted order at the source.
+	it("D5d′ — the job-ROW loop is INSIDE its tab, after the shell rows (source-level pin)", () => {
+		// readFileSync pattern per this file's house style. Successor of the
+		// job-TAB pin (the shipped bug once nested each job tab inside the shell
+		// loop): The Job Bridge 4.1 retired the Tn-J species, so what is pinned
+		// now is its replacement's geometry — a job ROW belongs to its TAB. The
+		// row loop sits INSIDE the tabs loop, after the shell `{#each tab.rows`
+		// loop's close (stacked under the shells); no job-tab loop remains.
 		const source = readFileSync('src/lib/components/terminal/TerminalDesk.svelte', 'utf8');
 		const tabsOpen = source.indexOf('{#each tabs as tab, i (tab.key)}');
-		const tabsClose = source.indexOf('{/each}', tabsOpen);
-		const jobOpen = source.indexOf('{#each jobTabs as job, ji (job.key)}');
-		const headerClose = source.indexOf('</TerminalTabHeader>');
-		expect(jobOpen).toBeGreaterThan(tabsClose);
-		expect(jobOpen).toBeLessThan(headerClose);
-		expect(tabsClose).toBeLessThan(headerClose);
+		const shellOpen = source.indexOf('{#each tab.rows as row (row.key)}', tabsOpen);
+		const shellClose = source.indexOf('{/each}', shellOpen);
+		const rowOpen = source.indexOf('{#each tab.jobRows as jobRow (jobRow.key)}');
+		const rowClose = source.indexOf('{/each}', rowOpen);
+		const tabsClose = source.indexOf('{/each}', rowClose + 1);
+		expect(tabsOpen).toBeGreaterThan(-1);
+		expect(shellOpen).toBeGreaterThan(tabsOpen);
+		expect(rowOpen).toBeGreaterThan(shellClose); // AFTER the shell rows
+		expect(rowClose).toBeLessThan(tabsClose); // INSIDE its tab
+		expect(source).not.toContain('{#each jobTabs'); // the tab species is gone
 	});
 });
 

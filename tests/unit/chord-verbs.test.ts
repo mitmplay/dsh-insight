@@ -22,6 +22,15 @@ import {
 	removePanel,
 	resetFloorState
 } from '$lib/services/panels/floor-registry.svelte';
+import { deriveLineage, familyRenderOrder, type FamilyMember } from '$lib/services/lineage/lineage';
+import { moveFactsFrom } from '$lib/services/lineage/lineage-move';
+import {
+	ghostPanelRowsFor,
+	openSessionIdsOf,
+	panelRowsFor
+} from '$lib/services/panels/panel-rows';
+import type { PanelRow } from '$lib/services/conversation/workspace-context.svelte';
+import type { DsiSessionSummary } from '$lib/types';
 
 function configure(subagentIds: Set<string> = new Set()): void {
 	configureFloorRegistry({
@@ -144,5 +153,161 @@ describe('chord verb dispatch facts (D15)', () => {
 		const before = floor.panels.length;
 		for (const p of [...floor.panels]) if (p.kind === 'browser') removePanel(p.id);
 		expect(floor.panels).toHaveLength(before);
+	});
+});
+
+/**
+ * ADR-0085 (2026-11-25) — the chord's n verb births a STANDALONE session.
+ * The route's add request carries NO afterSessionId (D1), so doAdd's plain
+ * branch falls through to insertionSlot() — The Focused Slot (2026-08-31),
+ * left of the focus, climbing to the family head when a sub-agent is
+ * focused (D3) — and never remembers an add-time edge (D2). SC#1, the
+ * operator report: the as-built request anchored on the focused session, so
+ * the newborn landed BETWEEN a parent and its ghost sub-agent, nested in
+ * the roster as that parent's child. Expected values are the planner's
+ * probe (ADR-0085 §5.3): B, A roots; S a sub-agent of A; S2 a sub-agent of
+ * S; the newborn N parentless on the wire.
+ */
+describe('verb n — the standalone birth (ADR-0085)', () => {
+	const row = (sessionId: string, parent: string | null, subagent = false): DsiSessionSummary => ({
+		sessionId,
+		title: sessionId,
+		agentPreset: null,
+		running: false,
+		blank: false,
+		updatedAt: 0,
+		workspace: '/ws/x',
+		turns: null,
+		parentSessionId: parent,
+		origin: subagent ? 'subagent' : null
+	});
+	/** B, A roots; S a sub-agent of A; S2 a sub-agent of S when nested. */
+	const spine = (nested: boolean): DsiSessionSummary[] => [
+		row('B', null),
+		row('A', null),
+		row('S', 'A', true),
+		...(nested ? [row('S2', 'S', true)] : [])
+	];
+	const sessions = () => floor.panels.map((p) => (p.kind === 'conversation' ? p.sessionId : p.kind));
+
+	/** The registry over REAL lineage facts — the same derivations the
+	 *  floor reads feed the roster — plus a rememberEdge spy in the seam. */
+	function install(spineRows: DsiSessionSummary[]) {
+		const facts = deriveLineage(spineRows);
+		const rememberEdge = vi.fn();
+		configureFloorRegistry({
+			getLineageFacts: () => facts,
+			getMoveFacts: () => moveFactsFrom(facts, openSessionIdsOf(floor.panels)),
+			getWorkspaceFor: () => null,
+			ensureCold: async () => {},
+			rememberEdge,
+			getPanelWidth: () => 480,
+			setPanelWidthPreset: () => {},
+			setTreePct: () => {},
+			getSettingsHomes: () => ({ dsi: '/h/.dsi', dsh: '/h/.dsh' }),
+			applyTerminalDeskAction: () => {}
+		});
+		return { rememberEdge };
+	}
+
+	/** Row facts + ghosts over the current floor, the roster's own inputs
+	 *  (edgeCache = what pageFeeds.rememberEdge would have written). */
+	function rowInputs(spineRows: DsiSessionSummary[], edgeCache: Record<string, string> = {}) {
+		const facts = deriveLineage(spineRows);
+		return {
+			panels: floor.panels,
+			spineRows,
+			coldCache: {},
+			deadSessions: {},
+			edgeCache,
+			lineageFacts: facts,
+			moveFacts: moveFactsFrom(facts, openSessionIdsOf(floor.panels))
+		};
+	}
+	/** The sidebar's render order, adapted exactly as SidebarSessionOpen does
+	 *  (id = sessionId, parent = parentSessionId, order = siblingIndex);
+	 *  `~` marks a ghost row. */
+	function roster(spineRows: DsiSessionSummary[], edgeCache: Record<string, string> = {}): string[] {
+		const input = rowInputs(spineRows, edgeCache);
+		const member = (r: PanelRow): FamilyMember => ({
+			id: r.panel.kind === 'conversation' ? r.panel.sessionId : r.panel.id,
+			parent: r.parentSessionId ?? null,
+			order: r.siblingIndex
+		});
+		return familyRenderOrder(panelRowsFor(input).map(member), ghostPanelRowsFor(input).map(member)).map(
+			(e) => (e.kind === 'panel' ? e.member.id : `~${e.member.id}`)
+		);
+	}
+
+	beforeEach(() => resetFloorState());
+	afterEach(() => disposeFloorGestures());
+
+	it('(a) a main session focused: the newborn lands BEFORE it, the ghost stays under its parent, no edge is remembered', () => {
+		const { rememberEdge } = install(spine(false));
+		const B = makePanel('B', null);
+		const A = makePanel('A', null);
+		initFloor([B, A], A.id);
+		doAdd({ sessionId: 'N', agentPreset: null, focus: true });
+		expect(sessions()).toEqual(['B', 'N', 'A']);
+		expect(rememberEdge).not.toHaveBeenCalled();
+		expect(roster(spine(false))).toEqual(['B', 'N', 'A', '~S']); // ~S nests under A, never under N
+		const newborn = panelRowsFor(rowInputs(spine(false))).find((r) => r.panel.id === floor.selectedPanelId);
+		expect(newborn?.panel).toMatchObject({ kind: 'conversation', sessionId: 'N' }); // the newcomer is selected
+		expect(newborn?.parentSessionId).toBe(null);
+		expect(newborn?.fork).toBe(false);
+		expect(newborn?.depth).toBe(0);
+	});
+
+	it('(b) a sub-agent focused: the newborn lands before the whole family (its head), not between the head and its child', () => {
+		const { rememberEdge } = install(spine(false));
+		const B = makePanel('B', null);
+		const A = makePanel('A', null);
+		const S = makePanel('S', null);
+		initFloor([B, A, S], S.id);
+		doAdd({ sessionId: 'N', agentPreset: null, focus: true });
+		expect(sessions()).toEqual(['B', 'N', 'A', 'S']);
+		expect(rememberEdge).not.toHaveBeenCalled();
+		expect(roster(spine(false))).toEqual(['B', 'N', 'A', 'S']);
+	});
+
+	it('(c) a nested sub-agent focused: the climb is to the FAMILY HEAD, not one hop', () => {
+		const { rememberEdge } = install(spine(true));
+		const B = makePanel('B', null);
+		const A = makePanel('A', null);
+		const S = makePanel('S', null);
+		const S2 = makePanel('S2', null);
+		initFloor([B, A, S, S2], S2.id);
+		doAdd({ sessionId: 'N', agentPreset: null, focus: true });
+		expect(sessions()).toEqual(['B', 'N', 'A', 'S', 'S2']);
+		expect(rememberEdge).not.toHaveBeenCalled();
+		expect(roster(spine(true))).toEqual(['B', 'N', 'A', 'S', 'S2']);
+	});
+
+	it('(d) an orphan sub-agent focused (its spawner off the floor): it is its own head', () => {
+		const { rememberEdge } = install(spine(false));
+		const B = makePanel('B', null);
+		const S = makePanel('S', null);
+		initFloor([B, S], S.id);
+		doAdd({ sessionId: 'N', agentPreset: null, focus: true });
+		expect(sessions()).toEqual(['B', 'N', 'S']);
+		expect(rememberEdge).not.toHaveBeenCalled();
+		// S's spawner A holds no panel, so no ghost roots under an open panel
+		expect(roster(spine(false))).toEqual(['B', 'N', 'S']);
+	});
+
+	it("(control) the AS-BUILT anchored request reproduces SC#1 — this is the bug the route's anchor was feeding", () => {
+		const { rememberEdge } = install(spine(false));
+		const B = makePanel('B', null);
+		const A = makePanel('A', null);
+		initFloor([B, A], A.id);
+		// the pre-ADR-0085 route shape: afterSessionId = the focused session
+		doAdd({ sessionId: 'N', agentPreset: null, afterSessionId: 'A', focus: true });
+		expect(sessions()).toEqual(['B', 'A', 'N']); // past A's panel unit
+		expect(rememberEdge).toHaveBeenCalledExactlyOnceWith('N', 'A'); // a family the host never recorded
+		// with that edge in the cache the roster nests N as A's child, ABOVE A's ghost
+		expect(roster(spine(false), { N: 'A' })).toEqual(['B', 'A', 'N', '~S']);
+		const tied = panelRowsFor(rowInputs(spine(false), { N: 'A' })).find((r) => r.panel.id === floor.selectedPanelId);
+		expect(tied?.parentSessionId).toBe('A');
+		expect(tied?.fork).toBe(true); // the fake tie paints as a fork
 	});
 });

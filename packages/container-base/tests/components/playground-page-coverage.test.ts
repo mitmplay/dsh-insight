@@ -498,3 +498,121 @@ describe('playground page — zoom commit keeps widths untouched (SSC#2)', () =>
 		expect(after.panelWidth).toBe(1010);
 	});
 });
+
+describe('playground page — revive fallback arms (missing entries + junk rows)', () => {
+	it('a junk row (no kind) drops and panes missing from the blob fall to defaults', () => {
+		localStorage.setItem(
+			'pg-panels',
+			JSON.stringify({
+				zoom: 1,
+				panelWidth: 520,
+				panels: [
+					{ id: 'notes', kind: 'demo-pane', width: 480, journey: 'upstairs' },
+					{ id: 'broken-row', width: 10 }
+				]
+			})
+		);
+		mountPage();
+		// the kind-less row dropped; notes upstairs, the other two rest
+		expect(trayEl('pg-tray-upstairs-notes')).not.toBeNull();
+		expect(trayEl('pg-tray-resting-scheduler')).not.toBeNull();
+		expect(trayEl('pg-tray-resting-sessions')).not.toBeNull();
+		// the next persist rewrites the full desk: missing panes carry the
+		// fallback (panelWidth) width and the 'resting' journey arm
+		const blob = JSON.parse(localStorage.getItem('pg-panels') ?? '{}') as {
+			panels?: { id: string; width?: number }[];
+		};
+		expect(blob.panels?.map((p) => p.id)).toEqual(['notes', 'scheduler', 'sessions']);
+		expect(blob.panels?.find((p) => p.id === 'scheduler')?.width).toBe(520);
+		expect(blob.panels?.find((p) => p.id === 'sessions')?.width).toBe(520);
+		expect(blob.panels?.find((p) => p.id === 'notes')?.width).toBe(480);
+	});
+
+	it('the floor renders the missing-entry pane; drag commit persists the fallback width', () => {
+		localStorage.setItem(
+			'pg-panels',
+			JSON.stringify({
+				zoom: 1,
+				panelWidth: 640,
+				panels: [{ id: 'sessions', kind: 'demo-pane', width: 700, journey: 'upstairs' }]
+			})
+		);
+		mountPage();
+		// sessions is the only upstairs pane; its index is 2, so gutter 2
+		// is its seam. The other panes ride the ?? loaded.panelWidth arm.
+		const gutter = q('[data-testid="panel-gutter-2"]');
+		gutter.dispatchEvent(winMouseEvent(100, 'mousedown'));
+		window.dispatchEvent(winMouseEvent(150, 'mousemove'));
+		window.dispatchEvent(winMouseEvent(150, 'mouseup'));
+		flushSync();
+		const blob = JSON.parse(localStorage.getItem('pg-panels') ?? '{}') as {
+			panels?: { id: string; width?: number }[];
+		};
+		expect(blob.panels?.find((p) => p.id === 'sessions')?.width).toBe(750);
+		expect(blob.panels?.find((p) => p.id === 'notes')?.width).toBe(640);
+	});
+});
+
+describe('playground page — tray filters revive junk arms (pg-tray-filters)', () => {
+	it('junk stored filter values fall back to the empty string and persist back', () => {
+		localStorage.setItem('pg-tray-filters', JSON.stringify({ upstairs: 42, resting: null }));
+		mountPage();
+		// both fallback arms ran: the filters render empty
+		const up = document.querySelector<HTMLInputElement>('[data-testid="pg-tray-upstairs-filter"]');
+		const down = document.querySelector<HTMLInputElement>('[data-testid="pg-tray-resting-filter"]');
+		expect(up?.value).toBe('');
+		expect(down?.value).toBe('');
+		// the initialize-on-mount pass persisted the normalized shape
+		const saved = JSON.parse(localStorage.getItem('pg-tray-filters') ?? '{}') as {
+			upstairs?: unknown;
+			resting?: unknown;
+		};
+		expect(saved).toEqual({ upstairs: '', resting: '' });
+	});
+
+	it('a non-matching upstairs filter empties its own rows only (view filter)', () => {
+		const root = mountPage();
+		typeFilter('pg-tray-upstairs-filter', 'zzz-no-match');
+		flushSync();
+		// the upstairs list is empty; the resting list keeps its rows
+		expect(root.querySelector('[data-testid="pg-tray-upstairs-notes"]')).toBeNull();
+		expect(root.querySelector('[data-testid="pg-tray-resting-scheduler"]')).not.toBeNull();
+		// a view filter never closes panes: the floor still renders Notes
+		expect(root.querySelector('.pane-body')).not.toBeNull();
+		const blob = JSON.parse(localStorage.getItem('pg-tray-filters') ?? '{}') as {
+			upstairs?: string;
+		};
+		expect(blob.upstairs).toBe('zzz-no-match');
+	});
+});
+
+describe('playground page — sidebar settle without movement (no-live arm)', () => {
+	it('mousedown + mouseup with no drag settles silently: no badge, width unchanged', () => {
+		mountPage();
+		const before = localStorage.getItem('pg-sidebar');
+		const gutter = q('[data-testid="sidebar-gutter"]');
+		gutter.dispatchEvent(winMouseEvent(200, 'mousedown'));
+		flushSync();
+		// a mouseup with zero movement: badgePhase is not 'live' → the
+		// settle arm skips the fade and goes straight to saveSidebar
+		window.dispatchEvent(winMouseEvent(200, 'mouseup'));
+		flushSync();
+		expect(document.querySelector('[data-testid="pg-sidebar-width-badge"]')).toBeNull();
+		expect(localStorage.getItem('pg-sidebar')).toBe(before);
+	});
+
+	it('a sidebar drag beyond the clamp hits the max-600 arm', () => {
+		mountPage();
+		const gutter = q('[data-testid="sidebar-gutter"]');
+		gutter.dispatchEvent(winMouseEvent(200, 'mousedown'));
+		flushSync();
+		window.dispatchEvent(winMouseEvent(2000, 'mousemove'));
+		flushSync();
+		window.dispatchEvent(winMouseEvent(2000, 'mouseup'));
+		flushSync();
+		const badge = document.querySelector('[data-testid="pg-sidebar-width-badge"]');
+		expect(badge?.textContent).toContain('600');
+		const sidebar = JSON.parse(localStorage.getItem('pg-sidebar') ?? '{}') as { width?: number };
+		expect(sidebar.width).toBe(600);
+	});
+});

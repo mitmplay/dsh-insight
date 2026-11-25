@@ -33,6 +33,12 @@ src/lib/paraglide/
 .worktrees/
 .playwright-mcp/
 
+# --- Runtime lock (written by a running floor — ADR-0082 D2) ---
+# Think: "the occupied sign on the door — only there while a floor runs."
+# The launcher removes it on exit; ignored so a live floor never shows in
+# git status and a stale one can never be committed.
+/.dsi-floor.lock
+
 # --- Secrets & local settings (never publish these) ----------
 # Think: "house keys — never leave copies in public."
 .env

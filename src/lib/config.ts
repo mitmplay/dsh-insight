@@ -41,10 +41,17 @@ export const DEFAULT_MACRO_MAX_LINES = 25;
  * again, depth-bounded; 3 = the ADR's default). */
 export const DEFAULT_MACRO_MAX_DEPTH = 3;
 
-/** `jobs.autoClose` default (Job Follower Tab, 2026-10-21 operator spec):
- *  false → a settled -J tab stays until the operator clicks the roster
+/** `jobs.autoClose` default (Job Follower Tab, 2026-10-21 operator spec;
+ *  ADR-0081: the settled surface is now the job ROW):
+ *  false → a settled job row stays until the operator clicks the roster
  *  row's clear button or the roster empties. true → the 25s grace timer. */
 export const DEFAULT_JOBS_AUTOCLOSE = false;
+
+/** `jobs.autoAttach` default (The Job Bridge, ADR-0081 D2): true → a
+ *  job born while the desk is mounted paints its own read-only row under
+ *  the selected tab with no click; false → a row opens only from a roster
+ *  click (the ADR-0035 click-to-open behaviour, restored exactly). */
+export const DEFAULT_JOBS_AUTOATTACH = true;
 
 /** `conversation.pollRunningMs` / `pollIdleMs` defaults — BC-7 cadence:
  *  500ms while a turn runs, 2000ms idle, no other intervals. */

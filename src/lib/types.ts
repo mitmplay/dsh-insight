@@ -717,11 +717,20 @@ export interface DsiConversationPanel {
  *  never the authority — the probe's live session list adjudicates on
  *  rebuild. Tokens never persist (a lease is re-minted by re-attach). */
 export interface TerminalDeskMirror {
-	tabs: Array<{ sessionIds: string[] }>;
+	tabs: Array<{ sessionIds: string[]; /** This row's OWN terminal font in
+	 * px (ADR-0083 D2), within [TERM_FONT_MIN, TERM_FONT_MAX]; absent on
+	 * legacy rows — the desk seeds it once from the legacy global. The
+	 * SINGLE-row tab's font home; a split tab persists per-pane fonts in
+	 * rowFonts instead. */ fontPx?: number; /** Split panes (ADR-0083 D2,
+	 * rows[m] depth): index-aligned per-row fonts, one per sessionIds
+	 * member; absent unless the tab was split. */ rowFonts?: number[] }>;
 	selectedTab: number;
-	/** Job Follower Tab amendment (2026-10-21, supersedes the original D5):
-	 *  remembered -J tabs survive reload — the rebuild re-opens each follow.
-	 *  Absent on legacy mirrors. */
+	/** The Job Bridge (ADR-0081 D5 — successor of the 2026-10-21 Job Follower
+	 *  Tab amendment; the Tn-J tab is retired): every attached job ROW as
+	 *  {owner, jobId} — owner '' for an unowned job. The rebuild ladder
+	 *  re-attaches each as a row while the job is still live; a finished job
+	 *  restores closed. Absent on legacy mirrors and on a desk showing no job.
+	 *  A COPY like the rest: the roster adjudicates on rebuild. */
 	jobs?: Array<{ owner: string; jobId: string }>;
 }
 
@@ -1001,9 +1010,10 @@ export interface DsiJobListFrame {
 }
 
 /**
- * Job Follower Tab (ADR-0035): a job tab is a READ-ONLY view over one job's
- * output ring, relayed from the host's job.follow stream. Never a shell
- * lease — no token, no input, no mirror persistence (D5).
+ * Job follower surface (ADR-0035; ADR-0081 — the job ROW): a job's surface
+ * is a READ-ONLY view over its output ring, relayed from the host's
+ * job.follow stream. Never a shell lease — no token, no input; the mirror
+ * remembers a job as a reference, never a lease (ADR-0081 D5).
  */
 export interface DsiJobFollowChunk {
 	/** Plain decoded text of the chunk (the relay decodes bytes). */

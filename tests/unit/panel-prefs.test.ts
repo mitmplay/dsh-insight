@@ -25,7 +25,11 @@ import {
 	shelfPanelWidth,
 	clampTreePct,
 	clampTermFontSize,
+	clampDeskMirror,
+	legacyTerminalFont,
 	TERM_FONT_DEFAULT,
+	TERM_FONT_MIN,
+	TERM_FONT_MAX,
 	TREE_PCT_DEFAULT,
 	TREE_PCT_MAX,
 	TREE_PCT_MIN,
@@ -762,5 +766,105 @@ describe('panel-prefs — the skill shelf pins 480 (The Shelf Chrome D5)', () =>
 
 	it('shelfPanelWidth is 480 regardless of the conversation default width', () => {
 		expect(shelfPanelWidth()).toBe(480);
+	});
+});
+
+// ── The Pane's Own Font (ADR-0083) W1 1.1-T: the desk mirror carries a
+// per-row fontPx; junk drops FIELD-WISE and the row survives. ──
+
+describe('clampDeskMirror — per-row fontPx matrix (ADR-0083 1.1-T)', () => {
+	it('an absent fontPx revives to a row without the field (legacy shape)', () => {
+		expect(clampDeskMirror({ tabs: [{ sessionIds: ['s1'] }], selectedTab: 0 })).toEqual({
+			tabs: [{ sessionIds: ['s1'] }],
+			selectedTab: 0
+		});
+		expect('fontPx' in (clampDeskMirror({ tabs: [{ sessionIds: ['s1'] }], selectedTab: 0 })?.tabs[0] ?? {})).toBe(false);
+	});
+
+	it('an in-band integer fontPx is kept verbatim (15)', () => {
+		const m = clampDeskMirror({ tabs: [{ sessionIds: ['s1'], fontPx: 15 }], selectedTab: 0 });
+		expect(m?.tabs[0].fontPx).toBe(15);
+	});
+
+	it('a string fontPx drops field-wise ("14") — the row and its sessions survive', () => {
+		const m = clampDeskMirror({ tabs: [{ sessionIds: ['s1'], fontPx: '14' }], selectedTab: 0 });
+		expect(m?.tabs[0]).toEqual({ sessionIds: ['s1'] });
+	});
+
+	it('99 clamps to TERM_FONT_MAX; 3 clamps to TERM_FONT_MIN', () => {
+		const hi = clampDeskMirror({ tabs: [{ sessionIds: ['s1'], fontPx: 99 }], selectedTab: 0 });
+		const lo = clampDeskMirror({ tabs: [{ sessionIds: ['s1'], fontPx: 3 }], selectedTab: 0 });
+		expect(hi?.tabs[0].fontPx).toBe(TERM_FONT_MAX);
+		expect(lo?.tabs[0].fontPx).toBe(TERM_FONT_MIN);
+	});
+
+	it('a float fontPx drops to absent (non-integer = junk at the storage layer)', () => {
+		const m = clampDeskMirror({ tabs: [{ sessionIds: ['s1'], fontPx: 14.6 }], selectedTab: 0 });
+		expect(m?.tabs[0]).toEqual({ sessionIds: ['s1'] });
+	});
+
+	it('null/NaN fontPx drops field-wise; junk rows still drop whole; zero tabs still revive to undefined', () => {
+		const nullFont = clampDeskMirror({ tabs: [{ sessionIds: ['s1'], fontPx: null }], selectedTab: 0 });
+		expect(nullFont?.tabs[0]).toEqual({ sessionIds: ['s1'] });
+		const nanFont = clampDeskMirror({ tabs: [{ sessionIds: ['s1'], fontPx: Number.NaN }], selectedTab: 0 });
+		expect(nanFont?.tabs[0]).toEqual({ sessionIds: ['s1'] });
+		expect(clampDeskMirror({ tabs: [{ sessionIds: [], fontPx: 15 }], selectedTab: 0 })).toBeUndefined();
+		expect(clampDeskMirror({ tabs: [], selectedTab: 0 })).toBeUndefined();
+	});
+});
+
+// ── The Pane's Own Font (ADR-0083) W1 1.2-T: legacyTerminalFont() reads the
+// persisted blob's global termFontSize through the existing revive path. ──
+
+describe('legacyTerminalFont — one-shot legacy read (ADR-0083 1.2-T)', () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+	afterEach(() => {
+		localStorage.clear();
+	});
+
+	it('returns the stored value clamped into the band', () => {
+		storeBlob({ panels: [], panelWidth: 600, zoom: 1, termFontSize: 16 });
+		expect(legacyTerminalFont()).toBe(16);
+		storeBlob({ panels: [], panelWidth: 600, zoom: 1, termFontSize: 99 });
+		expect(legacyTerminalFont()).toBe(TERM_FONT_MAX);
+	});
+
+	it('an absent termFontSize (legacy blob) → TERM_FONT_DEFAULT', () => {
+		storeBlob({ panels: [], panelWidth: 600, zoom: 1 });
+		expect(legacyTerminalFont()).toBe(TERM_FONT_DEFAULT);
+		localStorage.clear();
+		expect(legacyTerminalFont()).toBe(TERM_FONT_DEFAULT);
+	});
+
+	it('a junk blob (non-array panels / junk JSON) → TERM_FONT_DEFAULT', () => {
+		storeBlob({ panels: 'junk', termFontSize: 18 });
+		expect(legacyTerminalFont()).toBe(TERM_FONT_DEFAULT);
+		localStorage.setItem(KEY, '{not json');
+		expect(legacyTerminalFont()).toBe(TERM_FONT_DEFAULT);
+	});
+});
+
+// ── The Pane's Own Font (ADR-0083) W2 — split panes: index-aligned
+// per-row fonts (rowFonts) for a multi-row tab. ──
+
+describe('clampDeskMirror — split-tab rowFonts (ADR-0083 2.1 contract)', () => {
+	it('a length-matched integer rowFonts array clamps field-wise and survives', () => {
+		const m = clampDeskMirror({ tabs: [{ sessionIds: ['s1', 's2'], rowFonts: [14, 99] }], selectedTab: 0 });
+		expect(m?.tabs[0].rowFonts).toEqual([14, 20]);
+	});
+
+	it('a length mismatch drops the whole rowFonts field (misalignment is junk)', () => {
+		const m = clampDeskMirror({ tabs: [{ sessionIds: ['s1', 's2'], rowFonts: [14] }], selectedTab: 0 });
+		expect(m?.tabs[0]).toEqual({ sessionIds: ['s1', 's2'] });
+	});
+
+	it('a non-integer member drops the whole rowFonts field; the tab survives', () => {
+		const m = clampDeskMirror({ tabs: [{ sessionIds: ['s1', 's2'], rowFonts: [14, 'x'] }], selectedTab: 0 });
+		expect(m?.tabs[0]).toEqual({ sessionIds: ['s1', 's2'] });
+		const m2 = clampDeskMirror({ tabs: [{ sessionIds: ['s1'], rowFonts: [13.5] }], selectedTab: 0 });
+		expect(m2?.tabs[0]).toEqual({ sessionIds: ['s1'] });
+		expect(clampDeskMirror({ tabs: [{ sessionIds: ['s1'], rowFonts: 'junk' }], selectedTab: 0 })?.tabs[0]).toEqual({ sessionIds: ['s1'] });
 	});
 });

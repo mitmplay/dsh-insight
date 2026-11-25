@@ -18,6 +18,7 @@
  *   22 panel group caps at half the body column; rows scroll internally
  *   23 selecting an off-viewport panel scrolls it into view (selection follow)
  *   24 a move reshuffle re-reveals the focused panel (move up/down)
+ *   25 an open Scheduler shelf drops the Focused cap to 30 percent — Sessions keeps a quarter (ADR-0084)
  *
  * Stub seam (spec-check GAP-5): state.extraSessions — extra session.list
  * rows each carrying their OWN ledger, so two sessions with content coexist.
@@ -1036,6 +1037,165 @@ test('22 · panel group caps at half the body column; the rows scroll internally
 	// The pinned header keeps its row above the scrolling rows.
 	await expect(page.getByTestId('sidebar-panel-group-toggle')).toBeVisible();
 });
+test('25 · an open Scheduler shelf drops the Focused cap to 30 percent — Sessions keeps a quarter (ADR-0084)', async ({
+	page
+}) => {
+	// ADR-0084 D1-D3: the column publishes the Focused cap (--sidebar-
+	// focused-cap) and lowers it when the Scheduler shelf is open, so the
+	// Sessions list below keeps a share of the column instead of a header
+	// and one row. The shelf's default is FOLDED, so test 22's half-column
+	// cap is the starting point; this test opens the shelf and measures
+	// the split.
+	//
+	// TWENTY overflow sessions (test 22's fixture shape x 20): at this
+	// viewport the half-column cap is ~528px and 21 panels come to ~622px
+	// — the smallest list that still exceeds even the FOLDED cap, so every
+	// state below is a real cap hit, never a short list (the "at the cap"
+	// bounds pin that, within a pixel).
+	//
+	// The viewport is set BEFORE the page loads: the Sessions-quarter
+	// invariant (0.7 x column - 396 >= 0.25 x column) needs a column of at
+	// least 880px (ADR-0084 D4) and the default viewport is too short.
+	test.slow(); // twenty floor panels mount
+	await page.setViewportSize({ width: 1280, height: 1100 });
+	const extras = Array.from({ length: 20 }, (_, i) => ({
+		sessionId: `e2e-column-split-session-${String(i + 1).padStart(2, '0')}`,
+		title: `Column split session ${i + 1}`,
+		agentPreset: null,
+		cwd: '/tmp',
+		ledger: [
+			{
+				event: {
+					type: 'user/message',
+					seq: 2,
+					time: Date.now(),
+					data: {
+						content: [{ type: 'text', text: `Column split session ${i + 1} says hi` }],
+						id: `u-column-split-${i + 1}`,
+						role: 'user'
+					}
+				}
+			}
+		]
+	}));
+	// Twelve DELIVERED rows (the scheduler-shelf spec's ended shape x 12):
+	// past their schedule, each with a receipt. The shelf grows past its own
+	// 13.25rem rows cap — its TALLEST state, the worst case for the Sessions
+	// list below it.
+	const firedAt = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+	const deliveredAt = new Date(Date.now() - 60_000).toISOString();
+	const tasks = Array.from({ length: 12 }, (_, i) => ({
+		id: `e2e-column-split-sched-${String(i + 1).padStart(4, '0')}`,
+		kind: 'rrule',
+		title: `Column split task ${i + 1}`,
+		prompt: 'report',
+		rrule: 'DTSTART;TZID=UTC:20261110T090000\nRRULE:FREQ=DAILY;COUNT=1',
+		scheduledAt: firedAt,
+		target: { kind: 'session', sessionId: 'e2e-column-split-target-0001' },
+		involvedSessionIds: ['e2e-column-split-target-0001'],
+		status: 'ended',
+		lastDelivery: {
+			scheduledAt: firedAt,
+			deliveredAt,
+			messageId: `e2e-column-split-delivery-${i + 1}`,
+			targetSessionId: 'e2e-column-split-target-0001'
+		}
+	}));
+	await stubSet({ extraSessions: extras, scheduleTasks: tasks });
+	await page.goto(`/?sessionKey=${STUB_SESSION_ID}`);
+	await expect(page.getByTestId('transcript')).toContainText(STUB_USER_HELLO);
+
+	// Every overflow session goes on the floor (spine click adds, W4) —
+	// twenty-one open panels, far past either cap. The row count settles the
+	// floor BEFORE anything is measured.
+	for (const extra of extras) {
+		await page
+			.locator(`[data-testid="sidebar-session-card"][href*="${extra.sessionId}"]`)
+			.click();
+	}
+	await openPanelGroup(page);
+	await expect(page.getByTestId('sidebar-panel-row')).toHaveCount(20);
+	await expect(page.getByTestId('sidebar-session-current')).toHaveCount(1);
+
+	const heightOf = async (testid: string): Promise<number> =>
+		(await page.getByTestId(testid).boundingBox())?.height ?? 0;
+	/** The split, read in one layout pass: the column, the Focused pane, the
+	 *  Sessions group, the shelf — as ratios of the column — and the cap the
+	 *  column's stylesheet currently publishes (the :has() rule, read back by
+	 *  the browser: the proof the compiled selector matches). */
+	const geometry = async () => {
+		const [column, pane, sessions, shelf] = await Promise.all([
+			heightOf('sidebar-sessions'),
+			heightOf('sidebar-panel-pane'),
+			heightOf('sidebar-spine-group'),
+			heightOf('scheduler-shelf')
+		]);
+		const cap = await page
+			.getByTestId('sidebar-sessions')
+			.evaluate((el) => getComputedStyle(el).getPropertyValue('--sidebar-focused-cap').trim());
+		return {
+			column,
+			pane,
+			sessions,
+			shelf,
+			cap,
+			paneRatio: +(pane / column).toFixed(4),
+			sessionsRatio: +(sessions / column).toFixed(4)
+		};
+	};
+	const evidence: Record<string, Awaited<ReturnType<typeof geometry>>> = {};
+	const record = async (state: string) => {
+		const g = await geometry();
+		evidence[state] = g;
+		console.log(`[25] ${state}: ${JSON.stringify(g)}`);
+		return g;
+	};
+	/** The pane's rows body is a scroll container with content taller than its
+	 *  box — a cap that actually binds. */
+	const rowsScroll = async (): Promise<boolean> => {
+		const geom = await page
+			.getByTestId('sidebar-panel-rows-scroll')
+			.evaluate((el) => ({ sh: el.scrollHeight, ch: el.clientHeight }));
+		return geom.sh > geom.ch;
+	};
+	const shelf = page.getByTestId('scheduler-shelf');
+	const PX = 1; // subpixel rounding of a percentage height
+
+	// FOLDED (the shelf's default): the half-column cap, exactly as test 22
+	// pins it — and the pane sits AT the cap (the list overflows it).
+	await expect(shelf).toHaveAttribute('data-collapsed', 'true');
+	const folded = await record('folded');
+	expect(folded.cap).toBe('50%');
+	expect(folded.pane).toBeLessThanOrEqual(folded.column / 2 + PX);
+	expect(folded.pane).toBeGreaterThanOrEqual(folded.column / 2 - PX);
+	expect(await rowsScroll()).toBe(true);
+
+	// OPEN: the cap drops to 30 percent of the column and the Sessions
+	// group keeps at least a quarter of it. The row count pins the shelf at
+	// its tallest (every row rendered) BEFORE the split is read.
+	await page.getByTestId('scheduler-shelf-toggle').click();
+	await expect(shelf).toHaveAttribute('data-collapsed', 'false');
+	await expect(page.getByTestId('scheduler-shelf-row')).toHaveCount(12);
+	const open = await record('open');
+	expect(open.cap).toBe('30%');
+	expect(open.pane).toBeLessThanOrEqual(open.column * 0.3 + PX);
+	expect(open.pane).toBeGreaterThanOrEqual(open.column * 0.3 - PX);
+	expect(open.sessions).toBeGreaterThanOrEqual(open.column * 0.25);
+	expect(await rowsScroll()).toBe(true);
+
+	// FOLDED again: the half-column cap is back.
+	await page.getByTestId('scheduler-shelf-toggle').click();
+	await expect(shelf).toHaveAttribute('data-collapsed', 'true');
+	const refolded = await record('folded-again');
+	expect(refolded.cap).toBe('50%');
+	expect(refolded.pane).toBeGreaterThan(open.pane + PX);
+	expect(refolded.pane).toBeLessThanOrEqual(refolded.column / 2 + PX);
+
+	await test.info().attach('column-split-geometry', {
+		body: Buffer.from(JSON.stringify(evidence, null, 2)),
+		contentType: 'application/json'
+	});
+});
 
 test('23 · selecting an off-viewport panel scrolls it into view (selection follow)', async ({
 	page
@@ -1546,8 +1706,9 @@ test('31 · capture-phase chord beats a swallowing leaf; palette centered with d
 	await expect(pal).toBeHidden();
 });
 
-// Spec 32 (round 3, ADR-0006a extension 3): D19 sidebar toggle + D20 sibling spawn.
-test('32 · chord s toggles the sidebar; chord n spawns a sibling session below the focused panel', async ({
+// Spec 32 (round 3, ADR-0006a extension 3): D19 sidebar toggle + D20 the standalone
+// birth (ADR-0085, 2026-11-25): n lands LEFT of the focused panel, with no family.
+test('32 · chord s toggles the sidebar; chord n births a standalone session LEFT of the focused panel', async ({
 	page
 }) => {
 	await page.goto(`/?sessionKey=${STUB_SESSION_ID}`);
@@ -1564,15 +1725,25 @@ test('32 · chord s toggles the sidebar; chord n spawns a sibling session below 
 	await expect(page.getByTestId('chord-palette')).toBeHidden();
 	await expect(page.getByTestId('app-sidebar')).toBeHidden();
 
-	// D20: n spawns a sibling session BELOW the focused panel.
+	// D20 as amended by ADR-0085 D1/D2: n births a STANDALONE session — the add
+	// carries no anchor, so the Focused Slot lands it LEFT of the focused panel
+	// (no edge remembered; the newborn is a root in the roster).
 	await box.click();
 	await page.keyboard.press('Alt+s');
 	await expect(page.getByTestId('chord-palette')).toBeVisible();
-	// No presets in the stub → lanes are p t n s; n is live (conversation focused).
-	await expect(page.getByTestId('chord-palette').getByTestId('chord-palette-row')).toHaveCount(4);
+	// No presets in the stub → lanes are p g k t n s (chord-config.ts L106-111:
+	// g and k are unconditional since D23/D24; n is live with a conversation
+	// focused). The pre-ADR-0085 count of 4 ("p t n s") was stale.
+	await expect(page.getByTestId('chord-palette').getByTestId('chord-palette-row')).toHaveCount(6);
 	await expect(
 		page.getByTestId('chord-palette').locator('[data-chord-key="n"]')
 	).toBeVisible();
 	await page.keyboard.press('n');
-	await expect(page.getByTestId('panel-column')).toHaveCount(2, { timeout: 15000 });
+	// ORDER, not just count (ADR-0085): DOM order is floor order, so the
+	// newborn's column comes FIRST; the stub session's transcript carries the
+	// hello, the newborn's is empty.
+	const cols = page.getByTestId('panel-column');
+	await expect(cols).toHaveCount(2, { timeout: 15000 });
+	await expect(cols.nth(1)).toContainText(STUB_USER_HELLO);
+	await expect(cols.nth(0)).not.toContainText(STUB_USER_HELLO);
 });

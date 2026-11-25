@@ -337,7 +337,7 @@ describe('+page.svelte WP3 — the sibling spawn fallback and the sidebar width 
 		chord('n');
 		await settle();
 		await settle();
-		// the sibling landed below the anchor even with no preset in the body
+		// the newborn landed LEFT of the anchor (ADR-0085, the Focused Slot) even with no preset in the body
 		expect(target.querySelectorAll('[data-testid="panel-column"]').length).toBe(2);
 	});
 

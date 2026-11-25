@@ -43,6 +43,9 @@ import { parseDevArg, devModeEnv, modeFromBoolean, resolveBounceMode, extractIns
 import { brainBannerLines } from './lib/mcp-banner.mjs';
 import { addZaiProvider as addZaiPatch, zaiPatchPath } from './lib/zai-patch.mjs';
 import { ensureGlassBrowser } from './lib/glass-browser-bootstrap.mjs';
+import { acquireFloorLock, releaseFloorLock } from './lib/floor-lock.mjs';
+import { wireFloorTeardown } from './lib/floor-teardown.mjs';
+import { sweepOrphans } from './lib/floor-sweep.mjs';
 
 // Layman-facing help: wrapped near 76 columns, continuation lines indented,
 // the recommended one-liner first. --zai is optional on purpose — no GLM
@@ -285,7 +288,7 @@ if (command === 'dsh') {
 		// vite process never dies and the sweep is SKIPPED. Pair/build floors,
 		// a missing verb, or an unreachable route take the sweep below.
 		const sweepAndReserve = async () => {
-			killOrphans();
+			await killOrphans();
 			// The pkill sweep cannot see every floor shape (RCA 2026-09-27: the
 			// npx shims — 'npm exec @deepseek-ai/dsh…' and '.bin/dsh web' — are
 			// invisible to pkill -f on macOS, so the dsh host survived holding
@@ -328,7 +331,7 @@ if (command === 'dsh') {
 			await sweepAndReserve();
 		}
 	} else if (flag === '--sync-kills') {
-		killOrphans();
+		await killOrphans({ takeover: true }); // the explicit kill verb consents to freeing the floor ports
 		process.exit(0);
 	} else {
 		console.error(flag === undefined ? 'dsi dsh: missing flag (--token <token> | --sync | --sync-kills)' : `dsi dsh: unknown flag "${flag}"`);
@@ -502,14 +505,17 @@ async function waitPortListening(port, budgetMs) {
 }
 
 /** The dsh host hard-fails on a busy 3080 with a long Cordis stack; catch
- *  it before the pair spawns. First sweep the known orphan shapes
- *  (pkill -f — same BSD/procps flag set on macOS and Linux), wait for the
- *  socket to actually free, then give up with a one-line hint if something
- *  foreign still holds the port. */
+ *  it before the pair spawns. First sweep the TRUE orphans (by pid, under a
+ *  dead parent), then wait for the socket to actually free. A holder that
+ *  survives is refused: exit 64 naming its pid. STARTUP NEVER TAKES A PORT
+ *  OVER (ADR-0082 amendment 2026-11-25) — the takeover is consented by the
+ *  bounce chain and the --sync-kills verb only. Until that amendment this
+ *  preflight reached the takeover through killOrphans and SIGTERMed
+ *  whatever listened on 3080/5174/5175, a live foreign floor included. */
 async function preflightPort(port, label) {
 	if (!(await portInUse(port))) return;
 	console.log(`dsi dsh: port ${port} (${label}) is busy — sweeping orphaned dsh/dsi processes`);
-	killOrphans();
+	await killOrphans();
 	for (let waited = 0; waited < 5000; waited += 250) {
 		if (!(await portInUse(port))) {
 			console.log(`dsi dsh: port ${port} is free — continuing`);
@@ -517,7 +523,8 @@ async function preflightPort(port, label) {
 		}
 		await new Promise((resolve) => setTimeout(resolve, 250));
 	}
-	console.error(`dsi dsh: port ${port} (${label}) is still in use by a process the sweep does not own — free it yourself, then re-run`);
+	const holder = listeningPids(port).join(', ') || 'unknown';
+	console.error(`dsi dsh: port ${port} (${label}) is still in use by a process the sweep does not own (pid ${holder}) — stop its owner yourself (a leftover from a crashed run clears with dsi dsh --sync-kills), then re-run`);
 	process.exit(64);
 }
 
@@ -557,6 +564,16 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = [], opts = {})
 	// template clone only runs later, inside the UI child). Seed it BEFORE any
 	// child spawns so the first token announce lands, not "token capture failed".
 	ensureDsiConfig();
+	// ADR-0082 D2 (The Loud Floor): ONE floor per checkout. The pid+boottime
+	// lockfile lives at the checkout root, so each worktree lane (ADR-0072)
+	// locks itself independently. Refused = exit 64 naming the holder pid;
+	// stale locks break with a receipt inside the helper; the env bypass
+	// warns and proceeds. Release rides every exit path below.
+	const floorLockPath = path.join(packageRoot, '.dsi-floor.lock');
+	const lock = acquireFloorLock(floorLockPath);
+	if (!lock.ok) process.exit(64);
+	const releaseLock = () => releaseFloorLock(floorLockPath);
+	process.on('exit', releaseLock);
 	// UI port: the built server takes 5174 — the same port `dsi web` uses,
 	// so plain `dsi dsh --sync` listens on ONE port. --dev's Vite dev server
 	// takes 5175 instead (vite.config.ts pins 5174 strictPort, so pair mode
@@ -616,39 +633,47 @@ async function runSyncedPair(extraArgs, dev = 'build', execArgv = [], opts = {})
 		if (!up) console.log(`dsi dsh: host port ${hostPort} not listening after the wait — opening the page anyway; refresh once the host prints its URL`);
 		openBrowser(`http://localhost:${uiPort}/`, 0);
 	});
-	for (const signal of ['SIGINT', 'SIGTERM']) {
-		process.on(signal, () => {
-			if (host) host.kill(signal); // in-process: no host child — vite close hook stops it
-			ui.kill(signal);
-		});
-	}
-	const teardown = (code, signal) => {
-		if (host) host.kill('SIGTERM');
-		ui.kill('SIGTERM');
-		process.exit(signal ? 1 : (code ?? 1));
-	};
-	if (host) host.on('exit', teardown);
-	ui.on('exit', teardown);
+	// ADR-0082 D1 (The Loud Floor): every child exit SPEAKS — role, pid,
+	// exit code or signal — before the sibling dies; our own signal forward
+	// speaks too. The lock releases via the process 'exit' handler above.
+	wireFloorTeardown({ host, ui });
 }
 
-/** Kill orphaned dsh/dsi leftovers — a pair whose parent died before it
- *  could tear down its sibling, or a previous run the terminal lost. */
-function killOrphans() {
+/** Kill orphaned dsh/dsi leftovers — ADR-0082 D3: only TRUE orphans (the
+ *  parent pid is dead), SIGTERM by pid with a per-pid receipt; never a
+ *  name-based pkill that could reach a foreign LIVE floor.
+ *  `takeover` is the consent to free the floor ports afterwards
+ *  (freeFloorPorts — the Port Takeover ADR's path: SIGTERM the listeners,
+ *  wait, exit 64 naming a holder that survives). OFF by default (amendment
+ *  2026-11-25): a port holder is addressed by what it owns, not by what it
+ *  is named, so the parent check above says nothing about it. Only the
+ *  --sync-kills verb asks for the takeover; the bounce chain calls
+ *  freeFloorPorts itself.
+ *  @param {{ takeover?: boolean }} [opts] */
+async function killOrphans({ takeover = false } = {}) {
 	// Test-floor isolation (Port Ledger 34xx/51xx): a scratch floor's bounce
 	// must never pkill the production floor's shapes.
 	if (process.env.DSI_SKIP_ORPHAN_SWEEP === '1') {
 		console.log('dsi dsh: orphan sweep skipped (DSI_SKIP_ORPHAN_SWEEP=1)');
 		return;
 	}
-	for (const pattern of ORPHAN_PATTERNS) {
-		try {
-			spawnSync('pkill', ['-f', pattern], { stdio: 'pipe' });
-		} catch {
-			// pkill missing is only possible on a non-POSIX host; the next
-			// pattern's try still runs and the report below stays honest.
-		}
-	}
-	console.log('dsi dsh: orphan sweep done (dsh-web-synced.sh, dsh bin, dsi server)');
+	const result = sweepOrphans({
+		patterns: ORPHAN_PATTERNS,
+		listProcs: () => {
+			try {
+				return spawnSync('ps', ['-eo', 'pid=,ppid=,command='], { stdio: 'pipe', encoding: 'utf8', timeout: 5000 }).stdout || '';
+			} catch {
+				return ''; // no ps: nothing matched, nothing killed — preflightPort reports any busy port honestly
+			}
+		},
+		terminate: (pid) => { try { process.kill(pid, 'SIGTERM'); } catch { /* already gone */ } }
+	});
+	console.log(result.swept.length
+		? 'dsi dsh: orphan sweep done — ' + result.swept.length + ' orphan(s) swept by pid'
+		: 'dsi dsh: orphan sweep done — nothing to sweep');
+	if (!takeover) return;
+	// Port holders, by consent only (a survivor still exits 64, named).
+	await freeFloorPorts(floorPortSet());
 }
 
 /** The DSI ports the bounce owns. DSI_FLOOR_PORTS overrides for isolated
@@ -661,6 +686,21 @@ function floorPortSet() {
 	return ports.length ? ports : [3080, 5174, 5175];
 }
 
+/** The pids LISTENING on 127.0.0.1:port, via lsof — [] when lsof is missing
+ *  or the port is free. One lookup for both callers: the startup refusal
+ *  names the holder, the consented takeover addresses it.
+ *  @param {number} port
+ *  @returns {number[]} */
+function listeningPids(port) {
+	try {
+		const probe = spawnSync('/bin/sh', ['-c', 'lsof -ti tcp:' + port + ' -sTCP:LISTEN 2>/dev/null || true'], { stdio: 'pipe', encoding: 'utf8' });
+		return (probe.stdout || '').split('\n').map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0);
+	} catch {
+		// no lsof (or no sh): nothing to signal; the caller reports the port honestly.
+		return [];
+	}
+}
+
 /** SIGTERM whatever LISTENS on these ports, then WAIT until they actually
  *  free (The Port Takeover ADR 2026-10-12, D2/D3/D5): the fire-and-forget
  *  kill of RCA 2026-09-27 raced the successor's bind — the dying in-process
@@ -671,18 +711,8 @@ function floorPortSet() {
  *  this — the click is the consent (ADR D1); a manual --sync preflight
  *  still REFUSES a busy port it does not own. */
 async function freeFloorPorts(ports) {
-	const listListeners = (port) => {
-		try {
-			const probe = spawnSync('/bin/sh', ['-c', 'lsof -ti tcp:' + port + ' -sTCP:LISTEN 2>/dev/null || true'], { stdio: 'pipe', encoding: 'utf8' });
-			return (probe.stdout || '').split('\n').map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0);
-		} catch {
-			// no lsof (or no sh): nothing to signal; the wait loop below will
-			// report the port honestly if it never frees.
-			return [];
-		}
-	};
 	const result = await takeoverFloorPorts(ports, {
-		listListeners,
+		listListeners: listeningPids,
 		terminate: (pid) => {
 			try { process.kill(pid, 'SIGTERM'); } catch { /* already gone — the wait decides */ }
 		},

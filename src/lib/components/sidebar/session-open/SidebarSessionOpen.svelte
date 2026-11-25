@@ -35,14 +35,18 @@
 	 * Scroll pane (2026-08-24): this component's root is a flex pane
 	 * in the sidebar's non-scrolling session body (SessionsList, above
 	 * the pills) — NATURAL height for as many panels as the floor
-	 * holds, hard-capped at HALF that body column (past the cap it
-	 * scrolls internally). The spine below absorbs all the remaining
-	 * height. No rows → no pane at all, so the pills head the column
-	 * (no floor). The rows body — the interleaved panel/ghost sequence
-	 * — is SidebarOpenPanelRows (extracted 2026-09-02) and the
-	 * title's focused-name chip is SidebarOpenPanelHeader (same
-	 * extraction day); this file owns the header row, the collapse
-	 * state, and every action's registry/context write.
+	 * holds, hard-capped by that body column's budget: HALF the column
+	 * while the Scheduler shelf is folded, 30% of it while the shelf is
+	 * open (ADR-0084, 2026-11-25 — the column publishes the number as
+	 * --sidebar-focused-cap; this pane reads it and falls back to 50%
+	 * when mounted alone). Past the cap it scrolls internally. The
+	 * spine below absorbs all the remaining height. No rows → no pane
+	 * at all, so the pills head the column (no floor). The rows body —
+	 * the interleaved panel/ghost sequence — is SidebarOpenPanelRows
+	 * (extracted 2026-09-02) and the title's focused-name chip is
+	 * SidebarOpenPanelHeader (same extraction day); this file owns the
+	 * header row, the collapse state, and every action's
+	 * registry/context write.
 	 *
 	 * Collapse (2026-08-26): the group ships EXPANDED since 2026-09-18
 	 * (collapsed before) — the title carries the floor's focus (`Focused -
@@ -506,9 +510,10 @@
 	<div class="pane" data-testid="sidebar-panel-pane">
 		<!-- R8 re-point (ADR-0070 D9): the group box is the PACKAGE organ
 		     (PanelListbox) — wash/border/radius travel through the
-		     --panel-listbox-* vars set on .panel-group below; the 50% cap
-		     STAYS on .pane here (D8 — the organ owns only the internal
-		     scroll, which is PanelListboxList now). The retired .panel-group
+		     --panel-listbox-* vars set on .panel-group below; the column
+		     cap (50% with the Scheduler shelf folded, 30% with it open —
+		     ADR-0084) STAYS on .pane here (D8 — the organ owns only the
+		     internal scroll, which is PanelListboxList now). The retired .panel-group
 		     hand-rolled box CSS was deleted in the same commit. -->
 		<PanelListbox count={renderList.length} {collapsed} onToggle={toggle} testid="sidebar-panel-group" class="panel-group">
 						{#snippet header()}
@@ -553,7 +558,13 @@
 	   sidebar's session body column (SessionsList, above the pills) —
 	   NATURAL height for as many panels as it has (grow 0, SHRINK 0:
 	   never stretches, never squeezed by the column's flex), hard-
-	   capped at half the column; past the cap it scrolls INTERNALLY.
+	   capped by the COLUMN's budget: half the column while the
+	   Scheduler shelf is folded, 30% of it while the shelf is open
+	   (ADR-0084 D1/D2, 2026-11-25 — the open shelf is paid out of this
+	   cap); past the cap it scrolls INTERNALLY. The number arrives as
+	   --sidebar-focused-cap from SessionsList, the one component that
+	   sees both blocks; the 50% fallback below is what a standalone
+	   mount (every unit suite that mounts this pane alone) gets.
 	   Everything below (pills, spine) absorbs whatever height this
 	   pane does not take — never a shared scrollbar. No rows → no pane
 	   (the pills head the column). NOTE: no margins inside this pane
@@ -561,15 +572,18 @@
 	   scrollable overflow (a phantom scrollbar on a fitting box). */
 	.pane {
 		flex: 0 0 auto;
-		/* The HALF-COLUMN cap lives HERE, not on the rows container below:
-		   a percentage max-height resolves only against a DEFINITE
-		   containing-block height. As a flex item of the session body
-		   column (definite: flex 1 + min-height 0 under the full-height
-		   rail) 50% resolves; on .panel-container — every ancestor of
-		   which is content-sized — it computed to `none` and the group
-		   grew unbounded (the 2026-09-02 regression: no cap, no scroll). */
+		/* The column cap (half, or 30% with the shelf open) lives HERE, not
+		   on the rows container below: a percentage max-height resolves
+		   only against a DEFINITE containing-block height. As a flex item
+		   of the session body column (definite: flex 1 + min-height 0 under
+		   the full-height rail) the percentage resolves; on
+		   .panel-container — every ancestor of which is content-sized —
+		   it computed to `none` and the group grew unbounded (the
+		   2026-09-02 regression: no cap, no scroll). An UNREGISTERED
+		   custom property substitutes its tokens verbatim, so the
+		   declaration still reads as that same percentage. */
 		display: flex;
-		max-height: 50%;
+		max-height: var(--sidebar-focused-cap, 50%);
 		margin-top: 0.125rem;
 		flex-direction: column;
 	}

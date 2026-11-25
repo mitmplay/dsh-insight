@@ -35,6 +35,9 @@ class PagePrefs {
 	explorerHidden = $state(false);
 	/** Terminal base font in px (ADR-0041 Am.4): the TermFontSlider's
 	 *  truth. Zoom multiplies on top — this is the preference NUMBER. */
+	/** MIGRATION-ONLY (ADR-0083 D3): the legacy floor-global terminal font.
+	 *  No runtime UI writes or reads it except the one-shot legacy seed
+	 *  (legacyTerminalFont) — per-pane desk mirror fontPx is the live fact. */
 	termFontSize = $state(12);
 	/** Sidebar rail state (OCI ControlRail port). */
 	sidebarCollapsed = $state(false);

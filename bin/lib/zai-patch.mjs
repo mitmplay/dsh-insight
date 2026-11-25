@@ -47,7 +47,7 @@ export const ZAI_PROVIDER = {
 					name: 'GLM-5.4',
 					contextWindow: 1000000,
 					maxTokens: 131072,
-					input: ['text'],
+					input: ['text', 'image'],
 				},
 			],
 		},

@@ -79,7 +79,7 @@
 		panelWorkspaceFor,
 		seedColdOf
 	} from '$lib/services/panels/floor-reads.svelte';
-	import { clampPanelZoom, clampTermFontSize, loadPanelPrefs, PANEL_WORKSPACE_EXPLORER_WIDTH, savePanelPrefs } from '$lib/utils/panel-prefs';
+	import { clampPanelZoom, loadPanelPrefs, PANEL_WORKSPACE_EXPLORER_WIDTH, savePanelPrefs } from '$lib/utils/panel-prefs';
 	import { sanitizeWorkspaceProfile } from '@deepseek-insight/container-base';
 	import { applySidebarLane } from '$lib/config';
 	import { clampSidebarWidth } from '$lib/utils/sidebar-prefs';
@@ -351,6 +351,9 @@
 				zoom: pagePrefs.zoom,
 				treePct: pagePrefs.treePct,
 				explorerHidden: pagePrefs.explorerHidden,
+				// LEGACY carry-through (ADR-0083 D3): no UI writes this anymore —
+				// the field persists unchanged so migration blobs keep their old
+				// global for the one-shot desk seed (legacyTerminalFont).
 				termFontSize: pagePrefs.termFontSize
 			},
 			activeProfile
@@ -475,8 +478,13 @@
 				return open ? floorApi.removePanel(open.id) : void floorApi.doAdd({ kind: 'skill-shelf' });
 			}
 			case 'n': {
-				// D20: spawn the focused session's sibling — same agent + workspace,
-				// landed directly below it, composer focused on first mount.
+				// D20 as amended by ADR-0085 D1/D2 (2026-11-25): a STANDALONE
+				// birth — same agent + workspace, no anchor, no family. The
+				// request carries no afterSessionId, so the floor's Focused
+				// Slot (The Focused Slot, 2026-08-31) lands the newborn directly
+				// LEFT of the focused session, climbing to the family head when a
+				// sub-agent is focused (D3); no lineage edge is remembered.
+				// Composer focused on first mount.
 				const anchor = panels.find(
 					(p): p is DsiConversationPanel =>
 						p.kind === 'conversation' && p.id === floorApi.floor.selectedPanelId
@@ -484,14 +492,20 @@
 				if (!anchor) return;
 				void (async () => {
 					const workspace = panelWorkspaceFor(anchor.sessionId);
+					// The agent rides the SESSION, not the panel entry (ADR-0006 R3,
+					// agentFor): a panel opened from its ghost row, the control bar, the
+					// a2a chip or the scheduler carries agentPreset null, while the
+					// host record knows the preset. And null is never SENT: the host
+					// rejects it (400 bad-preset) and the birth dies silently — the
+					// /new --add contract (2026-08-26): unknown → omit, host default.
+					const agentPreset = agentFor(anchor);
 					const res = await fetch('/api/dsh/sessions', {
 						method: 'POST',
 						headers: { 'content-type': 'application/json' },
-						body: JSON.stringify(
-							workspace
-								? { agentPreset: anchor.agentPreset, cwd: workspace }
-								: { agentPreset: anchor.agentPreset }
-						)
+						body: JSON.stringify({
+							...(agentPreset !== null ? { agentPreset } : {}),
+							...(workspace ? { cwd: workspace } : {})
+						})
 					});
 					const body = (await res.json()) as { ok: boolean; sessionId?: string; agentPreset?: string | null };
 					if (!res.ok || !body.ok || !body.sessionId) return; // silent no-op on failure
@@ -517,7 +531,6 @@
 					floorApi.doAdd({
 						sessionId: body.sessionId,
 						agentPreset: body.agentPreset ?? anchor.agentPreset,
-						afterSessionId: anchor.sessionId,
 						focus: true
 					});
 				})();
@@ -736,8 +749,6 @@
 				bind:this={terminalDeskRef}
 				restored={panel.desk ?? null}
 				zoom={floorPanelId ? pagePrefs.zoom : 1}
-				termFontSize={pagePrefs.termFontSize}
-				onFontChange={(px) => (pagePrefs.termFontSize = clampTermFontSize(px))}
 				onMirror={(m) => {
 					terminalDeskMirrors[panel.id] = m;
 					terminalDeskMirrorsVersion++;

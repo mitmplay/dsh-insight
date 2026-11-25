@@ -202,9 +202,10 @@ describe('per-kind revive table (3.1-T, ADR-0065 W3)', () => {
 			})
 		);
 		const [t, s] = loadPanelPrefs().panels;
+		// a job ROW is no tab of its own (ADR-0081 D3 / The Job Bridge 4.2): the stored selection clamps into the SHELL tabs only
 		expect((t as { desk?: { tabs: unknown[]; selectedTab: number } }).desk).toEqual({
 			tabs: [{ sessionIds: ['t1'] }],
-			selectedTab: 1
+			selectedTab: 0
 		});
 		expect((s as { reload: unknown }).reload).toBeNull();
 	});

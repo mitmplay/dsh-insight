@@ -8,12 +8,18 @@
  * running/stopping rows; the kill arm→confirm two-click flow calling
  * jobsRoster.refresh(sessionId) after BOTH a successful fetch and a
  * rejected one (the finally at JobRosterList.svelte:48).
+ *
+ * The Job Bridge (ADR-0081 — Task 4.3-T): the click targets the terminal ROW.
+ * The label button invokes the opener bus with (owner, id, label) — attach or
+ * select the row; the clear button invokes the clearer — the row closes; the
+ * titles name the row; the kill button is untouched by the re-pointing.
  */
 import { flushSync } from 'svelte';
 import { mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import JobRosterList from '../../src/lib/components/jobs/JobRosterList.svelte';
 import { jobsRoster } from '$lib/services/jobs/roster-store.svelte';
+import { registerJobTabClearer, registerJobTabOpener, __resetFollowClientForTests } from '$lib/services/jobs/follow-client.svelte';
 import type { DsiJobStatus, DsiJobView } from '$lib/types';
 
 let mounted: ReturnType<typeof mount> | null = null;
@@ -52,6 +58,7 @@ afterEach(() => {
 	}
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+	__resetFollowClientForTests(); // the bus registrations of the 4.3-T block never leak
 });
 
 describe('JobRosterList — empty vs rows', () => {
@@ -220,3 +227,93 @@ describe('JobRosterList — kill arm/confirm flow', () => {
 		expect(btnB.classList.contains('armed')).toBe(true);
 	});
 });
+describe('JobRosterList — the click targets the terminal ROW (The Job Bridge 4.3-T)', () => {
+	/** The buses registered, the list mounted. */
+	function mountOnBuses(jobs: DsiJobView[]): { opener: ReturnType<typeof vi.fn>; clearer: ReturnType<typeof vi.fn>; target: HTMLElement } {
+		const opener = vi.fn();
+		const clearer = vi.fn();
+		registerJobTabOpener(opener);
+		registerJobTabClearer(clearer);
+		const target = mountList({ jobs });
+		return { opener, clearer, target };
+	}
+
+	it('clicking the label invokes the opener bus with (owner, id, label) — attach-or-select the row', () => {
+		const { opener, clearer, target } = mountOnBuses([job({ id: 'j1', owner: 'session-a', label: 'run tests' })]);
+		(target.querySelector('[data-testid="job-open-j1"]') as HTMLButtonElement).click();
+		flushSync();
+		expect(opener).toHaveBeenCalledTimes(1);
+		expect(opener).toHaveBeenCalledWith('session-a', 'j1', 'run tests');
+		expect(clearer).not.toHaveBeenCalled(); // a click never closes
+	});
+
+	it('a job without an owner clicks with an empty owner', () => {
+		const { opener, target } = mountOnBuses([job({ id: 'j2', label: 'unowned loop' })]);
+		(target.querySelector('[data-testid="job-open-j2"]') as HTMLButtonElement).click();
+		flushSync();
+		expect(opener).toHaveBeenCalledWith('', 'j2', 'unowned loop');
+	});
+
+	it('each row drives its OWN job — a click or a clear never addresses a neighbour', () => {
+		const { opener, clearer, target } = mountOnBuses([job({ id: 'j1', owner: 'session-a' }), job({ id: 'j2', owner: 'session-b', label: 'other' })]);
+		(target.querySelector('[data-testid="job-open-j2"]') as HTMLButtonElement).click();
+		(target.querySelector('[data-testid="job-clear-j1"]') as HTMLButtonElement).click();
+		flushSync();
+		expect(opener).toHaveBeenCalledTimes(1);
+		expect(opener).toHaveBeenCalledWith('session-b', 'j2', 'other');
+		expect(clearer).toHaveBeenCalledTimes(1);
+		expect(clearer).toHaveBeenCalledWith('session-a', 'j1');
+	});
+
+	it('clicking clear invokes the clearer with (owner, id) — the row closes; the opener is untouched', () => {
+		const { opener, clearer, target } = mountOnBuses([job({ id: 'j3', owner: 'session-a', status: 'completed' })]);
+		(target.querySelector('[data-testid="job-clear-j3"]') as HTMLButtonElement).click();
+		flushSync();
+		expect(clearer).toHaveBeenCalledTimes(1);
+		expect(clearer).toHaveBeenCalledWith('session-a', 'j3');
+		expect(opener).not.toHaveBeenCalled();
+	});
+
+	it("the titles name the row: '<label> — show output in the terminal' / 'close this job's terminal row'", () => {
+		const { target } = mountOnBuses([job({ id: 'j4', owner: 'session-a', label: 'coverage run' })]);
+		const label = target.querySelector('[data-testid="job-open-j4"]') as HTMLButtonElement;
+		const clear = target.querySelector('[data-testid="job-clear-j4"]') as HTMLButtonElement;
+		expect(label.getAttribute('title')).toBe('coverage run — show output in the terminal'); // was: open output in terminal
+		expect(clear.getAttribute('title')).toBe("close this job's terminal row"); // was: clear this job's terminal tab
+		// the words the tab species owned are gone from the readout
+		expect(label.textContent).toBe('coverage run');
+	});
+
+	it('the kill button is unaffected: arm + confirm POSTs the kill and never touches the opener or clearer buses', async () => {
+		const fetchMock = vi.fn(async (..._args: Parameters<typeof fetch>) => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+		vi.stubGlobal('fetch', fetchMock);
+		vi.spyOn(jobsRoster, 'refresh').mockResolvedValue(undefined);
+		const { opener, clearer, target } = mountOnBuses([job({ id: 'k1', owner: 'session-a' })]);
+
+		const btn = target.querySelector('[data-testid="job-kill-k1"]') as HTMLButtonElement;
+		btn.click();
+		flushSync();
+		expect(fetchMock).not.toHaveBeenCalled(); // armed, nothing fired
+		btn.click();
+		flushSync();
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/dsh/jobs');
+		const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+		expect(init.method).toBe('POST');
+		expect(JSON.parse(String(init.body))).toEqual({ sessionId: 'session-a', jobId: 'k1' });
+		// the re-pointing of click/clear never reached the kill path
+		expect(opener).not.toHaveBeenCalled();
+		expect(clearer).not.toHaveBeenCalled();
+		// and the kill button sits beside the two row affordances, untouched
+		expect(target.querySelector('[data-testid="job-open-k1"]')).not.toBeNull();
+		expect(target.querySelector('[data-testid="job-clear-k1"]')).not.toBeNull();
+	});
+
+	it('a settled row keeps the click and the clear affordance (the autoClose:false path) — and carries no kill button', () => {
+		const { target } = mountOnBuses([job({ id: 'j5', owner: 'session-a', status: 'completed' })]);
+		expect(target.querySelector('[data-testid="job-open-j5"]')).not.toBeNull();
+		expect(target.querySelector('[data-testid="job-clear-j5"]')).not.toBeNull();
+		expect(target.querySelector('[data-testid="job-kill-j5"]')).toBeNull();
+	});
+});
+

@@ -122,10 +122,16 @@ describe('placement + composition contract (source-level)', () => {
 		expect(panelSrc).not.toMatch(/Math\.round\(12 \* /);
 	});
 
-	it('the prop chain is route to desk to panel (one authority, ADR-0041 Am.4)', () => {
-		expect(routeSrc).toContain('termFontSize={pagePrefs.termFontSize}');
-		expect(routeSrc).toContain('clampTermFontSize');
-		expect(deskSrc).toContain('termFontSize={deskFont}');
+	it('the wiring is PER ROW (ADR-0083 D4): the route binds no floor font; the desk relays each row its own', () => {
+		// The retired global binding stays retired — no writer of the legacy
+		// floor pref remains in the live UI path (risk-register grep law).
+		expect(routeSrc).not.toContain('termFontSize={pagePrefs.termFontSize}');
+		expect(routeSrc).not.toContain('onFontChange');
+		expect(routeSrc).not.toContain('pagePrefs.termFontSize =');
+		// The desk owns the per-row relay: mount reads the row's own font,
+		// the drag writes THAT row only.
+		expect(deskSrc).toContain('termFontSize={row.fontPx}');
+		expect(deskSrc).toContain('setRowFont(row, px)');
 		expect(panelSrc).toContain('font={baseFont}');
 	});
 });

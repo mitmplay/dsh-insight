@@ -118,8 +118,11 @@ export interface PanelPrefs {
 	/** Explorer hide/show (2026-10-31): the tree lane's collapsed state.
 	 *  Optional — absent in legacy blobs, defaulted false on read. */
 	explorerHidden?: boolean;
-	/** Terminal base font in px (ADR-0041 Am.4). Optional — absent in
-	 *  legacy blobs, defaulted TERM_FONT_DEFAULT by clampTermFontSize. */
+	/** LEGACY global terminal font in px (ADR-0041 Am.4 → ADR-0083 D3):
+	 *  boot-only seed storage. Optional — absent in legacy blobs, defaulted
+	 *  TERM_FONT_DEFAULT by clampTermFontSize. revive keeps accepting it
+	 *  (storage tolerance) but no runtime feature may READ it except
+	 *  legacyTerminalFont() — per-row desk mirror fontPx is the live fact. */
 	termFontSize?: number;
 }
 
@@ -207,17 +210,46 @@ export function clampDeskMirror(value: unknown): TerminalDeskMirror | undefined 
 	if (value === null || typeof value !== 'object') return undefined;
 	const raw = value as Record<string, unknown>;
 	if (!Array.isArray(raw.tabs)) return undefined;
-	const tabs: Array<{ sessionIds: string[] }> = [];
+	const tabs: Array<{ sessionIds: string[]; fontPx?: number }> = [];
 	for (const tab of raw.tabs) {
 		if (tab === null || typeof tab !== 'object') continue;
 		const ids = (tab as Record<string, unknown>).sessionIds;
 		if (!Array.isArray(ids)) continue;
 		const sessionIds = ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
 		if (sessionIds.length === 0) continue;
-		tabs.push({ sessionIds });
+		// The Pane's Own Font (ADR-0083 D2): junk fontPx drops FIELD-WISE —
+		// non-number or non-integer (the clamp site's junk convention at the
+		// storage layer) leaves the field absent; an in-band/out-of-band
+		// integer clamps through the single clamp site. The row's sessions
+		// survive regardless.
+		const rawFontPx = (tab as Record<string, unknown>).fontPx;
+		const fontPx =
+			typeof rawFontPx === 'number' && Number.isInteger(rawFontPx)
+				? clampTermFontSize(rawFontPx)
+				: undefined;
+		// Split panes (ADR-0083 D2, rows[m] depth): index-aligned per-row fonts
+		// for a multi-row tab. FIELD-wise junk law at the field level: a wrong
+		// length (must equal sessionIds) or any non-integer member drops the
+		// whole rowFonts field — the tab falls back to fontPx/legacy seeding.
+		let rowFonts: number[] | undefined;
+		const rawRowFonts = (tab as Record<string, unknown>).rowFonts;
+		if (
+			Array.isArray(rawRowFonts) &&
+			rawRowFonts.length === sessionIds.length &&
+			rawRowFonts.every((f) => typeof f === 'number' && Number.isInteger(f))
+		) {
+			rowFonts = rawRowFonts.map((f) => clampTermFontSize(f));
+		}
+		tabs.push({
+			sessionIds,
+			...(fontPx !== undefined ? { fontPx } : {}),
+			...(rowFonts !== undefined ? { rowFonts } : {})
+		});
 	}
-	// Job Follower Tab amendment: remembered -J tabs survive reload; a
-	// shells-only-empty mirror with remembered jobs is still usable.
+	// The Job Bridge (ADR-0081 D5): remembered job ROWS survive reload in this
+	// shape; a shells-only-empty mirror with remembered jobs is still usable.
+	// An UNOWNED job is remembered too — its owner is '' (the empty-owner drop
+	// dated from the job-TAB era; P4 adopts unowned jobs as rows).
 	const jobs: Array<{ owner: string; jobId: string }> = [];
 	if (Array.isArray(raw.jobs)) {
 		for (const j of raw.jobs) {
@@ -225,14 +257,15 @@ export function clampDeskMirror(value: unknown): TerminalDeskMirror | undefined 
 			const owner = (j as Record<string, unknown>).owner;
 			const jobId = (j as Record<string, unknown>).jobId;
 			if (typeof owner !== 'string' || typeof jobId !== 'string') continue;
-			if (owner.length === 0 || jobId.length === 0) continue;
+			if (jobId.length === 0) continue;
 			jobs.push({ owner, jobId });
 		}
 	}
 	if (tabs.length === 0 && jobs.length === 0) return undefined;
 	// a job-only mirror rebuilds with ONE fallback self-open shell in front,
-	// so the stored selected index may point at tabs.length (first job tab)
-	const maxIndex = tabs.length + jobs.length;
+	// and a job row is no tab of its own (it rides a shell tab) — the stored
+	// index clamps into the SHELL tabs, so a job-only mirror lands on 0
+	const maxIndex = Math.max(0, tabs.length - 1);
 	const selected =
 		typeof raw.selectedTab === 'number' && Number.isFinite(raw.selectedTab)
 			? Math.max(0, Math.min(maxIndex, Math.round(raw.selectedTab)))
@@ -678,6 +711,15 @@ const prefsStore = createPrefsStore<PanelPrefs>({
 	// bound sites, preserving the pre-primitive load behavior byte-for-byte.
 	// no `envelope`: the dsi-panels blob shape NEVER changes (D4).
 });
+
+/** The legacy one-shot seed (ADR-0083 D3): read the persisted blob's
+ *  GLOBAL terminal font through the existing revive path — clamped, and
+ *  TERM_FONT_DEFAULT when absent/junk. The ONLY sanctioned reader of
+ *  `PanelPrefs.termFontSize`: a desk row without its own remembered
+ *  fontPx boots at this value once, then owns its font forever. */
+export function legacyTerminalFont(): number {
+	return loadPanelPrefs().termFontSize ?? TERM_FONT_DEFAULT;
+}
 
 /**
  * Read the workspace state from localStorage.

@@ -174,6 +174,7 @@ beforeEach(() => {
 	newSessionStatus = 200;
 	permissionBody = { ok: true, permission: { current: 'default' } };
 	configBody = {};
+	pageFeeds.edgeCache = {}; // no add-time edge may leak in from an earlier test (ADR-0085 pin)
 });
 
 afterEach(() => {
@@ -268,7 +269,7 @@ describe('+page.svelte — chord verbs through the window keydown wiring', () =>
 		expect(pagePrefs.sidebarCollapsed).toBe(false);
 	});
 
-	it("'n' spawns the focused session's sibling: POST session + permission re-apply + add", async () => {
+	it("'n' births a STANDALONE session left of the focus: POST session + permission re-apply + add, no lineage (ADR-0085)", async () => {
 		const calls: Array<{ url: string; method: string; body?: unknown }> = [];
 		vi.stubGlobal(
 			'fetch',
@@ -300,16 +301,113 @@ describe('+page.svelte — chord verbs through the window keydown wiring', () =>
 		await settle();
 		await settle();
 		const sessionPost = calls.find((c) => c.url.includes('/api/dsh/sessions'));
-		expect(sessionPost?.body).toMatchObject({ agentPreset: null }); // no workspace → the no-cwd arm
+		// The row carries no preset → the field is NOT sent (never null: the host
+		// rejects it with 400 bad-preset — the /new --add contract). No workspace → no cwd.
+		expect(sessionPost?.body).toEqual({ cwd: '/ws/x' }); // the seeded row carries the workspace
 		expect(calls.some((c) => c.url.includes('/permission') && c.method === 'POST')).toBe(true);
+		// ADR-0085 D1/D2 (2026-11-25): a STANDALONE birth. The roster rows are
+		// floor order; the Focused Slot lands the newborn BEFORE the focused
+		// session — mountSeeded seeds ?sessionKey=s-floor, so the order is
+		// [newborn, seeded] (the pre-ADR order was [seeded, newborn]).
 		const sessionIds = (getWorkspaceState()?.rows ?? [])
 			.map((r) => (r.panel.kind === 'conversation' ? r.panel.sessionId : null))
 			.filter((v): v is string => v !== null);
-		expect(sessionIds).toContain('s-new');
+		expect(sessionIds).toEqual(['s-new', 's-floor']);
+		// The newborn carries NO lineage (ADR-0085 §5.3, the S1 newborn row):
+		// the host recorded no parent, the route remembered no add-time edge.
+		const newborn = (getWorkspaceState()?.rows ?? []).find(
+			(r) => r.panel.kind === 'conversation' && r.panel.sessionId === 's-new'
+		);
+		expect(newborn?.parentSessionId).toBe(null);
+		expect(newborn?.fork).toBe(false);
+		expect(newborn?.depth).toBe(0);
+		expect(pageFeeds.edgeCache['s-new']).toBeUndefined();
 		expect(target.querySelectorAll('[data-testid="panel-column"]').length).toBe(2);
 	});
 
+	it("'n' with a SUB-AGENT focused (its panel carrying agentPreset null): the create takes the agent from the session record, is never refused, and the newborn lands before the family head", async () => {
+		// The operator's rule 3 (ADR-0085 D3), replayed the way the operator met
+		// the bug (2026-11-25): a sub-agent opened from its ghost row is a panel
+		// with agentPreset null (SidebarSessionOpen passes null), the host record
+		// knows the preset. This stub validates EXACTLY like the real server
+		// (api/dsh/sessions/+server.ts: null is a non-string → 400 bad-preset),
+		// which the permissive stubs never did — that gap let the birth die
+		// silently on the real surface while every test stayed green.
+		const calls: Array<{ url: string; method: string; status: number; body: unknown }> = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				const method = (init?.method ?? 'GET').toUpperCase();
+				if (url.includes('/api/dsh/sessions') && method === 'POST') {
+					const body = JSON.parse(String(init?.body ?? '{}')) as { agentPreset?: unknown; cwd?: unknown };
+					// the real server's validation, verbatim in spirit (L54-59)
+					if (body.agentPreset !== undefined && typeof body.agentPreset !== 'string') {
+						calls.push({ url, method, status: 400, body });
+						return new Response(JSON.stringify({ ok: false, error: { code: 'bad-preset', message: 'agentPreset must be a string' } }), { status: 400, headers: { 'content-type': 'application/json' } });
+					}
+					calls.push({ url, method, status: 200, body });
+					return new Response(JSON.stringify({ ok: true, sessionId: 's-new', agentPreset: body.agentPreset ?? 'host-default' }), { status: 200, headers: { 'content-type': 'application/json' } });
+				}
+				if (url.includes('/permission') && method === 'POST') {
+					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+				}
+				if (url.includes('/permission')) {
+					return new Response(JSON.stringify(permissionBody), { status: 200, headers: { 'content-type': 'application/json' } });
+				}
+				let body: unknown;
+				if (url.includes('/api/dsh/sessions')) {
+					body = {
+						ok: true,
+						sessions: [
+							{ ...SESSION_ROW, agentPreset: 'ptc' },
+							{ ...SESSION_ROW, sessionId: 's-sub', agentPreset: 'ptc', origin: 'subagent', parentSessionId: 's-floor' }
+						],
+						presets: []
+					};
+				} else if (url.includes('/api/a2a')) body = { ok: true, rows: [] };
+				else if (url.includes('/events')) body = { ok: true, entries: [], lastSeq: -1, running: false };
+				else if (url.includes('/models')) body = { ok: true, current: null };
+				else body = { ok: true, entries: [], hasMore: false };
+				return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+			})
+		);
+		// the restored floor: the parent, then its sub-agent panel carrying agentPreset NULL
+		await mountBare([
+			{ id: 'p1', kind: 'conversation', sessionId: 's-floor', agentPreset: 'ptc', width: 600 },
+			{ id: 'p2', kind: 'conversation', sessionId: 's-sub', agentPreset: null, width: 600 }
+		]);
+		// the operator focuses the sub-agent: the family cluster is folded by
+		// default (the head's fold button), so unfold it, then click the child row
+		expect(document.querySelector('[data-testid="sidebar-panel-row"]')).toBeNull(); // folded: only the head renders
+		document.querySelector<HTMLElement>('[data-testid="sidebar-session-current"] [data-testid="sidebar-panel-fold"]')!.click();
+		await settle();
+		const rosterIds = [...document.querySelectorAll('[data-testid="sidebar-panel-row"],[data-testid="sidebar-session-current"]')].map((el) => el.getAttribute('data-session-id'));
+		expect(rosterIds).toEqual(['s-floor', 's-sub']);
+		document.querySelector<HTMLElement>('[data-testid="sidebar-panel-row"][data-session-id="s-sub"]')!.click();
+		await settle();
+		expect(document.querySelector('[data-testid="sidebar-session-current"]')?.getAttribute('data-session-id')).toBe('s-sub');
+		chord('n');
+		await settle();
+		await settle();
+		// the create: the agent from the SESSION record (the host knows ptc), the workspace carried, never null
+		const create = calls.find((c) => c.method === 'POST');
+		expect(create?.status).toBe(200);
+		expect(create?.body).toEqual({ agentPreset: 'ptc', cwd: '/ws/x' });
+		// the birth: before the FAMILY HEAD (D3), the sub-agent still its parent's child
+		const rows = getWorkspaceState()?.rows ?? [];
+		const ids = rows
+			.map((r) => (r.panel.kind === 'conversation' ? r.panel.sessionId : null))
+			.filter((v): v is string => v !== null);
+		expect(ids).toEqual(['s-new', 's-floor', 's-sub']);
+		const fact = (sid: string) => rows.find((r) => r.panel.kind === 'conversation' && r.panel.sessionId === sid);
+		expect(fact('s-new')?.parentSessionId).toBe(null);
+		expect(fact('s-sub')?.parentSessionId).toBe('s-floor');
+		expect(document.querySelectorAll('[data-testid="panel-column"]').length).toBe(3);
+	});
+
 	it("'n' fails honestly silent: transport 500 and ok-but-sessionless both add nothing", async () => {
+
 		newSessionStatus = 500;
 		const { target } = await mountSeeded();
 		chord('n');

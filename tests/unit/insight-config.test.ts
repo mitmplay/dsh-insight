@@ -21,6 +21,7 @@ import {
 	DEFAULT_CONVERSATION_CONFIG,
 	DEFAULT_DSH_PRESET_ENGLISH,
 	DEFAULT_HOME_CONFIG,
+	DEFAULT_JOBS_CONFIG,
 	DEFAULT_PANEL_CONFIG,
 	DEFAULT_SERVER_CONFIG,
 	DEFAULT_SIDEBAR_CONFIG,
@@ -32,11 +33,13 @@ import {
 	readConversationConfig,
 	readDshPresetEnglishConfig,
 	readHomeConfig,
+	readJobsConfig,
 	readPanelConfig,
 	readServerConfig,
 	readSidebarConfig,
 	readPromptsConfig
 } from '$lib/server/insight-config';
+import { DEFAULT_JOBS_AUTOATTACH, DEFAULT_JOBS_AUTOCLOSE } from '$lib/config';
 
 let dir: string;
 
@@ -395,6 +398,52 @@ describe('readDshPresetEnglishConfig — dsh.presetEnglish (shipped-preset overl
 	it('non-boolean presetEnglish falls back to the default, not coercion', () => {
 		expect(readDshPresetEnglishConfig(writeConfig({ dsh: { presetEnglish: 'yes' } })).presetEnglish).toBe(true);
 		expect(readDshPresetEnglishConfig(writeConfig({ dsh: { presetEnglish: 0 } })).presetEnglish).toBe(true);
+	});
+});
+
+/** The Job Bridge (ADR-0081 D2), Task 1.1-T: `jobs.autoAttach` is the
+ * operator's consent for a born job to paint its own desk row. It parses
+ * exactly like its sibling `autoClose` (boolOr): default TRUE, an explicit
+ * boolean wins, an absent key or junk falls back to the default. Proven
+ * gap before this task: probe G2 — `keys=["autoClose"] autoAttach=undefined`. */
+describe('readJobsConfig — jobs.autoAttach (The Job Bridge, ADR-0081 D2)', () => {
+	it('DEFAULT_JOBS_CONFIG pins autoAttach=true beside autoClose=false', () => {
+		expect(DEFAULT_JOBS_AUTOATTACH).toBe(true);
+		expect(DEFAULT_JOBS_AUTOCLOSE).toBe(false);
+		expect(DEFAULT_JOBS_CONFIG).toEqual({ autoClose: false, autoAttach: true });
+	});
+
+	it('absent file / absent section / absent key all default to true', () => {
+		expect(readJobsConfig(join(dir, 'nope.yaml')).autoAttach).toBe(true);
+		expect(readJobsConfig(writeConfig({ terminal: { enabled: true } })).autoAttach).toBe(true);
+		expect(readJobsConfig(writeConfig({ jobs: { autoClose: true } }))).toEqual({
+			autoClose: true,
+			autoAttach: true
+		});
+	});
+
+	it('explicit autoAttach:false parses to false, and leaves autoClose untouched', () => {
+		const cfg = readJobsConfig(writeConfig({ jobs: { autoAttach: false, autoClose: true } }));
+		expect(cfg.autoAttach).toBe(false);
+		expect(cfg.autoClose).toBe(true);
+	});
+
+	it('explicit autoAttach:true parses to true', () => {
+		expect(readJobsConfig(writeConfig({ jobs: { autoAttach: true } })).autoAttach).toBe(true);
+	});
+
+	it('junk values fall back to the default true — a non-boolean is never consent', () => {
+		for (const junk of ['yes', 'false', 'true', 1, 0, null, [], {}]) {
+			expect(readJobsConfig(writeConfig({ jobs: { autoAttach: junk } })).autoAttach).toBe(true);
+		}
+		// a non-record jobs section is junk too
+		expect(readJobsConfig(writeConfig({ jobs: 'nope' })).autoAttach).toBe(true);
+	});
+
+	it('yaml text parses the same as the JSON subset — real settings.yaml shape', () => {
+		const path = join(dir, 'settings.yaml');
+		writeFileSync(path, ['jobs:', '  autoClose: true', '  autoAttach: false', ''].join('\n'), 'utf-8');
+		expect(readJobsConfig(path)).toEqual({ autoClose: true, autoAttach: false });
 	});
 });
 

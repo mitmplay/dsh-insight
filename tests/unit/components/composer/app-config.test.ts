@@ -67,7 +67,7 @@ describe('app-config store', () => {
 				heartbeatType: 'viewport-cap'
 			},
 			home: { refreshMs: 5000 },
-			jobs: { autoClose: false },
+			jobs: { autoClose: false, autoAttach: true },
 			a2a: { fastPollMs: 1000, watchTimeoutMs: 600_000, retentionDays: 90 },
 			browserWidths: { defaultWidth: 860, maxWidth: 1024 },
 			panel: {
@@ -90,6 +90,39 @@ describe('app-config store', () => {
 		expect(appConfig().chat.input.maxRows).toBe(15); // default until settle
 		await p;
 		expect(appConfig().chat.input.maxRows).toBe(7);
+	});
+
+	/** The Job Bridge (ADR-0081 D2), Task 1.2-T: the browser store carries
+	 *  `jobs.autoAttach` — the desk reads it at adoption time. Default TRUE
+	 *  (DEFAULT_JOBS_AUTOATTACH, the single switch that reverses planner call
+	 *  P1); a strict boolean lands; anything else keeps the default — consent
+	 *  is never coerced from a string or a number. */
+	it('jobs.autoAttach defaults to true before the load lands (The Job Bridge D2)', () => {
+		expect(appConfig().jobs.autoAttach).toBe(true);
+		expect(appConfig().jobs.autoClose).toBe(false); // sibling key unchanged
+	});
+
+	it('a config body carrying jobs.autoAttach:false is applied', async () => {
+		vi.stubGlobal('fetch', vi.fn(() => body({ jobs: { autoAttach: false, autoClose: true } })));
+		await loadAppConfig();
+		expect(appConfig().jobs.autoAttach).toBe(false);
+		expect(appConfig().jobs.autoClose).toBe(true);
+	});
+
+	it('a non-boolean jobs.autoAttach leaves the default true (junk is never consent)', async () => {
+		for (const junk of ['false', 0, null, [], {}]) {
+			resetAppConfigForTests();
+			vi.stubGlobal('fetch', vi.fn(() => body({ jobs: { autoAttach: junk, autoClose: true } })));
+			await loadAppConfig();
+			expect(appConfig().jobs.autoAttach).toBe(true);
+			expect(appConfig().jobs.autoClose).toBe(true); // the valid sibling still lands
+		}
+	});
+
+	it('a landed body without a jobs section keeps both job defaults', async () => {
+		vi.stubGlobal('fetch', vi.fn(() => okBody(9)));
+		await loadAppConfig();
+		expect(appConfig().jobs).toEqual({ autoClose: false, autoAttach: true });
 	});
 
 	it('applies chat.macro caps from a landed body; bad values keep defaults', async () => {

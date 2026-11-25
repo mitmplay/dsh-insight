@@ -124,11 +124,12 @@ describe('terminal desk mirror sanitize (Terminal Desk ADR D3, Wave 3 — task 3
 	});
 
 	it('selectedTab clamps into range; junk sessionIds members drop', () => {
-		// D5 amendment: maxIndex = tabs.length + jobs.length — a stored index may
-		// point at the rebuilt follow tab, so 9 clamps to 2 on a 2-tab mirror.
+		// The Job Bridge 4.2 (ADR-0081 D3): a job ROW is no tab of its own, so the
+		// stored selection clamps into the SHELL tabs only (Math.max(0, tabs.length - 1)):
+		// 9 clamps to the LAST SHELL on a 2-tab mirror — never onto a job-tab index.
 		expect(
 			storedDesk({ tabs: [{ sessionIds: ['a'] }, { sessionIds: ['b'] }], selectedTab: 9 })
-		).toEqual({ tabs: [{ sessionIds: ['a'] }, { sessionIds: ['b'] }], selectedTab: 2 });
+		).toEqual({ tabs: [{ sessionIds: ['a'] }, { sessionIds: ['b'] }], selectedTab: 1 });
 		expect(
 			storedDesk({ tabs: [{ sessionIds: ['a', 42, null, ''] }], selectedTab: 0 })
 		).toEqual({ tabs: [{ sessionIds: ['a'] }], selectedTab: 0 });

@@ -18,7 +18,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { isValidTagWord } from '$lib/server/prompts/tags.js';
-import { DEFAULT_JOBS_AUTOCLOSE, DEFAULT_PROMPT_TAGS } from '$lib/config';
+import { DEFAULT_JOBS_AUTOATTACH, DEFAULT_JOBS_AUTOCLOSE, DEFAULT_PROMPT_TAGS } from '$lib/config';
 import { ensureDsiHome, migrateLegacyDsiConfig, parseYamlSettings } from './settings-document.js';
 
 import {
@@ -514,23 +514,35 @@ export const DEFAULT_TERMINAL_CONFIG: TerminalConfig = {
 function boolOr(v: unknown, fallback: boolean): boolean {
 	return typeof v === 'boolean' ? v : fallback;
 }
-// ── jobs (Job Follower Tab, ADR-0035; operator spec 2026-10-21) ─────────────
+// ── jobs (Job Follower Tab, ADR-0035, operator spec 2026-10-21; The Job
+//    Bridge, ADR-0081) ──────────────────────────────────────────────────────
 
-/** The `jobs` section — follower-tab lifecycle. */
+/** The `jobs` section — job surface lifecycle. */
 export interface JobsConfig {
-	/** true → a settled -J tab auto-closes after the grace timer.
+	/** true → a settled job row auto-closes after the grace timer
+	 *  (ADR-0081: the job ROW; ADR-0035's -J tab is retired).
 	 *  false (default) → it stays until the roster row's clear button or
 	 *  an empty roster removes it. */
 	autoClose: boolean;
+	/** true (default) → a job born while the desk is mounted attaches its
+	 *  read-only row by itself (ADR-0081 D2: consent given once, not per
+	 *  click). false → a row opens only from a roster click. */
+	autoAttach: boolean;
 }
 
-export const DEFAULT_JOBS_CONFIG: JobsConfig = { autoClose: DEFAULT_JOBS_AUTOCLOSE };
+export const DEFAULT_JOBS_CONFIG: JobsConfig = {
+	autoClose: DEFAULT_JOBS_AUTOCLOSE,
+	autoAttach: DEFAULT_JOBS_AUTOATTACH
+};
 
 /** Read the `jobs` section. Not cached — runtime edits apply. */
 export function readJobsConfig(configPath?: string): JobsConfig {
 	const rec = parseConfig(configPath)?.jobs;
 	const section = isConfigRecord(rec) ? rec : {};
-	return { autoClose: boolOr(section.autoClose, DEFAULT_JOBS_CONFIG.autoClose) };
+	return {
+		autoClose: boolOr(section.autoClose, DEFAULT_JOBS_CONFIG.autoClose),
+		autoAttach: boolOr(section.autoAttach, DEFAULT_JOBS_CONFIG.autoAttach)
+	};
 }
 
 

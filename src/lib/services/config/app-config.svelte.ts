@@ -30,6 +30,7 @@ import {
 	DEFAULT_MACRO_MAX_DEPTH,
 	DEFAULT_MACRO_MAX_LINES,
 	DEFAULT_HOME_REFRESH_MS,
+	DEFAULT_JOBS_AUTOATTACH,
 	DEFAULT_PANEL_MAX_WIDTH,
 	DEFAULT_PANEL_MAX_ZOOM,
 	DEFAULT_PANEL_MIN_WIDTH,
@@ -138,10 +139,14 @@ export interface AppConfig {
 		dbPath: string;
 	};
 	jobs: {
-		/** Job Follower Tab lifecycle (ADR-0035): true → settled -J tabs
-		 *  auto-close after the grace timer; false (default) → manual clear
-		 *  from the roster row or an empty roster. */
+		/** Job row lifecycle (ADR-0035; ADR-0081 — the job ROW): true →
+		 *  settled job rows auto-close after the grace timer; false (default)
+		 *  → manual clear from the roster row or an empty roster. */
 		autoClose: boolean;
+		/** The Job Bridge (ADR-0081 D2): true (default) → a job born while
+		 *  the desk is mounted attaches its read-only row by itself; false →
+		 *  a row opens only from a roster click. Read at adoption time. */
+		autoAttach: boolean;
 	};
 	settingsHomes: {
 		/** The verbatim settings home roots (The Settings Tree ADR,
@@ -189,7 +194,7 @@ function freshDefault(): AppConfig {
 			placement: DEFAULT_SIDEBAR_PLACEMENT
 		},
 		prompts: { tags: [...DEFAULT_PROMPT_TAGS], dbPath: '' },
-		jobs: { autoClose: false },
+		jobs: { autoClose: false, autoAttach: DEFAULT_JOBS_AUTOATTACH },
 		settingsHomes: { dsi: '~/.dsi', dsh: '~/.dsh' }
 	};
 }
@@ -336,9 +341,11 @@ function applyConfig(body: Record<string, unknown>): void {
 		config.prompts.dbPath = prompts.dbPath;
 	}
 
-	// jobs (Job Follower Tab): autoClose is a strict boolean
+	// jobs (Job Follower Tab / The Job Bridge): autoClose and autoAttach are
+	// strict booleans — junk keeps the default (consent is never coerced).
 	const jobs = isConfigRecord(body.jobs) ? body.jobs : {};
 	config.jobs.autoClose = typeof jobs.autoClose === 'boolean' ? jobs.autoClose : config.jobs.autoClose;
+	config.jobs.autoAttach = typeof jobs.autoAttach === 'boolean' ? jobs.autoAttach : config.jobs.autoAttach;
 
 	// settingsHomes (The Settings Tree ADR 2026-09-18 D2): accept only the
 	// server's two strings; junk keeps the tilde fallbacks.

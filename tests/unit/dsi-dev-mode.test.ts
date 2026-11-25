@@ -136,7 +136,13 @@ describe('dsi.mjs source contract (wiring pins)', () => {
   });
 
   it('teardown tolerates a null host (in-process: vite close hook owns the host)', () => {
-    expect(src.includes("if (host) host.kill('SIGTERM')")).toBe(true);
+    // ADR-0082 Wave 2: the pair teardown moved to bin/lib/floor-teardown.mjs
+    // (spoken exits, D1) — null-host tolerance lives there as optional kills,
+    // and dsi.mjs pins the wiring call.
+    const teardownSrc = readFileSync('bin/lib/floor-teardown.mjs', 'utf8');
+    expect(teardownSrc.includes('host?.kill?.(signal)')).toBe(true);
+    expect(teardownSrc.includes('ui?.kill?.(signal)')).toBe(true);
+    expect(src.includes('wireFloorTeardown({ host, ui })')).toBe(true);
   });
 
   it('usage documents --dev in-process', () => {

@@ -1,10 +1,12 @@
 /**
- * follow-client — the BROWSER side of the Job Follower Tab (ADR-0035 D2/D4):
+ * follow-client — the BROWSER side of the job surface (ADR-0035 D2/D4; The
+ * Job Bridge ADR-0081 D3 — the job ROW, the Tn-J tab species being retired):
  * the communication layer between the roster readout (JobRosterList) and
  * the desk. The desk registers an opener (and a clearer); roster rows emit
- * openJobTab / clearJobTab commands; per-tab follows are EventSource
- * subscriptions over the SSE route. No cross-imports: both sides touch
- * only this bus.
+ * openJobTab / clearJobTab commands — the names are this bus's stable
+ * contract (with a desk mounted, openJobTab attaches or selects the job's
+ * row); per-job follows are EventSource subscriptions over the SSE route.
+ * No cross-imports: both sides touch only this bus.
  */
 import type { DsiJobFollowEvent } from '$lib/types';
 
@@ -37,7 +39,8 @@ export function registerJobTabOpener(fn: JobTabOpener): () => void {
 	};
 }
 
-/** The desk registers how to clear its -J tabs for one job. */
+/** The desk registers how to close its job ROWS for one job (the function's
+ *  name is this bus's stable contract — The Job Bridge 4.1). */
 export function registerJobTabClearer(fn: (owner: string, jobId: string) => void): () => void {
 	clearer = fn;
 	return () => {
@@ -59,13 +62,13 @@ export function openJobTab(owner: string, jobId: string, label: string): void {
 	launcher?.();
 }
 
-/** The roster row's clear button: close that job's -J tab(s) now. */
+/** The roster row's clear button: close that job's terminal row(s) now. */
 export function clearJobTab(owner: string, jobId: string): void {
 	clearer?.(owner, jobId);
 }
 
 /**
- * One SSE follow per job tab. Returns the closer (EventSource.close).
+ * One SSE follow per job row. Returns the closer (EventSource.close).
  * Frames arrive as JSON DsiJobFollowEvent data lines; parse failures are
  * dropped (never rendered as garbage).
  */
@@ -78,11 +81,25 @@ export function connectJobFollow(
 	if (owner) params.set('sessionId', owner);
 	const es = new EventSource('/api/dsh/jobs/follow?' + params.toString());
 	es.onmessage = (m: MessageEvent<string>) => {
+		let event: DsiJobFollowEvent;
 		try {
-			onEvent(JSON.parse(m.data) as DsiJobFollowEvent);
+			event = JSON.parse(m.data) as DsiJobFollowEvent;
 		} catch {
-			// malformed frame — drop
+			return; // malformed frame — drop
 		}
+		try {
+			onEvent(event);
+		} catch {
+			// a consumer's throw never breaks the stream's own bookkeeping
+		}
+		// The host's follow stream ENDS at the job's status frame — and an
+		// EventSource reconnects by itself when its stream ends. Without this
+		// close every settled row re-opened its follow every few seconds for the
+		// page's life: one reconnect loop per settled row, and under the browser's
+		// six-connections-per-host limit those loops starve the page's other
+		// requests (The Job Bridge live gate, 2026-11-25). The row keeps its
+		// tail — nothing follows a settled job.
+		if (event.type === 'status') es.close();
 	};
 	return () => es.close();
 }

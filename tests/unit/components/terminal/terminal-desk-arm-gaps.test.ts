@@ -7,9 +7,9 @@
  *    swallowed (res undefined) and the clear-tab still closes the tab;
  *  - destroyRowSession: the 403 heal where the REATTACH itself fails —
  *    no retry delete, the tab still closes (body?.token falsy arm);
- *  - clearScope('all'): the strip's Clear-all verb closes job tabs AND
+ *  - clearScope('all'): the strip's Clear-all verb closes job rows AND
  *    ladders the shells into ONE fresh T1;
- *  - clearScope('jobs'): the Clear-jobs verb removes ONLY job tabs —
+ *  - clearScope('jobs'): the Clear-jobs verb removes ONLY job rows —
  *    shells untouched.
  */
 import { mount, unmount, flushSync } from 'svelte';
@@ -200,21 +200,21 @@ describe('TerminalDesk — destroyRowSession transport arms', () => {
 });
 
 describe('TerminalDesk — clearScope verbs', () => {
-	it("Clear ALL closes job tabs AND ladders the shells into ONE fresh T1", async () => {
+	it("Clear ALL closes job rows AND ladders the shells into ONE fresh T1", async () => {
 		fetchRoute = baseRoute();
 		appConfig().jobs.autoClose = false;
 		const h = await mountDesk();
 		await tick();
 		openJobTab('session-a', 'j1', 'cov');
 		flushSync();
-		expect(h.target.textContent).toContain('-J'); // the job tab is present
+		expect(h.target.querySelector('[data-testid="terminal-job-row"]')).not.toBeNull(); // the job row is present
 		const shellsBefore = closeCalls.length;
 		click(h.target, '[data-testid="terminal-tabstrip-clear"]');
 		click(h.target, '[data-testid="terminal-tabstrip-clear-all"]');
 		await tick(30);
 		flushSync();
-		// the job tab is gone...
-		expect(h.target.textContent).not.toContain('-J');
+		// the job row is gone...
+		expect(h.target.querySelector('[data-testid="terminal-job-row"]')).toBeNull();
 		// ...and the shells were ladder-closed into one fresh T1 (selected)
 		const closes = closeCalls.slice(shellsBefore).filter((c) => c.endsWith(':close'));
 		expect(closes.length).toBeGreaterThanOrEqual(1);
@@ -222,19 +222,20 @@ describe('TerminalDesk — clearScope verbs', () => {
 		h.cleanup();
 	});
 
-	it('Clear JOBS removes only the job tabs — shells untouched', async () => {
+	it('Clear JOBS removes only the job rows — shells untouched', async () => {
 		fetchRoute = baseRoute();
 		appConfig().jobs.autoClose = false;
 		const h = await mountDesk();
 		await tick();
 		openJobTab('session-a', 'j1', 'cov');
 		flushSync();
+		expect(h.target.querySelector('[data-testid="terminal-job-row"]')).not.toBeNull(); // the job row is present
 		const before = closeCalls.length;
 		click(h.target, '[data-testid="terminal-tabstrip-clear"]');
 		click(h.target, '[data-testid="terminal-tabstrip-clear-jobs"]');
 		await tick(30);
 		flushSync();
-		expect(h.target.textContent).not.toContain('-J');
+		expect(h.target.querySelector('[data-testid="terminal-job-row"]')).toBeNull(); // the job row is gone
 		expect(closeCalls.slice(before).filter((c) => c.endsWith(':close'))).toEqual([]); // no shell killed
 		expect(h.target.querySelectorAll('[data-testid="terminal-panel"]').length).toBe(1);
 		h.cleanup();

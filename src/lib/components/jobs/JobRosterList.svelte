@@ -74,13 +74,15 @@
 					<CircleDashed size={12} class="dead" />
 				{/if}
 			</span>
-			<!-- Job Follower Tab (ADR-0035; operator spec 2026-10-21): EVERY row
-		     opens its follower tab in the desk. The right-aligned clear
-		     button closes that job's -J tab (the autoClose:false path). -->
+		<!-- The Job Bridge (ADR-0081 D3 — the ADR-0035 follower click, operator
+		     spec 2026-10-21): EVERY row attaches its job ROW in the desk, or
+		     selects the row already showing it (the bus's openJobTab, its name
+		     kept). The right-aligned clear button closes that job's terminal
+		     row (the autoClose:false path). -->
 		<button
 			type="button"
 			class="label clickable"
-			title={job.label + ' — open output in terminal'}
+			title={job.label + ' — show output in the terminal'}
 			data-testid={'job-open-' + job.id}
 			onclick={() => openJobTab(job.owner ?? '', job.id, job.label)}
 		>
@@ -89,7 +91,7 @@
 		<button
 			type="button"
 			class="clear"
-			title="clear this job's terminal tab"
+			title="close this job's terminal row"
 			data-testid={'job-clear-' + job.id}
 			onclick={() => clearJobTab(job.owner ?? '', job.id)}
 		>

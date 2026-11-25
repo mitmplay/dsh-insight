@@ -137,6 +137,25 @@
 		flex-direction: column;
 		flex: 1;
 		min-height: 0;
+		/* Column budget (ADR-0084 D1–D3, 2026-11-25): this column is the ONE
+		   component that sees both the Focused pane and the Scheduler shelf,
+		   so it owns the Focused cap and publishes it as a custom property
+		   the pane reads (SidebarSessionOpen — the cap itself stays on the
+		   consumer's wrapper, ADR-0070 D8). Shelf FOLDED, the default: 50%,
+		   the half-column cap of 2026-08-24 to the pixel. */
+		--sidebar-focused-cap: 50%;
+	}
+
+	/* Shelf OPEN: 30% — the block that opens pays. The open shelf's height
+	   comes out of the Focused cap FIRST, so the Sessions list below (the
+	   one block that absorbs whatever is left) keeps about a quarter of
+	   the column instead of a header and one row. D3: the rule reads the
+	   fold off the shelf ROOT — the organ's own data-collapsed attribute
+	   (PanelListbox), already on the DOM — so the number travels through
+	   CSS only: no JavaScript, no props, no change to the container-base
+	   organ. A pane mounted outside this column falls back to 50%. */
+	.sessions:has(:global(.shelf[data-collapsed='false'])) {
+		--sidebar-focused-cap: 30%;
 	}
 
 	.hint {

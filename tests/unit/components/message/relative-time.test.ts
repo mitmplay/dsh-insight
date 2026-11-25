@@ -74,3 +74,40 @@ describe('RelativeTime', () => {
 		expect(el.textContent).toContain('15s ago');
 	});
 });
+
+	describe('extra prop-matrix arms (branch mop)', () => {
+		it('empty-string prefix is still "defined": separator dot renders even with no prefix text', () => {
+			const time = Date.now();
+			const el = mountTime({ time, prefix: '' });
+			// the ternary keys off !== undefined, not truthiness — '' still gets the dot
+			expect(el.textContent).toContain('·');
+			expect(el.textContent).toContain('just now');
+		});
+
+		it('explicitly-undefined prefix falls back to the default and omits the dot', () => {
+			const time = Date.now();
+			const el = mountTime({ time, prefix: undefined });
+			expect(el.textContent).not.toContain('·');
+		});
+
+		it('explicitly-undefined class falls back to the empty default', () => {
+			const time = Date.now();
+			const el = mountTime({ time, class: undefined });
+			expect(el.getAttribute('class') ?? '').toBe('');
+		});
+
+		it('explicitly-undefined role keeps the data-role hook absent', () => {
+			const time = Date.now();
+			const el = mountTime({ time, role: undefined });
+			expect(el.hasAttribute('data-role')).toBe(false);
+		});
+
+		it('full prop matrix: time + role + prefix + class together', () => {
+			const time = Date.now();
+			const el = mountTime({ time, role: 'assistant', prefix: 'Ran for 5s', class: 'text-[10px] opacity-60' });
+			expect(el.getAttribute('data-role')).toBe('assistant');
+			expect(el.getAttribute('class')).toContain('opacity-60');
+			expect(el.textContent).toContain('Ran for 5s · just now');
+			expect(el.title).toBe(new Date(time).toISOString());
+		});
+	});

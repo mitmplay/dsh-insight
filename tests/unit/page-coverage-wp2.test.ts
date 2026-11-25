@@ -288,12 +288,14 @@ describe('+page.svelte WP2 — the a sweep + the n sibling spawn', () => {
 		await settle();
 		const spawn = calls.find((c) => c.method === 'POST' && c.url.includes('/api/dsh/sessions'));
 		expect(spawn).toBeDefined();
-		// 478 truthy arm: the resolved workspace rides the POST body
-		expect(spawnBodies[0]).toEqual({ agentPreset: null, cwd: '/ws/x' });
+		// 478 truthy arm: the resolved workspace rides the POST body; the row
+		// carries no preset so the field is omitted — never null (the host
+		// rejects null with 400 bad-preset, the /new --add contract)
+		expect(spawnBodies[0]).toEqual({ cwd: '/ws/x' });
 		// 496 truthy arm: permission probe ok + non-custom -> the preset line POST
 		const preset = calls.find((c) => c.method === 'POST' && c.url.includes('/s-new/permission'));
 		expect(preset).toBeDefined();
-		// the sibling landed next to the anchor on the floor
+		// the newborn landed LEFT of the anchor (ADR-0085: no afterSessionId → the Focused Slot)
 		expect(storedKinds().filter((k) => k === 'conversation').length).toBe(2);
 		unmount(instance);
 	});
