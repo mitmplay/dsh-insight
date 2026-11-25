@@ -23,7 +23,8 @@ const { peekMock, eventsMock, readFromMock, exitOutcomeMock, listMock, onBornMoc
 	readFromMock: vi.fn(),
 	exitOutcomeMock: vi.fn(),
 	listMock: vi.fn(),
-	onBornMock: vi.fn(() => () => undefined)
+	// variadic signature so mock.calls[0][0] is a typed listener arg, not `never`/`undefined`
+	onBornMock: vi.fn((..._args: unknown[]) => () => undefined)
 }));
 
 vi.mock('$lib/server/terminal/registry.js', () => {
@@ -288,7 +289,7 @@ describe('terminal stream hub route — mock registry', () => {
 
 		it('a registry birth is fanned as an SSE session-born frame, token-free', () => {
 			hubRoute({ url: bornUrl(true) }) as Response;
-			const bornListener = onBornMock.mock.calls[0][0] as (e: Record<string, unknown>) => void;
+			const bornListener = onBornMock.mock.calls[0][0] as unknown as (e: Record<string, unknown>) => void;
 			bornListener({ sessionId: 't-9', deskIntent: 'new-tab', baton: { holder: 'operator', holderId: null, since: 5 } });
 			const all = frames().join('');
 			expect(all).toContain('event: session-born');

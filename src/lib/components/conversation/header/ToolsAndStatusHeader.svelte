@@ -19,10 +19,10 @@
 	 * canvas-copy-button, plus the prefix agent-chip-copy-id) — page/panel
 	 * tests and e2e pin them.
 	 */
-	import { Bot, Check, Copy } from '@lucide/svelte';
+	import { Bot } from '@lucide/svelte';
 	import AgentChip from '$lib/components/common/buttons/AgentChip.svelte';
+	import CopyButton from '$lib/components/common/buttons/CopyButton.svelte';
 	import { CanvasCopyButton } from '@deepseek-insight/container-base';
-	import { copyWithFeedback } from '$lib/utils/clipboard';
 	import type { DsiPlanProjection } from '$lib/services/conversation/plan-projection';
 	import ForkButton from './ForkButton.svelte';
 	import OpenParentButton from './OpenParentButton.svelte';
@@ -65,9 +65,6 @@
 		/** Sub-agent panels hide the fork button (read-only transcript). */
 		subagent?: boolean;
 	} = $props();
-
-	/** Copy-agent-id feedback (2s ✓, copyWithFeedback contract). */
-	let idCopied = $state(false);
 </script>
 
 <div class="ml-auto flex items-center gap-1">
@@ -78,21 +75,15 @@
 	<!-- Copy-agent-id (2s ✓ feedback) sits OUTSIDE the chip, before it —
 	     a standalone icon button (CanvasCopyButton styling parity). -->
 	{#if agentId}
-		<button
-			type="button"
-			class="shrink-0 rounded-md p-1 text-text-muted hover:bg-surface-alt hover:text-text-secondary"
-			data-testid="agent-chip-copy-id"
-			aria-label={t(m.copyAgentPresetId)}
+		<!-- KISS (2026-11-26): the inline copy button became CopyButton —
+		     same testid / aria / 2s ✓ contract, one implementation. -->
+		<CopyButton
+			value={agentId}
 			title={agentId}
-			onclick={() => void copyWithFeedback(agentId, (v) => (idCopied = v))}
-		>
-			{#if idCopied}
-				<!-- ✓ keeps its feedback green: state, not identity. -->
-				<Check size={12} class="text-status-pass" aria-hidden="true" />
-			{:else}
-				<Copy size={12} aria-hidden="true" />
-			{/if}
-		</button>
+			ariaLabel={t(m.copyAgentPresetId)}
+			testid="agent-chip-copy-id"
+			class="shrink-0 rounded-md p-1 text-text-muted hover:bg-surface-alt hover:text-text-secondary"
+		/>
 	{/if}
 	{#if agent}
 		<!-- AgentChip owns the identity (2026-11-06): span mode, header size. -->

@@ -20,20 +20,30 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+/** @typedef {{id: string, exited: boolean, baton: {holder: string, lastWriteAt: number|null, since: number}}} TermSession */
+/** @typedef {{enabled: boolean, sessions: TermSession[]}} TermState */
+/** @typedef {{status: number, body: any}} ApiResult */
+
 const STATE = join(tmpdir(), 'dsi-drive.json');
 const PRODUCTION = 5174; // Port Ledger: the built DSI floor
 const PACE_MS = 120; // one keystroke per write, ~120 ms (KB terminal-driving.md)
 const USAGE = 'usage: drive.mjs type \"<line>\" [target] | peek [target] | take [target] | write \"<text>\" | key <name> | read [--all] | release   (flags: --agent NAME --floor PORT --force --lines N)';
 
-class Blocked { constructor(text, fix) { this.text = text; this.fix = fix; } }
+class Blocked {
+  /** @param {string} text @param {string} fix */
+  constructor(text, fix) { this.text = text; this.fix = fix; }
+}
+/** @param {string} text @param {string} fix */
 function concern(text, fix) { throw new Blocked(text, fix); }
+/** @param {string} text */
 function die(text) { throw new Error(text); }
+/** @param {number} ms */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ── command line ──
 const argv = process.argv.slice(2);
 const cmd = argv[0];
-const flags = {}; const pos = [];
+/** @type {{force?: boolean, all?: boolean, agent?: string, floor?: number, lines?: number}} */ const flags = {}; /** @type {string[]} */ const pos = [];
 for (let i = 1; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--force') flags.force = true;
@@ -44,6 +54,7 @@ for (let i = 1; i < argv.length; i++) {
   else pos.push(a);
 }
 const agent = flags.agent ?? 'agent';
+/** @param {string} line */
 function out(line) { process.stdout.write(line + '\n'); }
 
 // ── floors and the baton facet (all token-free reads) ──
@@ -54,6 +65,7 @@ function out(line) { process.stdout.write(line + '\n'); }
 // the same JSON-probe confirmation (an 'enabled' boolean in the GET body),
 // so a broken-JSON port is never returned as a floor. Both tools are
 // invoked by BARE name so PATH shims work (tests stub them there).
+/** @param {string} text */
 function portsFromText(text) {
   const ports = new Set();
   for (const line of text.split('\n')) { const m = /:(\d+)(?:\s|$)/.exec(line); if (m) ports.add(Number(m[1])); }
@@ -87,6 +99,7 @@ export async function candidatePorts() {
   if (b !== null) return b;
   return portsFromSweep();
 }
+/** @param {number} port @param {string} path @param {RequestInit} [init] @returns {Promise<ApiResult>} */
 async function api(port, path, init = {}) {
   const res = await fetch('http://127.0.0.1:' + port + '/api/terminal' + path, { ...init, signal: AbortSignal.timeout(4000) });
   const text = await res.text();
@@ -106,11 +119,15 @@ async function floors() {
   if (flags.floor) return [flags.floor];
   return confirmedFloors();
 }
-async function list(port) { const r = await api(port, ''); return r.body; } // {enabled, sessions:[{id, exited, baton}]}
+/** @param {number} port @returns {Promise<TermState|null>} */
+async function list(port) { const r = await api(port, ''); return r.body; }
+/** @param {TermSession} s */
 const live = (s) => !s.exited;
+/** @param {number|null|undefined} ms */
 function fmtAgo(ms) { if (ms === null || ms === undefined) return 'never typed in'; const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 60 ? s + 's ago' : Math.round(s / 60) + ' min ago'; }
 
 // ── which shell ──
+/** @param {string|undefined} target */
 function targetId(target) {
   if (target === undefined) return { named: false };
   let m;
@@ -119,14 +136,16 @@ function targetId(target) {
   if (/^T\d+/.test(target)) return { named: true, tab: target };
   return { named: true, bad: target };
 }
+/** @param {number} port @param {string} id @param {string} last */
 function notReady(port, id, last) {
   return concern('Shell ' + id + ' on ' + port + ' does not look ready — its last line is ' + JSON.stringify(last.slice(0, 80)) + '.', 'It may be running something or hold a half-typed line. Wait for it, press Ctrl+C in that tab, or add --force to type anyway.');
 }
 // Resolves the floor and the shell, asking nothing; every dead end is a CONCERN + FIX.
+/** @param {string|undefined} target */
 async function resolve(target) {
   const ps = await floors();
   if (ps.length === 0) return concern('No DSI terminal floor is listening (looked on ports 5100-5199).', 'Start the floor (your dsi command), or pass --floor <port> if it runs elsewhere.');
-  const enabled = [];
+  /** @type {{port: number, l: TermState}[]} */ const enabled = [];
   for (const port of ps) { const l = await list(port); if (l && l.enabled === true) enabled.push({ port, l }); }
   if (enabled.length === 0) return concern('The terminal is switched off on ' + ps.join(', ') + '.', 'Set terminal.enabled in the DSI settings, then open the desk with /dsi-terminal.');
   const t = targetId(target);
@@ -155,11 +174,12 @@ async function resolve(target) {
 }
 
 // ── baton: open / take / write / release ──
-let st = null; // {port, id, token, offset, heals} — the baton this process holds
+/** @type {{port: number, id: string, token: string, offset: number, heals: number}|null} */ let st = null; // the baton this process holds
 function save() { writeFileSync(STATE, JSON.stringify(st)); }
 function load() { try { st = JSON.parse(readFileSync(STATE, 'utf8')); } catch { die('no baton is held — run drive.mjs take first'); } }
 function clear() { try { rmSync(STATE, { force: true }); } catch { /* nothing held */ } }
 const json = { 'content-type': 'application/json' };
+/** @param {number} port */
 async function openShell(port) {
   const r = await api(port, '', { method: 'POST', headers: json, body: JSON.stringify({ holder: 'automation', holderId: agent }) });
   if (r.status !== 200 || !r.body || !r.body.sessionId) die('open refused on ' + port + ': HTTP ' + r.status + ' ' + JSON.stringify(r.body));
@@ -173,11 +193,13 @@ async function openShell(port) {
   }
   return { id: r.body.sessionId, token: r.body.token, offset };
 }
+/** @param {number} port @param {string} id */
 async function take(port, id) {
   const r = await api(port, '/' + id + '/reattach', { method: 'POST', headers: json, body: JSON.stringify({ holder: 'automation', holderId: agent }) });
   if (r.status !== 200 || !r.body || !r.body.token) die('take refused on ' + id + ': HTTP ' + r.status + ' ' + JSON.stringify(r.body));
   return r.body; // {token, fromByte}
 }
+/** @param {string} action @param {Record<string, unknown>} [extra] */
 async function send(action, extra = {}) { return api(st.port, '/' + st.id + '/send', { method: 'POST', headers: json, body: JSON.stringify({ token: st.token, action, ...extra }) }); }
 async function release() {
   const r = await send('release');
@@ -187,6 +209,7 @@ async function release() {
   return 'released';
 }
 // One keystroke = one write, response checked; a refusal is READ, then healed (skill law 4).
+/** @param {string} data @param {number} n */
 async function typeKey(data, n) {
   const r = await send('write', { data });
   if (r.status === 200) return;
@@ -199,9 +222,11 @@ async function typeKey(data, n) {
   const again = await send('write', { data });
   if (again.status !== 200) return concern('A write to ' + st.id + ' was refused twice (HTTP ' + again.status + ').', 'Run drive.mjs peek, read who holds the baton, and decide.');
 }
+/** @param {string} text */
 async function typeKeys(text) { let n = 0; for (const ch of text) { await typeKey(ch === '\n' ? '\r' : ch, n++); await sleep(PACE_MS); } }
 
 // ── reading the screen (a guess: the ring is not a screenshot) ──
+/** @param {string} text */
 function strip(text) {
   return text
     .replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, '') // OSC (window titles)
@@ -211,9 +236,12 @@ function strip(text) {
     .replace(/\u0007/g, '')
     .replace(/.\u0008/g, ''); // the line editor's redraw: x, backspace, xyz
 }
+/** @param {string} text */
 function lines(text) { return strip(text).split(/\r\n|\n|\r/).map((s) => s.trimEnd()).filter((s) => s.trim() !== ''); }
 const PROMPT_END = /(?:❯|[$%#>])\s*$/; // starship's \"❯ \" or a plain \"$ \" must END the last line
+/** @param {string} text */
 function look(text) { const ls = lines(text); const last = ls.at(-1) ?? ''; return { idle: PROMPT_END.test(last), last }; }
+/** @param {number} port @param {string} id @param {number} [from] */
 async function ring(port, id, from = 0) {
   const r = await api(port, '/' + id + '/output?fromByte=' + from);
   return r.body && typeof r.body.text === 'string' ? r.body : { text: '', nextOffset: 0, lossy: false };

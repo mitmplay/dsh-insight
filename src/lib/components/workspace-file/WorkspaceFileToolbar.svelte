@@ -14,6 +14,7 @@
 	 * ($bindable — the panel's render ladder reads it).
 	 */
 	import { CanvasCopyButton } from '@deepseek-insight/container-base';
+	import CopyButton from '$lib/components/common/buttons/CopyButton.svelte';
 	import ReloadButton from '$lib/components/common/buttons/ReloadButton.svelte';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 	import * as m from '$lib/paraglide/messages';
@@ -123,6 +124,9 @@
 <div class="file-toolbar" data-testid="file-toolbar" bind:this={toolbarEl}>
 	<!-- Left side: the full-path readout (flex:1) — every control to
 	     its right (save, File Eye, chips, tabs, capture) right-aligns. -->
+	<!-- Copy the FULL-path readout (2026-11-26 operator request): the
+	     copy-id prefix pattern (PanelHeader) — click copies `path`, 2s ✓. -->
+	<CopyButton value={path} title={path} class="path-copy" />
 	<span class="path" title={path}>{path}</span>
 	{#if showToggle}
 		<WorkspaceFileTabGroup {view} {onviewchange} />
@@ -200,6 +204,29 @@
 	}
 	/* The left-side full-path readout: fills the slack so every control
 	   right-aligns (the SettingsHomeToolbar pattern). */
+	/* The copy-prefix icon beside the path readout: same ghost-chip
+	   grammar as PanelHeader's .hdr-btn — never steals flex slack. */
+	/* :global — the button element lives inside CopyButton (the
+	   ReloadButton extraction precedent); a scoped selector would not
+	   reach it. */
+	.file-toolbar :global(.path-copy) {
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.25rem;
+		height: 1.25rem;
+		border: none;
+		border-radius: 0.25rem;
+		background: transparent;
+		color: var(--color-text-secondary, #6c757d);
+		cursor: pointer;
+	}
+	.file-toolbar :global(.path-copy:hover),
+	.file-toolbar :global(.path-copy:focus-visible) {
+		background: var(--color-surface-secondary, #f1f3f5);
+		color: var(--color-text-primary, #212529);
+	}
 	.path {
 		font-size: 0.75rem;
 		color: var(--color-text-secondary, #6c757d);

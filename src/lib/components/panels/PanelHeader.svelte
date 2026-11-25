@@ -25,9 +25,9 @@
 	 * and copy-id stay live (the clipboard has no floor membership).
 	 * Default false: a floor mount renders exactly as before.
 	 */
-	import { Check, ChevronLeft, ChevronRight, Copy } from '@lucide/svelte';
+	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
 	import { movePanelFromRegistry } from '$lib/services/panels/panel-registry';
-	import { copyWithFeedback } from '$lib/utils/clipboard';
+	import CopyButton from '$lib/components/common/buttons/CopyButton.svelte';
 	import { CanvasCopyButton, PanelClose } from '@deepseek-insight/container-base';
 	// W4 (ADR-0062 D8): the strip GEOMETRY lives in the package skeleton.
 	import { PanelHeaderSkeleton } from '@deepseek-insight/container-base';
@@ -84,9 +84,6 @@
 		onremove?: (opts?: { shiftKey?: boolean }) => void;
 	} = $props();
 
-	/** Copy-session-id feedback (2s ✓, copyWithFeedback contract). */
-	let idCopied = $state(false);
-
 	/** Chevron click — registry invoke (no floor → false → no-op). */
 	function handleMove(dir: 'left' | 'right'): void {
 		movePanelFromRegistry(panelId, dir);
@@ -95,22 +92,15 @@
 
 {#snippet leadingSnippet()}
 		{#if copyValue !== undefined || label === undefined}
-			<button
-				type="button"
-				class="hdr-btn"
-				data-testid="panel-header-copy-id"
-				aria-label={copyLabel ?? 'Copy session id'}
+			<!-- KISS (2026-11-26): the inline copy button became CopyButton —
+			     same testid / aria / 2s ✓ contract, one implementation. -->
+			<CopyButton
+				value={copyValue ?? sessionId}
 				title={copyLabel ?? sessionId}
-				onclick={async () => {
-					await copyWithFeedback(copyValue ?? sessionId, (v) => (idCopied = v));
-				}}
-			>
-				{#if idCopied}
-					<Check size={12} class="text-status-pass" aria-hidden="true" />
-				{:else}
-					<Copy size={12} aria-hidden="true" />
-				{/if}
-			</button>
+				ariaLabel={copyLabel ?? 'Copy session id'}
+				testid="panel-header-copy-id"
+				class="hdr-copy"
+			/>
 		{/if}
 		<span class="id">{label ?? sessionId}</span>
 	{/snippet}
@@ -205,5 +195,27 @@
 	.hdr-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	/* The copy prefix (the button element lives inside CopyButton — a
+	   scoped selector would not reach it; :global per the ReloadButton
+	   precedent). Ghost grammar like the .hdr-btn neighbours. */
+	:global(.hdr-copy) {
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.25rem;
+		height: 1.25rem;
+		border: none;
+		border-radius: 0.25rem;
+		background: transparent;
+		color: var(--color-text-secondary, #6c757d);
+		cursor: pointer;
+	}
+	:global(.hdr-copy:hover),
+	:global(.hdr-copy:focus-visible) {
+		background: var(--color-surface-secondary, #f1f3f5);
+		color: var(--color-text-primary, #212529);
 	}
 </style>

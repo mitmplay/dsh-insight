@@ -2,7 +2,7 @@
 	import * as m from '$lib/paraglide/messages';
 	import { t } from '$lib/services/locale/locale-state.svelte';
 
-	import { copyWithFeedback } from '$lib/utils/clipboard.js';
+	import CopyButton from '$lib/components/common/buttons/CopyButton.svelte';
 
 	import DisplayWorkspace from './DisplayWorkspace.svelte';
 	import EditingTitle from './EditingTitle.svelte';
@@ -80,7 +80,6 @@
 	 * seam; no fs here (client-side).
 	 */
 	let sessionPath = $state<string | null>(null);
-	let copied = $state(false);
 
 	$effect(() => {
 		const id = sessionId;
@@ -114,33 +113,16 @@
 	     guessed one. Distinct testid from the floor's panel-header-copy-id
 	     (which keeps copying the raw id, untouched). -->
 	{#if sessionPath !== null}
-		<button
-			type="button"
-			class="shrink-0 rounded p-0.5 text-text-muted transition-colors hover:text-slate-200"
-			data-testid="conversation-header-copy-path"
-			aria-label={t(m.copySessionPath)}
+		<!-- KISS (2026-11-26): the inline copy button became CopyButton —
+		     same testid / aria / 2s ✓ contract, one implementation. -->
+		<CopyButton
+			value={sessionPath}
 			title={t(m.copySessionPath)}
-			onclick={() => {
-				if (sessionPath === null) return;
-				void copyWithFeedback(sessionPath, (ok) => (copied = ok));
-			}}
-		>
-			<svg
-				class="h-3.5 w-3.5"
-				viewBox="0 0 16 16"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.5"
-				aria-hidden="true"
-			>
-				{#if copied}
-					<path d="M3 8.5 6.5 12 13 4.5" stroke-linecap="round" stroke-linejoin="round" />
-				{:else}
-					<rect x="5.5" y="5.5" width="7" height="8" rx="1.2" />
-					<path d="M10.5 5.5v-1a1.2 1.2 0 0 0-1.2-1.2H4.7A1.2 1.2 0 0 0 3.5 4.5v6a1.2 1.2 0 0 0 1.2 1.2h.8" stroke-linecap="round" />
-				{/if}
-			</svg>
-		</button>
+			ariaLabel={t(m.copySessionPath)}
+			testid="conversation-header-copy-path"
+			size={14}
+			class="shrink-0 rounded p-0.5 text-text-muted transition-colors hover:text-slate-200"
+		/>
 	{/if}
 
 	<!-- Workspace chip (extracted 2026-08-26): DisplayWorkspace renders

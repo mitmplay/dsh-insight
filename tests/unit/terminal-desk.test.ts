@@ -671,7 +671,10 @@ describe('TerminalDesk — adoption of wire-born sessions (Wave 3)', () => {
 			if (typeof term?.dataHandler === 'function') break;
 			await tick(10);
 		}
-		term.dataHandler!('uname -sr\n');
+		// poll loop above guarantees a handler is attached; fail loudly if not
+		const dataHandler = term?.dataHandler;
+		if (typeof dataHandler !== 'function') throw new Error('xterm keystroke handler never attached');
+		dataHandler('uname -sr\n');
 		await tick(30);
 		// one heal reattach (the claim) — adoption fired none, so 1 total
 		expect(reattachCalls).toHaveLength(1);
