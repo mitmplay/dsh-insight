@@ -16,7 +16,9 @@
 	owns its colors on any paste target; the element's translucent skin
 	(computed oklab tints) stays in the SVG overlay.
 -->
+<svelte:options runes={true} />
 <script lang="ts">
+	import { writable, get } from 'svelte/store';
 	import { CAPTURE_BACKING, CAPTURE_THUMB_FALLBACK, CAPTURE_TRACK_FALLBACK } from '../theme/capture-colors';
 
 	/**
@@ -26,7 +28,7 @@
 	 */
 	/** Engine shape — inline types (a top-level type alias in a svelte
 	 *  script trips svelte2tsx rune injection under the package tsconfig). */
-	let state: 'idle' | 'busy' | 'done' = $state('idle');
+	const phase = writable<'idle' | 'busy' | 'done'>('idle');
 
 	let engine: {
 		toBlob: (el: HTMLElement, options?: Record<string, unknown>) => Promise<Blob | null>;
@@ -36,7 +38,7 @@
 	/** Degraded latch — gates clicks AND renders the visible disabled
 	 *  state (2026-11-19 RCA: a no-op the UI cannot see is how the peer
 	 *  bug hid for four days). */
-	let degraded = $state(false);
+	const degraded = writable(false);
 
 	/**
 	 * LITERAL dynamic import (2026-11-19 RCA fix — The Capture Button That
@@ -62,7 +64,7 @@
 			return engine;
 		} catch {
 			engineFailed = true;
-			degraded = true;
+			degraded.set(true);
 			console.warn(
 				'[container-base] html-to-image peer is not installed — CanvasCopyButton is a no-op. Install html-to-image to enable capture.'
 			);
@@ -440,8 +442,8 @@
 
 	async function handleAction(e: MouseEvent): Promise<void> {
 		e.stopPropagation();
-		if (!container || degraded) return;
-		state = 'busy';
+		if (!container || get(degraded)) return;
+		phase.set('busy');
 		let restore: (() => void) | null = null;
 		try {
 			// ADR-0076: stage the DOM before the raster. An async prepare is
@@ -458,13 +460,13 @@
 			} else {
 				await copyToClipboard();
 			}
-			state = 'done';
-			setTimeout(() => (state = 'idle'), 2000);
+			phase.set('done');
+			setTimeout(() => phase.set('idle'), 2000);
 		} catch (err) {
 			// Loud failure (2026-11-19 RCA): a swallowed error made a dead
 			// capture indistinguishable from a slow one for four days.
 			console.error('[container-base] capture failed:', err);
-			state = 'idle';
+			phase.set('idle');
 		} finally {
 			// Restore runs on success AND failure (D2), and its own throw
 			// is swallowed so a bad restore never masks the capture result.
@@ -482,18 +484,18 @@
 <button
 	type="button"
 	class="{className} ccb-root"
-	class:ccb-degraded={degraded}
+	class:ccb-degraded={$degraded}
 	{title}
-	aria-disabled={degraded}
+	aria-disabled={$degraded}
 	data-testid={testid}
 	onclick={handleAction}
 >
-	{#if state === 'done'}
+	{#if $phase === 'done'}
 		<svg class="ccb-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--color-status-pass)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 			<path d="M20 6 9 17l-5-5" />
 		</svg>
 		<!-- idle camera keeps the historic red (text-status-fail, app.css) -->
-	{:else if state === 'busy'}
+	{:else if $phase === 'busy'}
 		<svg class="ccb-icon ccb-spin" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 			<path d="M21 12a9 9 0 1 1-6.219-8.56" />
 		</svg>

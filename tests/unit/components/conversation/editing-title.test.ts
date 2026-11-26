@@ -437,11 +437,11 @@ describe('EditingTitle — rename verbs are icon-only (ADR-0044 D1)', () => {
 		expect(cancel.getAttribute('aria-label')).toBeTruthy();
 		expect(save.getAttribute('title')).toContain('Enter');
 		expect(cancel.getAttribute('title')).toContain('Esc');
-		// Theme-survival pin (2026-10-29): the save fill must ride the deep
-		// emerald token — white ink clears AA on it (5.02:1); raw slate or a
-		// mid-green fill with dark ink regressed legibility.
-		expect(save.className).toContain('bg-accent-emerald-deep');
-		expect(save.className).toContain('text-white');
+		// Accessibility pin (2026-11-26): the save fill must ride the house
+		// primary-action token accent-blue (same as send / prompt-sync submit);
+		// the deep emerald fill was flagged by the operator's a11y audit.
+		expect(save.className).toContain('bg-accent-blue');
+		expect(save.className).toContain('text-accent-blue-ink'); // theme-paired ink on the accent-blue fill (2026-11-26 a11y fix)
 		h.cleanup();
 	});
 

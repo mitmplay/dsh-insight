@@ -49,7 +49,7 @@
 			class="cursor-pointer border px-2 py-[0.1rem] text-[0.6875rem] leading-normal transition-colors {i === 0
 				? 'rounded-l-sm'
 				: 'rounded-r-sm border-l-0'} {active === seg.id
-				? 'border-accent-blue bg-accent-blue text-white'
+				? 'border-accent-blue bg-accent-blue text-accent-blue-ink'
 				: 'border-border bg-transparent'} disabled:cursor-not-allowed disabled:opacity-50"
 			aria-pressed={active === seg.id}
 			disabled={seg.disabled === true}

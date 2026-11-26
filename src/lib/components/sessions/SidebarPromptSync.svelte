@@ -386,7 +386,7 @@
 					data-testid="prompt-sync-submit"
 					title={t(m.sendCheckedPanels)}
 					aria-label={t(m.sendCheckedPanels)}
-					class="prompt-sync-submit flex h-7 w-7 items-center justify-center rounded-md bg-accent-blue text-white transition-colors hover:bg-accent-blue disabled:cursor-not-allowed disabled:opacity-30"
+					class="prompt-sync-submit flex h-7 w-7 items-center justify-center rounded-md bg-accent-blue text-accent-blue-ink transition-colors hover:bg-accent-blue disabled:cursor-not-allowed disabled:opacity-30"
 					disabled={!canSubmit}
 					onclick={() => void run()}
 				>

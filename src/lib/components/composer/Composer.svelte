@@ -744,7 +744,7 @@ import { DraftPersistence } from '$lib/services/chat/draft-persistence.svelte';
 				onclick={() => void submit()}
 				disabled={disabled}
 				data-testid="send-button"
-				class="send-btn flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent-blue text-white transition-colors hover:bg-accent-blue disabled:cursor-not-allowed disabled:opacity-30"
+				class="send-btn flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent-blue text-accent-blue-ink transition-colors hover:bg-accent-blue disabled:cursor-not-allowed disabled:opacity-30"
 				title={t(m.sendMessage)}
 				aria-label={t(m.sendMessage)}
 			>

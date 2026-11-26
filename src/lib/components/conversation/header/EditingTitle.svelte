@@ -171,7 +171,7 @@
 	     readers keep the words. -->
 	<button
 		type="button"
-		class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-accent-emerald-deep text-white hover:bg-[color-mix(in_srgb,var(--color-accent-emerald-deep)_85%,black)] disabled:bg-surface-alt disabled:text-text-muted disabled:hover:bg-surface-alt"
+		class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-accent-blue text-accent-blue-ink hover:bg-accent-blue/80 disabled:bg-surface-alt disabled:text-text-muted disabled:hover:bg-surface-alt"
 		disabled={renaming || titleDraft.trim().length === 0 || titleDraft.trim() === renameBaseline}
 		data-testid="rename-save"
 		aria-label={t(m.save)}

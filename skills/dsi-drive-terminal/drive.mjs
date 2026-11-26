@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-/** @typedef {{id: string, exited: boolean, baton: {holder: string, lastWriteAt: number|null, since: number}}} TermSession */
+/** @typedef {{id: string, exited: boolean, readiness?: {settled?: boolean, settledSince?: number|null, reason?: string}|null, baton: {holder: string, holderId?: string, lastWriteAt: number|null, since: number}}} TermSession */
 /** @typedef {{enabled: boolean, sessions: TermSession[]}} TermState */
 /** @typedef {{status: number, body: any}} ApiResult */
 
@@ -33,9 +33,9 @@ class Blocked {
   /** @param {string} text @param {string} fix */
   constructor(text, fix) { this.text = text; this.fix = fix; }
 }
-/** @param {string} text @param {string} fix */
+/** @param {string} text @param {string} fix @returns {never} */
 function concern(text, fix) { throw new Blocked(text, fix); }
-/** @param {string} text */
+/** @param {string} text @returns {never} */
 function die(text) { throw new Error(text); }
 /** @param {number} ms */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -43,7 +43,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ── command line ──
 const argv = process.argv.slice(2);
 const cmd = argv[0];
-/** @type {{force?: boolean, all?: boolean, agent?: string, floor?: number, lines?: number}} */ const flags = {}; /** @type {string[]} */ const pos = [];
+/** @type {{force?: boolean, all?: boolean, agent?: string, floor?: number, lines?: number}} */
+const flags = {};
+/** @type {string[]} */
+const pos = [];
 for (let i = 1; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--force') flags.force = true;
@@ -158,7 +161,7 @@ async function resolve(target) {
     const hit = enabled.find((v) => v.l.sessions.some((s) => s.id === t.id));
     if (!hit) return concern('No shell ' + t.id + ' on ' + enabled.map((v) => v.port).join(', ') + '.', 'Pick one from the list, or omit the target.');
     const s = hit.l.sessions.find((x) => x.id === t.id);
-    if (!live(s)) return concern('Shell ' + t.id + ' on ' + hit.port + ' is dead (it exited).', 'Run /dsi-terminal --new-tab for a fresh one, or omit the target.');
+    if (!s || !live(s)) return concern('Shell ' + t.id + ' on ' + hit.port + ' is dead (it exited).', 'Run /dsi-terminal --new-tab for a fresh one, or omit the target.');
     return { port: hit.port, id: s.id, opened: false };
   }
   const withLive = enabled.map((v) => ({ port: v.port, live: v.l.sessions.filter(live) })).filter((v) => v.live.length > 0);
@@ -200,7 +203,7 @@ async function take(port, id) {
   return r.body; // {token, fromByte}
 }
 /** @param {string} action @param {Record<string, unknown>} [extra] */
-async function send(action, extra = {}) { return api(st.port, '/' + st.id + '/send', { method: 'POST', headers: json, body: JSON.stringify({ token: st.token, action, ...extra }) }); }
+async function send(action, extra = {}) { if (st === null) return die('no baton is held — run drive.mjs take first'); return api(st.port, '/' + st.id + '/send', { method: 'POST', headers: json, body: JSON.stringify({ token: st.token, action, ...extra }) }); }
 async function release() {
   const r = await send('release');
   clear();
@@ -214,13 +217,15 @@ async function typeKey(data, n) {
   const r = await send('write', { data });
   if (r.status === 200) return;
   if (r.status !== 403) die('write refused (key ' + (n + 1) + '): HTTP ' + r.status + ' ' + JSON.stringify(r.body));
-  const l = await list(st.port); const s = l.sessions.find((x) => x.id === st.id); const b = s && s.baton;
-  if (s && !live(s)) return concern('Shell ' + st.id + ' exited while I was typing (before key ' + (n + 1) + ').', 'Open a fresh tab and ask again.');
-  if (b && b.holder === 'operator' && b.lastWriteAt !== null && b.lastWriteAt >= b.since) return concern('You started typing in ' + st.id + ' — I stopped before key ' + (n + 1) + ' and left the line to you.', 'Nothing to fix: finish your line, then ask me again.');
-  if (st.heals >= 3) return concern('The baton on ' + st.id + ' keeps moving (3 heals already).', 'Another driver or a reloading desk is fighting for it; say which one should hold it.');
-  st.token = (await take(st.port, st.id)).token; st.heals++; save();
+  if (st === null) return die('no baton is held — run drive.mjs take first');
+  const held = st; // narrowed: callbacks cannot see the narrowing of the outer let
+  const l = await list(held.port); if (l === null) return die('terminal floor ' + held.port + ' is not answering.'); const s = l.sessions.find((x) => x.id === held.id); const b = s && s.baton;
+  if (s && !live(s)) return concern('Shell ' + held.id + ' exited while I was typing (before key ' + (n + 1) + ').', 'Open a fresh tab and ask again.');
+  if (b && b.holder === 'operator' && b.lastWriteAt !== null && b.lastWriteAt >= b.since) return concern('You started typing in ' + held.id + ' — I stopped before key ' + (n + 1) + ' and left the line to you.', 'Nothing to fix: finish your line, then ask me again.');
+  if (held.heals >= 3) return concern('The baton on ' + held.id + ' keeps moving (3 heals already).', 'Another driver or a reloading desk is fighting for it; say which one should hold it.');
+  held.token = (await take(held.port, held.id)).token; held.heals++; save();
   const again = await send('write', { data });
-  if (again.status !== 200) return concern('A write to ' + st.id + ' was refused twice (HTTP ' + again.status + ').', 'Run drive.mjs peek, read who holds the baton, and decide.');
+  if (again.status !== 200) return concern('A write to ' + held.id + ' was refused twice (HTTP ' + again.status + ').', 'Run drive.mjs peek, read who holds the baton, and decide.');
 }
 /** @param {string} text */
 async function typeKeys(text) { let n = 0; for (const ch of text) { await typeKey(ch === '\n' ? '\r' : ch, n++); await sleep(PACE_MS); } }
@@ -248,6 +253,7 @@ async function ring(port, id, from = 0) {
 }
 
 // ── commands ──
+/** @param {string|undefined} target @returns {Promise<{port: number, id: string, opened: boolean}>} */
 async function grab(target) { // resolve → (open if none) → readiness → take; returns {port, id, opened}
   const r = await resolve(target);
   if (r.opened) { const o = await openShell(r.port); st = { port: r.port, id: o.id, token: o.token, offset: o.offset, heals: 0 }; save(); return { port: r.port, id: o.id, opened: true }; }
@@ -264,14 +270,16 @@ async function grab(target) { // resolve → (open if none) → readiness → ta
   if (!s.readiness && !flags.force) {
     return concern('Shell ' + r.id + ' on ' + r.port + ' carries NO readiness field — this floor predates ADR-0080, so its settle state is unknown.', 'Update the floor, or add --force to type on the peek-text guess alone.');
   }
-  const screen = await ring(r.port, r.id); const k = look(screen.text);
+  const rid = /** @type {string} */ (r.id); // only the opened:true branch carries id:null, returned above
+  const screen = await ring(r.port, rid); const k = look(screen.text);
   // SECONDARY (the half-typed line): settled only proves quiet output, not
   // an idle prompt — a half-typed line would still be mangled.
-  if (!k.idle && !flags.force) return notReady(r.port, r.id, k.last);
-  const t = await take(r.port, r.id);
-  st = { port: r.port, id: r.id, token: t.token, offset: t.fromByte, heals: 0 }; save();
-  return { port: r.port, id: r.id, opened: false };
+  if (!k.idle && !flags.force) return notReady(r.port, rid, k.last);
+  const t = await take(r.port, rid);
+  st = { port: r.port, id: rid, token: t.token, offset: t.fromByte, heals: 0 }; save();
+  return { port: r.port, id: rid, opened: false };
 }
+/** @param {string|undefined} line @param {string|undefined} target */
 async function cmdType(line, target) {
   if (line === undefined || line === '') die('usage: drive.mjs type \"<line>\" [target]');
   if (/[\r\n]/.test(line)) return concern('I type ONE line per call; this one has a line break.', 'Call me once per line.');
@@ -280,20 +288,25 @@ async function cmdType(line, target) {
   const how = await release();
   out('typed ' + JSON.stringify(line) + ' → ' + g.id + ' on ' + g.port + ' · took the baton as ' + JSON.stringify(agent) + (g.opened ? ' · opened a new shell' : '') + ' · ' + how);
 }
+/** @param {string|undefined} target */
 async function cmdTake(target) {
   const g = await grab(target);
   out('baton taken: ' + g.id + ' on ' + g.port + ' as ' + JSON.stringify(agent) + (g.opened ? ' (new shell)' : '') + ' · release it when done');
 }
-async function cmdWrite(text) { load(); await typeKeys(text); out('wrote ' + text.length + ' key(s) → ' + st.id); }
+/** @param {string} text */
+async function cmdWrite(text) { load(); const cur = /** @type {{port: number, id: string, token: string, offset: number, heals: number}} */ (st); await typeKeys(text); out('wrote ' + text.length + ' key(s) → ' + cur.id); }
 const KEYS = { enter: '\r', 'ctrl-c': '\u0003', esc: '\u001b', tab: '\t', backspace: '\u007f', up: '\u001b[A', down: '\u001b[B', left: '\u001b[D', right: '\u001b[C' };
-async function cmdKey(name) { load(); const k = KEYS[name]; if (k === undefined) die('unknown key ' + JSON.stringify(name) + '; known: ' + Object.keys(KEYS).join(', ')); await typeKeys(k); out('key ' + name + ' → ' + st.id); }
+/** @param {string} name */
+async function cmdKey(name) { load(); const k = KEYS[/** @type {keyof typeof KEYS} */ (name)]; if (k === undefined) die('unknown key ' + JSON.stringify(name) + '; known: ' + Object.keys(KEYS).join(', ')); await typeKeys(k); out('key ' + name + ' → ' + /** @type {{id: string}} */ (st).id); }
 async function cmdRead() {
   load();
-  const r = await ring(st.port, st.id, flags.all ? 0 : st.offset);
+  const cur = /** @type {{port: number, id: string, token: string, offset: number, heals: number}} */ (st);
+  const r = await ring(cur.port, cur.id, flags.all ? 0 : cur.offset);
   for (const ln of lines(r.text).slice(-(flags.lines ?? 30))) out(ln.slice(0, 200));
-  st.offset = r.nextOffset; save();
+  cur.offset = r.nextOffset; save();
 }
-async function cmdRelease() { load(); const id = st.id; const port = st.port; out('baton ' + (await release()) + ' (' + id + ' on ' + port + ')'); }
+async function cmdRelease() { load(); const cur = /** @type {{port: number, id: string, token: string, offset: number, heals: number}} */ (st); const id = cur.id; const port = cur.port; out('baton ' + (await release()) + ' (' + id + ' on ' + port + ')'); }
+/** @param {string|undefined} target */
 async function cmdPeek(target) {
   const ps = await floors();
   if (ps.length === 0) return out('No DSI terminal floor is listening (looked on ports 5100-5199).');
@@ -329,8 +342,9 @@ if (invokedDirectly) {
   try {
     await main();
   } catch (e) {
-    if (st && st.token) { try { await send('release'); } catch { /* not ours any more */ } clear(); }
+    const held = /** @type {{port: number, id: string, token: string, offset: number, heals: number}|null} */ (st);
+    if (held && held.token) { try { await send('release'); } catch { /* not ours any more */ } clear(); }
     if (e instanceof Blocked) { out('CONCERN: ' + e.text); out('FIX: ' + e.fix); process.exitCode = 3; }
-    else { out('ERROR: ' + (e && e.message ? e.message : e)); process.exitCode = 1; }
+    else { const err = /** @type {{message?: unknown}} */ (e); out('ERROR: ' + (err && err.message ? err.message : e)); process.exitCode = 1; }
   }
 }

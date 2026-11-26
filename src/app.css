@@ -29,6 +29,10 @@
 	--color-text-muted: #adb5bd;
 
 	--color-accent-blue: #3b82f6;
+	/* Ink that sits ON an accent-blue fill (2026-11-26 a11y fix): white
+	 * clears on the light-theme blue; the dark theme's #60a5fa fill needs
+	 * dark ink instead — paired per theme, like accent-purple-ink. */
+	--color-accent-blue-ink: #ffffff;
 
 	/* Chord palette decay ticker (container-base W6 tokens — values are the
 	 * overlay's pre-token Tailwind classes, kept for render parity) */
@@ -161,6 +165,7 @@
 	--color-text-muted: #757e89;
 
 	--color-accent-blue: #60a5fa;
+	--color-accent-blue-ink: #0c2a5b;
 	--color-accent-purple: #a78bfa;
 	/* Chord palette decay ticker — dark re-declares the light values (the
 	 * pre-token overlay used the same classes in both modes; token-contrast
