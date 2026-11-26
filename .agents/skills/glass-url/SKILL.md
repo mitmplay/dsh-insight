@@ -1,6 +1,6 @@
 ---
 name: glass-url
-description: Open and drive an ARBITRARY URL (YouTube, docs, any web page) in a NEW tab on the operator's glass browser via CDP — search, click, screenshot, read the page. NOT for verifying DSI work; that is glass-dsi. In a DSH HARNESS session do NOT use this skill — the browse brain (mcp__browse__* tools, real Chrome via the @opencode/browse extension) is the bound driver there; see deepseek-insight/dev/onboard/2026-11-13-opencode-browse-mcp.md §7. Reserved keyword /glass-url.
+description: Open and drive an ARBITRARY URL (YouTube, docs, any web page) in a NEW tab on the operator's glass browser via CDP — search, click, screenshot, read the page — a DISPOSABLE browser shown in a floor panel. NOT for the operator's real Chrome, their logins or a named Chrome profile; that is browse-url, the only driver where just mcp__browse__* tools are held. NOT for verifying DSI work; that is glass-dsi. Reserved keyword /glass-url.
 ---
 
 # glass-url — drive an arbitrary URL on the operator's glass
@@ -13,6 +13,13 @@ target is some web page, and the DSI tab is none of your business.
 ask ONE question — is the surface I must drive the DSI workspace, or some
 other URL? DSI workspace → `glass-dsi`. Any other URL → THIS skill.
 Never navigate the DSI tab, never re-run `open` to "recover".
+
+**The first question, since 2026-11-26: which browser tools does the session
+hold?** Real Chrome, the operator's logins, or a named Chrome profile →
+`browse-url`. Glass needs a panel the operator opens (rule 4 below), and the
+MCP route needs `mcp__glass-browser__browser_*` tools; the scripts below are
+the route when they are not held. The three browser skills share this rule;
+sources: `dev/feature-contract-scenario/browser-driver-dispatch.md`.
 
 ## Environment contract (read before the first command — RCA 2026-10-30)
 

@@ -99,12 +99,19 @@ When it is up, your browser opens the page by itself (default `http://127.0.0.1:
 
 <details>
 <summary><strong>Glass browser</strong></summary>
-<p>The Glass browser is a real browser living inside DSI. While you work, agents build and change DSI itself — plugins, panels, settings — and instead of telling you "it's done", they can prove it: the work runs right there in the Glass panel, and you watch it live. If a plugin breaks, you see exactly what broke with your own eyes instead of trusting a green test report — the browser is the receipt.</p>
+<p>The Glass browser is a real browser living inside DSI. While you work, agents build and change DSI itself — plugins, panels, settings — and instead of telling you "it's done", they can prove it: the work runs right there in the Glass panel, and you watch it live. If a plugin breaks, you see exactly what broke with your own eyes instead of trusting a green test report — the browser is the receipt. It is a clean, disposable browser: none of your logins, none of your bookmarks — perfect for checking DSI's own work and for opening any ordinary web page in a panel.</p>
 <img src="https://raw.githubusercontent.com/mitmplay/dsh-insight/refs/heads/main/docs/images/dsi-insight-3.glass-browser.png"/>
+</details>
+
+<details>
+<summary><strong>Your real Chrome (<code>@opencode/browse</code>)</strong></summary>
+<p>Some things a clean browser simply cannot do: read a page you are logged into, click around your own accounts, or test with the extensions you actually use. For that, DSI can drive <strong>your real Chrome</strong> through a small helper called <code>@opencode/browse</code>. It works per Chrome profile: install the tiny <strong>browse extension</strong> in the profile you want to hand over, pair it once with a code (the agent prints one, you paste it at Extensions menu → browse → Options → "Pair with a code"), and from then on agents can open tabs, read, click and screenshot in that profile — with your logins, as you. Because it is genuinely you behind the wheel, agents read freely but hand anything irreversible (sending, posting, buying, deleting) back to you first.</p>
+<p><strong>Which browser gets used? You don't have to choose — the skills do it for you.</strong> Each way of driving a browser has a skill with its own intent cues: say "on the glass", "in a glass panel" or nothing at all about Chrome and <code>glass-url</code>/<code>glass-dsi</code> take the clean Glass browser; say "in my Chrome", "logged in as me" or name one of your Chrome profiles and <code>browse-url</code> takes the real one via <code>@opencode/browse</code>. A profile name picks <em>which</em> Chrome person is driven (each paired profile is a separate identity, recorded in a small local registry); when both browsers would fit and the prompt is silent about anything irreversible, the agent asks you once which one it should be — it never guesses with your real Chrome.</p>
 </details>
 
 ## Included skills for:
 - Coding agents: `/dsi-adr`, `/dsi-spec`, `/dsi-task`
+- Browsers: `/glass-url`, `/glass-dsi`, `/glass-dsh` (the clean Glass browser) and `/browse-url` (your real Chrome)
 - Integration helper for [OpenViking](https://openviking.ai/): `/dsi-ov-setup` 
 
 # Ports & the browser brain, in plain words

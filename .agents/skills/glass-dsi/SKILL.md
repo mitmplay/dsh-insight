@@ -1,6 +1,6 @@
 ---
 name: glass-dsi
-description: Use when asked to test/verify work "live", "on the glass", "headed", or on the real DSI surface — drive the operator's own Glass Browser over its MCP tools (mcp__glass-browser__browser_*), opening a glass panel if none exists or adding a focused tab when one does. Reserved keyword /glass-dsi (legacy alias /dsi-glass still matches).
+description: Use when asked to test/verify work "live", "on the glass", "headed", or on the real DSI surface — drive the operator's own Glass Browser over its MCP tools (mcp__glass-browser__browser_*), opening a glass panel if none exists or adding a focused tab when one does. NOT for the operator's real Chrome, their logins or a named Chrome profile; that is browse-url. Reserved keyword /glass-dsi (legacy alias /dsi-glass still matches).
 ---
 
 # glass-dsi — verify work on the operator's own Glass Browser
@@ -12,6 +12,14 @@ Any other URL → the `glass-url` skill; it opens a NEW tab and NEVER touches
 the DSI tab. Do NOT navigate the DSI tab to an external URL and do NOT
 re-run `open` to "recover" — that dance produced a useless DSI tab, a
 strike from the driver, and three tabs where one was needed.
+
+**Hands first (2026-11-26):** before that, ask which browser tools the session
+holds. If `mcp__glass-browser__browser_*` tools are not in it, "The hands are
+the browser" below cannot be followed as tools; that was so on this floor
+that day. Use `references/cdp-verification.md` (raw CDP) or the `glass-url`
+scripts, and say so. Real Chrome, the operator's logins, or a Chrome
+profile → `browse-url`. The three browser skills share this rule; sources:
+`dev/feature-contract-scenario/browser-driver-dispatch.md` (C3).
 
 Companion KB: `dev/feature-contract-scenario/glass-browser-verification.md`
 (the why and the wire: CDP, the :9515 in-process brain, the three doors).
