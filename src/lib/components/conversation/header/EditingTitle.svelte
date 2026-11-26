@@ -223,3 +223,14 @@
 		{displayTitle}
 	</button>
 {/if}
+
+<style>
+	/* Saturated save control (2026-11-26 a11y fix): the accent-blue fill
+	 * carries its own ink (text-accent-blue-ink, theme-paired), so the
+	 * check icon must inherit it - the global svg purple-icon default
+	 * (app.css OCI icon standard) otherwise paints a purple glyph on the
+	 * blue fill. Same scoped pin the Composer send button carries. */
+	button :global(svg) {
+		color: inherit;
+	}
+</style>
