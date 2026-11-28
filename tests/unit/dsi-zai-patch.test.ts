@@ -55,6 +55,13 @@ describe('addZaiProvider (D7, D10)', () => {
 		expect(model?.config).toEqual({ provider: ZAI_DEFAULT_MODEL.provider, model: ZAI_DEFAULT_MODEL.model });
 		const zai = (llm?.config as { providers: { zai: { id?: never } } }).providers.zai;
 		expect(zai).toMatchObject({ apiKeyEnv: 'ZAI_API_KEY', api: 'openai-completions' });
+		// glm-5.4 bootstraps with the thinking cap (compat flag + effort ceiling),
+		// matching the operator's live patch (2026-11-28).
+		const glm54 = (zai as { models: { id: string; compat?: { supportsReasoningEffort?: boolean }; reasoningEfforts?: Record<string, string | null> }[] }).models.find(
+			(m) => m.id === 'glm-5.4',
+		);
+		expect(glm54?.compat).toEqual({ supportsReasoningEffort: true });
+		expect(glm54?.reasoningEfforts).toEqual({ off: null, low: 'low', medium: 'low', high: 'medium' });
 		rmSync(p, { force: true });
 	});
 

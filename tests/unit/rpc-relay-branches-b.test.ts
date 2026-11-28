@@ -572,4 +572,72 @@ describe('dispose - transient registries never leak', () => {
 			vi.useRealTimers();
 		}
 	});
+
+	describe('SC2 per-session model label (2026-11-28, ADR-0086 Amendment 1)', () => {
+		/** Catalog fixture + session/list rows carrying per-session picks. */
+		function sc2Conn() {
+			const c = makeConn();
+			const catalog = {
+				default: { provider: 'zai', model: 'glm-5.3-flash' },
+				routableProviders: ['zai'],
+				groups: [{ id: 'zai', name: 'Zai', models: [{ id: 'glm-4.7' }, { id: 'glm-5.1' }, { id: 'glm-5.3-flash' }] }],
+				failures: []
+			};
+			const rows: Array<Record<string, unknown>> = [
+				{ sessionId: 's-a', projections: { values: { modelSelection: { lastUsed: { provider: 'zai', model: 'glm-5.3-flash' }, next: { provider: 'zai', model: 'glm-4.7' } } } } },
+				{ sessionId: 's-b', projections: { values: { modelSelection: { lastUsed: { provider: 'zai', model: 'glm-5.3-flash' }, next: { provider: 'zai', model: 'glm-5.1' } } } } }
+			];
+			c.conn.rpc.mockImplementation(async (method: string) => {
+				if (method === 'session/modelCatalog') return catalog;
+				if (method === 'session/list') return { items: rows };
+				return {};
+			});
+			return { relay: c.relay, conn: c.conn, catalog, rows };
+		}
+
+		it('T1 relay spy — the catalog call stays argless {} (host descriptor refuses sessionId)', async () => {
+			const { relay, conn } = sc2Conn();
+			await relay.listModels('s-a');
+			const cat = conn.rpc.mock.calls.find((c) => c[0] === 'session/modelCatalog');
+			expect(cat).toBeDefined();
+			expect(cat![1]).toEqual({});
+		});
+
+		it('T2 two-session contract — s-a and s-b get DIFFERENT, own-selection currents', async () => {
+			const { relay } = sc2Conn();
+			const a = await relay.listModels('s-a');
+			const b = await relay.listModels('s-b');
+			expect(a.current).toEqual({ provider: 'zai', model: 'glm-4.7' });
+			expect(b.current).toEqual({ provider: 'zai', model: 'glm-5.1' });
+			expect(a.current).not.toEqual(b.current);
+		});
+
+		it('T3 next wins over lastUsed (routing truth for the coming turn)', async () => {
+			const { relay, rows } = sc2Conn();
+			rows[0] = { sessionId: 's-a', projections: { values: { modelSelection: { lastUsed: { provider: 'zai', model: 'old' }, next: { provider: 'zai', model: 'new' } } } } };
+			expect((await relay.listModels('s-a')).current).toEqual({ provider: 'zai', model: 'new' });
+		});
+
+		it('T4 unknown session keeps the floor-wide catalog answer (honest fallback)', async () => {
+			const { relay } = sc2Conn();
+			expect((await relay.listModels('s-unknown')).current).toEqual({ provider: 'zai', model: 'glm-5.3-flash' });
+		});
+
+		it('T5 a failing session/list never hides the directory', async () => {
+			const { relay, conn } = sc2Conn();
+			conn.rpc.mockImplementation(async (method: string) => {
+				if (method === 'session/modelCatalog') return { default: { provider: 'zai', model: 'glm-5.3-flash' }, groups: [], failures: [] };
+				return Promise.reject(new Error('list down'));
+			});
+			const dir = await relay.listModels('s-a');
+			expect(dir.current).toEqual({ provider: 'zai', model: 'glm-5.3-flash' });
+		});
+
+		it('T6 junk selection row falls back to the floor-wide answer', async () => {
+			const { relay, rows } = sc2Conn();
+			rows[0] = { sessionId: 's-a', projections: { values: { modelSelection: 'junk' } } };
+			expect((await relay.listModels('s-a')).current).toEqual({ provider: 'zai', model: 'glm-5.3-flash' });
+		});
+	});
+
 });

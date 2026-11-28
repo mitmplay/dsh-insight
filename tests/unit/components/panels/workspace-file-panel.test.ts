@@ -309,14 +309,16 @@ describe('WorkspaceFilePanel — tabs + Monaco gate (4.1-T)', () => {
 			await view.settle();
 			const reload = view.q<HTMLButtonElement>('[data-testid="file-reload"]');
 			expect(reload).not.toBeNull();
-			// placement contract: the reload icon is the toolbar's LAST-but-one
-			// control — immediately before the column-capture button's slot.
+			// placement contract: the reload icon sits BEFORE the column-
+			// capture button's slot (the 2026-10-31 Explorer HeadChip may sit
+			// between them — reload still leads the capture control).
 			const toolbar = view.q('[data-testid="file-toolbar"]')!;
-			const children = [...toolbar.children].map((c) => c.querySelector<HTMLElement>('[data-testid]')?.dataset.testid ?? (c as HTMLElement).dataset.testid ?? c.className.split(' ')[0]);
-			const reloadIdx = children.indexOf('file-reload');
-			const copyIdx = children.findIndex((n) => n === 'copy-slot' || String(n).includes('copy'));
+			const kids = [...toolbar.children] as HTMLElement[];
+			const reloadIdx = kids.findIndex((c) => c.querySelector('[data-testid="file-reload"]') || c.dataset.testid === 'file-reload');
+			const copyIdx = kids.findIndex((c) => c.classList.contains('copy-slot'));
+			expect(reloadIdx).toBeGreaterThan(-1);
 			expect(copyIdx).toBeGreaterThan(-1);
-			expect(reloadIdx).toBe(copyIdx - 1);
+			expect(reloadIdx).toBeLessThan(copyIdx);
 			// the verb: exactly one more fetch; the editor buffer survives.
 			const fetches = fetchMock.mock.calls.length;
 			const editorBefore = glueCalls.length;

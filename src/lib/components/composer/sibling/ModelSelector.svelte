@@ -58,6 +58,15 @@
 		}
 	}
 
+	// SC1 (ADR-0086): the host's per-session selection can change from
+	// outside this component (API, another panel). On window focus or a
+	// pointerdown on the selector, re-read the directory so the label
+	// reflects host truth - bypassing toggle()'s one-shot guard, which is
+	// untouched. load()'s own `loading` guard dedupes overlapping refreshes.
+	function refresh(): void {
+		void load();
+	}
+
 	function toggle(): void {
 		open = !open;
 		if (open && directory === null && error === null) void load();
@@ -141,7 +150,8 @@
 	});
 </script>
 
-<div class="relative" use:clickOutside={{ open, onDismiss: dismissMenu }}>
+<svelte:window onfocus={refresh} />
+<div class="relative" role="group" use:clickOutside={{ open, onDismiss: dismissMenu }} onpointerdown={refresh}>
 	<button
 		type="button"
 		class="inline-flex items-center gap-1 rounded-md border border-[var(--color-accent-deep)] px-2 py-1 text-xs font-medium text-[var(--color-accent-deep)] hover:bg-surface-alt disabled:opacity-50"

@@ -80,6 +80,25 @@ export function normalizeModelSelection(v: unknown): DsiModelSelection | null {
 }
 
 /**
+ * SC2 (2026-11-28, ADR-0086 Amendment 1): the host's session/modelCatalog is
+ * floor-wide (its descriptor refuses any sessionId argument), but session/list
+ * rows carry each session's OWN selection in
+ * projections.values.modelSelection {lastUsed, next}. `next` is the routing
+ * truth for the coming turn; `lastUsed` is the fallback. Structural read —
+ * null when absent/junk, never throws.
+ */
+export function perSessionSelectionOf(row: unknown): DsiModelSelection | null {
+	const proj =
+		row !== null && typeof row === 'object'
+			? (row as { projections?: { values?: Record<string, unknown> } }).projections
+			: undefined;
+	const sel = proj?.values?.['modelSelection'];
+	if (sel === null || typeof sel !== 'object') return null;
+	const s = sel as { next?: unknown; lastUsed?: unknown };
+	return normalizeModelSelection(s.next) ?? normalizeModelSelection(s.lastUsed);
+}
+
+/**
  * Conservative normalize of a SessionModels value: structural reads only,
  * never throws, never invents data (task 3.2-T: a garbage catalog → empty
  * groups + empty failures, honest `routable`/`current` — the selector can

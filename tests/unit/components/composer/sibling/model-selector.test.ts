@@ -432,3 +432,65 @@ describe('ModelSelector — dismissal contract (spec 2026-11-01)', () => {
 	});
 });
 
+describe('ModelSelector — SC1 refresh (ADR-0086)', () => {
+	it('window focus refetches the directory and the label shows the new pick', async () => {
+		let current = directory();
+		const { calls } = stubFetch(() => json(current));
+		const h = mountSelector();
+		await settle();
+		expect(calls).toHaveLength(1); // mount GET only
+		const btn = h.target.querySelector('[data-testid="model-selector-button"]') as HTMLElement;
+		expect(btn.textContent).toContain('openai / gpt-5');
+
+		// The host's selection changed from outside the component.
+		current = directory({ current: { provider: 'zai', model: 'glm-5.3-flash' } });
+		window.dispatchEvent(new Event('focus'));
+		await settle();
+		expect(calls).toHaveLength(2); // exactly one refetch for the focus
+		expect(btn.textContent).toContain('zai / glm-5.3-flash');
+		h.cleanup();
+	});
+
+	it('a pointerdown inside the selector triggers exactly one refetch', async () => {
+		const { calls } = stubFetch(() => json(directory()));
+		const h = mountSelector();
+		await settle();
+		expect(calls).toHaveLength(1);
+		const btn = h.target.querySelector('[data-testid="model-selector-button"]') as HTMLElement;
+		btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		await settle();
+		// One mount GET + exactly one refresh GET (in-flight guard dedupes).
+		expect(calls.filter((c) => c.url.includes('/models'))).toHaveLength(2);
+		h.cleanup();
+	});
+
+	it('overlapping refreshes collapse into a single in-flight GET', async () => {
+		const { calls } = stubFetch(() => json(directory()));
+		const h = mountSelector();
+		await settle();
+		const btn = h.target.querySelector('[data-testid="model-selector-button"]') as HTMLElement;
+		btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		await settle();
+		expect(calls.filter((c) => c.url.includes('/models'))).toHaveLength(2); // mount + one collapsed refresh
+		h.cleanup();
+	});
+
+	it('menu-open still never refetches once the directory is loaded (no storm)', async () => {
+		const { calls } = stubFetch(() => json(directory()));
+		const h = mountSelector();
+		await settle();
+		const btn = h.target.querySelector('[data-testid="model-selector-button"]') as HTMLButtonElement;
+		btn.click();
+		await settle();
+		btn.click(); // close
+		await settle();
+		btn.click(); // reopen — cached directory, one-shot preserved
+		await settle();
+		expect(h.target.querySelector('[data-testid="model-selector-menu"]')).not.toBeNull();
+		expect(calls.filter((c) => c.url.includes('/models'))).toHaveLength(1); // mount GET only
+		h.cleanup();
+	});
+});
+

@@ -48,6 +48,18 @@ export const ZAI_PROVIDER = {
 					contextWindow: 1000000,
 					maxTokens: 131072,
 					input: ['text', 'image'],
+					// glm-5.4 is not yet in pi-ai's installed zai catalog: without this
+					// flag the requested reasoning effort is silently dropped and the
+					// server defaults to its heaviest thinking level.
+					compat: { supportsReasoningEffort: true },
+					// Cap the thinking phase: medium thinks at low, high at medium;
+					// undeclared levels (minimal, xhigh, max) are pinned unsupported.
+					reasoningEfforts: {
+						off: null,
+						low: 'low',
+						medium: 'low',
+						high: 'medium',
+					},
 				},
 			],
 		},

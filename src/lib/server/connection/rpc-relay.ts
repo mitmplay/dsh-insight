@@ -46,7 +46,7 @@ import type {
 	DsiScheduledTask,
 } from '$lib/types';
 import { readDshPresetEnglishConfig } from '$lib/server/insight-config';
-import { normalizeModelDirectory, normalizeModelSelection, normalizePreset, normalizeSessionRow, expandRecords } from './normalize';
+import { normalizeModelDirectory, normalizeModelSelection, normalizePreset, normalizeSessionRow, perSessionSelectionOf, expandRecords } from './normalize';
 import type { DshPreset, ListResult, RawPresetRow } from './normalize';
 /**
  * POC-3 W1 — an answerable frame awaiting a human (registry value).
@@ -1100,12 +1100,24 @@ export class RpcRelay {
 	 * diagnostics — successful groups remain usable. Garbage-safe normalize
 	 * below never throws (task 3.2-T: garbage catalog → empty, not an error).
 	 */
-	async listModels(_sessionId: string): Promise<DsiModelDirectory> {
-		void _sessionId;
-		// 0.1.2: session.models → session/modelCatalog (host-generation,
-		// no per-session argument).
+	async listModels(sessionId: string): Promise<DsiModelDirectory> {
+		// SC2 (2026-11-28, ADR-0086 Amendment 1): the catalog is FLOOR-WIDE —
+		// the host descriptor refuses any sessionId argument — so the directory
+		// (groups/failures/routable) comes from the argless catalog call, and the
+		// per-session `current` comes from the session's OWN session/list row
+		// (projections.values.modelSelection, `next` first — the routing truth
+		// for the coming turn). A session row without a readable selection, or a
+		// failed list, keeps the catalog's floor-wide answer (honest fallback).
 		const raw = (await this.conn.rpc(DSH_METHODS.modelCatalog, DSH_ARGS.modelCatalog())) as unknown;
-		return normalizeModelDirectory(raw);
+		const directory = normalizeModelDirectory(raw);
+		try {
+			const row = (await this.rawListSessions()).find((r) => r.sessionId === sessionId);
+			const current = row === undefined ? null : perSessionSelectionOf(row);
+			if (current !== null) return { ...directory, current };
+		} catch {
+			// list failure never hides the directory — floor-wide current stays.
+		}
+		return directory;
 	}
 
 	/**

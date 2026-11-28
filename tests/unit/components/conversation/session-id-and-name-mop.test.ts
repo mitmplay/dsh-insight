@@ -45,17 +45,18 @@ describe('SessionIdAndName branch mop', () => {
     const { target, cleanup } = mountCluster();
     await vi.waitFor(() => expect(copyButton(target)).not.toBeNull());
 
-    // idle: the two-rectangle copy glyph (plus its tail path)
-    expect(copyButton(target)!.querySelector('rect')).not.toBeNull();
-    expect(copyButton(target)!.querySelector('path[d^="M3 8.5"]')).toBeNull();
+    // idle: the lucide Copy glyph (KISS 2026-11-26 — CopyButton renders
+    // the icons; no more hand-drawn rects/paths)
+    expect(copyButton(target)!.querySelector('.lucide-copy')).not.toBeNull();
+    expect(copyButton(target)!.querySelector('.lucide-check')).toBeNull();
 
     copyButton(target)!.click();
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(PATH));
     flushSync();
 
-    // copied: the check-mark path replaces the rectangles
-    expect(copyButton(target)!.querySelector('rect')).toBeNull();
-    expect(copyButton(target)!.querySelector('path[d^="M3 8.5"]')).not.toBeNull();
+    // copied: the lucide Check glyph replaces the Copy glyph
+    expect(copyButton(target)!.querySelector('.lucide-copy')).toBeNull();
+    expect(copyButton(target)!.querySelector('.lucide-check')).not.toBeNull();
     cleanup();
   });
 
